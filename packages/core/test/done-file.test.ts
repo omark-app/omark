@@ -38,9 +38,7 @@ const state = (tasks: string, done: DoneDoc = { lines: [] }): State => ({ doc: p
 test('sweepCompleted moves done items and leaves open tasks', () => {
   const s = state('# Tasks\n- [ ] Keep\n- [x] Finished ✅ 2026-10-15\n    - a note\n');
   const r = sweepCompleted(s, '2026-10-16')!;
-  expect(serializeTasks(r.doc)).toBe('# Always
-
-# Tasks\n- [ ] Keep\n');
+  expect(serializeTasks(r.doc)).toBe('# Always\n\n# Tasks\n- [ ] Keep\n');
   expect(r.done.lines.map((l) => l.raw)).toEqual(['- [x] Finished ✅ 2026-10-15', '    - a note']);
   expect(sweepCompleted(state('# Tasks\n- [ ] Keep\n'), '2026-10-16')).toBeNull();
 });
