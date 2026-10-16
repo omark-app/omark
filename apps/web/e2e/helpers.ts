@@ -1,0 +1,54 @@
+import type { Page } from '@playwright/test';
+
+export type FileName = 'tasks.md' | 'done.md' | 'config.yaml';
+
+/** The tasks.md example from spec section 3.3. */
+export const SPEC_TASKS = `# Always
+- Walk before the first coffee
+- One tab at a time
+
+# Tasks
+- [ ] Call the dentist about the crown 📅 2026-10-16
+    - ask about zirconia
+    - bring the old x-ray
+- [ ] Water the plants 🔁 every week on Monday 📅 2026-10-19
+- [ ] Send the invoice 📅 2026-10-19
+- [ ] Learn Polish sign language
+`;
+
+/**
+ * Opens the app on a fake OneDrive seeded with `files`, with the browser clock fixed at `now`
+ * (local time, default 2026-10-16 09:00).
+ */
+export async function openApp(
+  page: Page,
+  opts: { files?: Partial<Record<FileName, string>>; now?: string } = {},
+): Promise<void> {
+  const files = opts.files ?? {};
+  await page.clock.setFixedTime(new Date(opts.now ?? '2026-10-16T09:00:00'));
+  await page.addInitScript((seed) => {
+    (window as unknown as { __TASKAPP_SEED__: unknown }).__TASKAPP_SEED__ = seed;
+  }, files);
+  await page.goto('/');
+}
+
+
+/** The current text of a file on the fake drive ('' if it does not exist). */
+export async function driveFile(page: Page, name: FileName): Promise<string> {
+  return page.evaluate((n) => {
+    const f = (window as unknown as { __taskappFake: { peek(name: string): string | null } }).__taskappFake;
+    return f.peek(n) ?? '';
+  }, name);
+}
+
+/** Writes a file on the fake drive as another device would. */
+export async function externalWrite(page: Page, name: FileName, text: string): Promise<void> {
+  await page.evaluate(
+    ([n, t]) => {
+      const f = (window as unknown as { __taskappFake: { externalWrite(name: string, text: string): void } }).__taskappFake;
+      f.externalWrite(n!, t!);
+    },
+    [name, text],
+  );
+}
+
