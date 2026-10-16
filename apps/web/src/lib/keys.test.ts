@@ -4,7 +4,7 @@ import type { Shortcuts } from '@taskapp/core';
 import { commandFor } from './keys.ts';
 
 const sc = DEFAULT_CONFIG.shortcuts;
-const ev = (key: string, over: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean; typing: boolean }> = {}) => ({
+const ev = (key: string, over: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean; repeat: boolean; typing: boolean }> = {}) => ({
   key,
   ctrlKey: false,
   metaKey: false,
@@ -38,5 +38,26 @@ describe('commandFor', () => {
     const custom: Shortcuts = { ...sc, complete: ['c'] };
     expect(commandFor(ev('c'), custom)).toBe('complete');
     expect(commandFor(ev('x'), custom)).toBeNull();
+  });
+
+  it('ignores auto-repeat except for up and down', () => {
+    expect(commandFor(ev('Delete', { repeat: true }), sc)).toBeNull();
+    expect(commandFor(ev('x', { repeat: true }), sc)).toBeNull();
+    expect(commandFor(ev('j', { repeat: true }), sc)).toBe('down');
+    expect(commandFor(ev('ArrowUp', { repeat: true }), sc)).toBe('up');
+  });
+
+  it('does not treat Ctrl+Shift+Z as undo', () => {
+    expect(commandFor(ev('Z', { ctrlKey: true, shiftKey: true }), sc)).toBeNull();
+    expect(commandFor(ev('z', { ctrlKey: true, shiftKey: true }), sc)).toBeNull();
+  });
+
+  it('matches an uppercase letter (Caps Lock) to its lowercase shortcut, but not with Shift held', () => {
+    expect(commandFor(ev('X'), sc)).toBe('complete');
+    expect(commandFor(ev('X', { shiftKey: true }), sc)).toBeNull();
+  });
+
+  it('ignores AltGr characters', () => {
+    expect(commandFor(ev('ż', { ctrlKey: true, altKey: true }), sc)).toBeNull();
   });
 });

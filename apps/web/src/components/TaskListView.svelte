@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { BUCKETS, hasWeekLeft } from '@taskapp/core';
+  import { tick } from 'svelte';
+  import { BUCKETS, findTask, hasWeekLeft } from '@taskapp/core';
   import type { Command } from '@taskapp/core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import Bucket from './Bucket.svelte';
@@ -9,6 +10,7 @@
   import StatusLine from './StatusLine.svelte';
   import Toast from './Toast.svelte';
   import AddInput from './AddInput.svelte';
+  import TaskDetail from './TaskDetail.svelte';
   import { commandFor, isTypingTarget, sheetOpen } from '../lib/keys.ts';
 
   /** `pickDate`, `repeat` and `edit` open UI that other tasks provide; they report the selected task here. */
@@ -18,6 +20,8 @@
   }: { store: AppStore; onCommand?: (command: 'pickDate' | 'repeat' | 'edit', id: string) => void } = $props();
 
   let addInput: AddInput | undefined = $state();
+  let detail: TaskDetail | undefined = $state();
+  const selected = $derived(store.selectedId === null ? null : (findTask(store.state, store.selectedId) ?? null));
 
   // Under 720 px is "phone": a compact stats line on top instead of the tiles in the right pane.
   const query = window.matchMedia('(max-width: 719.98px)');
@@ -52,13 +56,28 @@
       case 'someday': store.moveTo(id, 'someday'); break;
       case 'complete': store.complete(id); break;
       case 'delete': store.remove(id); break;
+      case 'edit':
+        if (phone) return false;
+        void tick().then(() => detail?.focusTitle());
+        onCommand(command, id);
+        break;
       case 'pickDate':
       case 'repeat':
-      case 'edit':
         onCommand(command, id);
         break;
     }
     return true;
+  }
+
+  /** Enter on a focused button or link is that control's own click, never the edit command. */
+  const isControl = (el: EventTarget | null): boolean => el instanceof Element && el.closest('button, a') !== null;
+
+  function ondblclick(e: MouseEvent): void {
+    if (phone || isControl(e.target)) return;
+    const row = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-testid="task-row"]') : null;
+    if (!row?.dataset.id) return;
+    store.select(row.dataset.id);
+    run('edit');
   }
 
   function onkeydown(e: KeyboardEvent): void {
@@ -68,10 +87,13 @@
         ctrlKey: e.ctrlKey,
         metaKey: e.metaKey,
         altKey: e.altKey,
+        shiftKey: e.shiftKey,
+        repeat: e.repeat,
         typing: isTypingTarget(e.target) || sheetOpen(),
       },
       store.config.shortcuts,
     );
+    if (command === 'edit' && isControl(e.target)) return;
     if (command !== null && run(command)) e.preventDefault();
   }
 </script>
@@ -82,7 +104,9 @@
   {#if store.cacheWarning}<p class="warn" role="status">{store.cacheWarning}</p>{/if}
   {#if phone}<Stats stats={store.stats} variant="line" />{/if}
   <div class="frame">
-    <section class="pane tasks">
+    <!-- Double-click is a pointer convenience; the keyboard edits with Enter. -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <section class="pane tasks" {ondblclick}>
       <span class="legend">tasks</span>
       {#if !phone}<AddInput bind:this={addInput} {store} />{/if}
       <div class="buckets">
@@ -92,8 +116,16 @@
       </div>
     </section>
     <aside class="pane side">
-      <span class="legend">always</span>
-      <AlwaysList lines={store.state.doc.always} />
+      {#if selected && !phone}
+        <span class="legend">task</span>
+        {#key selected.id}
+          <TaskDetail bind:this={detail} {store} task={selected} oncommand={(c) => onCommand(c, selected.id)} />
+        {/key}
+        <div class="under"><span class="lab">Always</span><AlwaysList lines={store.state.doc.always} /></div>
+      {:else}
+        <span class="legend">always</span>
+        <AlwaysList lines={store.state.doc.always} />
+      {/if}
       {#if !phone}<Stats stats={store.stats} variant="box" />{/if}
     </aside>
   </div>
@@ -110,6 +142,8 @@
   .frame { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; background: var(--surface); border-radius: 14px; padding: 24px 22px 20px; box-shadow: var(--shadow); }
   .pane { position: relative; display: flex; flex-direction: column; gap: 14px; min-width: 0; min-height: 600px; border: 1px solid var(--line); border-radius: 10px; padding: 24px 12px 14px; }
   .legend { position: absolute; top: -9px; left: 14px; padding: 0 8px; background: var(--surface); font: 12px var(--mono); color: var(--faint); }
+  .under { display: flex; flex-direction: column; gap: 8px; }
+  .lab { font: 500 11px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
   .buckets { display: flex; flex-direction: column; gap: 12px; }
   .foot { display: flex; justify-content: space-between; align-items: center; gap: 10px 16px; flex-wrap: wrap; padding: 2px 8px; }
   @media (max-width: 719.98px) {

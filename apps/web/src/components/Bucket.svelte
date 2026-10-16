@@ -36,6 +36,7 @@
         labelStyle={store.config.dateLabels}
         selected={store.selectedId === task.id}
         onselect={() => store.select(task.id)}
+        oncomplete={() => store.complete(task.id)}
       />
     {:else}
       <div class="empty">{EMPTY[key]}</div>
