@@ -312,7 +312,7 @@
   - `items` is everything after `# Tasks`, in file order. `preamble` is anything before `# Always`.
   - A task the app hasn't changed (`taskKey(t) === t.rawKey`) is written back as `raw`. A changed task is written in canonical form.
   - A 🔁 is extracted only if `parseRepeat` accepts it; otherwise its text stays in the title.
-  - `DoneEntry` is defined in Task 9. Declare it in `model.ts` now: `{ title: string; repeat: RepeatRule | null; doneOn: ISODate }`.
+  - `DoneEntry` is defined in Task 9. Declare it in `model.ts` now: `{ title: string; repeat: RepeatRule | null; doneOn: ISODate | null }` (`null` for a `- [x]` line with no ✅ date, e.g. ticked in Obsidian without the Tasks plugin).
 
 - [ ] **Step 1: Write the failing tests:**
   - `spec-example.md` (the spec §3.3 block) round-trips byte-for-byte. It parses to 4 tasks; the first has notes `['ask about zirconia', 'bring the old x-ray']` and date `2026-10-16`; the second has repeat weekly `[0]`; the last has date `null`; and `always` is `['Walk before the first coffee', 'One tab at a time']`.
@@ -361,7 +361,7 @@
   parseDone(text: string): DoneDoc
   serializeDone(doc: DoneDoc): string
   doneLine(task: Task, today: ISODate): DoneLine                 // canonical `- [x] {title} 🔁 {rule} ✅ {today}`
-  sweepCompleted(state: State): State | null                     // null = nothing to sweep
+  sweepCompleted(state: State, today: ISODate): State | null      // null = nothing to sweep; undated items are stamped with today
   ```
 
 - [ ] **Step 1: Write the failing tests:**
@@ -373,6 +373,7 @@
     - appends its raw line(s) to `done.lines`;
     - leaves the `- [ ]` tasks untouched;
     - returns `null` when there are no done items.
+  - An undated done item (`- [x] Ticked in Obsidian`, `doneOn: null`) swept on `2026-10-16` appends the canonical `- [x] Ticked in Obsidian ✅ 2026-10-16`.
 - [ ] **Step 2: Run** → FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** → PASS.
@@ -533,7 +534,7 @@
   - **Only entries from today (2 of them):** `avg: null`, `all: 2`.
   - **Entries:** 10-14 ×2, 10-15 ×1, 10-16 ×3. Expect `today: 3`, `avg: 1.5` (3 completions over 2 full days, zero days count), `last7: 3`, `prev7: null`, `all: 6`. It formats as `Today 3 (1.5) · 7d 3 (–) · All 6`.
   - **First entry `2026-10-02`, 14 full days:** `prev7` is the sum of 10-02..10-08, and `last7` is the sum of 10-09..10-15. The trend is `up` when last7 > prev7, `down` when less, and `flat` (`→`) when equal.
-  - Lines with `entry: null` are not counted.
+  - Lines with `entry: null` or `doneOn: null` are not counted.
   - `avg` formats to one decimal place.
 - [ ] **Step 2: Run** → FAIL.
 - [ ] **Step 3: Implement.**
