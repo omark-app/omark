@@ -681,7 +681,7 @@
     onStatus(cb: (s: SyncStatus) => void): () => void;
     open(): Promise<string>;                                   // cached local first; then pull; creates remote with `initial` if missing
     pull(): Promise<{ text: string; changed: boolean }>;       // changed = remote content altered our text
-    save(text: string): Promise<void>;                         // cache.put(dirty) BEFORE any network call
+    save(text: string, base: string): Promise<void>;           // base = text the edit started from (Ruling 21); cache.put(dirty) BEFORE any network call
   }
   ```
 
@@ -715,7 +715,7 @@
   interface Workspace {
     open(): Promise<Snapshot>;
     refresh(): Promise<Snapshot & { changed: boolean }>;   // re-reads all three files
-    save(files: { tasks?: string; done?: string }): Promise<void>; // tasks.md first, then done.md
+    save(files: { tasks?: { text: string; base: string }; done?: { text: string; base: string } }): Promise<void>; // tasks.md first, then done.md (Ruling 21)
     status(): SyncStatus;                                   // worst of the three: signin > offline > syncing > saved
     onStatus(cb: (s: SyncStatus) => void): () => void;
   }
