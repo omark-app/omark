@@ -17,6 +17,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@taskapp/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@taskapp/storage':
         specifier: workspace:*
         version: link:../../packages/storage

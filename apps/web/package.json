@@ -7,7 +7,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "test": "vitest run --root ../.. --project web"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
@@ -20,6 +21,7 @@
     "vitest": "^3.2.7"
   },
   "dependencies": {
+    "@taskapp/core": "workspace:*",
     "@taskapp/storage": "workspace:*",
     "svelte": "^5.57.2"
   }
