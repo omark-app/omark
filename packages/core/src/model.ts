@@ -18,3 +18,39 @@ export type RepeatRule =
   | { type: 'yearly' }
   | { type: 'every'; n: number; unit: 'days' | 'weeks' }
   | { type: 'after'; n: number };
+
+/** An open task in `tasks.md`. `raw`/`rawKey` are the block as read and its `taskKey`; null for tasks the app created. */
+export interface Task {
+  id: string;
+  title: string;
+  notes: string[];
+  date: ISODate | null;
+  repeat: RepeatRule | null;
+  raw: string[] | null;
+  rawKey: string | null;
+}
+
+/** One completion, as written to `done.md` (Task 9). */
+export interface DoneEntry {
+  title: string;
+  repeat: RepeatRule | null;
+  doneOn: ISODate;
+}
+
+/** A block of the Tasks section, in file order. `raw` lines are kept exactly as read. */
+export type Item =
+  | { kind: 'task'; task: Task }
+  | { kind: 'done'; entry: DoneEntry; raw: string[] }
+  | { kind: 'raw'; lines: string[] };
+
+/**
+ * A parsed `tasks.md`. `preamble` is anything before `# Always`; `items` is everything after `# Tasks`.
+ * `alwaysRaw` is the Always section as read (from its heading through the `# Tasks` heading) plus the
+ * `always` it parsed to; the section is written back from it while `always` is unchanged.
+ */
+export interface TasksDoc {
+  preamble: string[];
+  always: string[];
+  items: Item[];
+  alwaysRaw?: { lines: string[]; key: string };
+}
