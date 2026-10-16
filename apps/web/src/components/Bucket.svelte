@@ -20,15 +20,23 @@
 </script>
 
 <section class="bucket" data-testid="bucket-{key}">
-  <button class="bhead" data-testid="bucket-head-{key}" aria-expanded={!folded} onclick={() => store.toggleFold(key)}>
-    <span class="chev" aria-hidden="true">{folded ? '▸' : '▾'}</span>
-    <h2>{name}</h2>
-    {#if range}<span class="range">{range}</span>{/if}
-    <span class="count" data-testid="bucket-count-{key}">{tasks.length}</span>
-  </button>
+  <h2>
+    <button class="bhead" data-testid="bucket-head-{key}" aria-expanded={!folded} onclick={() => store.toggleFold(key)}>
+      <span class="chev" aria-hidden="true">{folded ? '▸' : '▾'}</span>
+      <span class="name">{name}</span>
+      {#if range}<span class="range">{range}</span>{/if}
+      <span class="count" data-testid="bucket-count-{key}">{tasks.length}</span>
+    </button>
+  </h2>
   {#if !folded}
     {#each tasks as task (task.id)}
-      <TaskRow {task} ctx={store.ctx} labelStyle={store.config.dateLabels} selected={store.selectedId === task.id} />
+      <TaskRow
+        {task}
+        ctx={store.ctx}
+        labelStyle={store.config.dateLabels}
+        selected={store.selectedId === task.id}
+        onselect={() => store.select(task.id)}
+      />
     {:else}
       <div class="empty">{EMPTY[key]}</div>
     {/each}
@@ -37,9 +45,10 @@
 
 <style>
   .bucket { display: flex; flex-direction: column; gap: 1px; border-radius: 10px; }
-  .bhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; width: 100%; padding: 6px 10px; background: none; border: 0; cursor: pointer; text-align: left; user-select: none; border-radius: 6px; }
+  .bhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; width: 100%; padding: 6px 10px; color: inherit; background: none; border: 0; cursor: pointer; text-align: left; user-select: none; border-radius: 6px; }
   .bhead:hover .chev { color: var(--ink); }
-  h2 { margin: 0; font: 600 17px/1.3 var(--mono); letter-spacing: -.01em; }
+  h2 { margin: 0; font: inherit; }
+  .name { font: 600 17px/1.3 var(--mono); letter-spacing: -.01em; color: var(--ink); }
   .chev { width: 10px; font-size: 10px; color: var(--faint); transform: translateY(-1px); }
   .count { margin-left: auto; font: 13px var(--mono); color: var(--faint); font-variant-numeric: tabular-nums; }
   .range { font: 12px var(--mono); color: var(--faint); }

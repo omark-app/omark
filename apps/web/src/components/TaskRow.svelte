@@ -7,7 +7,13 @@
     ctx,
     labelStyle,
     selected = false,
-  }: { task: Task; ctx: WeekCtx; labelStyle: DateLabelStyle; selected?: boolean } = $props();
+    onselect,
+  }: { task: Task; ctx: WeekCtx; labelStyle: DateLabelStyle; selected?: boolean; onselect?: () => void } = $props();
+
+  let el: HTMLDivElement | undefined = $state();
+  $effect(() => {
+    if (selected) el?.scrollIntoView?.({ block: 'nearest' });
+  });
 
   const label = $derived(metaLabel(task, ctx, labelStyle));
   const empty = $derived(label.text === null && !label.repeat);
@@ -16,7 +22,9 @@
   );
 </script>
 
-<div class="task" class:sel={selected} data-testid="task-row" data-id={task.id}>
+<!-- Keyboard users select with j/k, so the click handler is a pointer convenience. -->
+<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+<div bind:this={el} class="task" class:sel={selected} data-testid="task-row" data-id={task.id} onclick={onselect}>
   <button class="check" data-testid="task-check" aria-label="Complete {task.title}"></button>
   <div class="title">
     {task.title}{#if task.notes.length > 0}<span class="ni" title="{task.notes.length} note{task.notes.length > 1 ? 's' : ''}">≡</span>{/if}

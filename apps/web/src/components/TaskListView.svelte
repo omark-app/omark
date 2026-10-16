@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { BUCKETS } from '@taskapp/core';
+  import { BUCKETS, hasWeekLeft } from '@taskapp/core';
+  import type { Command } from '@taskapp/core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import Bucket from './Bucket.svelte';
   import AlwaysList from './AlwaysList.svelte';
@@ -7,8 +8,16 @@
   import Hints from './Hints.svelte';
   import StatusLine from './StatusLine.svelte';
   import Toast from './Toast.svelte';
+  import AddInput from './AddInput.svelte';
+  import { commandFor, isTypingTarget, sheetOpen } from '../lib/keys.ts';
 
-  let { store }: { store: AppStore } = $props();
+  /** `pickDate`, `repeat` and `edit` open UI that other tasks provide; they report the selected task here. */
+  let {
+    store,
+    onCommand = () => {},
+  }: { store: AppStore; onCommand?: (command: 'pickDate' | 'repeat' | 'edit', id: string) => void } = $props();
+
+  let addInput: AddInput | undefined = $state();
 
   // Under 720 px is "phone": a compact stats line on top instead of the tiles in the right pane.
   const query = window.matchMedia('(max-width: 719.98px)');
@@ -20,7 +29,54 @@
     query.addEventListener('change', on);
     return () => query.removeEventListener('change', on);
   });
+
+  /** Runs `command`; true when it did something, so the key press is consumed. */
+  function run(command: Command): boolean {
+    switch (command) {
+      case 'focusAdd':
+        if (phone) return false;
+        addInput?.focus();
+        return true;
+      case 'down': store.selectNext(1); return true;
+      case 'up': store.selectNext(-1); return true;
+      case 'undo': store.undo(); return true;
+      case 'deselect': store.select(null); return true;
+      case 'switchView': store.switchView(); return true;
+    }
+    const id = store.selectedId;
+    if (id === null) return false;
+    switch (command) {
+      case 'today': store.moveTo(id, 'today'); break;
+      case 'thisWeek': store.moveTo(id, hasWeekLeft(store.ctx) ? 'week' : 'today'); break;
+      case 'nextWeek': store.moveTo(id, 'next'); break;
+      case 'someday': store.moveTo(id, 'someday'); break;
+      case 'complete': store.complete(id); break;
+      case 'delete': store.remove(id); break;
+      case 'pickDate':
+      case 'repeat':
+      case 'edit':
+        onCommand(command, id);
+        break;
+    }
+    return true;
+  }
+
+  function onkeydown(e: KeyboardEvent): void {
+    const command = commandFor(
+      {
+        key: e.key,
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+        altKey: e.altKey,
+        typing: isTypingTarget(e.target) || sheetOpen(),
+      },
+      store.config.shortcuts,
+    );
+    if (command !== null && run(command)) e.preventDefault();
+  }
 </script>
+
+<svelte:window {onkeydown} />
 
 <div class="wrap">
   {#if store.cacheWarning}<p class="warn" role="status">{store.cacheWarning}</p>{/if}
@@ -28,6 +84,7 @@
   <div class="frame">
     <section class="pane tasks">
       <span class="legend">tasks</span>
+      {#if !phone}<AddInput bind:this={addInput} {store} />{/if}
       <div class="buckets">
         {#each BUCKETS as b (b.key)}
           <Bucket {store} key={b.key} name={b.name} />
