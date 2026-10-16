@@ -62,10 +62,9 @@ export interface DoneLine {
   raw: string;
 }
 
-/** A parsed `done.md`. `unterminated` marks a file read without a final newline, so it is written back the same. */
+/** A parsed `done.md`. */
 export interface DoneDoc {
   lines: DoneLine[];
-  unterminated?: boolean;
 }
 
 /** Both files, as the app holds them in memory. */

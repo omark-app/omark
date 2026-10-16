@@ -5,16 +5,14 @@ import { DONE_LINE, parseFields, toLines } from './tasks-file.ts';
 /** Parses `done.md`. A line without a valid `- [x] … ✅ date` shape is kept as is with `entry: null`. */
 export function parseDone(text: string): DoneDoc {
   const lines = toLines(text).map<DoneLine>((raw) => ({ entry: doneEntry(raw), raw }));
-  const doc: DoneDoc = { lines };
-  if (lines.length > 0 && !/\n$/.test(text.replace(/\r\n/g, '\n'))) doc.unterminated = true;
-  return doc;
+  return { lines };
 }
 
-/** Writes `done.md` with LF line endings; lines are written exactly as read. */
+/** Writes `done.md` with LF line endings and exactly one final newline (empty doc gives ''). */
 export function serializeDone(doc: DoneDoc): string {
   if (doc.lines.length === 0) return '';
   const text = doc.lines.map((l) => l.raw).join('\n');
-  return doc.unterminated ? text : `${text}\n`;
+  return `${text}\n`;
 }
 
 /** The canonical line for completing `task` today: `- [x] {title} 🔁 {rule} ✅ {today}`. */
@@ -32,6 +30,7 @@ export function sweepCompleted(state: State, today: ISODate): State | null {
     if (item.kind !== 'done') return true;
     if (item.entry.doneOn === null) {
       appended.push(canonical(item.entry.title, item.entry.repeat, today));
+      for (const raw of item.raw.slice(1)) appended.push({ entry: doneEntry(raw), raw });
     } else {
       for (const raw of item.raw) appended.push({ entry: doneEntry(raw), raw });
     }
