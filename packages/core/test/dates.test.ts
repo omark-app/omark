@@ -34,3 +34,8 @@ test('weekCtx builds context from a local date', () => {
   expect(weekCtx(new Date(2026, 9, 16, 9, 0))).toEqual({ today: '2026-10-16', weekStart: 0 });
   expect(weekCtx(new Date(2026, 9, 16, 9, 0), 6)).toEqual({ today: '2026-10-16', weekStart: 6 });
 });
+
+test('core tests run in Europe/Warsaw', () => {
+  expect(new Date(2026, 0, 15).getTimezoneOffset()).toBe(-60);
+  expect(new Date(2026, 6, 15).getTimezoneOffset()).toBe(-120);
+});
