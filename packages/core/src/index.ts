@@ -9,3 +9,4 @@ export * from './labels.ts';
 export * from './buckets.ts';
 export * from './ops.ts';
 export * from './drop.ts';
+export * from './stats.ts';
