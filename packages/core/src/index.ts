@@ -8,3 +8,4 @@ export * from './done-file.ts';
 export * from './labels.ts';
 export * from './buckets.ts';
 export * from './ops.ts';
+export * from './drop.ts';
