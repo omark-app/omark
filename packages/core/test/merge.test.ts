@@ -241,6 +241,84 @@ test('mergeDoneText: a line removed locally (undo) is gone, while a remote appen
   expect(mergeDoneText(base, local, base)).toBe(DONE_BASE);
 });
 
+test('mergeDoneText: the same line appended twice on one side keeps both copies, in both directions', () => {
+  const water = '- [x] Water the plants 🔁 every day ✅ 2026-10-20';
+  const twice = DONE_BASE + md(water, water);
+  const other = DONE_BASE + md('- [x] Renew passport ✅ 2026-10-20');
+  expect(mergeDoneText(DONE_BASE, twice, other)).toBe(DONE_BASE + md(water, water, '- [x] Renew passport ✅ 2026-10-20'));
+  expect(mergeDoneText(DONE_BASE, other, twice)).toBe(DONE_BASE + md('- [x] Renew passport ✅ 2026-10-20', water, water));
+});
+
+// ---------- copies of identical blocks ----------
+
+const CALL = '- [ ] Call mom 📅 2026-10-16';
+const CALL_BASE = md(...ALWAYS, BUY, CALL);
+
+test('a new copy of a task survives the other side completing the original', () => {
+  const copied = md(...ALWAYS, BUY, CALL, CALL);
+  const completed = md(...ALWAYS, BUY);
+  expect(mergeTasksText(CALL_BASE, copied, completed)).toBe(md(...ALWAYS, BUY, CALL));
+  expect(mergeTasksText(CALL_BASE, completed, copied)).toBe(md(...ALWAYS, BUY, CALL));
+});
+
+test('a new copy of a task survives the other side editing the original', () => {
+  const copied = md(...ALWAYS, BUY, CALL, CALL);
+  const noted = md(...ALWAYS, BUY, CALL, '    - ask about the trip');
+  expect(mergeTasksText(CALL_BASE, copied, noted)).toBe(md(...ALWAYS, BUY, CALL, CALL, '    - ask about the trip'));
+  expect(mergeTasksText(CALL_BASE, noted, copied)).toBe(md(...ALWAYS, BUY, CALL, '    - ask about the trip', CALL));
+});
+
+test('two identical new blank lines on one side are both kept', () => {
+  expect(merge3(['T1', 'T2'], ["T1'", 'T2'], ['T1', '', '', 'T2'])).toEqual(["T1'", '', '', 'T2']);
+  expect(merge3(['T1', 'T2'], ['T1', '', '', 'T2'], ["T1'", 'T2'])).toEqual(['', '', "T1'", 'T2']);
+});
+
+test('a task both sides moved to different places is not duplicated', () => {
+  expect(merge3(['A', 'B', 'C'], ['B', 'A', 'C'], ['B', 'C', 'A'])).toEqual(['B', 'A', 'C']);
+  expect(merge3(['A', 'B', 'C'], ['B', 'C', 'A'], ['B', 'A', 'C'])).toEqual(['B', 'A', 'C']);
+  // A second identical copy that one side added on purpose is kept.
+  expect(merge3(['A', 'B', 'C'], ['B', 'A', 'C', 'A'], ['B', 'C', 'A'])).toEqual(['B', 'A', 'C', 'A']);
+  expect(merge3(['A', 'B', 'C'], ['B', 'C', 'A'], ['B', 'A', 'C', 'A'])).toEqual(['B', 'A', 'C', 'A']);
+});
+
+test('randomized edits (no moves): no new or edited block is lost, no unchanged base block is duplicated', () => {
+  let seed = 20261016;
+  const rnd = (n: number) => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed % n;
+  };
+  const pool = ['A', 'B', 'C', 'D', '', '## Errands'];
+  const mutate = (base: string[], side: string): string[] => {
+    const out = [...base];
+    for (let k = 0, ops = 1 + rnd(3); k < ops; k++) {
+      const op = rnd(5);
+      if (op === 0 && out.length) out[rnd(out.length)] += `${side}${k}`; // edit
+      else if (op === 1 && out.length) out.splice(rnd(out.length), 1); // delete
+      else if (op === 2) out.splice(rnd(out.length + 1), 0, `N${side}${k}`); // add
+      else out.splice(rnd(out.length + 1), 0, pool[rnd(pool.length)]!); // add a copy of a common block
+    }
+    return out;
+  };
+  const count = (xs: string[]) => {
+    const m = new Map<string, number>();
+    for (const x of xs) m.set(x, (m.get(x) ?? 0) + 1);
+    return m;
+  };
+  for (let it = 0; it < 500; it++) {
+    const base = Array.from({ length: rnd(7) }, () => pool[rnd(pool.length)]!);
+    const local = mutate(base, 'L');
+    const remote = mutate(base, 'R');
+    const out = count(merge3(base, local, remote));
+    const [cb, cl, cr] = [count(base), count(local), count(remote)];
+    for (const x of new Set([...local, ...remote])) {
+      const [o, l, r, m] = [cb.get(x) ?? 0, cl.get(x) ?? 0, cr.get(x) ?? 0, out.get(x) ?? 0];
+      const ctx = JSON.stringify({ x, base, local, remote });
+      expect(m, `lost new copies: ${ctx}`).toBeGreaterThanOrEqual(Math.max(l - o, r - o, 0));
+      if (o > 0) expect(m, `duplicated base block: ${ctx}`).toBeLessThanOrEqual(Math.max(l, r));
+    }
+  }
+});
+
 // ---------- carryIds ----------
 
 test('carryIds: unchanged tasks keep their old ids, and a changed task gets a new id', () => {
