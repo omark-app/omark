@@ -3,3 +3,5 @@ export { AuthRequiredError, OfflineError, PreconditionFailedError } from './erro
 export { FakeOneDrive } from './fake-onedrive.ts';
 export { OneDriveAdapter } from './onedrive-adapter.ts';
 export type { OneDriveAdapterOptions } from './onedrive-adapter.ts';
+export { createAuth } from './auth.ts';
+export type { Auth } from './auth.ts';

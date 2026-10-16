@@ -20,6 +20,7 @@
     "vitest": "^3.2.7"
   },
   "dependencies": {
+    "@taskapp/storage": "workspace:*",
     "svelte": "^5.57.2"
   }
 }

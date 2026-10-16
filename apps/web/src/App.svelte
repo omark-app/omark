@@ -1,3 +1,5 @@
-<main>
-  <h1>TaskApp</h1>
-</main>
+<script lang="ts">
+  import Spike from './spike/Spike.svelte';
+</script>
+
+<Spike />
