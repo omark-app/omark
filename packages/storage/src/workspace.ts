@@ -28,6 +28,12 @@ export interface Workspace {
     tasks?: { text: string; base: string };
     done?: { text: string; base: string };
   }): Promise<void>;
+  /**
+   * Each file's working text right now: every staged edit plus whatever has been absorbed from the
+   * remote. Merging the caller's unstaged edits onto this, against the text it last staged or adopted,
+   * brings in only outside changes.
+   */
+  texts(): Snapshot;
   /** Worst of the three files: signin > offline > syncing > saved. */
   status(): SyncStatus;
   onStatus(cb: (s: SyncStatus) => void): () => void;
@@ -82,6 +88,9 @@ export function createWorkspace(adapter: StorageAdapter, cache: LocalCache): Wor
     async save(files) {
       if (files.tasks) await tasks.save(files.tasks.text, files.tasks.base);
       if (files.done) await done.save(files.done.text, files.done.base);
+    },
+    texts() {
+      return { tasks: tasks.text(), done: done.text(), config: config.text() };
     },
     async stage(files) {
       const errors: unknown[] = [];

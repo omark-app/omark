@@ -35,7 +35,8 @@ class FlakyCache extends MemoryCache {
 /** A drive whose writes (and, separately, reads) can hang until released, like a stalled mobile network. */
 class SlowDrive extends FakeOneDrive {
   hold = false;
-  holdReads = false;
+  /** True to hold every read, or a predicate to hold only some files. */
+  holdReads: boolean | ((name: FileName) => boolean) = false;
   private waiting: (() => void)[] = [];
   private stall(): Promise<void> {
     return new Promise((resolve) => this.waiting.push(resolve));
@@ -50,7 +51,9 @@ class SlowDrive extends FakeOneDrive {
     for (const resolve of this.waiting.splice(0)) resolve();
   }
   override async read(name: FileName) {
-    if (this.holdReads) await this.stall();
+    if (this.holdReads === true || (typeof this.holdReads === 'function' && this.holdReads(name))) {
+      await this.stall();
+    }
     return super.read(name);
   }
   override async write(name: FileName, text: string, ifMatch: string | null) {
@@ -422,5 +425,103 @@ describe('app store', () => {
     expect(tasks).toContain('- [ ] Remote\n');
     expect(tasks).toContain('- [ ] Later 📅 2026-10-16\n');
     expect(drive.peek('done.md')).toBe('- [x] Water the plants 🔁 every week on Monday ✅ 2026-10-16\n');
+  });
+
+  describe('a flush while a refresh is reading', () => {
+    const RACE_SEED = '# Always\n\n# Tasks\n- [ ] One\n- [ ] Weekly 🔁 every week on Monday 📅 2026-10-19\n';
+
+    async function racing(hold: boolean | ((name: FileName) => boolean) = true) {
+      const drive = new SlowDrive({ 'tasks.md': RACE_SEED });
+      const ws = createWorkspace(drive, new MemoryCache());
+      const store = await createStore({ workspace: ws, clock, isPhone: () => false });
+      /** Starts a refresh whose reads hang; `finish` releases them and waits for everything to settle. */
+      const startRefresh = async () => {
+        drive.holdReads = hold;
+        const done = store.refresh();
+        await vi.waitFor(() => expect(drive.stalled).toBeGreaterThan(0));
+        return async () => {
+          drive.release();
+          await done;
+          await vi.runAllTimersAsync();
+          await store.flush();
+          await ws.refresh();
+        };
+      };
+      const tasksOnDrive = (title: string): number =>
+        (drive.peek('tasks.md')!.match(new RegExp(`^- \\[ \\] ${title}( |$)`, 'gm')) ?? []).length;
+      return { drive, store, startRefresh, tasksOnDrive };
+    }
+
+    it('a task added, staged and then renamed comes out once, renamed', async () => {
+      const { store, startRefresh, tasksOnDrive } = await racing();
+      const finish = await startRefresh();
+      store.add('E');
+      await store.flush();
+      store.edit(idOf(store, 'E'), { title: 'F', notes: [] });
+      await finish();
+      expect(allTitles(store)).toEqual(['One', 'Weekly', 'F']);
+      expect(tasksOnDrive('E')).toBe(0);
+      expect(tasksOnDrive('F')).toBe(1);
+    });
+
+    it('a task added, staged and then completed stays completed', async () => {
+      const { drive, store, startRefresh, tasksOnDrive } = await racing();
+      const finish = await startRefresh();
+      store.add('E');
+      await store.flush();
+      store.complete(idOf(store, 'E'));
+      await finish();
+      expect(allTitles(store)).toEqual(['One', 'Weekly']);
+      expect(tasksOnDrive('E')).toBe(0);
+      expect(drive.peek('done.md')).toBe('- [x] E ✅ 2026-10-16\n');
+    });
+
+    it('a task added, staged and then undone stays undone', async () => {
+      const { store, startRefresh, tasksOnDrive } = await racing();
+      const finish = await startRefresh();
+      store.add('E');
+      await store.flush();
+      store.undo();
+      await finish();
+      expect(allTitles(store)).toEqual(['One', 'Weekly']);
+      expect(tasksOnDrive('E')).toBe(0);
+    });
+
+    it('a staged add is not duplicated and the outside change still arrives', async () => {
+      const { drive, store, startRefresh, tasksOnDrive } = await racing();
+      drive.externalWrite('tasks.md', `${RACE_SEED}- [ ] Remote\n`);
+      const finish = await startRefresh();
+      store.add('E');
+      await store.flush();
+      await finish();
+      expect(allTitles(store).filter((t) => t === 'E')).toHaveLength(1);
+      expect(allTitles(store)).toContain('Remote');
+      expect(tasksOnDrive('E')).toBe(1);
+      expect(tasksOnDrive('Remote')).toBe(1);
+    });
+
+    it('a staged add is not duplicated when tasks.md was read before the stage', async () => {
+      const { drive, store, startRefresh, tasksOnDrive } = await racing((name) => name === 'config.yaml');
+      drive.externalWrite('tasks.md', `${RACE_SEED}- [ ] Remote\n`);
+      const finish = await startRefresh();
+      await new Promise((resolve) => setImmediate(resolve)); // let the tasks.md pull finish
+      store.add('E');
+      await store.flush();
+      await finish();
+      expect(allTitles(store).filter((t) => t === 'E')).toHaveLength(1);
+      expect(allTitles(store)).toContain('Remote');
+      expect(tasksOnDrive('E')).toBe(1);
+    });
+
+    it('a completion staged during the refresh is written once', async () => {
+      const { drive, store, startRefresh } = await racing();
+      const finish = await startRefresh();
+      store.complete(idOf(store, 'Weekly'));
+      await store.flush();
+      await finish();
+      expect(drive.peek('done.md')!.match(/Weekly/g)).toHaveLength(1);
+      expect(drive.peek('tasks.md')!.match(/Weekly/g)).toHaveLength(1);
+      expect(drive.peek('tasks.md')).toContain('📅 2026-10-26');
+    });
   });
 });

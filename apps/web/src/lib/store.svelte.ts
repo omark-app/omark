@@ -38,7 +38,7 @@ import type {
   Task,
   WeekCtx,
 } from '@taskapp/core';
-import type { Snapshot, SyncStatus, Workspace } from '@taskapp/storage';
+import type { SyncStatus, Workspace } from '@taskapp/storage';
 import type { Clock } from './clock.ts';
 import * as msg from './messages.ts';
 
@@ -214,17 +214,20 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   }
 
   /**
-   * Takes in what `workspace.refresh()` returned. `from` is the bases when the read began: anything the
-   * store holds beyond `from` (edits made or staged meanwhile) is merged onto `next`, so it is not lost.
+   * Brings outside changes in after a refresh. Runs on the chain and reads the workspace's texts as they
+   * are now (every staged edit plus whatever was absorbed from the remote), never the text the pull
+   * returned earlier: a flush during the read may have staged more since. Against the current bases,
+   * that text differs only by outside changes, and the state only by edits not yet staged.
    */
-  function adopt(next: Snapshot, from: { tasks: string; done: string }): void {
+  function adopt(): void {
+    const next = workspace.texts();
     if (next.config !== configText) applyConfig(next.config);
-    if (next.tasks === from.tasks && next.done === from.done) return;
+    if (next.tasks === base.tasks && next.done === base.done) return;
 
     const localTasks = serializeTasks(state.doc);
     const localDone = serializeDone(state.done);
-    const tasksText = localTasks === from.tasks ? next.tasks : mergeTasksText(from.tasks, localTasks, next.tasks);
-    const doneText = localDone === from.done ? next.done : mergeDoneText(from.done, localDone, next.done);
+    const tasksText = localTasks === base.tasks ? next.tasks : mergeTasksText(base.tasks, localTasks, next.tasks);
+    const doneText = localDone === base.done ? next.done : mergeDoneText(base.done, localDone, next.done);
     base.tasks = next.tasks;
     base.done = next.done;
     // When the merge equals what we hold (e.g. only our own failed-to-cache edit came back), nothing came
@@ -393,19 +396,14 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     clearTimeout(saveTimer);
     saveTimer = undefined;
     tick();
-    let from = { ...base };
-    await serial(async () => {
-      await stageNow();
-      from = { ...base };
-    });
+    await serial(stageNow);
     // The remote reads run outside the chain, so a slow network never holds up a flush.
-    let next: Snapshot;
     try {
-      next = await workspace.refresh();
+      await workspace.refresh();
     } catch {
       return; // The cache could not be read (status shows offline); the next refresh tries again.
     }
-    await serial(async () => adopt(next, from));
+    await serial(async () => adopt());
   }
 
   // Lines ticked in Obsidian were swept on load: write them out.

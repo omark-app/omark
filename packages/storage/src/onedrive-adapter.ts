@@ -64,7 +64,8 @@ export class OneDriveAdapter implements StorageAdapter {
   /** Authenticated Graph call: one retry with a fresh token on 401. */
   private async graph(url: string, init: RequestInit): Promise<Reply> {
     for (let attempt = 0; attempt < 2; attempt++) {
-      const token = await this.getToken();
+      // MSAL can stall too (a hung token refresh), so the token gets the same time limit as a request.
+      const token = await this.withTimeout(() => this.getToken());
       const headers = { ...(init.headers as Record<string, string> | undefined), Authorization: `Bearer ${token}` };
       const res = await this.send(url, { ...init, headers });
       if (res.status !== 401) return res;
@@ -72,11 +73,24 @@ export class OneDriveAdapter implements StorageAdapter {
     throw new AuthRequiredError('Sign-in required');
   }
 
-  /**
-   * One request, body read in full, within `timeoutMs`. On timeout the request is aborted and the call
-   * fails with `OfflineError` even if the fetch ignores the abort.
-   */
+  /** One request, body read in full, within the time limit. A fetch TypeError means the network is down. */
   private async send(url: string, init: RequestInit): Promise<Reply> {
+    try {
+      return await this.withTimeout(async (signal) => {
+        const res = await this.fetchFn(url, { ...init, signal });
+        return { status: res.status, ok: res.ok, text: await res.text() };
+      });
+    } catch (e) {
+      if (e instanceof TypeError) throw new OfflineError('Network unreachable');
+      throw e;
+    }
+  }
+
+  /**
+   * Runs `work` within `timeoutMs`. On timeout its signal is aborted and the call fails with
+   * `OfflineError`, even if `work` ignores the abort.
+   */
+  private async withTimeout<T>(work: (signal: AbortSignal) => Promise<T>): Promise<T> {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timedOut = new Promise<never>((_, reject) => {
@@ -85,17 +99,12 @@ export class OneDriveAdapter implements StorageAdapter {
         reject(new OfflineError('Request timed out'));
       }, this.timeoutMs);
     });
-    const request = (async (): Promise<Reply> => {
-      const res = await this.fetchFn(url, { ...init, signal: controller.signal });
-      return { status: res.status, ok: res.ok, text: await res.text() };
-    })();
-    request.catch(() => {}); // a late failure after the timeout must not go unhandled
+    const run = Promise.resolve().then(() => work(controller.signal)); // a synchronous throw rejects too
+    run.catch(() => {}); // a late failure after the timeout must not go unhandled
     try {
-      return await Promise.race([request, timedOut]);
+      return await Promise.race([run, timedOut]);
     } catch (e) {
-      if (e instanceof OfflineError) throw e;
-      if (controller.signal.aborted) throw new OfflineError('Request timed out');
-      if (e instanceof TypeError) throw new OfflineError('Network unreachable');
+      if (!(e instanceof OfflineError) && controller.signal.aborted) throw new OfflineError('Request timed out');
       throw e;
     } finally {
       clearTimeout(timer);

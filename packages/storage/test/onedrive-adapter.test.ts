@@ -112,6 +112,19 @@ describe('OneDriveAdapter (Graph specifics)', () => {
     await expect(adapter.read('tasks.md')).rejects.toBeInstanceOf(OfflineError);
   });
 
+  it('a token acquisition that never settles times out as OfflineError', async () => {
+    const fetchFn = vi.fn() as unknown as typeof fetch;
+    const adapter = new OneDriveAdapter({
+      folder: FOLDER,
+      getToken: () => new Promise<string>(() => {}),
+      fetch: fetchFn,
+      timeoutMs: 10,
+    });
+    await expect(adapter.read('tasks.md')).rejects.toBeInstanceOf(OfflineError);
+    await expect(adapter.write('tasks.md', 'x', null)).rejects.toBeInstanceOf(OfflineError);
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
   it('the default timeout is 20 s', async () => {
     vi.useFakeTimers();
     try {
