@@ -56,7 +56,7 @@ test('spec example parses to the expected tasks and always lines', () => {
 });
 
 test('CRLF and BOM input parses to the same doc as LF', () => {
-  const crlf = '﻿' + SPEC.replace(/\n/g, '\r\n');
+  const crlf = '\uFEFF' + SPEC.replace(/\n/g, '\r\n');
   expect(crlf).toContain('\r\n');
   expect(parseTasks(crlf, counter())).toEqual(parseTasks(SPEC, counter()));
   expect(serializeTasks(parseTasks(crlf))).toBe(SPEC);
@@ -159,11 +159,65 @@ test('a completed recurring line keeps its rule', () => {
   ]);
 });
 
-test('a completed line with no done date is kept as raw', () => {
-  const text = '# Always\n\n# Tasks\n- [x] No date\n';
+test('a completed line with no done date is a done item with doneOn null', () => {
+  const text = '# Always\n\n# Tasks\n- [x] No date\n- [X] Weekly 🔁 every week on Monday\n';
   const doc = parseTasks(text);
-  expect(doc.items).toEqual([{ kind: 'raw', lines: ['- [x] No date'] }]);
+  expect(doc.items).toEqual([
+    { kind: 'done', entry: { title: 'No date', repeat: null, doneOn: null }, raw: ['- [x] No date'] },
+    {
+      kind: 'done',
+      entry: { title: 'Weekly', repeat: { type: 'weekly', days: [0] }, doneOn: null },
+      raw: ['- [X] Weekly 🔁 every week on Monday'],
+    },
+  ]);
   expect(serializeTasks(doc)).toBe(text);
+});
+
+test('the last valid date wins and earlier ones stay in the title', () => {
+  const doc = parseTasks('# Tasks\n- [ ] A 📅 2026-10-16 📅 2026-10-17\n');
+  const a = byTitle(doc, 'A 📅 2026-10-16');
+  expect(a.date).toBe('2026-10-17');
+  const out = serializeTasks(withTask(doc, a.id, { date: '2026-10-20' }));
+  expect(out).toContain('- [ ] A 📅 2026-10-16 📅 2026-10-20\n');
+  expect(byTitle(parseTasks(out), 'A 📅 2026-10-16').date).toBe('2026-10-20');
+});
+
+test('the last valid rule wins and earlier ones stay in the title', () => {
+  const doc = parseTasks('# Tasks\n- [ ] B 🔁 every day 🔁 every week on Monday\n');
+  const b = byTitle(doc, 'B 🔁 every day');
+  expect(b.repeat).toEqual({ type: 'weekly', days: [0] });
+  const out = serializeTasks(withTask(doc, b.id, { repeat: { type: 'every', n: 2, unit: 'weeks' } }));
+  expect(byTitle(parseTasks(out), 'B 🔁 every day').repeat).toEqual({ type: 'every', n: 2, unit: 'weeks' });
+});
+
+test('edited date and repeat read back as edited after a rewrite', () => {
+  const doc = parseTasks(MESSY);
+  const edits = { date: '2026-11-02', repeat: { type: 'monthly', day: 2 } } as const;
+  for (const title of ['Fix bike ⏫ #home', 'Pay', 'Plants', 'Groceries', 'Odd 🔁 every 2nd tue']) {
+    const t = byTitle(doc, title);
+    const back = byTitle(parseTasks(serializeTasks(withTask(doc, t.id, { ...edits }))), title);
+    expect(back.date).toBe('2026-11-02');
+    expect(back.repeat).toEqual({ type: 'monthly', day: 2 });
+  }
+});
+
+test('a rule ends at a tag, which stays in the title', () => {
+  const doc = parseTasks('# Tasks\n- [ ] Plants 🔁 every week on Monday #garden\n');
+  const [t] = tasksOf(doc);
+  expect(t).toMatchObject({ title: 'Plants #garden', repeat: { type: 'weekly', days: [0] } });
+});
+
+test('a rule ends at another Obsidian Tasks field emoji', () => {
+  const doc = parseTasks('# Tasks\n- [ ] Bins 🔁 every week on Tuesday ⏫\n- [ ] Gym 🔁 every 2 days 🛫 2026-10-01\n');
+  const [bins, gym] = tasksOf(doc);
+  expect(bins).toMatchObject({ title: 'Bins ⏫', repeat: { type: 'weekly', days: [1] } });
+  expect(gym).toMatchObject({ title: 'Gym 🛫 2026-10-01', repeat: { type: 'every', n: 2, unit: 'days' } });
+});
+
+test('a doc built from scratch with alwaysRaw null serializes canonically', () => {
+  const doc: TasksDoc = { preamble: [], always: ['Breathe'], items: [], alwaysRaw: null };
+  expect(serializeTasks(doc)).toBe('# Always\n- Breathe\n\n# Tasks\n');
+  expect(parseTasks('- [ ] A\n').alwaysRaw).toBeNull();
 });
 
 test('ids come from the injected newId and are unique', () => {

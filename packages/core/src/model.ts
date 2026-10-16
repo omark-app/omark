@@ -30,11 +30,11 @@ export interface Task {
   rawKey: string | null;
 }
 
-/** One completion, as written to `done.md` (Task 9). */
+/** One completion, as written to `done.md` (Task 9). `doneOn` is null for a `- [x]` line with no ✅ date. */
 export interface DoneEntry {
   title: string;
   repeat: RepeatRule | null;
-  doneOn: ISODate;
+  doneOn: ISODate | null;
 }
 
 /** A block of the Tasks section, in file order. `raw` lines are kept exactly as read. */
@@ -46,11 +46,12 @@ export type Item =
 /**
  * A parsed `tasks.md`. `preamble` is anything before `# Always`; `items` is everything after `# Tasks`.
  * `alwaysRaw` is the Always section as read (from its heading through the `# Tasks` heading) plus the
- * `always` it parsed to; the section is written back from it while `always` is unchanged.
+ * `always` it parsed to; the section is written back from it while `always` is unchanged. It is null
+ * when the file had no Always section; a doc built from scratch should use null too.
  */
 export interface TasksDoc {
   preamble: string[];
   always: string[];
   items: Item[];
-  alwaysRaw?: { lines: string[]; key: string };
+  alwaysRaw: { lines: string[]; key: string } | null;
 }

@@ -14,13 +14,15 @@ const NOTE_MARKER = /^[-*+][ \t]+/;
 const DUE = '📅';
 const DONE = '✅';
 const REPEAT = '🔁';
+/** Where a 🔁 rule's text ends: a ` #tag`, or any Obsidian Tasks field emoji. */
+const RULE_END = /[ \t]#[^\s#]|📅|✅|🔁|⏳|🛫|➕|❌|🆔|⛔|🏁|⏫|🔼|🔽|⏬|🔺/u;
 
 /** Stable text of a task's semantic fields; equal keys mean nothing the file stores has changed. */
 export function taskKey(t: Pick<Task, 'title' | 'notes' | 'date' | 'repeat'>): string {
   return JSON.stringify([t.title, t.notes, t.date, t.repeat ? formatRepeat(t.repeat) : null]);
 }
 
-/** Parses `tasks.md`. Anything that isn't an Always line, a task or a dated `- [x]` line is kept as raw lines. */
+/** Parses `tasks.md`. Anything that isn't an Always line, a `- [ ]` task or a `- [x]` line is kept as raw lines. */
 export function parseTasks(text: string, newId: () => string = defaultNewId): TasksDoc {
   const lines = toLines(text);
   const tasksAt = lines.findIndex((l) => TASKS_HEADING.test(l));
@@ -34,6 +36,7 @@ export function parseTasks(text: string, newId: () => string = defaultNewId): Ta
       preamble: tasksAt < 0 ? [] : lines.slice(0, tasksAt),
       always: [],
       items: parseItems(lines.slice(tasksAt + 1), newId),
+      alwaysRaw: null,
     };
   }
 
@@ -75,7 +78,7 @@ export function serializeTasks(doc: TasksDoc): string {
 }
 
 function toLines(text: string): string[] {
-  const s = text.replace(/^﻿/, '').replace(/\r\n/g, '\n');
+  const s = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
   if (s === '') return [];
   const lines = s.split('\n');
   if (lines.at(-1) === '') lines.pop();
@@ -125,13 +128,10 @@ function parseItems(lines: string[], newId: () => string): Item[] {
       task.rawKey = taskKey(task);
       items.push({ kind: 'task', task });
     } else {
+      // An undated `- [x]` (ticked in Obsidian without a ✅ date) is still done; doneOn is null.
       const f = parseFields(done![1]!, true);
-      if (f.doneOn === null) {
-        pushRaw(block); // no ✅ date: can't count it, so leave it where it is
-      } else {
-        const entry: DoneEntry = { title: f.title, repeat: f.repeat, doneOn: f.doneOn };
-        items.push({ kind: 'done', entry, raw: block });
-      }
+      const entry: DoneEntry = { title: f.title, repeat: f.repeat, doneOn: f.doneOn };
+      items.push({ kind: 'done', entry, raw: block });
     }
   }
   return items;
@@ -158,36 +158,39 @@ interface Fields {
 
 /**
  * Pulls the 📅 date, the 🔁 rule and (on done lines) the ✅ date out of a task line's text, wherever
- * they sit. A 🔁 rule runs to the next field emoji or the end of the line, and is taken only when
- * `parseRepeat` accepts it; otherwise it stays in the title. Other emoji and tags stay in the title.
+ * they sit. When a field appears more than once, the last valid one wins (as in Obsidian Tasks, which
+ * reads fields from the end) and earlier ones stay in the title; this also means a canonical rewrite,
+ * which appends the fields, always reads back as written. A 🔁 rule runs to the next ` #tag`, the next
+ * field emoji or the end of the line, and is taken only when `parseRepeat` accepts it. Other emoji and
+ * tags stay in the title.
  */
 function parseFields(text: string, isDone: boolean): Fields {
   const spans: [number, number][] = [];
 
   const takeDate = (emoji: string): ISODate | null => {
     const re = new RegExp(`${emoji}[ \\t]*(\\d{4}-\\d{2}-\\d{2})(?!\\d)`, 'gu');
+    let found: { value: ISODate; span: [number, number] } | null = null;
     for (const m of text.matchAll(re)) {
-      if (isRealDate(m[1]!)) {
-        spans.push([m.index, m.index + m[0].length]);
-        return m[1]!;
-      }
+      if (isRealDate(m[1]!)) found = { value: m[1]!, span: [m.index, m.index + m[0].length] };
     }
-    return null;
+    if (!found) return null;
+    spans.push(found.span);
+    return found.value;
   };
 
   const date = takeDate(DUE);
   const doneOn = isDone ? takeDate(DONE) : null;
 
-  let repeat: RepeatRule | null = null;
-  for (let at = text.indexOf(REPEAT); at >= 0 && !repeat; at = text.indexOf(REPEAT, at + REPEAT.length)) {
+  let rule: { value: RepeatRule; span: [number, number] } | null = null;
+  for (let at = text.indexOf(REPEAT); at >= 0; at = text.indexOf(REPEAT, at + REPEAT.length)) {
     const from = at + REPEAT.length;
-    const end = Math.min(
-      ...[DUE, DONE, REPEAT].map((e) => text.indexOf(e, from)).filter((n) => n >= 0),
-      text.length,
-    );
-    repeat = parseRepeat(text.slice(from, end));
-    if (repeat) spans.push([at, end]);
+    const stop = RULE_END.exec(text.slice(from));
+    const end = stop ? from + stop.index : text.length;
+    const value = parseRepeat(text.slice(from, end));
+    if (value) rule = { value, span: [at, end] };
   }
+  if (rule) spans.push(rule.span);
+  const repeat = rule?.value ?? null;
 
   // Remove right to left so earlier offsets stay valid; each gap becomes one space.
   let title = text;
