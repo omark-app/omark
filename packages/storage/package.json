@@ -13,6 +13,7 @@
     "idb-keyval": "^6.3.0"
   },
   "devDependencies": {
+    "@taskapp/core": "workspace:*",
     "fake-indexeddb": "^6.2.6"
   }
 }

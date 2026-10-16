@@ -71,6 +71,9 @@ importers:
         specifier: ^6.3.0
         version: 6.3.0
     devDependencies:
+      '@taskapp/core':
+        specifier: workspace:*
+        version: link:../core
       fake-indexeddb:
         specifier: ^6.2.6
         version: 6.2.6
