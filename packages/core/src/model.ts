@@ -55,3 +55,21 @@ export interface TasksDoc {
   items: Item[];
   alwaysRaw: { lines: string[]; key: string } | null;
 }
+
+/** One line of `done.md`. `entry` is null for a line without a valid ✅ date (kept as is); `raw` has no newline. */
+export interface DoneLine {
+  entry: DoneEntry | null;
+  raw: string;
+}
+
+/** A parsed `done.md`. `unterminated` marks a file read without a final newline, so it is written back the same. */
+export interface DoneDoc {
+  lines: DoneLine[];
+  unterminated?: boolean;
+}
+
+/** Both files, as the app holds them in memory. */
+export interface State {
+  doc: TasksDoc;
+  done: DoneDoc;
+}

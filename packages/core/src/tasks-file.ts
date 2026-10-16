@@ -7,7 +7,7 @@ const defaultNewId = (): string => `t${++lastId}`;
 const ALWAYS_HEADING = /^#[ \t]+always[ \t]*$/i;
 const TASKS_HEADING = /^#[ \t]+tasks[ \t]*$/i;
 const OPEN_LINE = /^- \[ \](?=[ \t]|$)(.*)$/;
-const DONE_LINE = /^- \[[xX]\](?=[ \t]|$)(.*)$/;
+export const DONE_LINE = /^- \[[xX]\](?=[ \t]|$)(.*)$/;
 const INDENTED = /^[ \t]+\S/;
 const NOTE_MARKER = /^[-*+][ \t]+/;
 
@@ -77,7 +77,7 @@ export function serializeTasks(doc: TasksDoc): string {
   return out.map((l) => `${l}\n`).join('');
 }
 
-function toLines(text: string): string[] {
+export function toLines(text: string): string[] {
   const s = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
   if (s === '') return [];
   const lines = s.split('\n');
@@ -149,7 +149,7 @@ function taskLines(t: Task): string[] {
   return [head.filter((p) => p !== '').join(' '), ...t.notes.map((n) => `    - ${n}`)];
 }
 
-interface Fields {
+export interface Fields {
   title: string;
   date: ISODate | null;
   repeat: RepeatRule | null;
@@ -164,7 +164,7 @@ interface Fields {
  * field emoji or the end of the line, and is taken only when `parseRepeat` accepts it. Other emoji and
  * tags stay in the title.
  */
-function parseFields(text: string, isDone: boolean): Fields {
+export function parseFields(text: string, isDone: boolean): Fields {
   const spans: [number, number][] = [];
 
   const takeDate = (emoji: string): ISODate | null => {
