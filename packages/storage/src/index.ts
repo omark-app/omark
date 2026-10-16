@@ -9,3 +9,5 @@ export { IdbCache, MemoryCache } from './cache.ts';
 export type { CachedFile, LocalCache } from './cache.ts';
 export { FileSync } from './file-sync.ts';
 export type { FileSyncOptions, SyncStatus } from './file-sync.ts';
+export { createWorkspace } from './workspace.ts';
+export type { Snapshot, Workspace } from './workspace.ts';
