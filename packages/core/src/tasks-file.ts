@@ -25,10 +25,7 @@ export function taskKey(t: Pick<Task, 'title' | 'notes' | 'date' | 'repeat'>): s
 /** Parses `tasks.md`. Anything that isn't an Always line, a `- [ ]` task or a `- [x]` line is kept as raw lines. */
 export function parseTasks(text: string, newId: () => string = defaultNewId): TasksDoc {
   const lines = toLines(text);
-  const tasksAt = lines.findIndex((l) => TASKS_HEADING.test(l));
-  const firstAlways = lines.findIndex((l) => ALWAYS_HEADING.test(l));
-  // `# Always` only opens the Always section before `# Tasks`; after it, it's an ordinary raw line.
-  const alwaysAt = tasksAt >= 0 && firstAlways > tasksAt ? -1 : firstAlways;
+  const { alwaysAt, tasksAt } = sections(lines);
 
   if (alwaysAt < 0) {
     // No Always section. With no `# Tasks` either, the whole file is the Tasks section.
@@ -77,6 +74,34 @@ export function serializeTasks(doc: TasksDoc): string {
   return out.map((l) => `${l}\n`).join('');
 }
 
+/** Indexes of the `# Always` and `# Tasks` headings as `parseTasks` reads them; -1 when absent. */
+function sections(lines: string[]): { alwaysAt: number; tasksAt: number } {
+  const tasksAt = lines.findIndex((l) => TASKS_HEADING.test(l));
+  const firstAlways = lines.findIndex((l) => ALWAYS_HEADING.test(l));
+  // `# Always` only opens the Always section before `# Tasks`; after it, it's an ordinary raw line.
+  const alwaysAt = tasksAt >= 0 && firstAlways > tasksAt ? -1 : firstAlways;
+  return { alwaysAt, tasksAt };
+}
+
+/** Index of the first line `parseTasks` reads as a Tasks-section item; `lines.length` when there are none. */
+export function itemsStart(lines: string[]): number {
+  const { alwaysAt, tasksAt } = sections(lines);
+  if (tasksAt >= 0) return tasksAt + 1;
+  return alwaysAt < 0 ? 0 : lines.length;
+}
+
+/**
+ * End (exclusive) of the Tasks-section block starting at `lines[i]`, as `parseTasks` groups them: a
+ * `- [ ]` or `- [x]` line takes the indented lines after it; any other line is a block of its own.
+ */
+export function blockEnd(lines: string[], i: number): number {
+  const line = lines[i]!;
+  if (!OPEN_LINE.test(line) && !DONE_LINE.test(line)) return i + 1;
+  let end = i + 1;
+  while (end < lines.length && INDENTED.test(lines[end]!)) end++;
+  return end;
+}
+
 export function toLines(text: string): string[] {
   const s = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
   if (s === '') return [];
@@ -109,8 +134,7 @@ function parseItems(lines: string[], newId: () => string): Item[] {
       i++;
       continue;
     }
-    let end = i + 1;
-    while (end < lines.length && INDENTED.test(lines[end]!)) end++;
+    const end = blockEnd(lines, i);
     const block = lines.slice(i, end);
     i = end;
 
@@ -141,7 +165,8 @@ function noteText(line: string): string {
   return line.trim().replace(NOTE_MARKER, '');
 }
 
-function taskLines(t: Task): string[] {
+/** The lines `serializeTasks` writes for `t`: its raw block while unchanged, else the canonical form. */
+export function taskLines(t: Task): string[] {
   if (t.raw && t.rawKey !== null && taskKey(t) === t.rawKey) return t.raw;
   const head = ['- [ ]', t.title];
   if (t.repeat) head.push(`${REPEAT} ${formatRepeat(t.repeat)}`);
