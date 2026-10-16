@@ -19,14 +19,19 @@ const MAX_WRITE_ATTEMPTS = 3;
 /**
  * Keeps one OneDrive file in sync with a cached local copy. The cache holds `{ base, baseEtag, local,
  * dirty }`: `base` is the last text known to be on OneDrive under `baseEtag`, `local` is the working text.
- * Every change to `local` reaches the cache before the next network call. All network work runs on one
+ * Every change to `local` reaches the cache before the next network write. All network work runs on one
  * promise chain, so writes never overlap and each write sends the latest `local`.
+ *
+ * Callers adopt the text returned by `open()` and `pull()`, and pass to `save()` the text their edit
+ * started from, so an edit made on an older text is replayed onto whatever arrived since.
  */
 export class FileSync {
   private readonly opts: FileSyncOptions;
   private file: CachedFile;
-  /** The text the caller last saw or saved; a save is an edit of this text. */
-  private shown: string;
+  /** Bumped on every change to `file`; `persistedVersion` is the latest version the cache holds. */
+  private version = 0;
+  private persistedVersion = 0;
+  private loading: Promise<boolean> | null = null;
   private current: SyncStatus = 'syncing';
   private readonly listeners = new Set<(s: SyncStatus) => void>();
   private chain: Promise<unknown> = Promise.resolve();
@@ -35,9 +40,9 @@ export class FileSync {
   constructor(opts: FileSyncOptions) {
     this.opts = opts;
     this.file = fresh(opts.initial);
-    this.shown = opts.initial;
   }
 
+  /** The working text (the cached copy once loaded). */
   text(): string {
     return this.file.local;
   }
@@ -51,54 +56,84 @@ export class FileSync {
     return () => this.listeners.delete(cb);
   }
 
-  /** Loads the cached copy (so `text()` is usable at once), then pulls. Creates the remote file if missing. */
+  /**
+   * Loads the cached copy, then pulls; creates the remote file if missing. Resolves with the text the
+   * caller should adopt (the cached text, with status `offline`, when OneDrive is unreachable).
+   */
   async open(): Promise<string> {
-    const cached = await this.opts.cache.get(this.opts.name);
-    this.file = cached ?? fresh(this.opts.initial);
-    this.shown = this.file.local;
-    const ok = await this.enqueue(() => this.pullOnce());
-    if (!ok && !cached) {
+    const hadCache = await this.load();
+    const ok = await this.enqueue(async () => {
+      await this.pullOnce();
+    });
+    if (!ok && !hadCache && !this.file.dirty) {
       // Never synced and unreachable: keep `initial` as a pending local copy so it is created later.
       // Its base is `initial` too, so if the file turns up meanwhile, merging adds nothing to it.
-      this.file = { ...this.file, dirty: true };
-      await this.persist();
+      this.set({ ...this.file, dirty: true });
+      await this.persist().catch(() => this.setStatus('offline'));
     }
-    this.shown = this.file.local;
     return this.file.local;
   }
 
-  /** Reads the remote; merges and writes when there are local edits. Never throws for network failures. */
+  /**
+   * Reads the remote; merges and writes when there are local edits. Resolves with the text the caller
+   * should adopt; `changed` is true when remote content altered it. Network failures only show in
+   * `status()`.
+   */
   async pull(): Promise<{ text: string; changed: boolean }> {
-    await this.enqueue(() => this.pullOnce());
-    const changed = this.file.local !== this.shown;
-    this.shown = this.file.local;
+    await this.load();
+    let changed = false;
+    await this.enqueue(async () => {
+      changed = await this.pullOnce();
+    });
     return { text: this.file.local, changed };
   }
 
   /**
-   * Stores `text` in the cache as dirty, then writes it. Resolves when that sync attempt is over; network
-   * failures only show in `status()` (the text is safe in the cache and the next pull or save retries).
+   * Records an edit: `text` is the caller's new text and `base` the text the edit started from (what
+   * `open`, `pull` or the previous `save` gave it). If `local` moved on since `base`, the edit is merged
+   * onto it. The result is stored in the cache as dirty before any network call, then written. Resolves
+   * when that sync attempt is over; network failures only show in `status()` (the text is safe in the
+   * cache and the next pull or save retries). Rejects, with status `offline`, if the cache write fails.
    */
-  async save(text: string): Promise<void> {
-    // If a pull changed `local` since the caller last saw it, `text` is an edit of the older text:
-    // merge so that neither the caller's edit nor the pulled change is dropped.
-    const local = this.file.local === this.shown ? text : this.opts.merge(this.shown, text, this.file.local);
-    this.file = { ...this.file, local, dirty: true };
-    this.shown = text;
-    await this.persist();
+  async save(text: string, base: string): Promise<void> {
+    await this.load();
+    const cur = this.file.local;
+    const local = base === cur ? text : this.opts.merge(base, text, cur);
+    this.set({ ...this.file, local, dirty: true });
+    try {
+      await this.persist();
+    } catch (e) {
+      this.setStatus('offline');
+      throw e;
+    }
     // Skipped when an earlier queued operation already wrote this text.
     await this.enqueue(() => this.writeLocal(), true);
   }
 
-  /** Runs `op` after every earlier operation. Resolves true on success, false after a network failure. */
+  /** Loads the cache once; every public method waits for it before touching state. True if it had a copy. */
+  private load(): Promise<boolean> {
+    this.loading ??= this.opts.cache.get(this.opts.name).then((cached) => {
+      if (cached) {
+        this.file = cached;
+        this.persistedVersion = this.version;
+      }
+      return cached !== null;
+    });
+    return this.loading;
+  }
+
+  /** Runs `op` after every earlier operation. Resolves true on success, false after a failure; never rejects. */
   private enqueue(op: () => Promise<void>, onlyIfDirty = false): Promise<boolean> {
     const run = this.chain.then(async () => {
       if (onlyIfDirty && !this.file.dirty) return true;
       this.setStatus('syncing');
       try {
         await op();
+        // A cache write failed earlier: memory is ahead of the cache, so store it now.
+        if (this.persistedVersion !== this.version) await this.persist();
       } catch (e) {
-        // OfflineError, exhausted 412 retries and transient Graph errors all leave the edit in the cache.
+        // OfflineError, exhausted 412 retries, transient Graph errors and cache failures all leave the
+        // edit in memory (and in the cache when it works); the next pull or save retries.
         this.setStatus(e instanceof AuthRequiredError ? 'signin' : 'offline');
         return false;
       }
@@ -106,45 +141,50 @@ export class FileSync {
       if (!this.file.dirty) this.setStatus('saved');
       return true;
     });
-    this.chain = run;
-    return run;
+    this.chain = run.catch(() => {});
+    return run.catch(() => false);
   }
 
-  private async pullOnce(): Promise<void> {
+  /** Reads the remote, absorbs it, and writes if dirty. Returns true if remote content altered `local`. */
+  private async pullOnce(): Promise<boolean> {
     const remote = await this.opts.adapter.read(this.opts.name);
-    await this.absorb(remote);
+    const changed = await this.absorb(remote);
     if (this.file.dirty) await this.writeLocal();
+    return changed;
   }
 
   /**
    * Brings a freshly read remote into the state. Uses the state as it is now, so a save made while the
-   * read was in flight is merged rather than overwritten.
+   * read was in flight is merged rather than overwritten. Returns true if `local` changed.
    */
-  private async absorb(remote: RemoteFile | null): Promise<void> {
+  private async absorb(remote: RemoteFile | null): Promise<boolean> {
     const f = this.file;
     if (remote === null) {
       // Missing: create it from `local` (whether never created or deleted elsewhere, the text is kept).
-      this.file = { ...f, baseEtag: null, dirty: true };
+      this.set({ ...f, baseEtag: null, dirty: true });
     } else if (remote.etag === f.baseEtag) {
-      return;
+      return false;
     } else if (!f.dirty) {
-      this.file = { base: remote.text, baseEtag: remote.etag, local: remote.text, dirty: false };
+      this.set({ base: remote.text, baseEtag: remote.etag, local: remote.text, dirty: false });
     } else {
       const merged = this.opts.merge(f.base, f.local, remote.text);
-      const dirty = merged !== remote.text;
-      this.file = { base: remote.text, baseEtag: remote.etag, local: dirty ? merged : remote.text, dirty };
+      // A merge that adds nothing to the remote (up to line endings) leaves the file as it is.
+      const same = normalize(merged) === normalize(remote.text);
+      this.set({ base: remote.text, baseEtag: remote.etag, local: same ? remote.text : merged, dirty: !same });
     }
     await this.persist();
+    return this.file.local !== f.local;
   }
 
   /** Writes `local` under `baseEtag`; on a 412 re-reads, merges and tries again, up to 3 writes in all. */
   private async writeLocal(): Promise<void> {
     for (let attempt = 1; ; attempt++) {
+      await this.cacheSettled();
       const text = this.file.local;
       try {
         const { etag } = await this.opts.adapter.write(this.opts.name, text, this.file.baseEtag);
         // A save made during the write leaves `local` ahead of what was written: still dirty.
-        this.file = { ...this.file, base: text, baseEtag: etag, dirty: this.file.local !== text };
+        this.set({ ...this.file, base: text, baseEtag: etag, dirty: this.file.local !== text });
         await this.persist();
         return;
       } catch (e) {
@@ -155,20 +195,54 @@ export class FileSync {
     }
   }
 
+  private set(f: CachedFile): void {
+    this.file = f;
+    this.version++;
+  }
+
   /** Writes the current state to the cache. Puts run in order, each with the state as of its turn. */
   private persist(): Promise<void> {
-    const put = this.persisting.then(() => this.opts.cache.put(this.opts.name, { ...this.file }));
+    const put = this.persisting.then(async () => {
+      const version = this.version;
+      await this.opts.cache.put(this.opts.name, { ...this.file });
+      this.persistedVersion = Math.max(this.persistedVersion, version);
+    });
     this.persisting = put.catch(() => {});
     return put;
+  }
+
+  /**
+   * Waits until every cache write issued so far has finished. Every change to `file` issues one in the
+   * same synchronous step, so afterwards the cache has been given the current `file` (a failed put does
+   * not block the network write: the text then lives in memory and goes to OneDrive).
+   */
+  private async cacheSettled(): Promise<void> {
+    let p: Promise<unknown>;
+    do {
+      p = this.persisting;
+      await p;
+    } while (p !== this.persisting);
   }
 
   private setStatus(s: SyncStatus): void {
     if (s === this.current) return;
     this.current = s;
-    for (const cb of this.listeners) cb(s);
+    for (const cb of this.listeners) {
+      try {
+        cb(s);
+      } catch (e) {
+        console.error('FileSync status listener failed', e);
+      }
+    }
   }
 }
 
 function fresh(initial: string): CachedFile {
   return { base: initial, baseEtag: null, local: initial, dirty: false };
+}
+
+/** Text as merging sees it: no BOM, LF line endings, a final newline unless empty. */
+function normalize(text: string): string {
+  const t = text.replace(/^﻿/, '').replace(/\r\n/g, '\n');
+  return t === '' || t.endsWith('\n') ? t : `${t}\n`;
 }

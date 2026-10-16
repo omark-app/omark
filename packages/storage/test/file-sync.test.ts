@@ -1,5 +1,5 @@
 import { mergeTasksText } from '@taskapp/core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { FileName, RemoteFile, StorageAdapter } from '../src/adapter.ts';
 import type { CachedFile, LocalCache } from '../src/cache.ts';
 import { MemoryCache } from '../src/cache.ts';
@@ -115,7 +115,7 @@ describe('FileSync', () => {
   it('a local save after a remote change (412) writes the merged text with both edits', async () => {
     const { drive, cache, sync } = await opened();
     drive.externalWrite(NAME, withRemote);
-    await sync.save(withLocal);
+    await sync.save(withLocal, S);
     const remote = drive.peek(NAME)!;
     expect(remote).toContain('- [ ] Remote task');
     expect(remote).toContain('- [ ] Local task');
@@ -129,7 +129,7 @@ describe('FileSync', () => {
   it('saving while offline keeps the cache dirty and the remote unchanged; pull() after reconnect writes it', async () => {
     const { drive, cache, sync } = await opened();
     drive.setOffline(true);
-    await sync.save(withLocal);
+    await sync.save(withLocal, S);
     expect(sync.status()).toBe('offline');
     expect((await cache.get(NAME))).toMatchObject({ local: withLocal, dirty: true });
     expect(drive.peek(NAME)).toBe(S);
@@ -145,7 +145,7 @@ describe('FileSync', () => {
   it('both sides edit the same task while offline: after reconnecting the remote has both versions', async () => {
     const { drive, sync } = await opened();
     drive.setOffline(true);
-    await sync.save('# Tasks\n- [ ] Buy oat milk\n- [ ] Call mom\n');
+    await sync.save('# Tasks\n- [ ] Buy oat milk\n- [ ] Call mom\n', S);
     drive.externalWrite(NAME, '# Tasks\n- [ ] Buy milk 📅 2026-10-20\n- [ ] Call mom\n');
     drive.setOffline(false);
     const { changed } = await sync.pull();
@@ -208,7 +208,7 @@ describe('FileSync', () => {
     };
     const sync = makeSync(hanging, cache);
     await sync.open();
-    void sync.save(withLocal);
+    void sync.save(withLocal, S);
     await until(() => cacheAtWrite !== null);
     expect((await cacheAtWrite!)?.local).toBe(withLocal);
     expect((await cache.get(NAME))).toMatchObject({ local: withLocal, dirty: true });
@@ -225,9 +225,9 @@ describe('FileSync', () => {
     const sync = makeSync(adapter);
     await sync.open();
     const first = '# Tasks\n- [ ] Buy milk\n';
-    const p1 = sync.save(first);
+    const p1 = sync.save(first, S);
     await until(() => adapter.inFlight === 1 && adapter.writes.length === 1);
-    const p2 = sync.save(withLocal);
+    const p2 = sync.save(withLocal, first);
     await Promise.all([p1, p2]);
     expect(adapter.maxInFlight).toBe(1);
     expect(adapter.writes).toEqual([first, withLocal]);
@@ -246,7 +246,7 @@ describe('FileSync', () => {
     adapter.readGate = g.promise;
     const pulled = sync.pull();
     await until(() => adapter.inFlight === 1);
-    const saved = sync.save(withLocal);
+    const saved = sync.save(withLocal, S);
     await tick();
     g.open();
     const [{ text, changed }] = await Promise.all([pulled, saved]);
@@ -281,7 +281,7 @@ describe('FileSync', () => {
     putGate = g.promise;
     const pulled = sync.pull();
     await until(() => sync.text() === withRemote); // pull took the remote; its cache write is pending
-    const saved = sync.save(withLocal); // the caller's edit is based on S, not withRemote
+    const saved = sync.save(withLocal, S); // the caller's edit is based on S, not withRemote
     putGate = null;
     g.open();
     await Promise.all([pulled, saved]);
@@ -296,7 +296,7 @@ describe('FileSync', () => {
   it('pull() while dirty with the remote unchanged keeps the local text and returns changed: false', async () => {
     const { drive, sync } = await opened();
     drive.setOffline(true);
-    await sync.save(withLocal);
+    await sync.save(withLocal, S);
     drive.setOffline(false);
     expect(await sync.pull()).toEqual({ text: withLocal, changed: false });
     expect(drive.peek(NAME)).toBe(withLocal);
@@ -309,7 +309,7 @@ describe('FileSync', () => {
     const sync = makeSync(adapter, cache);
     await sync.open();
     adapter.failAll = new AuthRequiredError('sign in');
-    await sync.save(withLocal);
+    await sync.save(withLocal, S);
     expect(sync.status()).toBe('signin');
     expect((await cache.get(NAME))).toMatchObject({ local: withLocal, dirty: true });
 
@@ -326,7 +326,7 @@ describe('FileSync', () => {
     const sync = makeSync(adapter, cache);
     await sync.open();
     adapter.failWrites = new Error('Graph 503');
-    await expect(sync.save(withLocal)).resolves.toBeUndefined();
+    await expect(sync.save(withLocal, S)).resolves.toBeUndefined();
     expect(sync.status()).toBe('offline');
     expect((await cache.get(NAME))).toMatchObject({ local: withLocal, dirty: true });
 
@@ -350,7 +350,7 @@ describe('FileSync', () => {
       attempts++;
       return realWrite(n, t, m);
     };
-    await sync.save(withLocal);
+    await sync.save(withLocal, S);
     expect(attempts).toBe(3);
     expect(sync.status()).toBe('offline');
     expect((await cache.get(NAME))).toMatchObject({ local: withLocal, dirty: true });
@@ -370,10 +370,194 @@ describe('FileSync', () => {
     const { sync } = await opened();
     const seen: SyncStatus[] = [];
     const off = sync.onStatus((s) => seen.push(s));
-    await sync.save(withLocal);
+    await sync.save(withLocal, S);
     expect(seen).toEqual(['syncing', 'saved']);
     off();
-    await sync.save(S);
+    await sync.save(S, withLocal);
     expect(seen).toEqual(['syncing', 'saved']);
+  });
+
+  it('a save made before open() has loaded the cache is kept (memory, cache and remote)', async () => {
+    const drive = new FakeOneDrive({ [NAME]: S });
+    const cache = new MemoryCache();
+    await cache.put(NAME, { base: S, baseEtag: '"v1"', local: S, dirty: false });
+    const sync = makeSync(drive, cache);
+    const early = `${S}- [ ] Early\n`;
+    const opening = sync.open();
+    const saving = sync.save(early, S);
+    await Promise.all([opening, saving]);
+    expect(sync.text()).toBe(early);
+    expect(drive.peek(NAME)).toBe(early);
+    expect(await cache.get(NAME)).toMatchObject({ local: early, dirty: false });
+    expect(sync.status()).toBe('saved');
+  });
+
+  it("a save made during open's pull keeps the other device's change", async () => {
+    const drive = new FakeOneDrive({ [NAME]: S });
+    const cache = new MemoryCache();
+    await cache.put(NAME, { base: S, baseEtag: '"v1"', local: S, dirty: false });
+    drive.externalWrite(NAME, `${S}- [ ] Rem\n`);
+    const sync = makeSync(drive, cache);
+    const opening = sync.open();
+    await tick();
+    const saving = sync.save(`${S}- [ ] DuringOpen\n`, S);
+    const text = await opening;
+    await saving;
+    const remote = drive.peek(NAME)!;
+    expect(remote).toContain('- [ ] Rem');
+    expect(remote).toContain('- [ ] DuringOpen');
+    expect(sync.text()).toBe(remote);
+    expect(text).toContain('- [ ] Rem');
+  });
+
+  it('an edit of the latest text (base = what pull returned) is taken as is, with no duplicate', async () => {
+    const { drive, sync } = await opened();
+    const r2 = '# Tasks\n- [ ] Buy oat milk\n- [ ] Call mom\n';
+    drive.externalWrite(NAME, r2);
+    const { text } = await sync.pull();
+    expect(text).toBe(r2);
+    const edited = '# Tasks\n- [ ] Buy oat milk 📅 2026-10-20\n- [ ] Call mom\n';
+    await sync.save(edited, text);
+    expect(drive.peek(NAME)).toBe(edited);
+    expect(sync.text()).toBe(edited);
+  });
+
+  it('a throwing onStatus listener does not stop later saves and pulls', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const { drive, sync } = await opened();
+      const off = sync.onStatus((s) => {
+        if (s === 'syncing') throw new Error('listener boom');
+      });
+      const a = `${S}- [ ] A\n`;
+      await expect(sync.save(a, S)).resolves.toBeUndefined();
+      expect(drive.peek(NAME)).toBe(a);
+      off();
+      const b = `${a}- [ ] B\n`;
+      await expect(sync.save(b, a)).resolves.toBeUndefined();
+      await expect(sync.pull()).resolves.toEqual({ text: b, changed: false });
+      expect(drive.peek(NAME)).toBe(b);
+      expect(sync.status()).toBe('saved');
+      expect(error).toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it("no network write starts before the save's cache write has finished", async () => {
+    const drive = new FakeOneDrive({ [NAME]: S });
+    const adapter = new TrackingAdapter(drive);
+    const inner = new MemoryCache();
+    let putGate: Promise<void> | null = null;
+    const events: string[] = [];
+    const cache: LocalCache = {
+      get: (n) => inner.get(n),
+      put: async (n, f) => {
+        if (putGate) await putGate;
+        await inner.put(n, f);
+        events.push(`put ${f.local === withLocal ? 'X' : 'other'}`);
+      },
+      clear: () => inner.clear(),
+    };
+    const sync = makeSync(adapter, cache);
+    await sync.open();
+    events.length = 0;
+
+    const readGate = gate();
+    adapter.readGate = readGate.promise;
+    const pulled = sync.pull();
+    await until(() => adapter.inFlight === 1);
+    const putGateCtl = gate();
+    putGate = putGateCtl.promise;
+    const saved = sync.save(withLocal, S);
+    readGate.open();
+    for (let i = 0; i < 10; i++) await tick();
+    expect(adapter.writes).toEqual([]); // the pull sees the edit, but its cache write is still pending
+
+    putGate = null;
+    putGateCtl.open();
+    await Promise.all([pulled, saved]);
+    expect(events[0]).toBe('put X');
+    expect(adapter.writes).toEqual([withLocal]);
+    expect(drive.peek(NAME)).toBe(withLocal);
+  });
+
+  it('a failed cache write in save rejects, goes offline, and a later sync brings the cache up to memory', async () => {
+    const drive = new FakeOneDrive({ [NAME]: S });
+    const inner = new MemoryCache();
+    let failPuts = 0;
+    const cache: LocalCache = {
+      get: (n) => inner.get(n),
+      put: async (n, f) => {
+        if (failPuts > 0) {
+          failPuts--;
+          throw new Error('QuotaExceededError');
+        }
+        await inner.put(n, f);
+      },
+      clear: () => inner.clear(),
+    };
+    const sync = makeSync(drive, cache);
+    await sync.open();
+
+    failPuts = 1;
+    await expect(sync.save(withLocal, S)).rejects.toThrow('QuotaExceededError');
+    expect(sync.status()).toBe('offline');
+    expect(sync.text()).toBe(withLocal);
+
+    await sync.pull();
+    expect(sync.status()).toBe('saved');
+    expect(drive.peek(NAME)).toBe(withLocal);
+    expect(await inner.get(NAME)).toEqual({ base: withLocal, baseEtag: '"v2"', local: withLocal, dirty: false });
+  });
+
+  it('a failed cache write after a successful write is repaired by the next pull, even with nothing to sync', async () => {
+    const drive = new FakeOneDrive({ [NAME]: S });
+    const inner = new MemoryCache();
+    let putsBeforeFailure = -1;
+    const cache: LocalCache = {
+      get: (n) => inner.get(n),
+      put: async (n, f) => {
+        if (putsBeforeFailure === 0) {
+          putsBeforeFailure = -1;
+          throw new Error('QuotaExceededError');
+        }
+        if (putsBeforeFailure > 0) putsBeforeFailure--;
+        await inner.put(n, f);
+      },
+      clear: () => inner.clear(),
+    };
+    const sync = makeSync(drive, cache);
+    await sync.open();
+
+    putsBeforeFailure = 1; // save's own put succeeds; the put after the write fails
+    await sync.save(withLocal, S);
+    expect(drive.peek(NAME)).toBe(withLocal);
+    expect(sync.status()).toBe('offline');
+    expect(await inner.get(NAME)).toMatchObject({ dirty: true });
+
+    expect(await sync.pull()).toEqual({ text: withLocal, changed: false }); // eTag unchanged: nothing to absorb
+    expect(sync.status()).toBe('saved');
+    expect(await inner.get(NAME)).toEqual({ base: withLocal, baseEtag: '"v2"', local: withLocal, dirty: false });
+  });
+
+  it('an untouched CRLF remote is not rewritten after an offline-first open', async () => {
+    const drive = new FakeOneDrive();
+    drive.setOffline(true);
+    const adapter = new TrackingAdapter(drive);
+    const cache = new MemoryCache();
+    const sync = new FileSync({ name: 'config.yaml', adapter, cache, merge: mergeTasksText, initial: 'theme: light\n' });
+    expect(await sync.open()).toBe('theme: light\n');
+    expect(sync.status()).toBe('offline');
+
+    const remote = '﻿theme: light\r\nweekStart: monday';
+    drive.externalWrite('config.yaml', remote);
+    drive.setOffline(false);
+    const { text } = await sync.pull();
+    expect(adapter.writes).toEqual([]);
+    expect(drive.peek('config.yaml')).toBe(remote);
+    expect(text).toBe(remote);
+    expect(await cache.get('config.yaml')).toEqual({ base: remote, baseEtag: '"v1"', local: remote, dirty: false });
+    expect(sync.status()).toBe('saved');
   });
 });
