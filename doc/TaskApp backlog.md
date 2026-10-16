@@ -22,7 +22,8 @@ Ideas deliberately left out of v1 ([[TaskApp v1 spec]]). Grouped by theme; not o
 ## Platforms
 
 - Desktop wrapper (e.g. Tauri) for Windows, Mac, Linux and Omarchy, with a global hotkey for quick add.
-- Native or wrapped mobile apps (e.g. Capacitor, or native) for iOS and Android, if the PWA falls short.
+- Native or wrapped mobile apps (e.g. Capacitor, or native) for iOS and Android, if the PWA falls short. Would also allow haptic feedback when a task is lifted for dragging (iPhone web apps can't vibrate).
+- A phone-friendly Week board (e.g. bucket tabs). Cut from v1: the board is desktop-only.
 
 ## Features
 

@@ -1,7 +1,8 @@
 # TaskApp v1 spec
 
-Status: agreed in grilling session 2026-10-16, awaiting final approval.
+Status: agreed in grilling session 2026-10-16 and refined with a clickable UI prototype the same day.
 Source: [[TaskApp ideation]]. Out-of-scope ideas: [[TaskApp backlog]].
+UI reference: the throwaway prototype on branch `prototype/ui` (`prototype/taskapp-ui-prototype.html`), also published at https://claude.ai/artifact/UP8SDp2tQ4Ku76a1UKS2wz. Where it and this spec disagree, this spec wins.
 
 ## 1. Goal and audience
 
@@ -115,18 +116,30 @@ Moving a task means setting its date:
 
 "This week" and "next week" are only date shortcuts. There is no separate flag; the task simply shows as due `Sun`.
 
-### 4.3 Ordering and labels
+### 4.3 Ordering
 
 - Within a bucket: earliest date first, then the line order in `tasks.md`.
-- Drag to reorder; this changes the line order in `tasks.md`.
-- Overdue tasks sit at the top of Today with their date in red.
-- This week, Next week and Later show a short date label per task (`Thu`, `12 Nov`).
+- Overdue tasks sit at the top of Today.
+
+### 4.4 Dragging (desktop mouse drag, phone long-press drag)
+
+- **Drop between tasks in the same bucket** → reorder (changes line order in `tasks.md`). Order only applies among tasks with the same date, since date sorts first; dropping among other dates keeps the date and says so.
+- **Drop on another bucket** (its header or anywhere in it, including folded headers) → set the date as in 4.2: Today, This week (this Sunday), Next week (next Sunday), Someday (no date). Dropping between two tasks there also places it at that position.
+- **Drop on Later** → opens the date picker, pre-filled with the day after next Sunday, because Later has no single date.
+- The bucket under the pointer is highlighted; a line shows the insert position.
 
 ## 5. Tasks
 
 - A task is a **title plus optional notes** (indented lines).
-- Notes are always visible under the task, in smaller grey text.
 - Out of v1: priorities, labels, projects, checkbox subtasks, assignees, reminders and notifications.
+
+### 5.1 Task row (one line, vertical space is precious)
+
+- Left: a round complete button. Middle: the title, followed by a faint `≡` when the task has notes. Notes are **not** shown in the list; they appear in the task detail (section 11) or the phone's edit sheet.
+- Right: one **meta label**, clickable to open the date picker:
+  - a short date: `Thu` in This week and Next week, `12 Nov` in Later; overdue tasks in Today show their date in red (`Wed`, or `3 Oct` if more than a week ago);
+  - a repeating task shows `↻` in the same place, before its date (`↻ Thu`, or just `↻` when due today); the full rule is in the tooltip and the detail;
+  - no label for non-repeating tasks due today or in Someday; on hover the empty spot shows a faint `today` / `no date` so it can still be clicked (desktop only).
 
 ## 6. Recurring tasks
 
@@ -142,10 +155,14 @@ Chosen from a small picker; there is no natural-language parsing.
 
 Completing a recurring task moves it to its next date. An overdue recurring task stays in Today until done; it never skips ahead silently.
 
+- **Next date** = the first date of the pattern that is **after today**, stepping from the current due date. So an "every day" task that is 3 days overdue moves to tomorrow, not to two days ago. "Every Mon, Thu" completed on an overdue Monday on Wednesday moves to Thursday.
+- **N days after completion** = today + N.
+- **Setting a repeat on a task** keeps its date if the date fits the pattern; otherwise (or if it has no date) the date moves to the first fitting date on or after it (or today).
+
 ## 7. ALWAYS lines
 
 - Plain text lines in the `# Always` section of `tasks.md`.
-- Shown on the same page as the tasks; editable inline.
+- Always visible on the same page as the tasks (where exactly depends on the view, section 11); editable inline; "+ Add a line" adds one, emptying a line removes it.
 - Not completable, no dates, not counted, not in stats.
 - No hard limit; the layout is designed for about 1–3 lines.
 
@@ -167,31 +184,40 @@ Shown compactly, e.g. `Today 4 (3.2) · 7d 23 (19 ↑) · All 412`.
 
 ### 9.1 Desktop (keyboard-first)
 
-- An always-visible input at the top. `/` or `n` focuses it; Enter adds the task to Today (configurable).
-- `j` / `k` or arrow keys move the selection.
+- An always-visible input at the top. `/` or `n` focuses it; Enter adds the task to Today (configurable) and keeps the input focused for the next one.
+- Click a task, or `j` / `k` / ↑ / ↓, to select it. Selecting shows its detail (section 11).
 - With a task selected:
 
 | Key | Action |
 |---|---|
 | `t` | Today |
-| `w` | This week |
+| `w` | This week (on a Sunday: Today) |
 | `e` | Next week |
 | `d` | Pick a date |
 | `s` | Someday |
 | `r` | Set repeat |
 | `x` | Complete |
-| Enter | Edit (Shift+Enter adds a note line) |
-| Delete | Delete (with undo) |
+| Enter (or double-click) | Edit: jumps into the detail's title. Enter saves, Shift+Enter starts a new note line, Ctrl+Enter saves from the notes, Esc leaves the field (and saves) |
+| Delete / Backspace | Delete (with undo) |
+| Esc | Close the detail (deselect) |
 
-- A strip of keyboard hints along the bottom, as in the inspiration.
+- Global: `z` or Ctrl+Z undo; `v` switch view (section 11).
+- Clicking a task's date label opens the date picker; the picker has Today, Tomorrow, This week, Next week, Someday and a calendar field.
+- Mouse drag between and within buckets (section 4.4).
+- Every change shows a short toast with **Undo** (e.g. "Moved to Next week · Sun", "Done · next Mon 19 Oct").
+- A strip of keyboard hints along the bottom.
 - All shortcuts are configurable.
 
 ### 9.2 iPhone (touch)
 
-- A large + button at the bottom; new tasks go to Today.
-- Tap a task to edit it (title plus a notes box).
-- Swipe right to complete.
-- Swipe left to open an action sheet: Today, This week, Next week, Pick a date, Someday, Repeat.
+- A large + button at the bottom opens an add sheet: text field plus bucket chips (Today selected by default, also This week, Next week, Someday).
+- **Tap** a task → edit sheet: title, notes box, due date and repeat summary, the move options below, Delete, Save.
+- **Swipe right** → complete.
+- **Swipe left** → move sheet: Today, This week, Next week, Pick a date…, Someday, Repeat…, Delete.
+- Tapping a task's date label opens the date picker directly.
+- **Long-press (~0.4 s, finger still) then drag** → move between and within buckets (section 4.4). The row lifts as a floating copy that follows the finger; the page auto-scrolls near the top and bottom edges; page scrolling is blocked only while dragging. No haptic feedback (not available to iPhone web apps). The iOS long-press text callout is disabled on task rows.
+- Swipe, tap, scroll and long-press are told apart by movement: moving before the hold time is a swipe or scroll; holding still is a drag.
+- Sheets slide up from the bottom; on desktop the same content appears as a small centred dialog.
 
 ## 10. Config
 
@@ -207,6 +233,7 @@ Settings in v1:
 | Setting | Default |
 |---|---|
 | Keyboard shortcuts | As in section 9.1 |
+| Default view on desktop | Task list |
 | First day of week | Monday |
 | Buckets folded on open | Later, Someday |
 | Theme | System (light/dark) |
@@ -216,13 +243,31 @@ Settings in v1:
 
 Bucket rules themselves stay in code.
 
-## 11. Design
+## 11. Design and views
 
-- Layout follows the inspiration: one page, tasks on the left, ALWAYS on the right, keyboard-hint strip at the bottom, framed panes, light and calm.
-- Monospace for task text.
-- **Cool neutral palette** (white and graphite), not warm beige; it must not look Claude-like.
-- Light and dark mode follow the system.
-- **Mobile**: single column, buckets first, ALWAYS at the bottom.
+### 11.1 Look
+
+- Calm, framed panes in the spirit of the inspiration; light and quiet.
+- Monospace (IBM Plex Mono) for everything the user wrote; a sans (Geist) for app chrome like labels and buttons. System fallbacks if the fonts fail to load.
+- **Cool neutral palette** (cool off-white, white surfaces, graphite ink, one cobalt accent; red for overdue, green for completing), not warm beige; it must not look Claude-like.
+- Light and dark mode follow the system (theme setting can force one).
+
+### 11.2 Views
+
+Two views on desktop, switched with `v` (default from config). **Phones (narrow screens, under ~720 px) always get the Task list**; the Week board is desktop-only.
+
+**Task list** (default):
+- One framed sheet with two panes.
+- **Left pane "tasks"**: the add input, then the five buckets stacked (section 4), one-line rows (5.1).
+- **Right pane**: when a task is selected, its **detail** on top and the **ALWAYS** lines right below it; with nothing selected, just ALWAYS. The completion **stats** (section 8) sit at the bottom of the right pane.
+- **Task detail**: bucket name, editable title, editable notes (one per line), Due (button opening the date picker, red when overdue) with quick chips Today / This week / Next week / Someday, Repeat (button opening the repeat picker), Complete and Delete buttons, and an `esc` close button.
+- Below the sheet: the keyboard-hint strip and the save status.
+
+**Week board** (desktop only):
+- Left rail: app name and today's date, the stats, then one box that shows ALWAYS, or the selected task's detail in its place; then the hint strip and save status.
+- Main area: the add input, then four columns: Today | This week | Next week | Later + Someday stacked (Later and Someday folded on open as usual; the first three columns never fold). Columns wrap to two per row on narrower desktop windows.
+
+**Phone (Task list)**: a compact stats line at the top, the buckets, ALWAYS at the bottom, a + button at the bottom right. No detail pane; tap opens the edit sheet (9.2).
 
 ## 12. Claude Code integration
 
@@ -258,7 +303,7 @@ TDD throughout: tests are written first.
 |---|---|---|
 | Unit | Vitest | All of `packages/core`; the bulk of the tests |
 | Integration | Vitest | Core + storage against the in-memory fake OneDrive: external changes, eTag conflicts, offline queue, merge |
-| End-to-end | Playwright | The real app in desktop Chromium and iPhone emulation (WebKit, touch, viewport), against the fake OneDrive. Runs on every commit |
+| End-to-end | Playwright | The real app in desktop Chromium and iPhone emulation (WebKit, touch, viewport), against the fake OneDrive. Runs on every commit. Long-press drag is poorly supported by Playwright's touch emulation, so the drop rules (4.4) are covered by unit tests and e2e keeps one drag smoke test |
 | Real-OneDrive smoke | Playwright | A few checks against a dedicated test OneDrive account; nightly or by hand, never blocking CI |
 
 ## 16. Implementation risks to check early
@@ -267,3 +312,4 @@ TDD throughout: tests are written first.
 - Graph file download/upload from the browser (CORS, eTag behaviour on simple uploads).
 - Service worker caching and update flow on iOS.
 - Line-level three-way merge on hand-edited markdown (Obsidian or Claude Code may reformat lines).
+- Long-press drag on a real iPhone: telling hold, swipe and scroll apart, and blocking scroll only while dragging. The prototype's approach (touch events, a non-passive `touchmove` that cancels scrolling once a row is lifted) is the starting point; a touch-capable drag library (e.g. SortableJS or svelte-dnd-action) is an option.
