@@ -19,6 +19,15 @@ export interface Workspace {
     tasks?: { text: string; base: string };
     done?: { text: string; base: string };
   }): Promise<void>;
+  /**
+   * Like `save`, but resolves once the edits are in the cache, without waiting for the network (which
+   * syncs in the background). Stages tasks.md, then done.md even if tasks.md failed; rethrows the first
+   * cache error afterwards.
+   */
+  stage(files: {
+    tasks?: { text: string; base: string };
+    done?: { text: string; base: string };
+  }): Promise<void>;
   /** Worst of the three files: signin > offline > syncing > saved. */
   status(): SyncStatus;
   onStatus(cb: (s: SyncStatus) => void): () => void;
@@ -73,6 +82,18 @@ export function createWorkspace(adapter: StorageAdapter, cache: LocalCache): Wor
     async save(files) {
       if (files.tasks) await tasks.save(files.tasks.text, files.tasks.base);
       if (files.done) await done.save(files.done.text, files.done.base);
+    },
+    async stage(files) {
+      const errors: unknown[] = [];
+      for (const [sync, edit] of [[tasks, files.tasks], [done, files.done]] as const) {
+        if (!edit) continue;
+        try {
+          await sync.stage(edit.text, edit.base);
+        } catch (e) {
+          errors.push(e);
+        }
+      }
+      if (errors.length > 0) throw errors[0];
     },
     status,
     onStatus(cb) {

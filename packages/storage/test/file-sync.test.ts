@@ -42,6 +42,7 @@ class TrackingAdapter implements StorageAdapter {
   maxInFlight = 0;
   writes: string[] = [];
   readGate: Promise<void> | null = null;
+  writeGate: Promise<void> | null = null;
   failWrites: Error | null = null;
   failAll: Error | null = null;
 
@@ -60,6 +61,7 @@ class TrackingAdapter implements StorageAdapter {
     if (this.failWrites) throw this.failWrites;
     this.writes.push(text);
     return this.track(async () => {
+      if (this.writeGate) await this.writeGate;
       await new Promise((r) => setTimeout(r, 5));
       return this.drive.write(name, text, ifMatch);
     });
@@ -624,4 +626,48 @@ describe('FileSync', () => {
     expect(await cache.get('config.yaml')).toEqual({ base: remote, baseEtag: '"v1"', local: remote, dirty: false });
     expect(sync.status()).toBe('saved');
   });
+
+  it('stage() puts the edit in the cache and resolves before the network write ends', async () => {
+    const drive = new FakeOneDrive({ [NAME]: S });
+    const adapter = new TrackingAdapter(drive);
+    const cache = new MemoryCache();
+    const sync = makeSync(adapter, cache);
+    await sync.open();
+    const g = gate();
+    adapter.writeGate = g.promise;
+
+    await sync.stage(withLocal, S);
+    expect(await cache.get(NAME)).toMatchObject({ local: withLocal, dirty: true });
+    expect(drive.peek(NAME)).toBe(S);
+
+    await sync.stage(`${withLocal}- [ ] Second\n`, withLocal);
+    expect((await cache.get(NAME))?.local).toBe(`${withLocal}- [ ] Second\n`);
+
+    g.open();
+    await until(() => drive.peek(NAME) === `${withLocal}- [ ] Second\n` && sync.status() === 'saved');
+    expect((await cache.get(NAME))?.dirty).toBe(false);
+  });
+
+  it('stage() merges onto newer text like save() and rejects when the cache put fails', async () => {
+    const cache = new FailingCache();
+    const drive = new FakeOneDrive({ [NAME]: S });
+    const sync = makeSync(drive, cache);
+    await sync.open();
+    await sync.stage(withLocal, S);
+    await sync.stage(withRemote, S); // started from S: merged onto withLocal
+    expect(sync.text()).toBe('# Tasks\n- [ ] Remote task\n- [ ] Buy milk\n- [ ] Call mom\n- [ ] Local task\n');
+
+    await until(() => sync.status() === 'saved');
+    cache.failing = true;
+    await expect(sync.stage(S, sync.text())).rejects.toThrow('put failed');
+    expect(sync.status()).toBe('offline');
+  });
 });
+
+class FailingCache extends MemoryCache {
+  failing = false;
+  override async put(name: FileName, f: CachedFile): Promise<void> {
+    if (this.failing) throw new Error('put failed');
+    return super.put(name, f);
+  }
+}

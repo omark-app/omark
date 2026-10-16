@@ -99,6 +99,25 @@ export class FileSync {
    * cache and the next pull or save retries). Rejects, with status `offline`, if the cache write fails.
    */
   async save(text: string, base: string): Promise<void> {
+    const { synced } = await this.record(text, base);
+    await synced;
+  }
+
+  /**
+   * Like `save`, but resolves as soon as the edit is in the cache; the network write is queued and not
+   * waited for (a slow or hung upload never delays caching the next edit). Rejects, with status
+   * `offline`, if the cache write fails.
+   */
+  async stage(text: string, base: string): Promise<void> {
+    await this.record(text, base);
+  }
+
+  /**
+   * Applies an edit (merged onto `local` if it moved on since `base`), stores it in the cache as dirty,
+   * then queues the write. `synced` resolves when that sync attempt is over and never rejects; it is
+   * wrapped so awaiting `record` does not wait for it.
+   */
+  private async record(text: string, base: string): Promise<{ synced: Promise<boolean> }> {
     await this.load();
     const cur = this.file.local;
     const local = base === cur ? text : this.opts.merge(base, text, cur);
@@ -110,7 +129,7 @@ export class FileSync {
       throw e;
     }
     // Skipped when an earlier queued operation already wrote this text.
-    await this.enqueue(() => this.writeLocal(), true);
+    return { synced: this.enqueue(() => this.writeLocal(), true) };
   }
 
   /**

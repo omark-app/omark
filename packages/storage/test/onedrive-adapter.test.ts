@@ -88,4 +88,44 @@ describe('OneDriveAdapter (Graph specifics)', () => {
     });
     await expect(adapter.read('tasks.md')).rejects.toBeInstanceOf(OfflineError);
   });
+
+  it('a request that honours the abort signal times out as OfflineError', async () => {
+    const fetchFn = ((_url: string, init?: RequestInit) =>
+      new Promise<Response>((_, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+      })) as typeof fetch;
+    const adapter = new OneDriveAdapter({ folder: FOLDER, getToken: async () => 't', fetch: fetchFn, timeoutMs: 10 });
+    await expect(adapter.read('tasks.md')).rejects.toBeInstanceOf(OfflineError);
+    await expect(adapter.write('tasks.md', 'x', null)).rejects.toBeInstanceOf(OfflineError);
+  });
+
+  it('a request that never settles still times out as OfflineError', async () => {
+    const fetchFn = (() => new Promise<Response>(() => {})) as typeof fetch;
+    const adapter = new OneDriveAdapter({ folder: FOLDER, getToken: async () => 't', fetch: fetchFn, timeoutMs: 10 });
+    await expect(adapter.read('tasks.md')).rejects.toBeInstanceOf(OfflineError);
+  });
+
+  it('a body that stalls after the headers also times out', async () => {
+    const fetchFn = (async () =>
+      new Response(new ReadableStream({ start() {} }), { status: 200 })) as typeof fetch;
+    const adapter = new OneDriveAdapter({ folder: FOLDER, getToken: async () => 't', fetch: fetchFn, timeoutMs: 10 });
+    await expect(adapter.read('tasks.md')).rejects.toBeInstanceOf(OfflineError);
+  });
+
+  it('the default timeout is 20 s', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchFn = (() => new Promise<Response>(() => {})) as typeof fetch;
+      const adapter = new OneDriveAdapter({ folder: FOLDER, getToken: async () => 't', fetch: fetchFn });
+      let settled: unknown = null;
+      const p = adapter.read('tasks.md').catch((e: unknown) => (settled = e));
+      await vi.advanceTimersByTimeAsync(19_999);
+      expect(settled).toBeNull();
+      await vi.advanceTimersByTimeAsync(1);
+      await p;
+      expect(settled).toBeInstanceOf(OfflineError);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

@@ -2,6 +2,7 @@ import { DEFAULT_CONFIG_YAML } from '@taskapp/core';
 import { describe, expect, it } from 'vitest';
 import type { FileName, RemoteFile, StorageAdapter } from '../src/adapter.ts';
 import { MemoryCache } from '../src/cache.ts';
+import type { CachedFile } from '../src/cache.ts';
 import { OfflineError } from '../src/errors.ts';
 import { FakeOneDrive } from '../src/fake-onedrive.ts';
 import type { SyncStatus } from '../src/file-sync.ts';
@@ -103,5 +104,38 @@ describe('createWorkspace', () => {
     expect(ws.status()).toBe('saved');
     expect(seen.at(-1)).toBe('saved');
     expect(seen.every((s, i) => i === 0 || s !== seen[i - 1])).toBe(true);
+  });
+
+  it('stage() caches both files without waiting for the network', async () => {
+    const drive = new FakeOneDrive({ 'tasks.md': S });
+    const cache = new MemoryCache();
+    const ws = createWorkspace(drive, cache);
+    await ws.open();
+    drive.setOffline(true);
+    const tasks = `${S}- [ ] New\n`;
+    const done = '- [x] Old ✅ 2026-10-16\n';
+    await ws.stage({ tasks: { text: tasks, base: S }, done: { text: done, base: '' } });
+    expect((await cache.get('tasks.md'))?.local).toBe(tasks);
+    expect((await cache.get('done.md'))?.local).toBe(done);
+    expect(drive.peek('tasks.md')).toBe(S);
+  });
+
+  it('stage() still caches done.md when the tasks.md put fails, then rethrows', async () => {
+    class TasksPutFails extends MemoryCache {
+      failing = false;
+      override async put(name: FileName, f: CachedFile): Promise<void> {
+        if (this.failing && name === 'tasks.md') throw new Error('tasks put failed');
+        return super.put(name, f);
+      }
+    }
+    const cache = new TasksPutFails();
+    const ws = createWorkspace(new FakeOneDrive({ 'tasks.md': S }), cache);
+    await ws.open();
+    cache.failing = true;
+    const done = '- [x] Old ✅ 2026-10-16\n';
+    await expect(
+      ws.stage({ tasks: { text: `${S}- [ ] New\n`, base: S }, done: { text: done, base: '' } }),
+    ).rejects.toThrow('tasks put failed');
+    expect((await cache.get('done.md'))?.local).toBe(done);
   });
 });

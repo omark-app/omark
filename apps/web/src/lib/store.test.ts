@@ -22,10 +22,40 @@ const clock = { now: () => now };
 
 /** A MemoryCache whose writes can be made to fail, like a full or blocked IndexedDB. */
 class FlakyCache extends MemoryCache {
-  failing = false;
+  /** True to fail every put, or a predicate to fail only some files. */
+  failing: boolean | ((name: FileName) => boolean) = false;
   override async put(name: FileName, f: CachedFile): Promise<void> {
-    if (this.failing) throw new Error('QuotaExceededError');
+    if (this.failing === true || (typeof this.failing === 'function' && this.failing(name))) {
+      throw new Error('QuotaExceededError');
+    }
     return super.put(name, f);
+  }
+}
+
+/** A drive whose writes (and, separately, reads) can hang until released, like a stalled mobile network. */
+class SlowDrive extends FakeOneDrive {
+  hold = false;
+  holdReads = false;
+  private waiting: (() => void)[] = [];
+  private stall(): Promise<void> {
+    return new Promise((resolve) => this.waiting.push(resolve));
+  }
+  /** Reads and writes currently hanging. */
+  get stalled(): number {
+    return this.waiting.length;
+  }
+  release(): void {
+    this.hold = false;
+    this.holdReads = false;
+    for (const resolve of this.waiting.splice(0)) resolve();
+  }
+  override async read(name: FileName) {
+    if (this.holdReads) await this.stall();
+    return super.read(name);
+  }
+  override async write(name: FileName, text: string, ifMatch: string | null) {
+    if (this.hold) await this.stall();
+    return super.write(name, text, ifMatch);
   }
 }
 
@@ -40,7 +70,12 @@ async function setup(
     clock,
     isPhone: () => opts.phone ?? false,
   });
-  return { drive, store };
+  /** Flushes, then waits until every queued upload is over (a pull queues behind them). */
+  const synced = async (): Promise<void> => {
+    await store.flush();
+    await ws.refresh();
+  };
+  return { drive, store, synced };
 }
 
 const idOf = (store: AppStore, title: string): string => {
@@ -63,7 +98,7 @@ afterEach(() => {
 
 describe('app store', () => {
   it('adds to Today, toasts, and writes tasks.md after the save delay', async () => {
-    const { drive, store } = await setup();
+    const { drive, store, synced } = await setup();
     store.add('Buy milk');
     expect(titles(store, 'today')).toContain('Buy milk');
     expect(store.toast).toEqual({ message: 'Added to Today', undo: true });
@@ -75,22 +110,22 @@ describe('app store', () => {
   });
 
   it('completing a weekly task moves it on and appends to done.md', async () => {
-    const { drive, store } = await setup();
+    const { drive, store, synced } = await setup();
     store.complete(idOf(store, 'Water the plants'));
     expect(store.toast).toEqual({ message: 'Done · next Mon 26 Oct', undo: true });
-    await store.flush();
+    await synced();
     expect(drive.peek('done.md')).toBe('- [x] Water the plants 🔁 every week on Monday ✅ 2026-10-16\n');
     expect(drive.peek('tasks.md')).toContain('- [ ] Water the plants 🔁 every week on Monday 📅 2026-10-26\n');
     expect(store.stats.today).toBe(1);
   });
 
   it('undo restores both files', async () => {
-    const { drive, store } = await setup();
+    const { drive, store, synced } = await setup();
     store.complete(idOf(store, 'Water the plants'));
-    await store.flush();
+    await synced();
     store.undo();
     expect(store.toast).toEqual({ message: 'Undone', undo: false });
-    await store.flush();
+    await synced();
     expect(drive.peek('tasks.md')).toBe(SEED_TASKS);
     expect(drive.peek('done.md')).toBe('');
     expect(store.stats.today).toBe(0);
@@ -104,11 +139,11 @@ describe('app store', () => {
   });
 
   it('refresh shows outside changes, keeps the selection and clears undo', async () => {
-    const { drive, store } = await setup();
+    const { drive, store, synced } = await setup();
     const dentist = idOf(store, 'Call the dentist');
     store.select(dentist);
     store.add('Buy milk');
-    await store.flush();
+    await synced();
 
     drive.externalWrite('tasks.md', `${drive.peek('tasks.md')!}- [ ] From the phone\n`);
     await store.refresh();
@@ -125,7 +160,7 @@ describe('app store', () => {
 
   it('moves - [x] lines to done.md on open and counts them', async () => {
     const tasks = '# Tasks\n- [ ] Open one\n- [x] Ticked in Obsidian\n- [x] Done last week ✅ 2026-10-09\n';
-    const { drive, store } = await setup({ 'tasks.md': tasks });
+    const { drive, store, synced } = await setup({ 'tasks.md': tasks });
     expect(store.state.doc.items.some((i) => i.kind === 'done')).toBe(false);
     expect(store.stats.today).toBe(1);
     expect(store.stats.all).toBe(2);
@@ -188,7 +223,7 @@ describe('app store', () => {
 
   it('a rejected save keeps the change and a later flush writes it', async () => {
     const cache = new FlakyCache();
-    const { drive, store } = await setup({ 'tasks.md': SEED_TASKS }, { cache });
+    const { drive, store, synced } = await setup({ 'tasks.md': SEED_TASKS }, { cache });
     cache.failing = true;
     store.add('Buy milk');
     await store.flush();
@@ -197,14 +232,14 @@ describe('app store', () => {
     expect(titles(store, 'today')).toContain('Buy milk');
 
     cache.failing = false;
-    await store.flush();
+    await synced();
     expect(drive.peek('tasks.md')).toBe(`${SEED_TASKS}- [ ] Buy milk 📅 2026-10-16\n`);
     expect(store.status).toBe('saved');
   });
 
   it('a rejected save is merged with an outside change on refresh', async () => {
     const cache = new FlakyCache();
-    const { drive, store } = await setup({ 'tasks.md': SEED_TASKS }, { cache });
+    const { drive, store, synced } = await setup({ 'tasks.md': SEED_TASKS }, { cache });
     cache.failing = true;
     store.add('Local edit');
     await store.flush();
@@ -212,7 +247,7 @@ describe('app store', () => {
     cache.failing = false;
 
     await store.refresh();
-    await store.flush();
+    await synced();
     expect(allTitles(store).filter((t) => t === 'Local edit')).toHaveLength(1);
     expect(allTitles(store)).toContain('Remote edit');
     expect(drive.peek('tasks.md')).toContain('- [ ] Local edit 📅 2026-10-16\n');
@@ -221,7 +256,7 @@ describe('app store', () => {
 
   it('an edit made while a refresh is in flight is kept and saved on the new base', async () => {
     let during: (() => void) | null = null;
-    const { drive, store } = await setup(
+    const { drive, store, synced } = await setup(
       { 'tasks.md': SEED_TASKS },
       {
         wrap: (ws) => ({
@@ -241,7 +276,7 @@ describe('app store', () => {
 
     expect(allTitles(store)).toContain('From the phone');
     expect(allTitles(store)).toContain('Typed meanwhile');
-    await store.flush();
+    await synced();
     const text = drive.peek('tasks.md')!;
     expect(text).toContain('- [ ] From the phone\n');
     expect(text).toContain('- [ ] Typed meanwhile 📅 2026-10-16\n');
@@ -313,5 +348,79 @@ describe('app store', () => {
     expect(store.toast).not.toBeNull();
     await vi.advanceTimersByTimeAsync(1);
     expect(store.toast).toBeNull();
+  });
+
+  it('moving a task to the bucket it is in, or setting the same repeat, is not a change', async () => {
+    const { store } = await setup();
+    store.moveTo(idOf(store, 'Call the dentist'), 'today');
+    store.setRepeat(idOf(store, 'Water the plants'), { type: 'weekly', days: [0] });
+    expect(store.toast).toBeNull();
+    store.undo();
+    expect(store.toast?.message).toBe('Nothing to undo');
+  });
+
+  it('an edit still waiting for the save delay survives an outside change and a refresh', async () => {
+    const { drive, store, synced } = await setup();
+    store.add('Local');
+    drive.externalWrite('tasks.md', `${SEED_TASKS}- [ ] Remote\n`);
+    await store.refresh();
+    await synced();
+    expect(allTitles(store).filter((t) => t === 'Local')).toHaveLength(1);
+    expect(allTitles(store)).toContain('Remote');
+    const text = drive.peek('tasks.md')!;
+    expect(text).toContain('- [ ] Local 📅 2026-10-16\n');
+    expect(text).toContain('- [ ] Remote\n');
+  });
+
+  it('a flush caches the edit even while an earlier upload hangs, so a killed page keeps it', async () => {
+    const drive = new SlowDrive({ 'tasks.md': SEED_TASKS });
+    const cache = new MemoryCache();
+    const store = await createStore({ workspace: createWorkspace(drive, cache), clock, isPhone: () => false });
+    drive.hold = true;
+    store.add('First');
+    await store.flush(); // its upload now hangs
+    store.add('Second');
+    await store.flush(); // the page is hidden
+    expect((await cache.get('tasks.md'))!.local).toContain('- [ ] Second');
+
+    // The page is killed; it reopens from the same cache with no network.
+    const offline = new FakeOneDrive({ 'tasks.md': SEED_TASKS });
+    offline.setOffline(true);
+    const reopened = await createWorkspace(offline, cache).open();
+    expect(reopened.tasks).toContain('- [ ] First');
+    expect(reopened.tasks).toContain('- [ ] Second');
+    drive.release();
+  });
+
+  it('a hung refresh does not hold up a flush', async () => {
+    const drive = new SlowDrive({ 'tasks.md': SEED_TASKS });
+    const cache = new MemoryCache();
+    const store = await createStore({ workspace: createWorkspace(drive, cache), clock, isPhone: () => false });
+    drive.holdReads = true;
+    void store.refresh(); // its reads hang
+    await vi.waitFor(() => expect(drive.stalled).toBeGreaterThan(0));
+    store.add('Typed meanwhile');
+    await store.flush();
+    expect((await cache.get('tasks.md'))!.local).toContain('- [ ] Typed meanwhile');
+    drive.release();
+  });
+
+  it('a done.md cache failure does not duplicate a completion once it recovers', async () => {
+    const cache = new FlakyCache();
+    const { drive, store, synced } = await setup({ 'tasks.md': SEED_TASKS }, { cache });
+    cache.failing = (name) => name === 'done.md';
+    store.complete(idOf(store, 'Water the plants'));
+    await store.flush();
+    drive.externalWrite('tasks.md', `${drive.peek('tasks.md')!}- [ ] Remote\n`);
+    cache.failing = false;
+    store.add('Later');
+    await store.flush();
+    await store.refresh();
+    await synced();
+    const tasks = drive.peek('tasks.md')!;
+    expect(tasks.match(/Water the plants/g)).toHaveLength(1);
+    expect(tasks).toContain('- [ ] Remote\n');
+    expect(tasks).toContain('- [ ] Later 📅 2026-10-16\n');
+    expect(drive.peek('done.md')).toBe('- [x] Water the plants 🔁 every week on Monday ✅ 2026-10-16\n');
   });
 });

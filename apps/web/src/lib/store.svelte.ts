@@ -84,11 +84,14 @@ export interface AppStore {
   /** Phones always stay on the list. */
   switchView(): void;
   /**
-   * Saves pending edits, re-reads the files and merges outside changes in (clearing undo); also runs
+   * Stages pending edits, re-reads the files and merges outside changes in (clearing undo); also runs
    * `tick`. Never rejects: failures show in `status`.
    */
   refresh(): Promise<void>;
-  /** Saves now. Never rejects: if the cache write fails the edits stay pending and the next flush retries. */
+  /**
+   * Puts pending edits in the cache now (the upload continues in the background). Never rejects: if the
+   * cache write fails the edits stay pending and the next flush retries.
+   */
   flush(): Promise<void>;
   /** Recomputes the week context from the clock (call at midnight and on focus). */
   tick(): void;
@@ -150,7 +153,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   let undoStack: State[] = [];
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
-  /** Saves and refreshes run one at a time, so each sees the bases the previous one left. */
+  /** Staging and adopting refresh results run one at a time, each seeing the bases the previous one left. */
   let chain: Promise<void> = Promise.resolve();
 
   const serial = (op: () => Promise<void>): Promise<void> => {
@@ -180,19 +183,22 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   const isDirty = (): boolean =>
     serializeTasks(state.doc) !== base.tasks || serializeDone(state.done) !== base.done;
 
-  /** Sends each file whose text differs from its base. A rejected save leaves the bases, so it is retried. */
-  async function saveNow(): Promise<void> {
+  /**
+   * Stages each file whose text differs from its base (Ruling 23): resolves once the edits are in the
+   * cache; the upload runs in the background. A rejected stage leaves the bases, so it is retried.
+   */
+  async function stageNow(): Promise<void> {
     const tasks = serializeTasks(state.doc);
     const done = serializeDone(state.done);
-    const files: Parameters<Workspace['save']>[0] = {};
+    const files: Parameters<Workspace['stage']>[0] = {};
     if (tasks !== base.tasks) files.tasks = { text: tasks, base: base.tasks };
     if (done !== base.done) files.done = { text: done, base: base.done };
     if (!files.tasks && !files.done) return;
     try {
-      await workspace.save(files);
+      await workspace.stage(files);
     } catch {
-      // The cache write failed (status shows offline). Replaying the same edit on the same base is
-      // harmless, so the next flush simply sends it again.
+      // A cache write failed (status shows offline). Replaying the same edit on the same base is
+      // harmless (the merge finds the change already there), so the next flush simply sends it again.
       return;
     }
     if (files.tasks) base.tasks = tasks;
@@ -207,15 +213,18 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     tick();
   }
 
-  /** Takes in what `workspace.refresh()` returned, replaying any edits not yet saved onto it. */
-  function adopt(next: Snapshot): void {
+  /**
+   * Takes in what `workspace.refresh()` returned. `from` is the bases when the read began: anything the
+   * store holds beyond `from` (edits made or staged meanwhile) is merged onto `next`, so it is not lost.
+   */
+  function adopt(next: Snapshot, from: { tasks: string; done: string }): void {
     if (next.config !== configText) applyConfig(next.config);
-    if (next.tasks === base.tasks && next.done === base.done) return;
+    if (next.tasks === from.tasks && next.done === from.done) return;
 
     const localTasks = serializeTasks(state.doc);
     const localDone = serializeDone(state.done);
-    const tasksText = localTasks === base.tasks ? next.tasks : mergeTasksText(base.tasks, localTasks, next.tasks);
-    const doneText = localDone === base.done ? next.done : mergeDoneText(base.done, localDone, next.done);
+    const tasksText = localTasks === from.tasks ? next.tasks : mergeTasksText(from.tasks, localTasks, next.tasks);
+    const doneText = localDone === from.done ? next.done : mergeDoneText(from.done, localDone, next.done);
     base.tasks = next.tasks;
     base.done = next.done;
     // When the merge equals what we hold (e.g. only our own failed-to-cache edit came back), nothing came
@@ -253,7 +262,15 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
 
   /** Makes `next` the state with undo, a toast and a save. False (and nothing happens) if nothing changed. */
   function commit(next: State, message: string): boolean {
-    if (next === state) return false;
+    // A change that alters neither file (moving a task to the bucket it is in, setting the same
+    // repeat, dropping a task where it already is) gets no toast and no undo entry.
+    if (
+      next === state ||
+      (serializeTasks(next.doc) === serializeTasks(state.doc) &&
+        serializeDone(next.done) === serializeDone(state.done))
+    ) {
+      return false;
+    }
     undoStack.push(state);
     if (undoStack.length > UNDO_LIMIT) undoStack.shift();
     state = next;
@@ -369,23 +386,26 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   function flush(): Promise<void> {
     clearTimeout(saveTimer);
     saveTimer = undefined;
-    return serial(saveNow);
+    return serial(stageNow);
   }
 
-  function refresh(): Promise<void> {
+  async function refresh(): Promise<void> {
     clearTimeout(saveTimer);
     saveTimer = undefined;
     tick();
-    return serial(async () => {
-      await saveNow();
-      let next: Snapshot;
-      try {
-        next = await workspace.refresh();
-      } catch {
-        return; // The cache could not be read (status shows offline); the next refresh tries again.
-      }
-      adopt(next);
+    let from = { ...base };
+    await serial(async () => {
+      await stageNow();
+      from = { ...base };
     });
+    // The remote reads run outside the chain, so a slow network never holds up a flush.
+    let next: Snapshot;
+    try {
+      next = await workspace.refresh();
+    } catch {
+      return; // The cache could not be read (status shows offline); the next refresh tries again.
+    }
+    await serial(async () => adopt(next, from));
   }
 
   // Lines ticked in Obsidian were swept on load: write them out.
