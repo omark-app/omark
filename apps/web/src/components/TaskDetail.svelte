@@ -33,22 +33,32 @@
     ][],
   );
 
-  const editing = (): boolean => document.activeElement === titleEl || document.activeElement === notesEl;
+  // Fields changed since they were last saved. Only these are sent, so a remote change to the other field
+  // (arriving while one field is focused) is never overwritten with stale text.
+  let titleDirty = false;
+  let notesDirty = false;
 
-  // Follow outside changes (undo, sync) unless the person is typing in a field.
+  // Follow outside changes (undo, sync) per field, unless that field is being typed in.
   $effect(() => {
     const t = task.title;
     const n = task.notes.join('\n');
-    if (editing()) return;
-    title = t;
-    notes = n;
+    if (!titleDirty && document.activeElement !== titleEl) title = t;
+    if (!notesDirty && document.activeElement !== notesEl) notes = n;
   });
 
-  /** Saves the fields now. `settle` puts the stored values (trimmed, blank notes dropped) back in the fields. */
-  function save(settle: boolean): void {
+  /** Commits the typed text to the store now. `settle` puts the stored values back in the fields. */
+  function commit(settle = false): void {
     clearTimeout(timer);
     timer = undefined;
-    store.edit(id, { title, notes: notes.split('\n') });
+    const current = findTask(store.state, id);
+    if (current && (titleDirty || notesDirty)) {
+      store.edit(id, {
+        title: titleDirty ? title : current.title,
+        notes: notesDirty ? notes.split('\n') : current.notes,
+      });
+    }
+    titleDirty = false;
+    notesDirty = false;
     if (settle) {
       const t = findTask(store.state, id);
       if (t) {
@@ -58,12 +68,30 @@
     }
   }
 
-  function typed(): void {
+  function typed(field: 'title' | 'notes'): void {
+    if (field === 'title') titleDirty = true;
+    else notesDirty = true;
     clearTimeout(timer);
-    timer = setTimeout(() => save(false), store.config.saveDelaySeconds * 1000);
+    timer = setTimeout(() => {
+      commit();
+      void store.flush();
+    }, store.config.saveDelaySeconds * 1000);
   }
 
-  $effect(() => () => clearTimeout(timer));
+  function blurred(e: FocusEvent): void {
+    // Moving between the two fields keeps what is typed (e.g. the new note line after Shift+Enter).
+    commit(e.relatedTarget !== titleEl && e.relatedTarget !== notesEl);
+  }
+
+  // The store runs this before every flush and refresh; unmounting (another task, deselect, the task gone)
+  // commits too.
+  $effect(() => {
+    const off = store.registerPending(() => commit());
+    return () => {
+      off();
+      commit();
+    };
+  });
 
   export function focusTitle(): void {
     titleEl?.focus();
@@ -102,9 +130,9 @@
       class="d-title"
       data-testid="detail-title"
       aria-label="Task title"
-      oninput={typed}
+      oninput={() => typed('title')}
       onkeydown={titleKey}
-      onblur={() => save(true)}
+      onblur={blurred}
     />
     <textarea
       bind:this={notesEl}
@@ -114,9 +142,9 @@
       rows={Math.max(3, notes.split('\n').length + 1)}
       placeholder="Notes, one per line"
       aria-label="Notes"
-      oninput={typed}
+      oninput={() => typed('notes')}
       onkeydown={notesKey}
-      onblur={() => save(true)}
+      onblur={blurred}
     ></textarea>
   </div>
   <div class="fields">

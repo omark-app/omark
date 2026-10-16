@@ -135,5 +135,45 @@ test('notes save one second after typing stops', async ({ page }) => {
   await row(page, 'Send the invoice').click();
   await page.getByTestId('detail-notes').click();
   await page.keyboard.type('pay by Friday');
-  await expect.poll(() => driveFile(page, 'tasks.md'), { timeout: 8000 }).toContain('    - pay by Friday');
+  await expect.poll(() => driveFile(page, 'tasks.md'), { timeout: 1500, intervals: [100] }).toContain('    - pay by Friday');
+});
+
+test('Shift+Enter from the title on a task with notes keeps the notes and adds the new line', async ({ page }) => {
+  await start(page);
+  await row(page, 'Call the dentist').click();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Shift+Enter');
+  await page.keyboard.type('third');
+  await page.keyboard.press('Control+Enter');
+  await expect(page.getByTestId('detail-notes')).toHaveValue('ask about zirconia\nbring the old x-ray\nthird');
+  await expect.poll(() => driveFile(page, 'tasks.md'), { timeout: 3000 }).toContain('    - bring the old x-ray\n    - third');
+});
+
+test('typed notes are saved when the app is hidden before the debounce fires', async ({ page }) => {
+  await start(page);
+  await row(page, 'Send the invoice').click();
+  await page.getByTestId('detail-notes').click();
+  await page.keyboard.type('hidden save');
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect.poll(() => driveFile(page, 'tasks.md'), { timeout: 700, intervals: [50] }).toContain('    - hidden save');
+});
+
+test('typed title is saved when the selection changes', async ({ page }) => {
+  await start(page);
+  await row(page, 'Send the invoice').click();
+  await page.getByTestId('detail-title').click();
+  await page.keyboard.type(' x');
+  await row(page, 'Old thing').click({ position: { x: 150, y: 5 } });
+  await expect(row(page, 'Send the invoice x')).toHaveCount(1);
+});
+
+test('the This week chip is hidden on a Sunday', async ({ page }) => {
+  await openApp(page, { files: { 'tasks.md': TASKS }, now: '2026-10-18T09:00:00' });
+  await row(page, 'Send the invoice').click();
+  const d = page.getByTestId('detail');
+  await expect(d.getByRole('button', { name: 'Next week', exact: true })).toBeVisible();
+  await expect(d.getByRole('button', { name: 'This week', exact: true })).toHaveCount(0);
 });

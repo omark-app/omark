@@ -80,6 +80,11 @@ export interface AppStore {
   setRepeat(id: string, rule: RepeatRule | null): void;
   setAlways(lines: string[]): void;
   undo(): void;
+  /**
+   * Registers a callback that commits input still waiting in the UI (e.g. debounced typing). `flush()` and
+   * `refresh()` run every callback before they stage. Returns the unregister function.
+   */
+  registerPending(fn: () => void): () => void;
   toggleFold(key: BucketKey): void;
   /** Phones always stay on the list. */
   switchView(): void;
@@ -151,6 +156,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   });
 
   let undoStack: State[] = [];
+  const pending = new Set<() => void>();
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   /** Staging and adopting refresh results run one at a time, each seeing the bases the previous one left. */
@@ -387,12 +393,14 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   }
 
   function flush(): Promise<void> {
+    for (const fn of [...pending]) fn();
     clearTimeout(saveTimer);
     saveTimer = undefined;
     return serial(stageNow);
   }
 
   async function refresh(): Promise<void> {
+    for (const fn of [...pending]) fn();
     clearTimeout(saveTimer);
     saveTimer = undefined;
     tick();
@@ -435,6 +443,12 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     setRepeat,
     setAlways,
     undo,
+    registerPending(fn) {
+      pending.add(fn);
+      return () => {
+        pending.delete(fn);
+      };
+    },
     toggleFold(key) {
       folded = { ...folded, [key]: !folded[key] };
     },
