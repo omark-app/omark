@@ -11,3 +11,4 @@ export * from './ops.ts';
 export * from './drop.ts';
 export * from './stats.ts';
 export * from './merge.ts';
+export * from './config.ts';
