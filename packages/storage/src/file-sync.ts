@@ -19,8 +19,10 @@ const MAX_WRITE_ATTEMPTS = 3;
 /**
  * Keeps one OneDrive file in sync with a cached local copy. The cache holds `{ base, baseEtag, local,
  * dirty }`: `base` is the last text known to be on OneDrive under `baseEtag`, `local` is the working text.
- * Every change to `local` reaches the cache before the next network write. All network work runs on one
- * promise chain, so writes never overlap and each write sends the latest `local`.
+ * Every change to `local` reaches the cache before the next network write (if that cache write fails,
+ * the write to OneDrive still goes ahead and the cache is brought up to date after the next successful
+ * operation). All network work runs on one promise chain, so writes never overlap and each write sends
+ * the latest `local`.
  *
  * Callers adopt the text returned by `open()` and `pull()`, and pass to `save()` the text their edit
  * started from, so an edit made on an older text is replayed onto whatever arrived since.
@@ -32,6 +34,8 @@ export class FileSync {
   private version = 0;
   private persistedVersion = 0;
   private loading: Promise<boolean> | null = null;
+  /** Remote content altered `local` since `open` or `pull` last returned. */
+  private remoteChanged = false;
   private current: SyncStatus = 'syncing';
   private readonly listeners = new Set<(s: SyncStatus) => void>();
   private chain: Promise<unknown> = Promise.resolve();
@@ -62,29 +66,28 @@ export class FileSync {
    */
   async open(): Promise<string> {
     const hadCache = await this.load();
-    const ok = await this.enqueue(async () => {
-      await this.pullOnce();
-    });
+    const ok = await this.enqueue(() => this.pullOnce());
     if (!ok && !hadCache && !this.file.dirty) {
       // Never synced and unreachable: keep `initial` as a pending local copy so it is created later.
       // Its base is `initial` too, so if the file turns up meanwhile, merging adds nothing to it.
       this.set({ ...this.file, dirty: true });
       await this.persist().catch(() => this.setStatus('offline'));
     }
+    this.remoteChanged = false; // the caller adopts this text
     return this.file.local;
   }
 
   /**
    * Reads the remote; merges and writes when there are local edits. Resolves with the text the caller
-   * should adopt; `changed` is true when remote content altered it. Network failures only show in
-   * `status()`.
+   * should adopt; `changed` is true when remote content altered `local` since `open` or `pull` last
+   * returned (including content merged in by an earlier save's 412 retry). Network failures only show
+   * in `status()`.
    */
   async pull(): Promise<{ text: string; changed: boolean }> {
     await this.load();
-    let changed = false;
-    await this.enqueue(async () => {
-      changed = await this.pullOnce();
-    });
+    await this.enqueue(() => this.pullOnce());
+    const changed = this.remoteChanged;
+    this.remoteChanged = false;
     return { text: this.file.local, changed };
   }
 
@@ -110,15 +113,26 @@ export class FileSync {
     await this.enqueue(() => this.writeLocal(), true);
   }
 
-  /** Loads the cache once; every public method waits for it before touching state. True if it had a copy. */
+  /**
+   * Loads the cache once; every public method waits for it before touching state. True if it had a copy.
+   * A failed load is not taken as "no cache" (that could overwrite unsynced edits): the call rejects, the
+   * status goes `offline`, and the next call tries again.
+   */
   private load(): Promise<boolean> {
-    this.loading ??= this.opts.cache.get(this.opts.name).then((cached) => {
-      if (cached) {
-        this.file = cached;
-        this.persistedVersion = this.version;
-      }
-      return cached !== null;
-    });
+    this.loading ??= this.opts.cache.get(this.opts.name).then(
+      (cached) => {
+        if (cached) {
+          this.file = cached;
+          this.persistedVersion = this.version;
+        }
+        return cached !== null;
+      },
+      (e: unknown) => {
+        this.loading = null;
+        this.setStatus('offline');
+        throw e;
+      },
+    );
     return this.loading;
   }
 
@@ -145,25 +159,23 @@ export class FileSync {
     return run.catch(() => false);
   }
 
-  /** Reads the remote, absorbs it, and writes if dirty. Returns true if remote content altered `local`. */
-  private async pullOnce(): Promise<boolean> {
-    const remote = await this.opts.adapter.read(this.opts.name);
-    const changed = await this.absorb(remote);
+  /** Reads the remote, absorbs it, and writes if dirty. */
+  private async pullOnce(): Promise<void> {
+    await this.absorb(await this.opts.adapter.read(this.opts.name));
     if (this.file.dirty) await this.writeLocal();
-    return changed;
   }
 
   /**
    * Brings a freshly read remote into the state. Uses the state as it is now, so a save made while the
-   * read was in flight is merged rather than overwritten. Returns true if `local` changed.
+   * read was in flight is merged rather than overwritten. Sets `remoteChanged` when `local` changes.
    */
-  private async absorb(remote: RemoteFile | null): Promise<boolean> {
+  private async absorb(remote: RemoteFile | null): Promise<void> {
     const f = this.file;
     if (remote === null) {
       // Missing: create it from `local` (whether never created or deleted elsewhere, the text is kept).
       this.set({ ...f, baseEtag: null, dirty: true });
     } else if (remote.etag === f.baseEtag) {
-      return false;
+      return;
     } else if (!f.dirty) {
       this.set({ base: remote.text, baseEtag: remote.etag, local: remote.text, dirty: false });
     } else {
@@ -172,8 +184,8 @@ export class FileSync {
       const same = normalize(merged) === normalize(remote.text);
       this.set({ base: remote.text, baseEtag: remote.etag, local: same ? remote.text : merged, dirty: !same });
     }
+    if (this.file.local !== f.local) this.remoteChanged = true;
     await this.persist();
-    return this.file.local !== f.local;
   }
 
   /** Writes `local` under `baseEtag`; on a 412 re-reads, merges and tries again, up to 3 writes in all. */

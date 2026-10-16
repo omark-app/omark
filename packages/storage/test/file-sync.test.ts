@@ -392,7 +392,7 @@ describe('FileSync', () => {
     expect(sync.status()).toBe('saved');
   });
 
-  it("a save made during open's pull keeps the other device's change", async () => {
+  it("a save based on the cached text, made after open has absorbed a remote change, keeps that change", async () => {
     const drive = new FakeOneDrive({ [NAME]: S });
     const cache = new MemoryCache();
     await cache.put(NAME, { base: S, baseEtag: '"v1"', local: S, dirty: false });
@@ -539,6 +539,70 @@ describe('FileSync', () => {
     expect(await sync.pull()).toEqual({ text: withLocal, changed: false }); // eTag unchanged: nothing to absorb
     expect(sync.status()).toBe('saved');
     expect(await inner.get(NAME)).toEqual({ base: withLocal, baseEtag: '"v2"', local: withLocal, dirty: false });
+  });
+
+  it('pull() reports changed when a remote change is merged in on its own 412 retry', async () => {
+    const drive = new FakeOneDrive({ [NAME]: S });
+    let interfere = false;
+    const adapter: StorageAdapter = {
+      read: (n) => drive.read(n),
+      write: (n, t, m) => {
+        if (interfere) {
+          interfere = false; // another device writes just before ours lands: 412
+          drive.externalWrite(NAME, withRemote);
+        }
+        return drive.write(n, t, m);
+      },
+    };
+    const sync = makeSync(adapter);
+    await sync.open();
+    drive.setOffline(true);
+    await sync.save(withLocal, S);
+    drive.setOffline(false);
+    interfere = true;
+    const { text, changed } = await sync.pull();
+    expect(text).toContain('- [ ] Remote task');
+    expect(text).toContain('- [ ] Local task');
+    expect(drive.peek(NAME)).toBe(text);
+    expect(changed).toBe(true);
+    expect(await sync.pull()).toEqual({ text, changed: false });
+  });
+
+  it("the next pull() reports changed when a save's 412 retry merged in a remote change", async () => {
+    const { drive, sync } = await opened();
+    drive.externalWrite(NAME, withRemote);
+    await sync.save(withLocal, S);
+    const text = sync.text();
+    expect(text).toContain('- [ ] Remote task');
+    expect(drive.peek(NAME)).toBe(text);
+    expect(await sync.pull()).toEqual({ text, changed: true }); // eTag unchanged since the save
+    expect(await sync.pull()).toEqual({ text, changed: false });
+  });
+
+  it('a failed cache load rejects and goes offline; the next open() retries the load', async () => {
+    const drive = new FakeOneDrive({ [NAME]: S });
+    const inner = new MemoryCache();
+    await inner.put(NAME, { base: S, baseEtag: '"v1"', local: withLocal, dirty: true });
+    let failGets = 1;
+    const cache: LocalCache = {
+      get: async (n) => {
+        if (failGets > 0) {
+          failGets--;
+          throw new Error('IndexedDB unavailable');
+        }
+        return inner.get(n);
+      },
+      put: (n, f) => inner.put(n, f),
+      clear: () => inner.clear(),
+    };
+    const sync = makeSync(drive, cache);
+    await expect(sync.open()).rejects.toThrow('IndexedDB unavailable');
+    expect(sync.status()).toBe('offline');
+    expect(drive.peek(NAME)).toBe(S); // nothing was taken as "no cache"
+
+    expect(await sync.open()).toBe(withLocal);
+    expect(drive.peek(NAME)).toBe(withLocal);
+    expect(sync.status()).toBe('saved');
   });
 
   it('an untouched CRLF remote is not rewritten after an offline-first open', async () => {
