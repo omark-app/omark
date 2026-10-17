@@ -1,4 +1,10 @@
-import { InteractionRequiredAuthError, type AccountInfo, type IPublicClientApplication } from '@azure/msal-browser';
+import {
+  BrowserAuthError,
+  BrowserAuthErrorCodes,
+  InteractionRequiredAuthError,
+  type AccountInfo,
+  type IPublicClientApplication,
+} from '@azure/msal-browser';
 import { describe, expect, it, vi } from 'vitest';
 import { createAuth } from '../src/auth.ts';
 import { AuthRequiredError } from '../src/errors.ts';
@@ -38,6 +44,29 @@ describe('createAuth', () => {
     await expect(mk(msal).getToken()).rejects.toBeInstanceOf(AuthRequiredError);
     expect(msal.loginRedirect).not.toHaveBeenCalled();
     expect(msal.acquireTokenRedirect).not.toHaveBeenCalled();
+  });
+
+  it.each([BrowserAuthErrorCodes.timedOut, BrowserAuthErrorCodes.iframeClosedPrematurely, BrowserAuthErrorCodes.noAccountError])(
+    'throws AuthRequiredError when the silent refresh fails with %s (a fresh sign-in is needed)',
+    async (code) => {
+      const msal = stub({
+        acquireTokenSilent: vi.fn(async () => {
+          throw new BrowserAuthError(code, 'cid');
+        }),
+      });
+      await expect(mk(msal).getToken()).rejects.toBeInstanceOf(AuthRequiredError);
+      expect(msal.loginRedirect).not.toHaveBeenCalled();
+    },
+  );
+
+  it('passes a network failure through unchanged (it reads as offline, not sign in needed)', async () => {
+    const offline = new BrowserAuthError(BrowserAuthErrorCodes.noNetworkConnectivity, 'cid');
+    const msal = stub({
+      acquireTokenSilent: vi.fn(async () => {
+        throw offline;
+      }),
+    });
+    await expect(mk(msal).getToken()).rejects.toBe(offline);
   });
 
   it('throws AuthRequiredError when there is no account', async () => {

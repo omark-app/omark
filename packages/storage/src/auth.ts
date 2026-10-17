@@ -1,4 +1,6 @@
 import {
+  BrowserAuthError,
+  BrowserAuthErrorCodes,
   BrowserCacheLocation,
   InteractionRequiredAuthError,
   PublicClientApplication,
@@ -16,6 +18,21 @@ export interface Auth {
 
 const SCOPES = ['Files.ReadWrite'];
 const AUTHORITY = 'https://login.microsoftonline.com/consumers';
+
+/**
+ * Silent-refresh failures that only a fresh sign-in fixes. Once the refresh token is gone, MSAL renews in
+ * a hidden iframe; where the browser blocks Microsoft's cookies there (Safari, iOS home-screen apps) that
+ * iframe times out or closes instead of answering with `InteractionRequiredAuthError`.
+ */
+const SIGN_IN_CODES: readonly string[] = [
+  BrowserAuthErrorCodes.timedOut,
+  BrowserAuthErrorCodes.iframeClosedPrematurely,
+  BrowserAuthErrorCodes.noAccountError,
+];
+
+const needsSignIn = (e: unknown): boolean =>
+  e instanceof InteractionRequiredAuthError ||
+  (e instanceof BrowserAuthError && SIGN_IN_CODES.includes(e.errorCode));
 
 export function createAuth(opts: {
   clientId: string;
@@ -56,8 +73,8 @@ export function createAuth(opts: {
         const res = await msal.acquireTokenSilent({ scopes: SCOPES, account: acct });
         return res.accessToken;
       } catch (e) {
-        if (e instanceof InteractionRequiredAuthError) throw new AuthRequiredError('Sign in needed');
-        throw e;
+        if (needsSignIn(e)) throw new AuthRequiredError('Sign in needed');
+        throw e; // e.g. no network: the caller reads it as offline and retries later
       }
     },
     isSignedIn() {
