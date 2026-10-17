@@ -13,7 +13,7 @@
   import TaskDetail from './TaskDetail.svelte';
   import { commandFor, isTypingTarget, sheetOpen } from '../lib/keys.ts';
 
-  /** `pickDate`, `repeat` and `edit` open UI that other tasks provide; they report the selected task here. */
+  /** `pickDate` and `repeat` open the sheets (the app shell owns them) and `edit` is reported too; each carries the task id. */
   let {
     store,
     onCommand = () => {},
@@ -111,7 +111,7 @@
       {#if !phone}<AddInput bind:this={addInput} {store} />{/if}
       <div class="buckets">
         {#each BUCKETS as b (b.key)}
-          <Bucket {store} key={b.key} name={b.name} />
+          <Bucket {store} key={b.key} name={b.name} onpickdate={(id) => onCommand('pickDate', id)} />
         {/each}
       </div>
     </section>

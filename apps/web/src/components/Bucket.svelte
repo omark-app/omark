@@ -4,7 +4,12 @@
   import type { AppStore } from '../lib/store.svelte.ts';
   import TaskRow from './TaskRow.svelte';
 
-  let { store, key, name }: { store: AppStore; key: BucketKey; name: string } = $props();
+  let {
+    store,
+    key,
+    name,
+    onpickdate,
+  }: { store: AppStore; key: BucketKey; name: string; onpickdate?: (id: string) => void } = $props();
 
   const EMPTY: Record<BucketKey, string> = {
     today: 'Nothing due. Enjoy it.',
@@ -37,6 +42,7 @@
         selected={store.selectedId === task.id}
         onselect={() => store.select(task.id)}
         oncomplete={() => store.complete(task.id)}
+        onpickdate={() => onpickdate?.(task.id)}
       />
     {:else}
       <div class="empty">{EMPTY[key]}</div>

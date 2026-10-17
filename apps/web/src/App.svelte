@@ -2,10 +2,17 @@
   import { boot } from './lib/boot.ts';
   import type { BootResult } from './lib/boot.ts';
   import TaskListView from './components/TaskListView.svelte';
+  import Sheet from './components/Sheet.svelte';
+  import DatePicker from './components/DatePicker.svelte';
+  import RepeatPicker from './components/RepeatPicker.svelte';
+
+  /** The open picker. Task 26 sets `suggested` and `beforeId` when a task is dropped on Later. */
+  type OpenSheet = { kind: 'date'; id: string; suggested?: string; beforeId?: string } | { kind: 'repeat'; id: string };
 
   let result = $state.raw<BootResult | null>(null);
   let error = $state<string | null>(null);
   let signInError = $state<string | null>(null);
+  let sheet = $state<OpenSheet | null>(null);
 
   const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
@@ -38,7 +45,20 @@
     {#if signInError}<p role="alert">Sign-in failed: {signInError}</p>{/if}
   </div>
 {:else}
-  <TaskListView store={result.store} />
+  <TaskListView
+    store={result.store}
+    onCommand={(command, id) => {
+      if (command === 'pickDate') sheet = { kind: 'date', id };
+      else if (command === 'repeat') sheet = { kind: 'repeat', id };
+    }}
+  />
+  <Sheet open={sheet !== null} onclose={() => (sheet = null)}>
+    {#if sheet?.kind === 'date'}
+      <DatePicker store={result.store} taskId={sheet.id} suggested={sheet.suggested} beforeId={sheet.beforeId} onclose={() => (sheet = null)} />
+    {:else if sheet?.kind === 'repeat'}
+      <RepeatPicker store={result.store} taskId={sheet.id} onclose={() => (sheet = null)} />
+    {/if}
+  </Sheet>
 {/if}
 
 <style>

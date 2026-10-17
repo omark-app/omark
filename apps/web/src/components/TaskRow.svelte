@@ -9,6 +9,7 @@
     selected = false,
     onselect,
     oncomplete,
+    onpickdate,
   }: {
     task: Task;
     ctx: WeekCtx;
@@ -16,6 +17,7 @@
     selected?: boolean;
     onselect?: () => void;
     oncomplete?: () => void;
+    onpickdate?: () => void;
   } = $props();
 
   let el: HTMLDivElement | undefined = $state();
@@ -37,7 +39,7 @@
   <div class="title">
     {task.title}{#if task.notes.length > 0}<span class="ni" title="{task.notes.length} note{task.notes.length > 1 ? 's' : ''}">≡</span>{/if}
   </div>
-  <button class="meta" class:empty class:over={label.overdue} data-testid="task-meta" title={tip}>
+  <button class="meta" class:empty class:over={label.overdue} data-testid="task-meta" title={tip} onclick={onpickdate}>
     {#if empty}{task.date ? 'today' : 'no date'}{:else}{#if label.repeat}<span class="rep">↻</span>{/if}{#if label.repeat && label.text}{' '}{/if}{label.text ?? ''}{/if}
   </button>
 </div>
