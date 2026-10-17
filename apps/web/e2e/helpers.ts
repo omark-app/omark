@@ -18,20 +18,22 @@ export const SPEC_TASKS = `# Always
 
 /**
  * Opens the app on a fake OneDrive seeded with `files`, with the browser clock fixed at `now`
- * (local time, default 2026-10-16 09:00).
+ * (local time, default 2026-10-16 09:00). `fakeTimers` instead installs a fake clock that starts at
+ * `now` and runs, so a test can `page.clock.fastForward` the app's timers.
  */
 export async function openApp(
   page: Page,
-  opts: { files?: Partial<Record<FileName, string>>; now?: string } = {},
+  opts: { files?: Partial<Record<FileName, string>>; now?: string; fakeTimers?: boolean } = {},
 ): Promise<void> {
   const files = opts.files ?? {};
-  await page.clock.setFixedTime(new Date(opts.now ?? '2026-10-16T09:00:00'));
+  const now = new Date(opts.now ?? '2026-10-16T09:00:00');
+  if (opts.fakeTimers) await page.clock.install({ time: now });
+  else await page.clock.setFixedTime(now);
   await page.addInitScript((seed) => {
     (window as unknown as { __TASKAPP_SEED__: unknown }).__TASKAPP_SEED__ = seed;
   }, files);
   await page.goto('/');
 }
-
 
 /** The current text of a file on the fake drive ('' if it does not exist). */
 export async function driveFile(page: Page, name: FileName): Promise<string> {

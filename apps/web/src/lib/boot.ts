@@ -6,9 +6,12 @@ import {
   MemoryCache,
   OneDriveAdapter,
 } from '@taskapp/storage';
-import type { Auth, FileName, LocalCache, Workspace } from '@taskapp/storage';
+import type { Auth, FileName, LocalCache, StorageAdapter, Workspace } from '@taskapp/storage';
 import { MSAL_CLIENT_ID, ONEDRIVE_FOLDER, STORAGE_MODE } from '../env.ts';
+import { createAuthStub, tokenGated } from './auth-stub.ts';
+import type { AuthStub, AuthStubState } from './auth-stub.ts';
 import { systemClock } from './clock.ts';
+import { installLifecycle } from './lifecycle.ts';
 import { createStore } from './store.svelte.ts';
 import type { AppStore } from './store.svelte.ts';
 
@@ -18,14 +21,20 @@ declare global {
     __TASKAPP_SEED__?: Partial<Record<FileName, string>>;
     /** The fake drive, so e2e tests can read files and simulate other devices. */
     __taskappFake?: FakeOneDrive;
+    /** Fake builds only: boot through sign-in with a stubbed account (set by e2e tests before the app loads). */
+    __TASKAPP_AUTH_STUB__?: AuthStubState;
+    /** The stubbed account, so e2e tests can see sign-in attempts. */
+    __taskappAuth?: AuthStub;
   }
 }
 
-/** `ready`: the store is open. `signin`: OneDrive mode with no signed-in account; the UI calls `auth.signIn()`. */
-export type BootResult = { kind: 'ready'; store: AppStore } | { kind: 'signin'; auth: Auth };
+/**
+ * `ready`: the store is open; `auth` (null in fake mode) lets the UI sign in again when the status reads
+ * `sign in needed`. `signin`: no signed-in account; the UI calls `auth.signIn()`.
+ */
+export type BootResult = { kind: 'ready'; store: AppStore; auth: Auth | null } | { kind: 'signin'; auth: Auth };
 
 const PHONE_QUERY = '(max-width: 719.98px)';
-const TICK_MS = 30_000;
 
 export const CACHE_WARNING =
   'This browser blocks offline storage (private browsing?). Changes are saved to OneDrive but not kept offline.';
@@ -34,30 +43,43 @@ const isPhone = (): boolean => window.matchMedia(PHONE_QUERY).matches;
 
 /**
  * Builds the store for this build's storage mode. Fake mode (`VITE_STORAGE=fake`) runs on an in-memory
- * drive seeded from `window.__TASKAPP_SEED__` and exposes it as `window.__taskappFake`. OneDrive mode
- * signs in with MSAL and caches in IndexedDB, falling back to memory (with `store.cacheWarning`) when
- * IndexedDB is unusable.
+ * drive seeded from `window.__TASKAPP_SEED__` and exposes it as `window.__taskappFake`; with
+ * `window.__TASKAPP_AUTH_STUB__` set it goes through the sign-in path too, with a stubbed account.
+ * OneDrive mode signs in with MSAL and caches in IndexedDB, falling back to memory (with
+ * `store.cacheWarning`) when IndexedDB is unusable. Rejects if the sign-in redirect or the cache fails;
+ * the UI shows the error with a way to try again.
  */
 export async function boot(): Promise<BootResult> {
   if (STORAGE_MODE === 'fake') {
     const drive = new FakeOneDrive(window.__TASKAPP_SEED__ ?? {});
     window.__taskappFake = drive;
-    return ready(createWorkspace(drive, new MemoryCache()), null);
+    const stub = window.__TASKAPP_AUTH_STUB__;
+    if (!stub) return ready(createWorkspace(drive, new MemoryCache()), null, null);
+    const auth = (window.__taskappAuth = createAuthStub(stub));
+    return signedIn(auth, tokenGated(drive, () => auth.getToken()), async () => ({ cache: new MemoryCache(), warning: null }));
   }
 
   const auth = createAuth({ clientId: MSAL_CLIENT_ID, redirectUri: `${window.location.origin}/` });
-  await auth.handleRedirect();
-  if (!auth.isSignedIn()) return { kind: 'signin', auth };
-
-  const { cache, warning } = await openCache();
   const adapter = new OneDriveAdapter({ folder: ONEDRIVE_FOLDER, getToken: () => auth.getToken() });
-  return ready(createWorkspace(adapter, cache), warning);
+  return signedIn(auth, adapter, openCache);
 }
 
-async function ready(workspace: Workspace, cacheWarning: string | null): Promise<BootResult> {
+/** Finishes a sign-in redirect if there is one; opens the store when an account is signed in. */
+async function signedIn(
+  auth: Auth,
+  adapter: StorageAdapter,
+  cache: () => Promise<{ cache: LocalCache; warning: string | null }>,
+): Promise<BootResult> {
+  await auth.handleRedirect();
+  if (!auth.isSignedIn()) return { kind: 'signin', auth };
+  const opened = await cache();
+  return ready(createWorkspace(adapter, opened.cache), opened.warning, auth);
+}
+
+async function ready(workspace: Workspace, cacheWarning: string | null, auth: Auth | null): Promise<BootResult> {
   const store = await createStore({ workspace, clock: systemClock, isPhone, cacheWarning });
-  wireBrowser(store);
-  return { kind: 'ready', store };
+  installLifecycle(store);
+  return { kind: 'ready', store, auth };
 }
 
 /** IndexedDB can throw on construction or first use (iOS private mode): then use memory. */
@@ -69,25 +91,4 @@ async function openCache(): Promise<{ cache: LocalCache; warning: string | null 
   } catch {
     return { cache: new MemoryCache(), warning: CACHE_WARNING };
   }
-}
-
-/**
- * Spec 3.5 and planning decision 13: re-read on focus, save when hidden or closed, and recompute buckets
- * at midnight (checked every 30 s, which also covers a device waking from sleep).
- */
-function wireBrowser(store: AppStore): void {
-  // Regaining focus fires both `focus` and `visibilitychange`: one refresh at a time is enough.
-  let refreshing: Promise<void> | null = null;
-  const refresh = (): void => {
-    refreshing ??= store.refresh().finally(() => {
-      refreshing = null;
-    });
-  };
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') void store.flush();
-    else refresh();
-  });
-  window.addEventListener('focus', refresh);
-  window.addEventListener('pagehide', () => void store.flush());
-  window.setInterval(() => store.tick(), TICK_MS);
 }

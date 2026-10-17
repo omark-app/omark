@@ -6,13 +6,19 @@
   import Stats from './Stats.svelte';
   import Hints from './Hints.svelte';
   import StatusLine from './StatusLine.svelte';
+  import ConfigBanner from './ConfigBanner.svelte';
   import Toast from './Toast.svelte';
   import AddInput from './AddInput.svelte';
   import TaskDetail from './TaskDetail.svelte';
   import { createCommands, createPhone, selectedTask } from '../lib/commands.svelte.ts';
   import type { OnCommand, OnDropPickDate } from '../lib/commands.svelte.ts';
 
-  let { store, onCommand = () => {}, onDropPickDate = () => {} }: { store: AppStore; onCommand?: OnCommand; onDropPickDate?: OnDropPickDate } = $props();
+  let {
+    store,
+    onCommand = () => {},
+    onDropPickDate = () => {},
+    onSignIn,
+  }: { store: AppStore; onCommand?: OnCommand; onDropPickDate?: OnDropPickDate; onSignIn?: () => void } = $props();
 
   let addInput: AddInput | undefined = $state();
   let detail: TaskDetail | undefined = $state();
@@ -48,10 +54,11 @@
       {/if}
     </div>
     <Hints />
-    <StatusLine status={store.status} />
+    <StatusLine status={store.status} onsignin={onSignIn} />
   </aside>
   <div class="main">
     {#if store.cacheWarning}<p class="warn" role="status">{store.cacheWarning}</p>{/if}
+    {#if store.configError}<ConfigBanner error={store.configError} />{/if}
     <AddInput bind:this={addInput} {store} />
     <!-- Double-click is a pointer convenience; the keyboard edits with Enter. -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->

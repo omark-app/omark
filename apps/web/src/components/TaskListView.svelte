@@ -6,6 +6,7 @@
   import Stats from './Stats.svelte';
   import Hints from './Hints.svelte';
   import StatusLine from './StatusLine.svelte';
+  import ConfigBanner from './ConfigBanner.svelte';
   import Toast from './Toast.svelte';
   import AddInput from './AddInput.svelte';
   import TaskDetail from './TaskDetail.svelte';
@@ -14,7 +15,12 @@
   import { applyDrop } from '../lib/drag/drop-target.ts';
   import type { OnCommand, OnDropPickDate } from '../lib/commands.svelte.ts';
 
-  let { store, onCommand = () => {}, onDropPickDate = () => {} }: { store: AppStore; onCommand?: OnCommand; onDropPickDate?: OnDropPickDate } = $props();
+  let {
+    store,
+    onCommand = () => {},
+    onDropPickDate = () => {},
+    onSignIn,
+  }: { store: AppStore; onCommand?: OnCommand; onDropPickDate?: OnDropPickDate; onSignIn?: () => void } = $props();
 
   let addInput: AddInput | undefined = $state();
   let detail: TaskDetail | undefined = $state();
@@ -38,7 +44,9 @@
 
 <div class="wrap">
   {#if store.cacheWarning}<p class="warn" role="status">{store.cacheWarning}</p>{/if}
-  {#if phone.value}<Stats stats={store.stats} variant="line" />{/if}
+  {#if store.configError}<ConfigBanner error={store.configError} />{/if}
+  <!-- Phones have no footer: the save status sits beside the stats, so `sign in needed` is in reach. -->
+  {#if phone.value}<div class="top"><Stats stats={store.stats} variant="line" /><StatusLine status={store.status} onsignin={onSignIn} /></div>{/if}
   <div class="frame">
     <!-- Double-click is a pointer convenience; the keyboard edits with Enter. -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -80,10 +88,12 @@
       {#if !phone.value}<Stats stats={store.stats} variant="box" />{/if}
     </aside>
   </div>
-  <footer class="foot">
-    {#if !phone.value}<Hints />{/if}
-    <StatusLine status={store.status} />
-  </footer>
+  {#if !phone.value}
+    <footer class="foot">
+      <Hints />
+      <StatusLine status={store.status} onsignin={onSignIn} />
+    </footer>
+  {/if}
 </div>
 <Toast {store} />
 
@@ -104,6 +114,6 @@
     .side { border-top: 1px solid var(--line); border-radius: 0; padding-top: 16px; }
     /* A swiped row slides past the edge without widening the page. */
     .buckets { overflow-x: clip; }
-    .foot { display: none; }
   }
+  .top { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 14px; flex-wrap: wrap; }
 </style>

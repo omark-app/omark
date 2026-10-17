@@ -13,6 +13,7 @@
   import EditSheet from './components/EditSheet.svelte';
   import MoveSheet from './components/MoveSheet.svelte';
   import Fab from './components/Fab.svelte';
+  import SignIn from './components/SignIn.svelte';
 
   /** The open sheet. A drop on Later sets `suggested` and `beforeId`. Add, edit and move are phone sheets. */
   type OpenSheet =
@@ -56,31 +57,44 @@
     sheet = { kind: 'date', id, suggested, beforeId: beforeId ?? undefined };
   }
 
+  /** Signs in by redirect, which leaves the page: pending edits go to the cache first. */
   async function signIn(): Promise<void> {
-    if (result?.kind !== 'signin') return;
+    if (result === null || !result.auth) return;
+    signInError = null;
     try {
+      if (result.kind === 'ready') await result.store.flush();
       await result.auth.signIn();
     } catch (e) {
       signInError = message(e);
     }
   }
+
+  // config.yaml's theme forces light or dark; `system` leaves it to the device (tokens.css).
+  $effect(() => {
+    const theme = result?.kind === 'ready' ? result.store.config.theme : 'system';
+    if (theme === 'system') delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = theme;
+  });
 </script>
 
 {#if error !== null}
-  <p class="notice" role="alert">TaskApp could not start: {error}</p>
+  <div class="notice">
+    <p role="alert">TaskApp could not start: {error}</p>
+    <!-- A fresh start re-runs sign-in from scratch (a stale redirect, a cache that failed to open). -->
+    <button type="button" class="retry" onclick={() => window.location.reload()}>Try again</button>
+  </div>
 {:else if result === null}
   <p class="notice">Loading…</p>
 {:else if result.kind === 'signin'}
-  <div class="notice">
-    <button class="signin" onclick={signIn}>Sign in with Microsoft</button>
-    {#if signInError}<p role="alert">Sign-in failed: {signInError}</p>{/if}
-  </div>
+  <SignIn onsignin={signIn} error={signInError} />
 {:else}
   {@const store = result.store}
+  {@const onSignIn = result.auth ? signIn : undefined}
+  {#if signInError}<p class="signin-error" role="alert">Sign-in failed: {signInError}</p>{/if}
   {#if store.view === 'board' && !phone.value}
-    <WeekBoardView {store} onCommand={openSheet} onDropPickDate={openDropDate} />
+    <WeekBoardView {store} onCommand={openSheet} onDropPickDate={openDropDate} {onSignIn} />
   {:else}
-    <TaskListView {store} onCommand={openSheet} onDropPickDate={openDropDate} />
+    <TaskListView {store} onCommand={openSheet} onDropPickDate={openDropDate} {onSignIn} />
   {/if}
   {#if phone.value}<Fab onclick={() => (sheet = { kind: 'add' })} />{/if}
   <!-- One sheet per kind, so a sheet opened from another (move → date) gets its own focus and backdrop guard. -->
@@ -105,5 +119,6 @@
 
 <style>
   .notice { max-width: 420px; margin: 20vh auto 0; font: 14px var(--mono); color: var(--muted); }
-  .signin { border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent); border-radius: 8px; padding: 9px 16px; font: 500 14px var(--sans); cursor: pointer; }
+  .retry { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 14px; font: 500 14px var(--sans); cursor: pointer; }
+  .signin-error { max-width: 1160px; margin: 0 auto 12px; font: 12px var(--mono); color: var(--danger); }
 </style>
