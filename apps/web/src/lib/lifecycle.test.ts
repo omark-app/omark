@@ -21,16 +21,7 @@ function fakePage() {
   };
 }
 
-/** A store whose refresh stays in flight until `finish()`. */
-function fakeStore() {
-  let finish = (): void => {};
-  const store = {
-    refresh: vi.fn(() => new Promise<void>((resolve) => (finish = resolve))),
-    flush: vi.fn(async () => {}),
-    tick: vi.fn(),
-  };
-  return { store, finish: () => finish() };
-}
+const fakeStore = () => ({ refresh: vi.fn(async () => {}), flush: vi.fn(async () => {}), tick: vi.fn() });
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -43,39 +34,20 @@ afterEach(() => {
 });
 
 describe('installLifecycle', () => {
-  it('refreshes on focus, on becoming visible and on coming back online', async () => {
+  it('refreshes on focus, on becoming visible and on coming back online', () => {
     const page = fakePage();
-    const { store, finish } = fakeStore();
+    const store = fakeStore();
     installLifecycle(store);
     page.focus();
-    expect(store.refresh).toHaveBeenCalledTimes(1);
-    finish();
-    await vi.advanceTimersByTimeAsync(0);
     page.visibility('visible');
-    expect(store.refresh).toHaveBeenCalledTimes(2);
-    finish();
-    await vi.advanceTimersByTimeAsync(0);
     page.online();
+    // The store runs one refresh at a time itself (see store.test.ts).
     expect(store.refresh).toHaveBeenCalledTimes(3);
-  });
-
-  it('runs one refresh at a time: focus and visibilitychange together refresh once', async () => {
-    const page = fakePage();
-    const { store, finish } = fakeStore();
-    installLifecycle(store);
-    page.visibility('visible');
-    page.focus();
-    page.online();
-    expect(store.refresh).toHaveBeenCalledTimes(1);
-    finish();
-    await vi.advanceTimersByTimeAsync(0);
-    page.focus();
-    expect(store.refresh).toHaveBeenCalledTimes(2);
   });
 
   it('flushes when hidden and on pagehide, without refreshing', () => {
     const page = fakePage();
-    const { store } = fakeStore();
+    const store = fakeStore();
     installLifecycle(store);
     page.visibility('hidden');
     expect(store.flush).toHaveBeenCalledTimes(1);
@@ -86,7 +58,7 @@ describe('installLifecycle', () => {
 
   it('ticks at local midnight, and again at the next one', async () => {
     fakePage();
-    const { store } = fakeStore();
+    const store = fakeStore();
     vi.setSystemTime(new Date(2026, 9, 16, 23, 59, 50));
     installLifecycle(store);
     await vi.advanceTimersByTimeAsync(9_000);
@@ -103,7 +75,7 @@ describe('installLifecycle', () => {
 
   it('the teardown removes every listener and timer', () => {
     const page = fakePage();
-    const { store } = fakeStore();
+    const store = fakeStore();
     const stop = installLifecycle(store);
     stop();
     page.focus();
@@ -131,9 +103,12 @@ describe('msUntilMidnight', () => {
     expect(at(new Date(2026, 9, 17))).toEqual(new Date(2026, 9, 18));
   });
 
-  it('follows the calendar across month ends and clock changes', () => {
+  it('follows the calendar across month ends', () => {
     expect(at(new Date(2026, 9, 31, 12, 0))).toEqual(new Date(2026, 10, 1));
-    // The clocks go back on 25 Oct 2026 in Europe: that day may be 25 hours long.
-    expect(at(new Date(2026, 9, 25, 0, 30))).toEqual(new Date(2026, 9, 26));
+  });
+
+  it('counts a DST day as 25 or 23 hours (tests run in Europe/Warsaw)', () => {
+    expect(msUntilMidnight(new Date(2026, 9, 25, 0, 0))).toBe(25 * 3600_000); // clocks go back
+    expect(msUntilMidnight(new Date(2026, 2, 29, 0, 0))).toBe(23 * 3600_000); // clocks go forward
   });
 });

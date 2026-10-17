@@ -15,5 +15,7 @@ export default defineConfig({
     include: ['src/**/*.test.ts'],
     testTransformMode: { web: ['**/*.test.ts'] },
     passWithNoTests: true,
+    // msUntilMidnight's DST assertions only mean something in a DST zone (as in packages/core).
+    env: { TZ: 'Europe/Warsaw' },
   },
 });

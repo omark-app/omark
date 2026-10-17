@@ -57,15 +57,29 @@
     sheet = { kind: 'date', id, suggested, beforeId: beforeId ?? undefined };
   }
 
-  /** Signs in by redirect, which leaves the page: pending edits go to the cache first. */
+  const LOSE_EDITS =
+    "You have changes that aren't saved to OneDrive yet. Signing in again will lose them. Continue?";
+
+  /**
+   * Signs in by redirect, which leaves the page. Pending edits go to the cache first; if some would
+   * still be lost (memory-only cache, or the cache write failed), the user decides.
+   */
   async function signIn(): Promise<void> {
     if (result === null || !result.auth) return;
     signInError = null;
+    if (result.kind === 'ready') {
+      try {
+        await result.store.flush();
+      } catch (e) {
+        signInError = `Could not save your changes before signing in: ${message(e)}`;
+        return;
+      }
+      if (result.store.wouldLoseEdits() && !window.confirm(LOSE_EDITS)) return;
+    }
     try {
-      if (result.kind === 'ready') await result.store.flush();
       await result.auth.signIn();
     } catch (e) {
-      signInError = message(e);
+      signInError = `Sign-in failed: ${message(e)}`;
     }
   }
 
@@ -90,7 +104,7 @@
 {:else}
   {@const store = result.store}
   {@const onSignIn = result.auth ? signIn : undefined}
-  {#if signInError}<p class="signin-error" role="alert">Sign-in failed: {signInError}</p>{/if}
+  {#if signInError}<p class="signin-error" role="alert">{signInError}</p>{/if}
   {#if store.view === 'board' && !phone.value}
     <WeekBoardView {store} onCommand={openSheet} onDropPickDate={openDropDate} {onSignIn} />
   {:else}

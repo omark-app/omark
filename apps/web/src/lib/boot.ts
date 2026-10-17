@@ -39,6 +39,14 @@ const PHONE_QUERY = '(max-width: 719.98px)';
 export const CACHE_WARNING =
   'This browser blocks offline storage (private browsing?). Changes are saved to OneDrive but not kept offline.';
 
+/** What the store is told about its cache: a warning to show, and whether it survives a reload. */
+interface CacheInfo {
+  cacheWarning: string | null;
+  durableCache: boolean;
+}
+/** The fake build caches in memory, without a warning. */
+const MEMORY: CacheInfo = { cacheWarning: null, durableCache: false };
+
 const isPhone = (): boolean => window.matchMedia(PHONE_QUERY).matches;
 
 /**
@@ -54,9 +62,9 @@ export async function boot(): Promise<BootResult> {
     const drive = new FakeOneDrive(window.__TASKAPP_SEED__ ?? {});
     window.__taskappFake = drive;
     const stub = window.__TASKAPP_AUTH_STUB__;
-    if (!stub) return ready(createWorkspace(drive, new MemoryCache()), null, null);
+    if (!stub) return ready(createWorkspace(drive, new MemoryCache()), MEMORY, null);
     const auth = (window.__taskappAuth = createAuthStub(stub));
-    return signedIn(auth, tokenGated(drive, () => auth.getToken()), async () => ({ cache: new MemoryCache(), warning: null }));
+    return signedIn(auth, tokenGated(drive, () => auth.getToken()), async () => ({ cache: new MemoryCache(), ...MEMORY }));
   }
 
   const auth = createAuth({ clientId: MSAL_CLIENT_ID, redirectUri: `${window.location.origin}/` });
@@ -68,27 +76,27 @@ export async function boot(): Promise<BootResult> {
 async function signedIn(
   auth: Auth,
   adapter: StorageAdapter,
-  cache: () => Promise<{ cache: LocalCache; warning: string | null }>,
+  cache: () => Promise<{ cache: LocalCache } & CacheInfo>,
 ): Promise<BootResult> {
   await auth.handleRedirect();
   if (!auth.isSignedIn()) return { kind: 'signin', auth };
   const opened = await cache();
-  return ready(createWorkspace(adapter, opened.cache), opened.warning, auth);
+  return ready(createWorkspace(adapter, opened.cache), opened, auth);
 }
 
-async function ready(workspace: Workspace, cacheWarning: string | null, auth: Auth | null): Promise<BootResult> {
-  const store = await createStore({ workspace, clock: systemClock, isPhone, cacheWarning });
+async function ready(workspace: Workspace, cache: CacheInfo, auth: Auth | null): Promise<BootResult> {
+  const store = await createStore({ workspace, clock: systemClock, isPhone, ...cache });
   installLifecycle(store);
   return { kind: 'ready', store, auth };
 }
 
 /** IndexedDB can throw on construction or first use (iOS private mode): then use memory. */
-async function openCache(): Promise<{ cache: LocalCache; warning: string | null }> {
+async function openCache(): Promise<{ cache: LocalCache } & CacheInfo> {
   try {
     const cache = new IdbCache();
     await cache.get('tasks.md');
-    return { cache, warning: null };
+    return { cache, cacheWarning: null, durableCache: true };
   } catch {
-    return { cache: new MemoryCache(), warning: CACHE_WARNING };
+    return { cache: new MemoryCache(), cacheWarning: CACHE_WARNING, durableCache: false };
   }
 }

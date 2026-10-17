@@ -62,6 +62,15 @@ class SlowDrive extends FakeOneDrive {
   }
 }
 
+/** A drive that counts reads. */
+class CountingDrive extends FakeOneDrive {
+  reads = 0;
+  override async read(name: FileName) {
+    this.reads++;
+    return super.read(name);
+  }
+}
+
 async function setup(
   seed: Partial<Record<FileName, string>> = { 'tasks.md': SEED_TASKS },
   opts: { cache?: LocalCache; phone?: boolean; wrap?: (ws: Workspace) => Workspace } = {},
@@ -548,6 +557,68 @@ describe('app store', () => {
       expect(drive.peek('done.md')!.match(/Weekly/g)).toHaveLength(1);
       expect(drive.peek('tasks.md')!.match(/Weekly/g)).toHaveLength(1);
       expect(drive.peek('tasks.md')).toContain('📅 2026-10-26');
+    });
+  });
+
+  it('runs one refresh at a time: callers during a refresh share it', async () => {
+    const drive = new CountingDrive({ 'tasks.md': SEED_TASKS });
+    const store = await createStore({ workspace: createWorkspace(drive, new MemoryCache()), clock, isPhone: () => false });
+    drive.reads = 0;
+    await Promise.all([store.refresh(), store.refresh(), store.refresh()]);
+    expect(drive.reads).toBe(3); // one read of each file
+    await store.refresh();
+    expect(drive.reads).toBe(6); // a refresh after it is a new one
+  });
+
+  describe('wouldLoseEdits (leaving the page, e.g. to sign in again)', () => {
+    async function offlineStore(opts: { durableCache?: boolean; cache?: LocalCache } = {}) {
+      const drive = new FakeOneDrive({ 'tasks.md': SEED_TASKS });
+      const store = await createStore({
+        workspace: createWorkspace(drive, opts.cache ?? new MemoryCache()),
+        clock,
+        isPhone: () => false,
+        durableCache: opts.durableCache,
+      });
+      drive.setOffline(true);
+      return { drive, store };
+    }
+
+    it('with a memory-only cache: true while an edit has not reached OneDrive, false once it has', async () => {
+      const { drive, store } = await offlineStore();
+      expect(store.wouldLoseEdits()).toBe(false);
+      store.add('Unsynced');
+      await store.flush();
+      await vi.waitFor(() => expect(store.status).toBe('offline'));
+      expect(store.wouldLoseEdits()).toBe(true);
+      drive.setOffline(false);
+      await store.refresh();
+      expect(store.status).toBe('saved');
+      expect(store.wouldLoseEdits()).toBe(false);
+    });
+
+    it('with a cache that survives a reload: false once the edit is in it, even offline', async () => {
+      const { store } = await offlineStore({ durableCache: true });
+      store.add('Cached');
+      await store.flush();
+      await vi.waitFor(() => expect(store.status).toBe('offline'));
+      expect(store.wouldLoseEdits()).toBe(false);
+    });
+
+    it('with a cache that survives a reload: true when the edit could not be cached', async () => {
+      const cache = new FlakyCache();
+      const { store } = await offlineStore({ durableCache: true, cache });
+      cache.failing = true;
+      store.add('Not cached');
+      await store.flush();
+      expect(store.wouldLoseEdits()).toBe(true);
+    });
+
+    it('is false with no edits, even when nothing could be synced since opening', async () => {
+      const drive = new FakeOneDrive();
+      drive.setOffline(true);
+      const store = await createStore({ workspace: createWorkspace(drive, new MemoryCache()), clock, isPhone: () => false });
+      expect(store.status).toBe('offline'); // the files wait to be created
+      expect(store.wouldLoseEdits()).toBe(false);
     });
   });
 });

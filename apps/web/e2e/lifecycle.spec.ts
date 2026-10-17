@@ -101,11 +101,12 @@ test('offline shows in the status; back online and focused, the task reaches the
 test('buckets move on at local midnight without a focus change', async ({ page }) => {
   await openApp(page, {
     files: { 'tasks.md': '# Always\n\n# Tasks\n- [ ] Saturday chores 📅 2026-10-17\n' },
-    now: '2026-10-16T23:59:00',
+    now: '2026-10-16T23:59:45',
     fakeTimers: true,
   });
   await expect(page.getByTestId('bucket-week').getByTestId('task-row')).toHaveCount(1);
-  await page.clock.fastForward('01:30');
+  // 20 s: past midnight, but short of the 30 s periodic check, so only the midnight timer can move it.
+  await page.clock.fastForward(20_000);
   await expect(page.getByTestId('bucket-today').getByTestId('task-row')).toHaveCount(1);
 });
 
@@ -120,8 +121,36 @@ test('with no signed-in account the sign-in screen shows, and its button starts 
 
 test('a failed token refresh reads "sign in needed", and clicking it starts sign-in', async ({ page }) => {
   await startWithAuth(page, 'expired');
+  const dialogs: string[] = [];
+  page.on('dialog', (d) => {
+    dialogs.push(d.message());
+    void d.dismiss();
+  });
   const status = page.getByTestId('status');
   await expect(status).toHaveText('sign in needed');
+  await status.click();
+  await expect.poll(() => signIns(page)).toBe(1);
+  expect(dialogs).toEqual([]); // nothing to lose, nothing to ask
+});
+
+test('signing in again with edits only in memory asks first', async ({ page, isMobile }) => {
+  await startWithAuth(page, 'expired'); // the fake build caches in memory only
+  await addTask(page, 'Not on OneDrive yet', isMobile);
+  const status = page.getByTestId('status');
+  await expect(status).toHaveText('sign in needed');
+
+  const dialogs: string[] = [];
+  page.once('dialog', (d) => {
+    dialogs.push(d.message());
+    void d.dismiss();
+  });
+  await status.click();
+  await expect.poll(() => dialogs.length).toBe(1);
+  expect(dialogs[0]).toContain("aren't saved to OneDrive yet");
+  expect(await signIns(page)).toBe(0);
+  await expect(row(page, 'Not on OneDrive yet')).toHaveCount(1);
+
+  page.once('dialog', (d) => void d.accept());
   await status.click();
   await expect.poll(() => signIns(page)).toBe(1);
 });

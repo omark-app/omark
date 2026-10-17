@@ -18,13 +18,8 @@ export function msUntilMidnight(now: Date): number {
  * removes every listener and timer.
  */
 export function installLifecycle(store: Pick<AppStore, 'refresh' | 'flush' | 'tick'>): () => void {
-  // Regaining focus fires both `focus` and `visibilitychange`: one refresh at a time is enough.
-  let refreshing: Promise<void> | null = null;
-  const refresh = (): void => {
-    refreshing ??= store.refresh().finally(() => {
-      refreshing = null;
-    });
-  };
+  // Regaining focus fires both `focus` and `visibilitychange`; the store runs one refresh at a time.
+  const refresh = (): void => void store.refresh();
   // `flush` runs the registered pending-edit callbacks synchronously before it stages, so typing still
   // waiting for its debounce is committed before the page goes away.
   const flush = (): void => void store.flush();

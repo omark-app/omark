@@ -91,7 +91,7 @@ export interface AppStore {
   switchView(): void;
   /**
    * Stages pending edits, re-reads the files and merges outside changes in (clearing undo); also runs
-   * `tick`. Never rejects: failures show in `status`.
+   * `tick`. One at a time: a call while a refresh runs shares it. Never rejects: failures show in `status`.
    */
   refresh(): Promise<void>;
   /**
@@ -101,6 +101,11 @@ export interface AppStore {
   flush(): Promise<void>;
   /** Recomputes the week context from the clock (call at midnight and on focus). */
   tick(): void;
+  /**
+   * True when leaving the page now (e.g. the sign-in redirect) would lose edits: some are neither on
+   * OneDrive nor in a cache that survives a reload. Call after `flush()`.
+   */
+  wouldLoseEdits(): boolean;
 }
 
 export interface StoreDeps {
@@ -108,6 +113,8 @@ export interface StoreDeps {
   clock: Clock;
   isPhone: () => boolean;
   cacheWarning?: string | null;
+  /** True when the cache outlives the page (IndexedDB); a memory cache is lost on reload. Default false. */
+  durableCache?: boolean;
 }
 
 const TOAST_MS = 4200;
@@ -152,8 +159,11 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   let toast = $state.raw<Toast | null>(null);
   let status = $state<SyncStatus>(workspace.status());
   const stats = $derived(computeStats(state.done, ctx.today));
+  /** The user changed something that has not reached OneDrive since (cleared when all is saved). */
+  let unsynced = false;
   workspace.onStatus((s) => {
     status = s;
+    if (s === 'saved' && !isDirty()) unsynced = false;
   });
 
   let undoStack: State[] = [];
@@ -282,6 +292,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
       return false;
     }
     undoStack.push(state);
+    unsynced = true;
     if (undoStack.length > UNDO_LIMIT) undoStack.shift();
     state = next;
     show(message, true);
@@ -375,6 +386,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     }
     state = prev;
     if (selectedId !== null && !findTask(state, selectedId)) selectedId = null;
+    unsynced = true;
     show(msg.undone(), false);
     scheduleSave();
   }
@@ -401,7 +413,16 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     return serial(stageNow);
   }
 
-  async function refresh(): Promise<void> {
+  /** Regaining focus fires both `focus` and `visibilitychange`: callers during a refresh share it. */
+  let refreshing: Promise<void> | null = null;
+  function refresh(): Promise<void> {
+    refreshing ??= refreshOnce().finally(() => {
+      refreshing = null;
+    });
+    return refreshing;
+  }
+
+  async function refreshOnce(): Promise<void> {
     for (const fn of [...pending]) fn();
     clearTimeout(saveTimer);
     saveTimer = undefined;
@@ -461,6 +482,10 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     },
     refresh,
     flush,
+    wouldLoseEdits() {
+      // After a flush, a store still dirty means staging (the cache write) failed.
+      return isDirty() || (unsynced && !deps.durableCache);
+    },
     tick,
   };
 }

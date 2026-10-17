@@ -7,7 +7,7 @@
   <h1>taskapp</h1>
   <p>Your tasks live in plain files in your OneDrive. Sign in to open them.</p>
   <button type="button" class="btn" onclick={onsignin}>Sign in with Microsoft</button>
-  {#if error}<p class="err" role="alert">Sign-in failed: {error}</p>{/if}
+  {#if error}<p class="err" role="alert">{error}</p>{/if}
 </main>
 
 <style>
