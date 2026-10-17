@@ -80,11 +80,14 @@
         {#key selected.id}
           <TaskDetail bind:this={detail} {store} task={selected} oncommand={(c) => onCommand(c, selected.id)} />
         {/key}
-        <div class="under"><span class="lab">Always</span><AlwaysList {store} /></div>
       {:else}
         <span class="legend">always</span>
-        <AlwaysList {store} />
       {/if}
+      <!-- One AlwaysList outside the branches: selecting or deselecting a task must not remount a line being edited. -->
+      <div class:under={selected && !phone.value}>
+        {#if selected && !phone.value}<span class="lab">Always</span>{/if}
+        <AlwaysList {store} />
+      </div>
       {#if !phone.value}<Stats stats={store.stats} variant="box" />{/if}
     </aside>
   </div>

@@ -167,3 +167,22 @@ test('ALWAYS lines are in no bucket count or stat', async ({ page }) => {
   expect(sum).toBe(4);
   await expect(page.getByTestId('stats').first()).toContainText('All 0');
 });
+
+test('a line being edited keeps focus and text when the selected task goes away (M13)', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'the task detail beside ALWAYS is a desktop layout');
+  await start(page);
+  await page.getByTestId('task-row').filter({ hasText: 'Send the invoice' }).click();
+  await expect(page.getByTestId('detail')).toBeVisible();
+  await lines(page).first().click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' slowly');
+  // Another device deletes the selected task; the app regains focus and refreshes, which deselects it.
+  await externalWrite(page, 'tasks.md', SPEC_TASKS.replace('- [ ] Send the invoice 📅 2026-10-19\n', ''));
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(page.getByTestId('detail')).toHaveCount(0);
+  await expect(lines(page).first()).toBeFocused();
+  await page.keyboard.type(' today');
+  await page.keyboard.press('Enter');
+  await expect(lines(page).first()).toHaveText('Walk before the first coffee slowly today');
+  await expect.poll(() => alwaysOnDrive(page)).toContain('- Walk before the first coffee slowly today\n');
+});
