@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { FileName, RemoteFile, StorageAdapter } from '../src/adapter.ts';
 import type { CachedFile, LocalCache } from '../src/cache.ts';
 import { MemoryCache } from '../src/cache.ts';
-import { AuthRequiredError, PreconditionFailedError } from '../src/errors.ts';
+import { AuthRequiredError, OfflineError, PreconditionFailedError } from '../src/errors.ts';
 import { FakeOneDrive } from '../src/fake-onedrive.ts';
 import { FileSync } from '../src/file-sync.ts';
 import type { SyncStatus } from '../src/file-sync.ts';
@@ -661,6 +661,45 @@ describe('FileSync', () => {
     cache.failing = true;
     await expect(sync.stage(S, sync.text())).rejects.toThrow('put failed');
     await until(() => sync.status() === 'offline');
+  });
+
+  it('a write that landed but lost its reply is not duplicated by the next edit (M1)', async () => {
+    const base = '# Tasks\n- [ ] Call the dentist\n- [ ] Other\n';
+    const drive = new FakeOneDrive({ [NAME]: base });
+    let loseNext = false;
+    const adapter: StorageAdapter = {
+      read: (n) => drive.read(n),
+      async write(n, text, etag) {
+        const r = await drive.write(n, text, etag);
+        if (loseNext) {
+          loseNext = false;
+          throw new OfflineError('Request timed out'); // it landed; the reply did not
+        }
+        return r;
+      },
+    };
+    const sync = makeSync(adapter);
+    const shown = await sync.open();
+    const v1 = shown.replace('Call the dentist', 'Call the dentist about the crown');
+    loseNext = true;
+    await sync.save(v1, shown);
+    expect(sync.status()).toBe('offline');
+    const v2 = v1.replace('about the crown', 'about the crown on Monday');
+    await sync.save(v2, v1); // 412: the remote is v1, our own write
+    expect(drive.peek(NAME)).toBe('# Tasks\n- [ ] Call the dentist about the crown on Monday\n- [ ] Other\n');
+    expect(sync.status()).toBe('saved');
+
+    // Lost reply, then a write that fails outright; the next pull still finds the landed one.
+    const v3 = v2.replace('on Monday', 'on Tuesday');
+    loseNext = true;
+    await sync.save(v3, v2);
+    drive.setOffline(true);
+    const v4 = v3.replace('Other', 'Other thing');
+    await sync.save(v4, v3);
+    drive.setOffline(false);
+    await sync.pull();
+    expect(drive.peek(NAME)).toBe('# Tasks\n- [ ] Call the dentist about the crown on Tuesday\n- [ ] Other thing\n');
+    expect(sync.status()).toBe('saved');
   });
 
   it('an edit whose cache write fails still goes to OneDrive at once, without a pull (I3)', async () => {

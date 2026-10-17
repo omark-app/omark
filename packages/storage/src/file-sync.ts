@@ -15,6 +15,8 @@ export interface FileSyncOptions {
 }
 
 const MAX_WRITE_ATTEMPTS = 3;
+/** Unanswered write texts remembered for spotting a write that landed (see `absorb`). */
+const MAX_UNCONFIRMED = 5;
 
 /**
  * Keeps one OneDrive file in sync with a cached local copy. The cache holds `{ base, baseEtag, local,
@@ -42,6 +44,11 @@ export class FileSync {
   private readonly listeners = new Set<(s: SyncStatus) => void>();
   private chain: Promise<unknown> = Promise.resolve();
   private persisting: Promise<unknown> = Promise.resolve();
+  /**
+   * Texts of the latest writes whose outcome is unknown (no reply, e.g. a timeout after the upload landed),
+   * newest last; cleared by a successful write or a merge.
+   */
+  private unconfirmed: string[] = [];
 
   constructor(opts: FileSyncOptions) {
     this.opts = opts;
@@ -210,11 +217,17 @@ export class FileSync {
     } else if (!f.dirty) {
       this.set({ base: remote.text, baseEtag: remote.etag, local: remote.text, dirty: false });
     } else {
-      const merged = this.opts.merge(f.base, f.local, remote.text);
+      // A remote equal to one of our unanswered writes means that write landed though its reply was lost:
+      // `local` is built on it, so it is the base (merging against the old base would keep both versions
+      // of a task the user edited again since).
+      const base = this.unconfirmed.includes(remote.text) ? remote.text : f.base;
+      const merged = this.opts.merge(base, f.local, remote.text);
       // A merge that adds nothing to the remote (up to line endings) leaves the file as it is.
       const same = normalize(merged) === normalize(remote.text);
       this.set({ base: remote.text, baseEtag: remote.etag, local: same ? remote.text : merged, dirty: !same });
     }
+    // `local` now builds on this remote, not on the unanswered writes.
+    this.unconfirmed = [];
     if (this.file.local !== f.local) this.remoteChanged = true;
     await this.persist();
   }
@@ -226,12 +239,18 @@ export class FileSync {
       const text = this.file.local;
       try {
         const { etag } = await this.opts.adapter.write(this.opts.name, text, this.file.baseEtag);
+        this.unconfirmed = [];
         // A save made during the write leaves `local` ahead of what was written: still dirty.
         this.set({ ...this.file, base: text, baseEtag: etag, dirty: this.file.local !== text });
         await this.persist();
         return;
       } catch (e) {
-        if (!(e instanceof PreconditionFailedError) || attempt >= MAX_WRITE_ATTEMPTS) throw e;
+        // A 412 was refused for sure; any other failure may have landed before the reply was lost.
+        if (!(e instanceof PreconditionFailedError)) {
+          this.unconfirmed = [...this.unconfirmed, text].slice(-MAX_UNCONFIRMED);
+          throw e;
+        }
+        if (attempt >= MAX_WRITE_ATTEMPTS) throw e;
       }
       await this.absorb(await this.opts.adapter.read(this.opts.name));
       if (!this.file.dirty) return;
