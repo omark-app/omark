@@ -11,6 +11,7 @@
   import TaskDetail from './TaskDetail.svelte';
   import { createCommands, createPhone, selectedTask } from '../lib/commands.svelte.ts';
   import { rowGestures } from '../lib/gestures.ts';
+  import { applyDrop } from '../lib/drag/drop-target.ts';
   import type { OnCommand, OnDropPickDate } from '../lib/commands.svelte.ts';
 
   let { store, onCommand = () => {}, onDropPickDate = () => {} }: { store: AppStore; onCommand?: OnCommand; onDropPickDate?: OnDropPickDate } = $props();
@@ -46,7 +47,12 @@
       {#if !phone.value}<AddInput bind:this={addInput} {store} />{/if}
       <div
         class="buckets"
-        use:rowGestures={{ enabled: phone.value, onswiperight: (id) => store.complete(id), onswipeleft: (id) => onCommand('move', id) }}
+        use:rowGestures={{
+          enabled: phone.value,
+          onswiperight: (id) => store.complete(id),
+          onswipeleft: (id) => onCommand('move', id),
+          ondrop: (id, target) => applyDrop(store, id, target, onDropPickDate),
+        }}
       >
         {#each BUCKETS as b (b.key)}
           <Bucket

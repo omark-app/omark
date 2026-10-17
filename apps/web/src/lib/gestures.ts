@@ -1,3 +1,11 @@
+import type { DropTarget } from '@taskapp/core';
+import { rowOf } from './drag/drop-target.ts';
+import { liftRow } from './drag/touch-drag.ts';
+import type { TouchDrag } from './drag/touch-drag.ts';
+
+/** A finger held still this long lifts the row (spec 9.2). */
+export const HOLD_MS = 400;
+
 /** What a finger did, read at release. */
 export type GestureResult = 'tap' | 'swipeRight' | 'swipeLeft' | 'drop' | 'none';
 /**
@@ -25,7 +33,7 @@ export class GestureTracker {
   private x = 0;
 
   constructor(opts: { holdMs?: number; slop?: number; swipeStart?: number; swipeCommit?: number } = {}) {
-    this.holdMs = opts.holdMs ?? 400;
+    this.holdMs = opts.holdMs ?? HOLD_MS;
     this.slop = opts.slop ?? 8;
     this.swipeStart = opts.swipeStart ?? 10;
     this.swipeCommit = opts.swipeCommit ?? 90;
@@ -86,6 +94,8 @@ export interface RowGestureOptions {
   enabled: boolean;
   onswiperight: (id: string) => void;
   onswipeleft: (id: string) => void;
+  /** A lifted row was let go over a bucket (spec 4.4). */
+  ondrop: (id: string, target: DropTarget) => void;
 }
 
 /** Past this the row shows what letting go will do. */
@@ -93,26 +103,42 @@ const SWIPE_HINT_PX = 40;
 /** A click this soon after a swipe, scroll or hold is the release of that gesture, not a tap. */
 const CLICK_AFTER_GESTURE_MS = 400;
 
-const rowOf = (el: EventTarget | null): HTMLElement | null =>
-  el instanceof Element ? el.closest<HTMLElement>('[data-testid="task-row"]') : null;
+/** The one finger being tracked on a row. */
+interface Gesture {
+  tracker: GestureTracker;
+  row: HTMLElement;
+  id: string;
+  pointerId: number;
+  /** Where the finger is now. */
+  x: number;
+  y: number;
+  swiping: boolean;
+  /** Runs when the hold time is up, so a still finger lifts the row. */
+  holdTimer: ReturnType<typeof setTimeout>;
+  /** Set once the row is lifted. */
+  drag: TouchDrag | null;
+}
 
 /**
- * Touch gestures for every task row inside `node` (a Svelte action): swipe right and left, with the row
- * following the finger. A tap stays the row's own click; the click that follows any other gesture is
- * swallowed. Buttons inside a row (complete, date label) keep their own taps. Vertical moves are left to the
- * browser's scrolling (rows are `touch-action: pan-y`). Mouse pointers are ignored: mouse drag is HTML5 DnD.
+ * Touch gestures for every task row inside `node` (a Svelte action), told apart by `GestureTracker`: swipe
+ * right and left with the row following the finger, and long-press drag (`lib/drag/touch-drag.ts`). A tap
+ * stays the row's own click; the click that follows any other gesture is swallowed. Buttons inside a row
+ * (complete, date label) keep their own taps. Vertical moves are left to the browser's scrolling (rows are
+ * `touch-action: pan-y`) except while a row is lifted. Mouse pointers are ignored: mouse drag is HTML5 DnD.
  *
- * One gesture is tracked at a time; its tracker lives in `active`, which is where a long-press lift (the
- * tracker's `drag` phase, with a hold timer calling `tick`) attaches.
+ * One gesture is tracked at a time. Its moves and release are heard on the window, so a row that is removed
+ * mid-gesture still ends it.
  */
 export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
   let opts = initial;
-  let active: { tracker: GestureTracker; row: HTMLElement; id: string; pointerId: number; swiping: boolean } | null = null;
+  let active: Gesture | null = null;
   let swallowUntil = 0;
 
-  /** Ends the gesture; a swiped row springs back (its CSS transition runs again). */
+  /** Ends the gesture: a lifted row is put down with no drop; a swiped row springs back (its CSS transition runs again). */
   function release(): void {
     if (!active) return;
+    clearTimeout(active.holdTimer);
+    active.drag?.cancel();
     active.row.style.transition = '';
     active.row.style.transform = '';
     active.row.classList.remove('swipe-r', 'swipe-l');
@@ -127,19 +153,38 @@ export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
     const row = rowOf(e.target);
     if (!row?.dataset.id || (e.target as Element).closest('button')) return;
     const tracker = new GestureTracker();
-    tracker.down(e.clientX, e.clientY, performance.now());
-    active = { tracker, row, id: row.dataset.id, pointerId: e.pointerId, swiping: false };
+    const downAt = performance.now();
+    tracker.down(e.clientX, e.clientY, downAt);
+    const gesture: Gesture = {
+      tracker,
+      row,
+      id: row.dataset.id,
+      pointerId: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      swiping: false,
+      holdTimer: setTimeout(() => lift(gesture, downAt + HOLD_MS), HOLD_MS),
+      drag: null,
+    };
+    active = gesture;
   }
 
-  function onpointermove(e: PointerEvent): void {
-    if (!active || e.pointerId !== active.pointerId) return;
-    if (active.tracker.move(e.clientX, e.clientY, performance.now()) !== 'swipe') return;
-    const { row, tracker } = active;
-    if (!active.swiping) {
-      active.swiping = true;
+  /** The hold time is up: lifts the row if the finger stayed still. */
+  function lift(gesture: Gesture, heldUntil: number): void {
+    if (active !== gesture || gesture.drag) return;
+    // The timer ran, so the hold time is up even if the clock reads a hair less.
+    if (gesture.tracker.tick(Math.max(performance.now(), heldUntil)) !== 'drag') return;
+    gesture.drag = liftRow(gesture.row, gesture.x, gesture.y);
+  }
+
+  /** Moves a swiped row with the finger. */
+  function follow(gesture: Gesture, pointerId: number): void {
+    const { row, tracker } = gesture;
+    if (!gesture.swiping) {
+      gesture.swiping = true;
       row.style.transition = 'none'; // follow the finger without lag
       try {
-        row.setPointerCapture(e.pointerId);
+        row.setPointerCapture(pointerId);
       } catch {
         // Already captured (touch pointers are captured by the row they started on).
       }
@@ -149,20 +194,41 @@ export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
     row.classList.toggle('swipe-l', tracker.dx < -SWIPE_HINT_PX);
   }
 
+  function onpointermove(e: PointerEvent): void {
+    if (!active || e.pointerId !== active.pointerId) return;
+    active.x = e.clientX;
+    active.y = e.clientY;
+    const phase = active.tracker.move(e.clientX, e.clientY, performance.now());
+    if (phase === 'swipe') follow(active, e.pointerId);
+    else if (phase === 'drag') active.drag?.move(e.clientX, e.clientY);
+  }
+
   function onpointerup(e: PointerEvent): void {
     if (!active || e.pointerId !== active.pointerId) return;
-    const { tracker, id } = active;
+    const { tracker, id, drag } = active;
+    const dropped = drag?.drop() ?? null;
     release();
     const result = tracker.up(performance.now());
     if (result !== 'tap') swallowUntil = performance.now() + CLICK_AFTER_GESTURE_MS;
     if (result === 'swipeRight') opts.onswiperight(id);
     else if (result === 'swipeLeft') opts.onswipeleft(id);
+    else if (dropped) opts.ondrop(dropped.id, dropped.target);
   }
 
   function onpointercancel(e: PointerEvent): void {
     if (!active || e.pointerId !== active.pointerId) return;
     release();
     swallowUntil = performance.now() + CLICK_AFTER_GESTURE_MS;
+  }
+
+  // Non-passive, so the page doesn't scroll under a lifted row; every other move scrolls as usual.
+  function ontouchmove(e: TouchEvent): void {
+    if (active?.tracker.tick(performance.now()) === 'drag') e.preventDefault();
+  }
+
+  // A drag or swipe left behind by an app switch or the lock screen is put down, not resumed.
+  function onvisibilitychange(): void {
+    if (document.hidden) release();
   }
 
   function onclick(e: MouseEvent): void {
@@ -178,9 +244,11 @@ export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
   }
 
   node.addEventListener('pointerdown', onpointerdown);
-  node.addEventListener('pointermove', onpointermove);
-  node.addEventListener('pointerup', onpointerup);
-  node.addEventListener('pointercancel', onpointercancel);
+  window.addEventListener('pointermove', onpointermove);
+  window.addEventListener('pointerup', onpointerup);
+  window.addEventListener('pointercancel', onpointercancel);
+  node.addEventListener('touchmove', ontouchmove, { passive: false });
+  document.addEventListener('visibilitychange', onvisibilitychange);
   node.addEventListener('click', onclick, true);
   node.addEventListener('contextmenu', oncontextmenu);
   return {
@@ -191,11 +259,14 @@ export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
     destroy() {
       release();
       node.removeEventListener('pointerdown', onpointerdown);
-      node.removeEventListener('pointermove', onpointermove);
-      node.removeEventListener('pointerup', onpointerup);
-      node.removeEventListener('pointercancel', onpointercancel);
+      window.removeEventListener('pointermove', onpointermove);
+      window.removeEventListener('pointerup', onpointerup);
+      window.removeEventListener('pointercancel', onpointercancel);
+      node.removeEventListener('touchmove', ontouchmove);
+      document.removeEventListener('visibilitychange', onvisibilitychange);
       node.removeEventListener('click', onclick, true);
       node.removeEventListener('contextmenu', oncontextmenu);
     },
   };
 }
+

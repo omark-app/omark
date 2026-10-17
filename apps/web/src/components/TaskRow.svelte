@@ -10,6 +10,7 @@
     onselect,
     oncomplete,
     onpickdate,
+    draggable = true,
     ondragstart,
     ondragend,
   }: {
@@ -20,6 +21,8 @@
     onselect?: () => void;
     oncomplete?: () => void;
     onpickdate?: () => void;
+    /** HTML5 drag, for the mouse. Off on a phone, where a long press lifts the row instead (lib/gestures.ts). */
+    draggable?: boolean;
     ondragstart?: (e: DragEvent) => void;
     ondragend?: () => void;
   } = $props();
@@ -38,7 +41,7 @@
 
 <!-- Keyboard users select with j/k, so the click handler is a pointer convenience. -->
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div bind:this={el} class="task" class:sel={selected} data-testid="task-row" data-id={task.id} draggable="true" onclick={onselect} {ondragstart} {ondragend}>
+<div bind:this={el} class="task" class:sel={selected} data-testid="task-row" data-id={task.id} {draggable} onclick={onselect} {ondragstart} {ondragend}>
   <button class="check" data-testid="task-check" aria-label="Complete {task.title}" onclick={(e) => { e.stopPropagation(); oncomplete?.(); }}></button>
   <div class="title">
     {task.title}{#if task.notes.length > 0}<span class="ni" title="{task.notes.length} note{task.notes.length > 1 ? 's' : ''}">≡</span>{/if}
@@ -52,6 +55,9 @@
   .task { position: relative; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 6px 6px 6px 10px; border-radius: 8px; touch-action: pan-y; user-select: none; transition: background .12s, transform .18s ease-out; cursor: default; -webkit-touch-callout: none; }
   .task:hover { background: color-mix(in srgb, var(--sel) 55%, transparent); }
   .task:global(.drop-before) { box-shadow: inset 0 2px 0 var(--accent); }
+  /* A row lifted by a long press stays in place, dimmed, while its copy (.drag-ghost) follows the finger. */
+  .task:global(.lifted) { opacity: .35; }
+  .task:global(.drag-ghost) { position: fixed; z-index: 90; margin: 0; pointer-events: none; background: var(--surface); border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, .24); transform: scale(1.03); transition: none; }
   /* Set while a finger swipes the row (lib/gestures.ts): right completes, left opens the move sheet. */
   .task:global(.swipe-r) { background: color-mix(in srgb, var(--good) 16%, var(--surface)); }
   .task:global(.swipe-l) { background: var(--chip); }

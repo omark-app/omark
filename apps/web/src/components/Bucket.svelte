@@ -4,6 +4,7 @@
   import type { AppStore } from '../lib/store.svelte.ts';
   import TaskRow from './TaskRow.svelte';
   import { dragEnd, dragLeave, dragOver, dragStart, dropAt } from '../lib/drag/mouse-drag.ts';
+  import { applyDrop } from '../lib/drag/drop-target.ts';
 
   let {
     store,
@@ -20,7 +21,7 @@
     onpickdate?: (id: string) => void;
     /** A task was dropped on Later, which needs a date: the suggestion and the row to place it before. */
     ondroppickdate?: (id: string, suggested: ISODate, beforeId: string | null) => void;
-    /** Given on a phone: a row tap opens the task (its edit sheet) instead of selecting it. */
+    /** Given on a phone: a row tap opens the task (its edit sheet) instead of selecting it, and rows lift by long press, not HTML5 drag. */
     onopen?: (id: string) => void;
     foldable?: boolean;
   } = $props();
@@ -46,18 +47,17 @@
 
   function ondrop(e: DragEvent): void {
     const dropped = dropAt(e, key);
-    if (!dropped) return;
-    const out = store.drop(dropped.id, dropped.target);
-    if (out.kind === 'pickDate') ondroppickdate?.(dropped.id, out.suggested, out.beforeId);
+    if (dropped) applyDrop(store, dropped.id, dropped.target, ondroppickdate);
   }
 </script>
 
-<!-- Drop target for mouse drag; keyboard users move tasks with commands. -->
+<!-- Drop target for mouse drag (touch drag finds it by `data-bucket`); keyboard users move tasks with commands. -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <section
   bind:this={section}
   class="bucket"
   data-testid="bucket-{key}"
+  data-bucket={key}
   ondragover={(e) => section && dragOver(e, section, key)}
   ondragleave={(e) => section && dragLeave(e, section)}
   {ondrop}
@@ -85,6 +85,7 @@
         onselect={() => (onopen ? onopen(task.id) : store.select(task.id))}
         oncomplete={() => store.complete(task.id)}
         onpickdate={() => pickDate(task.id)}
+        draggable={!onopen}
         ondragstart={(e) => dragStart(e, task.id, key)}
         ondragend={dragEnd}
       />

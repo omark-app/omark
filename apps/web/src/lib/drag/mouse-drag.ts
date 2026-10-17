@@ -1,17 +1,12 @@
 import type { BucketKey, DropTarget } from '@taskapp/core';
+import { clearDropMarks, dropTarget, markDropTarget, rowOf } from './drop-target.ts';
+import type { Dragged } from './drop-target.ts';
 
 /**
  * Desktop mouse drag with HTML5 DnD. The dragged task is kept here because `dragover` cannot read the
  * DataTransfer payload, and the highlight needs to know the task's own bucket.
  */
-let dragged: { id: string; bucket: BucketKey } | null = null;
-
-const clearMarks = (root: ParentNode): void => {
-  root.querySelectorAll('.drop-before, .drop-into').forEach((el) => el.classList.remove('drop-before', 'drop-into'));
-};
-
-const rowUnder = (e: DragEvent): HTMLElement | null =>
-  e.target instanceof Element ? e.target.closest<HTMLElement>('[data-testid="task-row"]') : null;
+let dragged: Dragged | null = null;
 
 export function dragStart(e: DragEvent, id: string, bucket: BucketKey): void {
   dragged = { id, bucket };
@@ -23,7 +18,7 @@ export function dragStart(e: DragEvent, id: string, bucket: BucketKey): void {
 
 export function dragEnd(): void {
   dragged = null;
-  clearMarks(document);
+  clearDropMarks();
 }
 
 /** Marks the bucket (unless it is the task's own) and the row under the pointer; accepts the drop. */
@@ -31,15 +26,12 @@ export function dragOver(e: DragEvent, section: HTMLElement, bucket: BucketKey):
   if (!dragged) return;
   e.preventDefault();
   if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-  clearMarks(document);
-  if (bucket !== dragged.bucket) section.classList.add('drop-into');
-  const row = rowUnder(e);
-  if (row && row.dataset.id !== dragged.id) row.classList.add('drop-before');
+  markDropTarget(dragged, section, bucket, rowOf(e.target));
 }
 
 /** Clears the marks when the pointer leaves the section for somewhere else. */
 export function dragLeave(e: DragEvent, section: HTMLElement): void {
-  if (!(e.relatedTarget instanceof Node) || !section.contains(e.relatedTarget)) clearMarks(section);
+  if (!(e.relatedTarget instanceof Node) || !section.contains(e.relatedTarget)) clearDropMarks(section);
 }
 
 /** The task and target of a drop on `bucket`, or null when no task of ours is being dragged. */
@@ -47,7 +39,7 @@ export function dropAt(e: DragEvent, bucket: BucketKey): { id: string; target: D
   if (!dragged) return null;
   e.preventDefault();
   const id = dragged.id;
-  const beforeId = rowUnder(e)?.dataset.id ?? null;
+  const target = dropTarget(bucket, rowOf(e.target));
   dragEnd();
-  return { id, target: { bucket, beforeId } };
+  return { id, target };
 }
