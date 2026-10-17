@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { openApp } from './helpers';
+import { fitsNotes, LONG_NOTE, openApp } from './helpers';
 
 const TASKS = `# Always
 - Walk before the first coffee
@@ -81,6 +81,21 @@ test.describe('desktop board', () => {
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('detail')).toHaveCount(0);
     await expect(page.getByTestId('always-line')).toHaveCount(1);
+  });
+
+  test('long notes grow the detail; the whole rail scrolls to reach the hints', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 600 });
+    const note = `\n    - ${LONG_NOTE}`;
+    await start(page, { 'tasks.md': TASKS.replace('📅 2026-10-16', `📅 2026-10-16${note}${note}${note}`) });
+    await page.keyboard.press('v');
+    await row(page, 'Call the dentist').click();
+    const notes = page.getByTestId('rail').getByTestId('detail-notes');
+    await expect(notes).toBeVisible();
+    expect(await fitsNotes(notes)).toBe(true);
+    const rail = page.getByTestId('rail');
+    expect(await rail.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+    await rail.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    await expect(page.getByTestId('hints')).toBeInViewport();
   });
 
   test('j walks the rows column by column and skips folded buckets', async ({ page }) => {

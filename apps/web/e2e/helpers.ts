@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 export type FileName = 'tasks.md' | 'done.md' | 'config.yaml';
 
@@ -15,6 +15,14 @@ export const SPEC_TASKS = `# Always
 - [ ] Send the invoice 📅 2026-10-19
 - [ ] Learn Polish sign language
 `;
+
+/** A note line long enough to wrap many times in the notes box. */
+export const LONG_NOTE = 'floats 2g x2 and 3g x2, 5g x1; line 22mm and 28mm; hooks 8 and 10; groundbait. '.repeat(4).trim();
+
+/** True when a notes box shows all its text with no scrollbar of its own. */
+export function fitsNotes(notes: Locator): Promise<boolean> {
+  return notes.evaluate((el) => el.scrollHeight <= el.clientHeight + 1);
+}
 
 /**
  * Opens the app on a fake OneDrive seeded with `files`, with the browser clock fixed at `now`
