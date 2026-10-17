@@ -23,6 +23,10 @@ Node 22 or newer and pnpm 10, then `pnpm i`.
 - Entra app registration "TaskApp" in my own tenant, personal Microsoft accounts only, as a single-page app with redirect URIs `https://tasks.alipka.com/` and `http://localhost:5173/`. Scope used: `Files.ReadWrite`. Another origin (for example `pnpm dev` on a different port) needs its own `<origin>/` URI added.
 - Cloudflare Pages project with the custom domain `tasks.alipka.com`. GitHub Actions deploys it using the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, and the repository variable `MSAL_CLIENT_ID`.
 
+## Sign-in
+
+The app signs in with your personal Microsoft account and keeps the tokens in the browser. Entra limits a single-page app's refresh token to 24 hours, and Safari (the iPhone home-screen app) and Brave block the hidden renewal that would otherwise extend it, so expect "sign in needed" about once a day on those browsers. Signing in again names your account, so it is usually a quick redirect without the account picker. Edits made meanwhile stay in the browser's offline copy and are uploaded after you sign in.
+
 ## Commands
 
 | command | what it does |

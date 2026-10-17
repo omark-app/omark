@@ -74,10 +74,18 @@ describe('createAuth', () => {
     await expect(mk(msal).getToken()).rejects.toBeInstanceOf(AuthRequiredError);
   });
 
-  it('signIn calls loginRedirect with the scopes', async () => {
-    const msal = stub();
+  it('a first sign-in (no cached account) calls loginRedirect with the scopes', async () => {
+    const msal = stub({ getActiveAccount: vi.fn(() => null), getAllAccounts: vi.fn(() => []) });
     await mk(msal).signIn();
     expect(msal.loginRedirect).toHaveBeenCalledWith({ scopes: ['Files.ReadWrite'] });
+    expect(msal.acquireTokenRedirect).not.toHaveBeenCalled();
+  });
+
+  it('a re-sign-in with a cached account redirects for that account, without the account picker (I6)', async () => {
+    const msal = stub();
+    await mk(msal).signIn();
+    expect(msal.acquireTokenRedirect).toHaveBeenCalledWith({ scopes: ['Files.ReadWrite'], account });
+    expect(msal.loginRedirect).not.toHaveBeenCalled();
   });
 
   it('handleRedirect sets the active account from the redirect result', async () => {

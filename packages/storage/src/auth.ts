@@ -63,7 +63,12 @@ export function createAuth(opts: {
     },
     async signIn() {
       await init();
-      await msal.loginRedirect({ scopes: SCOPES });
+      // Entra caps an SPA's refresh token at 24 h and Safari/Brave block the hidden-iframe renewal, so
+      // a re-sign-in is needed about daily. With the account known, the redirect names it and is usually
+      // a quick bounce on the existing Microsoft session instead of the account picker.
+      const acct = account();
+      if (acct) await msal.acquireTokenRedirect({ scopes: SCOPES, account: acct });
+      else await msal.loginRedirect({ scopes: SCOPES });
     },
     async getToken() {
       await init();
