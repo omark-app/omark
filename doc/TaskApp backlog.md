@@ -38,6 +38,11 @@ Ideas deliberately left out of v1 ([[TaskApp v1 spec]]). Grouped by theme; not o
 - **Done list / un-complete from history**: v1 un-completes only via Undo; a view of `done.md` with "restore" would cover older completions.
 - **Keep unsynced edits across a sign-in redirect in private browsing** (stash in `sessionStorage`): v1 only warns before they are lost.
 - **Keep the phone add-sheet draft across an app kill**: v1 keeps it only while the app is open.
+- **Several windows or tabs on one origin** (e.g. the installed PWA plus a Brave tab) share the offline cache: coordinate them, with a single writer via `navigator.locks` or by merging in record. v1: online etags protect; offline, closing one window can drop its unsynced edits.
+- **Odd heading order in `tasks.md`** (`# Tasks` before `# Always`, or `# Always` with no `# Tasks`): tolerate it. v1 hides some lines from the app (the text is kept).
+- **Fragments typed into a title** (🔁 or 📅 text): escape or reject them so they don't become fields on re-read.
+- **Security headers and CSP** (`public/_headers`): start Report-Only; `connect-src` would enforce the privacy rule.
+- **First offline run orders `done.md` completions before remote history**: cosmetic.
 
 ## AI
 
