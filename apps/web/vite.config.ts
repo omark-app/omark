@@ -10,7 +10,10 @@ export default defineConfig({
       includeAssets: ['icons/apple-touch-icon.png'],
       // The app shell, fonts and icons are precached; there is deliberately no runtimeCaching, so Graph,
       // login.microsoftonline.com and OneDrive download URLs always go straight to the network. A new
-      // version is installed in the background and takes effect on the next open (no reload mid-session).
+      // version installs in the background and, with skipWaiting + clientsClaim, its service worker takes
+      // control of the open page at once; the page keeps running the JS it loaded and runs the new JS on
+      // the next open (no reload mid-session). With one bundle that is safe; if code splitting is ever
+      // added, switch to `prompt`, as cleanupOutdatedCaches would remove chunks a running page still loads.
       workbox: {
         globPatterns: ['**/*.{js,css,html,woff2,png,svg,webmanifest}'],
         navigateFallback: 'index.html',
