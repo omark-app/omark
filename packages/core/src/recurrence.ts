@@ -79,12 +79,18 @@ function nextOnCycle(rule: Extract<RepeatRule, { type: 'weekly' | 'monthly' }>, 
  * First date of the pattern after `today`, stepping from the current due date (at least one step: the
  * result is also after the due date). Monthly considers the due month's own occurrence, so a task moved
  * off its day (e.g. to the 5th of a "15th" rule) and completed then moves to the 15th, as weekly does.
- * Interval weekly / monthly rules count their weeks or months from the due date's (else today's).
+ * Interval weekly / monthly rules count their weeks or months from the due date's. With no due date they
+ * act as if the task were dated where `fitDate` would put it: the first rule day on or after `today` is
+ * next if it is after `today`; if it is `today`, that was this cycle's occurrence and the next is N on.
  */
 export function nextDate(rule: RepeatRule, due: ISODate | null, today: ISODate): ISODate {
   if (rule.type === 'after') return addDays(today, rule.n);
   const start = due ?? today;
   if (rule.type === 'weekly' || rule.type === 'monthly') {
+    if (due === null) {
+      const first = fitDate(rule, null, today);
+      if (first > today) return first;
+    }
     return nextOnCycle(rule, start, due !== null && due > today ? due : today);
   }
   if (rule.type === 'yearly' || (rule.type === 'every' && rule.unit === 'months')) {
@@ -106,13 +112,12 @@ export function nextDate(rule: RepeatRule, due: ISODate | null, today: ISODate):
 }
 
 /**
- * Keep `date` if it fits the rule, else the first fitting date on or after it (or today). Interval
- * weekly / monthly rules count their cycle from that date's week or month.
+ * Keep `date` if it fits the rule, else the first fitting date on or after it (or today). A weekly or
+ * monthly interval is ignored (Ruling 46): the first listed weekday or rule day is taken whatever N is, and
+ * `nextDate` then counts the cycle from that date, since it becomes the due date.
  */
 export function fitDate(rule: RepeatRule, date: ISODate | null, today: ISODate): ISODate {
-  const from = date ?? today;
-  if (rule.type === 'weekly' || rule.type === 'monthly') return nextOnCycle(rule, from, addDays(from, -1));
-  let d = from;
+  let d = date ?? today;
   for (let i = 0; i < 1000; i++) {
     if (matchesRule(rule, d)) return d;
     d = addDays(d, 1);

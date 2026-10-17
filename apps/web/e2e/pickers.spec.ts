@@ -64,6 +64,21 @@ test.describe('desktop keys', () => {
     await expect(sheet(page).getByRole('button', { name: 'Fr', exact: true })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  test('on a Saturday, every 2 weeks on Friday goes to the next Friday', async ({ page }) => {
+    await openApp(page, { files: { 'tasks.md': SPEC_TASKS }, now: '2026-10-17T09:00:00' });
+    await page.getByTestId('bucket-head-someday').click();
+    await row(page, 'Learn Polish').click();
+    await page.keyboard.press('r');
+    await sheet(page).getByLabel('Week interval').fill('2');
+    await sheet(page).getByRole('button', { name: 'Fr', exact: true }).click();
+    await sheet(page).getByRole('button', { name: 'Sa', exact: true }).click();
+    await sheet(page).getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByTestId('toast')).toContainText('Repeats every 2 weeks on Fri');
+    await expect
+      .poll(() => driveFile(page, 'tasks.md'))
+      .toContain('- [ ] Learn Polish sign language 🔁 every 2 weeks on Friday 📅 2026-10-23');
+  });
+
   test('every 3 months on day 25 and every 3 months save month rules', async ({ page }) => {
     await start(page);
     await row(page, 'Send the invoice').click();

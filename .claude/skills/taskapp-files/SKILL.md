@@ -94,7 +94,8 @@ The next date is the first date strictly after the completion date that fits the
 - `every N months` steps N calendar months from the due date, on the due date's day (the 31st falls on the last day of shorter months), until the date is after the completion date.
 - `every N months on the ...` works like the monthly rule, but only in months 0, N, 2N, ... counted from the due date's month.
 - `when done` is the completion date plus N days; the due date is ignored.
-- With no `📅`, step from the completion date (its week or month is week or month 0).
+- With no `📅`, step from the completion date. For `every N weeks on ...` and `every N months on the ...`, take the first named day (or rule day) after the completion date; if the task was completed on such a day, go N weeks or months on.
+- When you add or change a `🔁` rule, keep the `📅` if it falls on the rule's days, else move it to the first such date on or after it (or on or after today when there is none). N doesn't matter here: `every 2 weeks on Friday` added on Saturday 2026-10-17 gives `📅 2026-10-23`, and the N-week cycle counts from that date.
 
 | rule | due | completed on | next |
 | --- | --- | --- | --- |

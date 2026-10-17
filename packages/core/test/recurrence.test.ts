@@ -96,10 +96,23 @@ test('every N weeks on days: weeks run Monday to Sunday at the multiple-of-N bou
   expect(nextDate({ type: 'weekly', days: [0], n: 3 }, '2026-10-19', '2026-11-10')).toBe('2026-11-30');
 });
 
-test("every N weeks on days with no due date anchors on the completion date's week", () => {
+test('every N weeks on days with no due date: the first matching day after completion, else N weeks on', () => {
+  // As fitDate would place it: the first listed day on or after the completion date anchors the cycle.
   expect(nextDate(fri2, null, '2026-10-21')).toBe('2026-10-23');
+  expect(nextDate(fri2, null, '2026-10-24')).toBe('2026-10-30');
+  // Completed on a listed day: that day is this cycle's occurrence, so the next is N weeks on.
   expect(nextDate(fri2, null, '2026-10-23')).toBe('2026-11-06');
-  expect(nextDate(fri2, null, '2026-10-24')).toBe('2026-11-06');
+  expect(nextDate(monThu2, null, '2026-10-19')).toBe('2026-10-22');
+  expect(nextDate(monThu2, null, '2026-10-22')).toBe('2026-11-02');
+});
+
+test('Ruling 46: setting every 2 weeks on Friday on Sat 17 Oct, then completing it', () => {
+  // Undated task and a task dated that Saturday both go to the next Friday, not the one after.
+  expect(fitDate(fri2, null, '2026-10-17')).toBe('2026-10-23');
+  expect(fitDate(fri2, '2026-10-17', '2026-10-17')).toBe('2026-10-23');
+  // The cycle is anchored on that date from then on.
+  expect(nextDate(fri2, '2026-10-23', '2026-10-23')).toBe('2026-11-06');
+  expect(nextDate(fri2, '2026-11-06', '2026-11-06')).toBe('2026-11-20');
 });
 
 test('every N months on the day uses months N apart from the due month (I2 kept)', () => {
@@ -115,9 +128,11 @@ test('every N months on the day uses months N apart from the due month (I2 kept)
   // Long overdue: Jan, Apr, Jul, Oct 2026 are the cycle months.
   expect(nextDate(q18, '2026-01-18', '2026-10-16')).toBe('2026-10-18');
   expect(nextDate(q18, '2026-01-18', '2026-11-16')).toBe('2027-01-18');
-  // No due date: the completion month is month 0.
+  // No due date: the first rule day after completion, or N months on when completed on the rule day.
   expect(nextDate({ type: 'monthly', day: 20, n: 3 }, null, '2026-10-16')).toBe('2026-10-20');
-  expect(nextDate({ type: 'monthly', day: 5, n: 3 }, null, '2026-10-16')).toBe('2027-01-05');
+  expect(nextDate({ type: 'monthly', day: 5, n: 3 }, null, '2026-10-16')).toBe('2026-11-05');
+  expect(nextDate({ type: 'monthly', day: 5, n: 3 }, null, '2026-10-05')).toBe('2027-01-05');
+  expect(nextDate({ type: 'monthly', day: 31, n: 3 }, null, '2026-11-30')).toBe('2027-02-28');
 });
 
 test('every N months on the 31st clamps to short months without drifting', () => {
@@ -146,20 +161,22 @@ test('every N months steps N calendar months from the due date, clamped', () => 
 });
 
 test('fitDate for N-interval rules', () => {
-  // Weeks are counted from the given date's week, or today's week with no date.
+  // The first listed weekday on or after the date (or today), as for N = 1; the cycle starts there.
   expect(fitDate(fri2, '2026-10-19', '2026-10-16')).toBe('2026-10-23');
   expect(fitDate(fri2, '2026-10-23', '2026-10-16')).toBe('2026-10-23');
-  expect(fitDate(fri2, '2026-10-24', '2026-10-16')).toBe('2026-11-06');
+  expect(fitDate(fri2, '2026-10-24', '2026-10-16')).toBe('2026-10-30');
   expect(fitDate(fri2, null, '2026-10-16')).toBe('2026-10-16');
-  expect(fitDate(fri2, null, '2026-10-17')).toBe('2026-10-30');
+  expect(fitDate(fri2, null, '2026-10-17')).toBe('2026-10-23');
   expect(fitDate(monThu2, '2026-10-20', '2026-10-16')).toBe('2026-10-22');
-  // Months are counted from the given date's month.
+  expect(fitDate(monThu2, '2026-10-23', '2026-10-16')).toBe('2026-10-26');
+  // The first rule day on or after the date, whatever N is (clamped in short months).
   const q18 = { type: 'monthly', day: 18, n: 3 } as const;
   expect(fitDate(q18, '2026-10-05', '2026-10-05')).toBe('2026-10-18');
   expect(fitDate(q18, '2026-10-18', '2026-10-05')).toBe('2026-10-18');
-  expect(fitDate(q18, '2026-10-20', '2026-10-05')).toBe('2027-01-18');
+  expect(fitDate(q18, '2026-10-20', '2026-10-05')).toBe('2026-11-18');
   expect(fitDate(q18, null, '2026-10-16')).toBe('2026-10-18');
-  expect(fitDate({ type: 'monthly', day: 18, n: 36 }, '2026-10-20', '2026-10-20')).toBe('2029-10-18');
+  expect(fitDate({ type: 'monthly', day: 18, n: 36 }, '2026-10-20', '2026-10-20')).toBe('2026-11-18');
+  expect(fitDate({ type: 'monthly', day: 31, n: 3 }, '2027-02-01', '2027-02-01')).toBe('2027-02-28');
   // A stride has no pattern to miss.
   expect(fitDate({ type: 'every', n: 3, unit: 'months' }, '2026-10-21', '2026-10-16')).toBe('2026-10-21');
   expect(fitDate({ type: 'every', n: 3, unit: 'months' }, null, '2026-10-16')).toBe('2026-10-16');
