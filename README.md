@@ -38,7 +38,7 @@ Build and deploy: push to `main`; CI runs the checks and deploys to Cloudflare P
 
 ## Real-OneDrive smoke
 
-`pnpm e2e:real` builds the app with `VITE_STORAGE=onedrive` and `VITE_ONEDRIVE_FOLDER=ALAI/TaskApp-e2e`, serves it on http://localhost:5173 (stop `pnpm dev` first, the port must be free), adds and completes one task and adds and deletes another, and reads `tasks.md` and `done.md` back through Graph. It removes its own lines afterwards. Without the saved state it stops with a message to run `pnpm e2e:real:login`.
+`pnpm e2e:real` builds the app with `VITE_STORAGE=onedrive` and `VITE_ONEDRIVE_FOLDER=ALAI/TaskApp-e2e`, serves it on http://localhost:5173 (stop `pnpm dev` first, the port must be free), adds and completes one task and adds and deletes another, and reads `tasks.md` and `done.md` back through Graph. It removes its own lines afterwards. The saved sign-in expires after about 24 hours (SPA refresh tokens), so `pnpm e2e:real:login` is usually needed before `pnpm e2e:real`. The smoke leaves the `ALAI/TaskApp-e2e` folder and its files behind (only the task lines are removed). Without the saved state it stops with a message to run `pnpm e2e:real:login`.
 
 Real-OneDrive smoke last passed: (not yet run)
 

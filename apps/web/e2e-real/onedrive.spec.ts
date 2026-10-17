@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import type { APIRequestContext, Page } from '@playwright/test';
 import { E2E_FOLDER, STATE_PATH } from './state';
 
 test.beforeAll(() => {
@@ -22,26 +22,34 @@ function watchToken(page: Page) {
   return box;
 }
 
-const fileUrl = (name: string) => `https://graph.microsoft.com/v1.0/me/drive/root:/${E2E_FOLDER}/${name}:/content`;
+const item = (name: string) => `https://graph.microsoft.com/v1.0/me/drive/root:/${E2E_FOLDER}/${name}`;
 
-async function readFile(page: Page, auth: string, name: string): Promise<string> {
-  return page.evaluate(async ([url, a]) => {
-    const res = await fetch(url!, { headers: { Authorization: a! } });
-    if (res.status === 404) return '';
-    if (!res.ok) throw new Error(`Graph read failed: ${res.status}`);
-    return res.text();
-  }, [fileUrl(name), auth]);
+interface Read { text: string; etag: string | null }
+
+/** Reads a file from Node (no CORS): metadata with the token, then the pre-authenticated download URL without it. */
+async function readFile(request: APIRequestContext, auth: string, name: string): Promise<Read> {
+  const meta = await request.get(item(name), { headers: { Authorization: auth } });
+  if (meta.status() === 404) return { text: '', etag: null };
+  if (!meta.ok()) throw new Error(`Graph read failed: ${meta.status()}`);
+  const json = (await meta.json()) as { eTag?: string; '@microsoft.graph.downloadUrl'?: string };
+  const url = json['@microsoft.graph.downloadUrl'];
+  if (!url) return { text: '', etag: json.eTag ?? null };
+  const body = await request.get(url);
+  if (!body.ok()) throw new Error(`Download failed: ${body.status()}`);
+  return { text: await body.text(), etag: json.eTag ?? null };
 }
 
-async function writeFile(page: Page, auth: string, name: string, text: string): Promise<void> {
-  const status = await page.evaluate(async ([url, a, body]) => {
-    const res = await fetch(url!, { method: 'PUT', headers: { Authorization: a!, 'Content-Type': 'text/plain' }, body });
-    return res.status;
-  }, [fileUrl(name), auth, text]);
-  if (status >= 300) throw new Error(`Graph write failed: ${status}`);
+/** Writes only if the file is still the version that was read, so cleanup never overwrites a newer file. */
+async function writeFile(request: APIRequestContext, auth: string, name: string, text: string, etag: string | null): Promise<void> {
+  const headers: Record<string, string> = { Authorization: auth, 'Content-Type': 'text/plain' };
+  if (etag) headers['If-Match'] = etag;
+  const res = await request.put(`${item(name)}:/content`, { headers, data: text });
+  if (!res.ok()) throw new Error(`Graph write failed: ${res.status()}`);
 }
 
-test('add, complete and delete a task on the real OneDrive', async ({ page }) => {
+const text = async (request: APIRequestContext, auth: string, name: string) => (await readFile(request, auth, name)).text;
+
+test('add, complete and delete a task on the real OneDrive', async ({ page, request }) => {
   test.setTimeout(120_000);
   const box = watchToken(page);
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -60,27 +68,34 @@ test('add, complete and delete a task on the real OneDrive', async ({ page }) =>
       await expect(row(page, title)).toHaveCount(1);
     }
     await expect(page.getByTestId('status')).toHaveText('saved', { timeout: 30_000 });
-    await expect.poll(() => readFile(page, box.token, 'tasks.md'), { timeout: 30_000 }).toContain(doneTitle);
+    await expect.poll(() => text(request, box.token, 'tasks.md'), { timeout: 30_000 }).toContain(doneTitle);
 
     await row(page, doneTitle).click();
     await page.keyboard.press('x');
     await expect(page.getByTestId('toast')).toContainText(`Done · ${doneTitle}`);
-    await expect.poll(() => readFile(page, box.token, 'done.md'), { timeout: 30_000 }).toContain(doneTitle);
-    expect(await readFile(page, box.token, 'tasks.md')).not.toContain(doneTitle);
+    await expect.poll(() => text(request, box.token, 'done.md'), { timeout: 30_000 }).toContain(doneTitle);
+    expect(await text(request, box.token, 'tasks.md')).not.toContain(doneTitle);
 
     await row(page, deleteTitle).click();
     await page.keyboard.press('Delete');
     await expect(page.getByTestId('toast')).toContainText(`Deleted · ${deleteTitle}`);
-    await expect.poll(() => readFile(page, box.token, 'tasks.md'), { timeout: 30_000 }).not.toContain(deleteTitle);
+    await expect.poll(() => text(request, box.token, 'tasks.md'), { timeout: 30_000 }).not.toContain(deleteTitle);
   } finally {
-    // The app cannot delete from done.md, so remove the smoke lines through Graph. Nothing is left behind.
+    // Close the app first so it cannot re-save over the cleaned files. The app cannot delete from done.md,
+    // so the smoke lines are removed through Graph. A cleanup error is only a warning (no token in it).
+    await page.close().catch(() => {});
     if (box.token) {
-      const done = await readFile(page, box.token, 'done.md');
-      const cleaned = done.split('\n').filter((l) => !l.includes(`e2e smoke done ${stamp}`)).join('\n');
-      if (cleaned !== done) await writeFile(page, box.token, 'done.md', cleaned);
-      const tasks = await readFile(page, box.token, 'tasks.md');
-      const tasksCleaned = tasks.split('\n').filter((l) => !l.includes(`e2e smoke `) || !l.includes(stamp)).join('\n');
-      if (tasksCleaned !== tasks) await writeFile(page, box.token, 'tasks.md', tasksCleaned);
+      try {
+        for (const name of ['done.md', 'tasks.md']) {
+          const { text: before, etag } = await readFile(request, box.token, name);
+          const after = before.split('
+').filter((l) => !(l.includes('e2e smoke ') && l.includes(stamp))).join('
+');
+          if (after !== before) await writeFile(request, box.token, name, after, etag);
+        }
+      } catch (e) {
+        console.warn(`Cleanup of the e2e smoke lines failed: ${e instanceof Error ? e.message : 'unknown error'}`);
+      }
     }
   }
 });

@@ -10,7 +10,9 @@ export default defineConfig({
   testDir: './e2e-real',
   workers: 1,
   reporter: 'list',
-  use: { baseURL: origin, serviceWorkers: 'block', ...devices['Desktop Chrome'] },
+  use: { baseURL: origin, serviceWorkers: 'block', ...devices['Desktop Chrome'],
+    // Traces, videos and screenshots would capture the Authorization header or task text; keep them off.
+    trace: 'off', video: 'off', screenshot: 'off' },
   projects: [
     { name: 'login', testMatch: 'login.spec.ts', use: { headless: false } },
     {
