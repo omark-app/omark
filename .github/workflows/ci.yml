@@ -55,4 +55,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Use the workspace's pinned wrangler; the action can't `pnpm add` it at a workspace root.
+          wranglerVersion: '4.151.1'
           command: pages deploy apps/web/dist --project-name=taskapp --branch=main
