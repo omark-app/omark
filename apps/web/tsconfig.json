@@ -5,5 +5,5 @@
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": ["vite/client", "svelte", "node"]
   },
-  "include": ["src/**/*.ts", "src/**/*.svelte", "e2e/**/*.ts", "*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.svelte", "e2e/**/*.ts", "e2e-real/**/*.ts", "*.ts"]
 }

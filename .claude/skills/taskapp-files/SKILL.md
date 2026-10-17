@@ -116,6 +116,8 @@ Set the task's `📅` (leave the line's position alone) to:
 
 Weeks run Monday to Sunday unless `firstDayOfWeek` in `config.yaml` names another first day (the week then ends the day before it).
 
+On the last day of the week "This week" is empty (today is already that date): use Today. Overdue tasks (a `📅` before today) show under Today.
+
 ## config.yaml
 
 YAML with only the settings that differ from the defaults. Keep its comments. A mistake makes the app show a banner and fall back to all defaults, so change one key at a time, use only the values below, and keep the YAML valid. Unknown keys are errors too.

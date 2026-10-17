@@ -36,6 +36,8 @@ Ideas deliberately left out of v1 ([[TaskApp v1 spec]]). Grouped by theme; not o
 - **Todoist completion history import**, to seed stats (skipped in v1 because it's too big).
 - **More stats**: 30-day view, streaks, charts.
 - **Done list / un-complete from history**: v1 un-completes only via Undo; a view of `done.md` with "restore" would cover older completions.
+- **Keep unsynced edits across a sign-in redirect in private browsing** (stash in `sessionStorage`): v1 only warns before they are lost.
+- **Keep the phone add-sheet draft across an app kill**: v1 keeps it only while the app is open.
 
 ## AI
 
