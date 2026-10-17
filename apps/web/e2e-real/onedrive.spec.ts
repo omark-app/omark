@@ -88,9 +88,7 @@ test('add, complete and delete a task on the real OneDrive', async ({ page, requ
       try {
         for (const name of ['done.md', 'tasks.md']) {
           const { text: before, etag } = await readFile(request, box.token, name);
-          const after = before.split('
-').filter((l) => !(l.includes('e2e smoke ') && l.includes(stamp))).join('
-');
+          const after = before.split('\n').filter((l) => !(l.includes('e2e smoke ') && l.includes(stamp))).join('\n');
           if (after !== before) await writeFile(request, box.token, name, after, etag);
         }
       } catch (e) {
