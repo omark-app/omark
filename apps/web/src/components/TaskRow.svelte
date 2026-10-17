@@ -49,7 +49,7 @@
 </div>
 
 <style>
-  .task { position: relative; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 6px 6px 6px 10px; border-radius: 8px; touch-action: pan-y; user-select: none; transition: background .12s; cursor: default; -webkit-touch-callout: none; }
+  .task { position: relative; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 6px 6px 6px 10px; border-radius: 8px; touch-action: pan-y; user-select: none; transition: background .12s, transform .18s ease-out; cursor: default; -webkit-touch-callout: none; }
   .task:hover { background: color-mix(in srgb, var(--sel) 55%, transparent); }
   .task:global(.drop-before) { box-shadow: inset 0 2px 0 var(--accent); }
   /* Set while a finger swipes the row (lib/gestures.ts): right completes, left opens the move sheet. */

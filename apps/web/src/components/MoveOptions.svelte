@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { bucketOf, dayMonth, describeRepeat, endOfNextWeek, endOfWeek, hasWeekLeft, weekdayShort } from '@taskapp/core';
-  import type { ISODate, Task, WeekCtx } from '@taskapp/core';
-  import type { MovableBucket } from '../lib/store.svelte.ts';
+  import { bucketOf, dateForBucket, dayMonth, describeRepeat, movableBuckets, weekdayShort } from '@taskapp/core';
+  import type { MovableBucket, Task, WeekCtx } from '@taskapp/core';
 
   let {
     task,
@@ -19,17 +18,21 @@
 
   type Option = { label: string; detail: string; current?: boolean; run: () => void };
 
-  const full = (d: ISODate): string => `${weekdayShort(d)} ${dayMonth(d, ctx)}`;
   const current = $derived(bucketOf(task, ctx));
-  const move = (key: MovableBucket, label: string, detail: string): Option => ({ label, detail, current: current === key, run: () => onmove(key) });
 
-  // Spec 9.2: Today, This week, Next week, Pick a date…, Someday, Repeat… (This week is gone on its last day).
+  /** Where a move lands: `Fri` for Today, `Sun 18 Oct` for a week, `no date` for Someday. */
+  function landing(key: MovableBucket): string {
+    const d = dateForBucket(key, ctx);
+    if (d === null) return 'no date';
+    return key === 'today' ? weekdayShort(d) : `${weekdayShort(d)} ${dayMonth(d, ctx)}`;
+  }
+
+  // Spec 9.2: Today, This week, Next week, Pick a date…, Someday, Repeat… (Pick a date… sits just before Someday).
   const options = $derived<Option[]>([
-    move('today', 'Today', weekdayShort(ctx.today)),
-    ...(hasWeekLeft(ctx) ? [move('week', 'This week', full(endOfWeek(ctx)))] : []),
-    move('next', 'Next week', full(endOfNextWeek(ctx))),
-    { label: 'Pick a date…', detail: task.date ? dayMonth(task.date, ctx) : 'no date', run: onpickdate },
-    move('someday', 'Someday', 'no date'),
+    ...movableBuckets(ctx).flatMap((b): Option[] => {
+      const move = { label: b.name, detail: landing(b.key), current: current === b.key, run: () => onmove(b.key) };
+      return b.key === 'someday' ? [{ label: 'Pick a date…', detail: task.date ? dayMonth(task.date, ctx) : 'no date', run: onpickdate }, move] : [move];
+    }),
     { label: 'Repeat…', detail: task.repeat ? describeRepeat(task.repeat) : 'none', run: onrepeat },
   ]);
 </script>

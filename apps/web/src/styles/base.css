@@ -10,6 +10,7 @@ button { font: inherit; color: inherit; }
   padding-block: 28px 140px;
 }
 @media (max-width: 719.98px) {
-  /* Room under the notch or status bar; the bottom clears the + button and the toast. */
-  #app { padding-block: calc(18px + env(safe-area-inset-top, 0px)) 150px; }
+  /* Room under the notch or status bar. The bottom lets the last rows scroll clear of the + button
+     (70px up, 56px tall, plus a margin) and the toast above it. */
+  #app { padding-block: calc(18px + env(safe-area-inset-top, 0px)) calc(150px + env(safe-area-inset-bottom, 0px)); }
 }

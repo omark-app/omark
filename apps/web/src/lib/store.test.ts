@@ -134,6 +134,14 @@ describe('app store', () => {
     expect(store.stats.today).toBe(0);
   });
 
+  it('add reports whether a task was added (a blank title is not)', async () => {
+    const { store } = await setup();
+    expect(store.add('   ')).toBe(false);
+    expect(store.toast).toBeNull();
+    expect(store.add('Buy milk', 'next')).toBe(true);
+    expect(titles(store, 'next')).toContain('Buy milk');
+  });
+
   it('adds to the bucket from config.yaml', async () => {
     const { store } = await setup({ 'tasks.md': SEED_TASKS, 'config.yaml': 'newTaskBucket: someday\n' });
     store.add('x');

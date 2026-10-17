@@ -32,6 +32,7 @@ import type {
   DropOutcome,
   DropTarget,
   ISODate,
+  MovableBucket,
   RepeatRule,
   State,
   Stats,
@@ -42,8 +43,6 @@ import type { SyncStatus, Workspace } from '@taskapp/storage';
 import type { Clock } from './clock.ts';
 import * as msg from './messages.ts';
 
-/** A bucket a task can be moved to by date shortcut (Later has no single date). */
-export type MovableBucket = Exclude<BucketKey, 'later'>;
 export type View = 'list' | 'board';
 export interface Toast {
   message: string;
@@ -67,7 +66,8 @@ export interface AppStore {
   readonly stats: Stats;
   /** Set when the offline cache could not be used (e.g. iOS private mode); edits then live only in memory. */
   readonly cacheWarning: string | null;
-  add(title: string, bucket?: MovableBucket): void;
+  /** Adds a task (to the configured bucket by default); false when the title is blank. */
+  add(title: string, bucket?: MovableBucket): boolean;
   select(id: string | null): void;
   selectNext(delta: 1 | -1): void;
   moveTo(id: string, bucket: MovableBucket): void;
@@ -300,10 +300,11 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     if (commit(next, movedMessage(next, id))) keepVisible(id, fallback);
   }
 
-  function add(title: string, bucket: MovableBucket = config.newTaskBucket): void {
+  function add(title: string, bucket: MovableBucket = config.newTaskBucket): boolean {
     const res = addTask(state, title, bucket, ctx);
-    if (!res) return;
+    if (!res) return false;
     commit(res.state, msg.added(bucketName(bucketOf(findTask(res.state, res.id)!, ctx))));
+    return true;
   }
 
   function moveTo(id: string, bucket: MovableBucket): void {

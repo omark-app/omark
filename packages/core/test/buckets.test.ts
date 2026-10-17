@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { Task, TasksDoc } from '../src/index.ts';
-import { BUCKETS, allTasks, bucketOf, bucketRange, dateForBucket, tasksInBucket } from '../src/index.ts';
+import { BUCKETS, allTasks, bucketOf, bucketRange, dateForBucket, movableBuckets, tasksInBucket } from '../src/index.ts';
 
 const fri = { today: '2026-10-16', weekStart: 0 };
 const sun = { today: '2026-10-18', weekStart: 0 };
@@ -29,6 +29,16 @@ test('dateForBucket', () => {
   expect(dateForBucket('week', sun)).toBe('2026-10-18');
   expect(dateForBucket('next', fri)).toBe('2026-10-25');
   expect(dateForBucket('someday', fri)).toBeNull();
+});
+
+test('movableBuckets leaves out Later, and This week on its last day', () => {
+  expect(movableBuckets(fri)).toEqual([
+    { key: 'today', name: 'Today' },
+    { key: 'week', name: 'This week' },
+    { key: 'next', name: 'Next week' },
+    { key: 'someday', name: 'Someday' },
+  ]);
+  expect(movableBuckets(sun).map((b) => b.key)).toEqual(['today', 'next', 'someday']);
 });
 
 test('allTasks keeps file order and skips non-tasks', () => {

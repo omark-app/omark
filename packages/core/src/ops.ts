@@ -1,9 +1,9 @@
 import { dateForBucket } from './buckets.ts';
+import type { MovableBucket } from './buckets.ts';
 import { doneLine } from './done-file.ts';
-import type { BucketKey, ISODate, Item, RepeatRule, State, Task, WeekCtx } from './model.ts';
+import type { ISODate, Item, RepeatRule, State, Task, WeekCtx } from './model.ts';
 import { fitDate, nextDate } from './recurrence.ts';
 
-type MovableBucket = Exclude<BucketKey, 'later'>;
 
 let lastId = 0;
 const defaultNewId = (): string => `n${++lastId}`;

@@ -110,17 +110,20 @@ export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
   let active: { tracker: GestureTracker; row: HTMLElement; id: string; pointerId: number; swiping: boolean } | null = null;
   let swallowUntil = 0;
 
+  /** Ends the gesture; a swiped row springs back (its CSS transition runs again). */
   function release(): void {
     if (!active) return;
+    active.row.style.transition = '';
     active.row.style.transform = '';
     active.row.classList.remove('swipe-r', 'swipe-l');
     active = null;
   }
 
   function onpointerdown(e: PointerEvent): void {
+    // A second finger, or the mouse, leaves the gesture in progress alone.
+    if (!opts.enabled || e.pointerType === 'mouse' || !e.isPrimary) return;
     release();
     swallowUntil = 0;
-    if (!opts.enabled || e.pointerType === 'mouse' || !e.isPrimary) return;
     const row = rowOf(e.target);
     if (!row?.dataset.id || (e.target as Element).closest('button')) return;
     const tracker = new GestureTracker();
@@ -134,6 +137,7 @@ export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
     const { row, tracker } = active;
     if (!active.swiping) {
       active.swiping = true;
+      row.style.transition = 'none'; // follow the finger without lag
       try {
         row.setPointerCapture(e.pointerId);
       } catch {

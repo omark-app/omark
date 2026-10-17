@@ -66,6 +66,52 @@ test('the + button opens the add sheet; Someday puts the new task in Someday', a
   await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Buy stamps\n');
 });
 
+test('a dismissed add sheet keeps its draft until a task is added', async ({ page }) => {
+  await start(page);
+  await page.getByTestId('fab').tap();
+  await sheet(page).getByLabel('New task').fill('Buy stamps');
+  await option(page, 'Next week').tap();
+  await page.waitForTimeout(450); // past the backdrop guard
+  await page.touchscreen.tap(20, 20);
+  await expect(sheet(page)).toHaveCount(0);
+  await page.getByTestId('fab').tap();
+  await expect(sheet(page).getByLabel('New task')).toHaveValue('Buy stamps');
+  await expect(option(page, 'Next week')).toHaveAttribute('aria-pressed', 'true');
+  await option(page, 'Add').tap();
+  await expect(page.getByTestId('toast')).toContainText('Added to Next week');
+  await page.getByTestId('fab').tap();
+  await expect(sheet(page).getByLabel('New task')).toHaveValue('');
+  await expect(option(page, 'Today')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('the + button never covers the end of the list', async ({ page }) => {
+  await start(page);
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  const fab = await page.getByTestId('fab').boundingBox();
+  const last = await page.getByTestId('always-add').boundingBox();
+  expect(last!.y + last!.height).toBeLessThanOrEqual(fab!.y);
+});
+
+test('the round check completes a task without opening the edit sheet', async ({ page }) => {
+  await start(page);
+  await row(page, 'Send the invoice').getByTestId('task-check').tap();
+  await expect(page.getByTestId('toast')).toContainText('Done · Send the invoice');
+  await expect(row(page, 'Send the invoice')).toHaveCount(0);
+  await expect(sheet(page)).toHaveCount(0);
+});
+
+test('the move and edit sheets open with no option picked and no field focused', async ({ page }) => {
+  await start(page);
+  const focused = () => page.evaluate(() => document.activeElement?.getAttribute('role') ?? document.activeElement?.tagName);
+  await swipe(row(page, 'Send the invoice'), -120);
+  await expect(sheet(page)).toBeVisible();
+  await expect.poll(focused).toBe('dialog');
+  await page.keyboard.press('Escape');
+  await row(page, 'Send the invoice').tap();
+  await expect(sheet(page).getByLabel('Task title')).toBeVisible();
+  await expect.poll(focused).toBe('dialog');
+});
+
 test('tapping a row opens the edit sheet; Save keeps the new notes and shows ≡', async ({ page }) => {
   await start(page);
   const invoice = row(page, 'Send the invoice');
@@ -114,6 +160,16 @@ test('the edit sheet moves the task, keeping typed text', async ({ page }) => {
   await expect(page.getByTestId('bucket-today').getByTestId('task-row').filter({ hasText: 'Send the final invoice' })).toHaveCount(1);
 });
 
+test('Delete in the edit sheet saves the typed text first, so Undo brings it back', async ({ page }) => {
+  await start(page);
+  await row(page, 'Send the invoice').tap();
+  await sheet(page).getByLabel('Task title').fill('Send the final invoice');
+  await option(page, 'Delete').tap();
+  await expect(page.getByTestId('toast')).toContainText('Deleted · Send the final invoice');
+  await page.getByTestId('toast-undo').tap();
+  await expect(row(page, 'Send the final invoice')).toHaveCount(1);
+});
+
 test('tapping task-meta opens the date picker directly', async ({ page }) => {
   await start(page);
   await row(page, 'Send the invoice').getByTestId('task-meta').tap();
@@ -138,6 +194,23 @@ test('a short swipe springs back and changes nothing, and its click is not a tap
   await expect(row(page, 'Send the invoice')).toHaveCSS('transform', 'none');
   await expect(sheet(page)).toHaveCount(0);
   await expect(page.getByTestId('toast')).toHaveCount(0);
+});
+
+test('a second finger does not cancel the swipe in progress', async ({ page }) => {
+  await start(page);
+  await row(page, 'Send the invoice').evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    const x = box.left + box.width / 2;
+    const y = box.top + box.height / 2;
+    const at = (type: string, cx: number, pointerId = 7, isPrimary = true) =>
+      el.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId, pointerType: 'touch', isPrimary, clientX: cx, clientY: y }));
+    at('pointerdown', x);
+    at('pointermove', x - 60);
+    at('pointerdown', x + 20, 8, false);
+    at('pointermove', x - 120);
+    at('pointerup', x - 120);
+  });
+  await expect(sheet(page)).toContainText('Move to…');
 });
 
 test('swiping a row left opens the move sheet', async ({ page }) => {

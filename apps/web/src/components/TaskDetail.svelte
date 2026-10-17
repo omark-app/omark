@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { bucketOf, BUCKETS, describeRepeat, dueText, findTask, hasWeekLeft } from '@taskapp/core';
-  import type { BucketKey, Task } from '@taskapp/core';
+  import { bucketOf, BUCKETS, describeRepeat, dueText, movableBuckets } from '@taskapp/core';
+  import type { Task } from '@taskapp/core';
   import type { AppStore } from '../lib/store.svelte.ts';
+  import { createTaskEdit } from '../lib/task-edit.svelte.ts';
 
   let {
     store,
@@ -12,10 +13,6 @@
   // `id` never changes for a mounted detail (the parent keys on it), so reading it once is intended.
   // svelte-ignore state_referenced_locally
   const id = task.id;
-  // svelte-ignore state_referenced_locally
-  let title = $state(task.title);
-  // svelte-ignore state_referenced_locally
-  let notes = $state(task.notes.join('\n'));
   let titleEl: HTMLInputElement | undefined = $state();
   let notesEl: HTMLTextAreaElement | undefined = $state();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -23,54 +20,25 @@
   const bucket = $derived(bucketOf(task, store.ctx));
   const bucketName = $derived(BUCKETS.find((b) => b.key === bucket)!.name);
   const over = $derived(task.date !== null && task.date < store.ctx.today);
-  const weekLeft = $derived(hasWeekLeft(store.ctx));
-  const chips = $derived(
-    (weekLeft
-      ? [['today', 'Today'], ['week', 'This week'], ['next', 'Next week'], ['someday', 'Someday']]
-      : [['today', 'Today'], ['next', 'Next week'], ['someday', 'Someday']]) as [
-      Exclude<BucketKey, 'later'>,
-      string,
-    ][],
-  );
+  const chips = $derived(movableBuckets(store.ctx));
 
-  // Fields changed since they were last saved. Only these are sent, so a remote change to the other field
-  // (arriving while one field is focused) is never overwritten with stale text.
-  let titleDirty = false;
-  let notesDirty = false;
-
-  // Follow outside changes (undo, sync) per field, unless that field is being typed in.
-  $effect(() => {
-    const t = task.title;
-    const n = task.notes.join('\n');
-    if (!titleDirty && document.activeElement !== titleEl) title = t;
-    if (!notesDirty && document.activeElement !== notesEl) notes = n;
-  });
+  // A focused field keeps its text even before it is typed in. Unmounting (another task, deselect, the
+  // task gone) commits.
+  // svelte-ignore state_referenced_locally
+  const edit = createTaskEdit(store, id, (field) => document.activeElement === (field === 'title' ? titleEl : notesEl));
 
   /** Commits the typed text to the store now. `settle` puts the stored values back in the fields. */
   function commit(settle = false): void {
     clearTimeout(timer);
     timer = undefined;
-    const current = findTask(store.state, id);
-    if (current && (titleDirty || notesDirty)) {
-      store.edit(id, {
-        title: titleDirty ? title : current.title,
-        notes: notesDirty ? notes.split('\n') : current.notes,
-      });
-    }
-    titleDirty = false;
-    notesDirty = false;
-    if (settle) {
-      const t = findTask(store.state, id);
-      if (t) {
-        title = t.title;
-        notes = t.notes.join('\n');
-      }
-    }
+    edit.commit(settle);
   }
 
+  // A debounced save left after unmounting has nothing to do: the unmount committed.
+  $effect(() => () => clearTimeout(timer));
+
   function typed(field: 'title' | 'notes'): void {
-    if (field === 'title') titleDirty = true;
-    else notesDirty = true;
+    edit.typed(field);
     clearTimeout(timer);
     timer = setTimeout(() => {
       commit();
@@ -83,27 +51,17 @@
     commit(e.relatedTarget !== titleEl && e.relatedTarget !== notesEl);
   }
 
-  // The store runs this before every flush and refresh; unmounting (another task, deselect, the task gone)
-  // commits too.
-  $effect(() => {
-    const off = store.registerPending(() => commit());
-    return () => {
-      off();
-      commit();
-    };
-  });
-
   export function focusTitle(): void {
     titleEl?.focus();
-    titleEl?.setSelectionRange(title.length, title.length);
+    titleEl?.setSelectionRange(edit.title.length, edit.title.length);
   }
 
   function titleKey(e: KeyboardEvent): void {
     if (e.key === 'Enter' && e.shiftKey) {
       e.preventDefault();
-      if (notes.trim() !== '') notes = notes.replace(/\s*$/, '') + '\n';
+      if (edit.notes.trim() !== '') edit.notes = edit.notes.replace(/\s*$/, '') + '\n';
       notesEl?.focus();
-      notesEl?.setSelectionRange(notes.length, notes.length);
+      notesEl?.setSelectionRange(edit.notes.length, edit.notes.length);
     } else if (e.key === 'Enter' || e.key === 'Escape') {
       e.preventDefault();
       titleEl?.blur();
@@ -126,7 +84,7 @@
   <div>
     <input
       bind:this={titleEl}
-      bind:value={title}
+      bind:value={edit.title}
       class="d-title"
       data-testid="detail-title"
       aria-label="Task title"
@@ -136,10 +94,10 @@
     />
     <textarea
       bind:this={notesEl}
-      bind:value={notes}
+      bind:value={edit.notes}
       class="d-notes"
       data-testid="detail-notes"
-      rows={Math.max(3, notes.split('\n').length + 1)}
+      rows={Math.max(3, edit.notes.split('\n').length + 1)}
       placeholder="Notes, one per line"
       aria-label="Notes"
       oninput={() => typed('notes')}
@@ -155,8 +113,8 @@
     <div class="row">
       <span class="k"></span>
       <div class="chips">
-        {#each chips as [key, label] (key)}
-          <button class="chipb" class:on={bucket === key} onclick={() => store.moveTo(id, key)}>{label}</button>
+        {#each chips as chip (chip.key)}
+          <button class="chipb" class:on={bucket === chip.key} onclick={() => store.moveTo(id, chip.key)}>{chip.name}</button>
         {/each}
       </div>
     </div>

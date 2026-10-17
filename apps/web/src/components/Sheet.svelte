@@ -11,14 +11,14 @@
   let panel: HTMLDivElement | undefined = $state();
   let openedAt = 0;
 
-  // Remember the opener on open, move focus into the sheet, and hand focus back on close.
+  // Remember the opener on open, move focus into the sheet, and hand focus back on close. Without a
+  // `data-autofocus` field the panel itself takes focus, so no choice looks picked and no keyboard pops up.
   $effect(() => {
     if (!open) return;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     openedAt = performance.now();
     void tick().then(() => {
-      const first = panel?.querySelector<HTMLElement>('[data-autofocus]') ?? panel?.querySelector<HTMLElement>(FOCUSABLE);
-      first?.focus();
+      (panel?.querySelector<HTMLElement>('[data-autofocus]') ?? panel)?.focus();
     });
     return () => {
       if (opener && opener.isConnected) opener.focus();
@@ -38,9 +38,9 @@
     const first = items[0]!;
     const last = items[items.length - 1]!;
     const active = document.activeElement;
-    if (!panel.contains(active)) {
+    if (!panel.contains(active) || active === panel) {
       e.preventDefault();
-      first.focus();
+      (e.shiftKey ? last : first).focus();
     } else if (e.shiftKey && active === first) {
       e.preventDefault();
       last.focus();
@@ -62,7 +62,7 @@
     <!-- Esc is the keyboard way out (handled on the window), so the backdrop needs no key handler. -->
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="backdrop" onclick={onbackdrop}></div>
-    <div class="panel" role="dialog" aria-modal="true" bind:this={panel}>
+    <div class="panel" role="dialog" aria-modal="true" tabindex="-1" bind:this={panel}>
       {@render children()}
     </div>
   </div>
@@ -72,6 +72,7 @@
   .modal { position: fixed; inset: 0; z-index: 60; }
   .backdrop { position: absolute; inset: 0; background: rgba(8, 12, 20, .38); }
   .panel { position: absolute; left: 50%; top: 14vh; transform: translateX(-50%); width: min(420px, calc(100% - 32px)); max-height: 76vh; overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 12px; }
+  .panel:focus { outline: none; }
   @media (max-width: 719.98px) {
     .panel { left: 0; right: 0; top: auto; bottom: 0; transform: none; width: auto; max-height: 85vh; border-radius: 18px 18px 0 0; padding: 18px max(16px, env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
   }

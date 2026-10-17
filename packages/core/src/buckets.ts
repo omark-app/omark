@@ -19,8 +19,18 @@ export function bucketOf(t: Task, ctx: WeekCtx): BucketKey {
   return 'later';
 }
 
+/** A bucket a task can be moved to by a date shortcut (Later has no single date). */
+export type MovableBucket = Exclude<BucketKey, 'later'>;
+
+/** The move and add choices, in order. This week is left out on its last day, where it would be Today. */
+export function movableBuckets(ctx: WeekCtx): { key: MovableBucket; name: string }[] {
+  return BUCKETS.filter(
+    (b): b is { key: MovableBucket; name: string } => b.key !== 'later' && (b.key !== 'week' || hasWeekLeft(ctx)),
+  );
+}
+
 /** The date a task gets when moved to a bucket (spec 4.2). Later has no single date. */
-export function dateForBucket(key: Exclude<BucketKey, 'later'>, ctx: WeekCtx): ISODate | null {
+export function dateForBucket(key: MovableBucket, ctx: WeekCtx): ISODate | null {
   switch (key) {
     case 'today': return ctx.today;
     case 'week': return endOfWeek(ctx);
