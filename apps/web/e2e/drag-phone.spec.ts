@@ -7,8 +7,14 @@ test.skip(({ isMobile }) => !isMobile, 'long-press drag is the touch counterpart
 /*
  * Spec 15 accepts weak emulation for long-press drag, so this is a smoke test. WebKit has no CDP touch input,
  * so the finger is synthetic events dispatched on the row it pressed (pointer events as in phone.spec, and
- * touch events), with the page's timers running through the hold.
+ * touch events). The page's clock is paused once the list is up, so time passes only when a test runs it on:
+ * the hold lasts exactly as long as the test says, however slowly a loaded machine dispatches the events.
  */
+
+/** A still finger lifts the row after this long (spec 9.2, `HOLD_MS` in gestures.ts). */
+const HOLD_MS = 400;
+/** Far longer than a busy phone could take to send the click that follows a release. */
+const LATE_CLICK_MS = 2000;
 
 const row = (page: Page, title: string) => page.getByTestId('task-row').filter({ hasText: title });
 
@@ -49,13 +55,17 @@ const touch = (target: Locator, type: 'touchmove' | 'touchend', at?: Point) =>
 
 /** Opens the spec tasks and holds a finger on the Today row until it lifts; returns the row and the finger. */
 async function lift(page: Page): Promise<{ dentist: Locator; at: Point }> {
-  await openApp(page, { files: { 'tasks.md': SPEC_TASKS } });
+  await openApp(page, { files: { 'tasks.md': SPEC_TASKS }, fakeTimers: true });
   const dentist = row(page, 'Call the dentist');
+  await expect(dentist).toBeVisible();
+  await page.clock.pauseAt(new Date('2026-10-16T09:01:00'));
   const box = (await dentist.boundingBox())!;
   const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   await pointer(dentist, 'pointerdown', at);
+  await page.clock.runFor(HOLD_MS - 1);
   expect(await touch(dentist, 'touchmove')).toBe(false); // not lifted yet: the page may scroll
-  await page.waitForTimeout(500);
+  await expect(dentist).not.toHaveClass(/\blifted\b/);
+  await page.clock.runFor(1);
   await expect(dentist).toHaveClass(/\blifted\b/);
   await expect(page.locator('.drag-ghost')).toHaveCount(1);
   expect(await touch(dentist, 'touchmove')).toBe(true); // lifted: the page holds still
@@ -85,7 +95,9 @@ test('holding a Today row lifts it; dropping it on the Next week head moves it t
   await expect(page.getByTestId('bucket-next')).toHaveClass(/\bdrop-into\b/);
   await pointer(dentist, 'pointerup', to);
   expect(await touch(dentist, 'touchmove')).toBe(false);
-  // The click a browser may send after the release is not a tap on the head (which would fold Next week).
+  // The click a browser may send after the release is not a tap on the head (which would fold Next week),
+  // even when a busy phone sends it late.
+  await page.clock.runFor(LATE_CLICK_MS);
   await page.getByTestId('bucket-head-next').evaluate((el) => (el as HTMLElement).click());
 
   await expectMovedToNextWeek(page);
@@ -101,6 +113,7 @@ test('a lifted row survives a pointercancel and follows touch events to the drop
   expect(await touch(dentist, 'touchmove', to)).toBe(true);
   await expect(page.getByTestId('bucket-next')).toHaveClass(/\bdrop-into\b/);
   await touch(dentist, 'touchend', to);
+  await page.clock.runFor(LATE_CLICK_MS);
   await page.getByTestId('bucket-head-next').evaluate((el) => (el as HTMLElement).click());
   await expectMovedToNextWeek(page);
 
@@ -124,4 +137,30 @@ test('a lifted row taken off the page still holds the page still, and its releas
   expect(await touchOn('touchmove')).toBe(true);
   await touchOn('touchend');
   await expect(page.locator('.drag-ghost, .lifted, .drop-into, .drop-before')).toHaveCount(0);
+});
+
+/** Lifts the Today row and drops it on the Next week head with no click after the release, as after most moved touches. */
+async function dropWithoutClick(page: Page): Promise<Locator> {
+  const { dentist } = await lift(page);
+  const to = await nextHead(page);
+  await pointer(dentist, 'pointermove', to);
+  await pointer(dentist, 'pointerup', to);
+  await expectMovedToNextWeek(page);
+  return page.getByTestId('bucket-head-next');
+}
+
+test('after a release the browser sent no click for, the next tap still counts', async ({ page }) => {
+  const head = await dropWithoutClick(page);
+  const at = await nextHead(page);
+  await pointer(head, 'pointerdown', at);
+  await pointer(head, 'pointerup', at);
+  await head.evaluate((el) => (el as HTMLElement).click());
+  await expect(head).toHaveAttribute('aria-expanded', 'false');
+});
+
+test('after a release the browser sent no click for, the next key press still counts', async ({ page }) => {
+  const head = await dropWithoutClick(page);
+  await head.focus();
+  await page.keyboard.press('Enter');
+  await expect(head).toHaveAttribute('aria-expanded', 'false');
 });

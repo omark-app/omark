@@ -100,10 +100,10 @@ export interface RowGestureOptions {
 
 /** Past this the row shows what letting go will do. */
 const SWIPE_HINT_PX = 40;
-/** A click this soon after a swipe, scroll or hold is the release of that gesture, not a tap. */
-const CLICK_AFTER_GESTURE_MS = 400;
 
 const TOUCH_EVENTS = ['touchmove', 'touchend', 'touchcancel'] as const;
+/** Input that starts something new, so a click still owed to an earlier gesture is no longer coming. */
+const NEW_INPUT = ['pointerdown', 'keydown'] as const;
 
 /** The one finger being tracked on a row. */
 interface Gesture {
@@ -139,7 +139,13 @@ interface Gesture {
 export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
   let opts = initial;
   let active: Gesture | null = null;
-  let swallowUntil = 0;
+  /**
+   * Set when a swipe, scroll or hold ends: the next click is that gesture's release, not a tap, however late a
+   * busy phone sends it (so no time window). New input (any pointer going down, any key) clears it, since a
+   * browser may send no click at all for a release (most don't after a moved touch), and the next real tap or
+   * key press must still count.
+   */
+  let swallowClick = false;
 
   /** Ends the gesture: a lifted row is put down with no drop; a swiped row springs back (its CSS transition runs again). */
   function release(): void {
@@ -157,7 +163,6 @@ export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
     // A second finger, or the mouse, leaves the gesture in progress alone.
     if (!opts.enabled || e.pointerType === 'mouse' || !e.isPrimary) return;
     release();
-    swallowUntil = 0;
     const row = rowOf(e.target);
     if (!row?.dataset.id || (e.target as Element).closest('button')) return;
     const tracker = new GestureTracker();
@@ -225,7 +230,7 @@ export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
     const dropped = drag?.drop() ?? null;
     release();
     const result = tracker.up(performance.now());
-    if (result !== 'tap') swallowUntil = performance.now() + CLICK_AFTER_GESTURE_MS;
+    if (result !== 'tap') swallowClick = true;
     if (result === 'swipeRight') opts.onswiperight(id);
     else if (result === 'swipeLeft') opts.onswipeleft(id);
     else if (dropped) opts.ondrop(dropped.id, dropped.target);
@@ -234,7 +239,7 @@ export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
   function onpointercancel(e: PointerEvent): void {
     if (!active || e.pointerId !== active.pointerId || active.drag) return; // a lift carries on by touch events
     release();
-    swallowUntil = performance.now() + CLICK_AFTER_GESTURE_MS;
+    swallowClick = true;
   }
 
   /** The last touch event handled: one heard on the row is heard again on the window. */
@@ -263,9 +268,14 @@ export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
     if (document.hidden) release();
   }
 
+  /** Heard on the window before anything else, so it runs ahead of the gesture the input may start. */
+  function onnewinput(): void {
+    swallowClick = false;
+  }
+
   function onclick(e: MouseEvent): void {
-    if (performance.now() >= swallowUntil) return;
-    swallowUntil = 0;
+    if (!swallowClick) return;
+    swallowClick = false;
     e.preventDefault();
     e.stopPropagation();
   }
@@ -275,6 +285,7 @@ export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
     if (opts.enabled && rowOf(e.target)) e.preventDefault();
   }
 
+  for (const type of NEW_INPUT) window.addEventListener(type, onnewinput, true);
   node.addEventListener('pointerdown', onpointerdown);
   window.addEventListener('pointermove', onpointermove);
   window.addEventListener('pointerup', onpointerup);
@@ -290,6 +301,7 @@ export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
     },
     destroy() {
       release();
+      for (const type of NEW_INPUT) window.removeEventListener(type, onnewinput, true);
       node.removeEventListener('pointerdown', onpointerdown);
       window.removeEventListener('pointermove', onpointermove);
       window.removeEventListener('pointerup', onpointerup);
