@@ -75,8 +75,8 @@ export class FileSync {
   }
 
   /**
-   * Loads the cached copy, then pulls; creates the remote file if missing. Resolves with the text the
-   * caller should adopt (the cached text, with status `offline`, when OneDrive is unreachable).
+   * Loads the cached copy, then pulls; creates the remote file if missing. Resolves with the working text
+   * to start from (the cached text, with status `offline`, when OneDrive is unreachable).
    */
   async open(): Promise<string> {
     const hadCache = await this.load();
@@ -92,10 +92,10 @@ export class FileSync {
   }
 
   /**
-   * Reads the remote; merges and writes when there are local edits. Resolves with the text the caller
-   * should adopt; `changed` is true when remote content altered `local` since `open` or `pull` last
-   * returned (including content merged in by an earlier save's 412 retry). Network failures only show
-   * in `status()`.
+   * Reads the remote; merges and writes when there are local edits. Resolves with the working text after
+   * the pull (a caller with edits of its own staged meanwhile reads `text()` instead); `changed` is true
+   * when remote content altered `local` since `open` or `pull` last returned (including content merged in
+   * by an earlier save's 412 retry). Network failures only show in `status()`.
    */
   async pull(): Promise<{ text: string; changed: boolean }> {
     await this.load();

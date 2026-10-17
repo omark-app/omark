@@ -17,9 +17,16 @@ export interface Workspace {
    * Otherwise it pulls first (creating missing files), so a first run never shows an empty list.
    */
   open(): Promise<Snapshot & { fromCache: boolean }>;
-  /** Re-reads all three files; `changed` is true when remote content altered any of them. */
+  /**
+   * Re-reads all three files, merging remote changes into the working texts; `changed` is true when remote
+   * content altered any of them. The app ignores the returned texts and reads `texts()` afterwards (on its
+   * own chain), since edits staged while the reads were in flight are only there.
+   */
   refresh(): Promise<Snapshot & { changed: boolean }>;
-  /** Saves tasks.md first, then done.md; each only if given. `base` is the text the edit started from. */
+  /**
+   * Saves tasks.md first, then done.md; each only if given, and resolves when the upload attempt is over.
+   * `base` is the text the edit started from. Kept for tests; the app uses `stage`.
+   */
   save(files: {
     tasks?: { text: string; base: string };
     done?: { text: string; base: string };
