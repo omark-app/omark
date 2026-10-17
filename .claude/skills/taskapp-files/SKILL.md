@@ -51,6 +51,9 @@ Three UTF-8 files, LF line endings, in `C:\Users\alipk\OneDrive\ALAI\TaskApp\`: 
 | `every year` | same day each year |
 | `every 3 days` | every N days (`every 1 day` also valid) |
 | `every 2 weeks` | every N weeks |
+| `every 2 weeks on Friday` | the named days every N weeks (`every 2 weeks on Monday, Thursday` too) |
+| `every 3 months` | every N months (`every 1 month` also valid) |
+| `every 3 months on the 18th` | that day every N months |
 | `every 3 days when done` | N days after the completion date |
 
 ## Completing a task
@@ -87,8 +90,11 @@ The next date is the first date strictly after the completion date that fits the
 - Day, weekday, weekly and every-N rules step forward from the due date and take the first date after the completion date that fits. `every day` steps 1 day, `every N days` N days, `every N weeks` N weeks, and `every weekday` and `every week on ...` step day by day to the next matching weekday. A due date in the future still moves at least one step.
 - Monthly and yearly rules use the same calendar day each month or year, never drifting: the 31st falls on the last day of shorter months, and 29 Feb falls on 28 Feb in other years.
 - A monthly rule takes the first rule day after both the due date and the completion date, counting the due date's own month: a "15th" task moved to the 5th and completed then goes to the 15th of that month. Yearly always moves at least one year on.
+- `every N weeks on ...` counts weeks (Monday to Sunday) from the week holding the due date: only weeks 0, N, 2N, ... count, and it takes the first named day after both the due date and the completion date, counting the rest of the due date's own week.
+- `every N months` steps N calendar months from the due date, on the due date's day (the 31st falls on the last day of shorter months), until the date is after the completion date.
+- `every N months on the ...` works like the monthly rule, but only in months 0, N, 2N, ... counted from the due date's month.
 - `when done` is the completion date plus N days; the due date is ignored.
-- With no `📅`, step from the completion date.
+- With no `📅`, step from the completion date (its week or month is week or month 0).
 
 | rule | due | completed on | next |
 | --- | --- | --- | --- |
@@ -106,6 +112,15 @@ The next date is the first date strictly after the completion date that fits the
 | `every month on the 31st` | 2026-11-30 | 2026-11-30 | 2026-12-31 |
 | `every year` | 2028-02-29 | 2028-02-29 | 2029-02-28 |
 | `every 3 days when done` | 2026-10-01 | 2026-10-16 | 2026-10-19 |
+| `every 2 weeks on Friday` | 2026-10-23 | 2026-10-23 | 2026-11-06 |
+| `every 2 weeks on Friday` | 2026-10-23 | 2026-10-30 | 2026-11-06 |
+| `every 2 weeks on Monday, Thursday` | 2026-10-19 | 2026-10-19 | 2026-10-22 |
+| `every 2 weeks on Monday, Thursday` | 2026-10-22 | 2026-10-22 | 2026-11-02 |
+| `every 3 months` | 2026-10-17 | 2026-10-17 | 2027-01-17 |
+| `every 3 months` | 2026-08-31 | 2026-12-01 | 2027-02-28 |
+| `every 3 months on the 18th` | 2026-10-18 | 2026-10-18 | 2027-01-18 |
+| `every 3 months on the 18th` | 2026-10-05 | 2026-10-05 | 2026-10-18 |
+| `every 2 months on the 31st` | 2026-12-31 | 2026-12-31 | 2027-02-28 |
 
 ## Moving a task to a bucket
 

@@ -9,14 +9,19 @@ export interface WeekCtx {
 
 export type BucketKey = 'today' | 'week' | 'next' | 'later' | 'someday';
 
-/** A repeat rule from the 🔁 field of a task. Weekly `days`: 0 = Monday … 6 = Sunday, sorted, non-empty. */
+/**
+ * A repeat rule from the 🔁 field of a task. Weekly `days`: 0 = Monday … 6 = Sunday, sorted, non-empty.
+ * Weekly and monthly take an optional interval `n` (every n-th week or month, counted from the due date's
+ * week or month); it is absent for the plain every-week / every-month rules, and parsing never sets it to 1.
+ * `every` is a plain stride of n days, weeks or calendar months from the due date.
+ */
 export type RepeatRule =
   | { type: 'daily' }
   | { type: 'weekdays' }
-  | { type: 'weekly'; days: number[] }
-  | { type: 'monthly'; day: number /* 1–31 */ }
+  | { type: 'weekly'; days: number[]; n?: number }
+  | { type: 'monthly'; day: number /* 1–31 */; n?: number }
   | { type: 'yearly' }
-  | { type: 'every'; n: number; unit: 'days' | 'weeks' }
+  | { type: 'every'; n: number; unit: 'days' | 'weeks' | 'months' }
   | { type: 'after'; n: number };
 
 /**

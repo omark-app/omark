@@ -43,6 +43,47 @@ test.describe('desktop keys', () => {
     await expect.poll(() => driveFile(page, 'tasks.md')).toContain('🔁 every week on Monday, Thursday');
   });
 
+  test('every 2 weeks on Friday saves an interval rule', async ({ page }) => {
+    await start(page);
+    await row(page, 'Send the invoice').click();
+    await page.keyboard.press('r');
+    await sheet(page).getByLabel('Week interval').fill('2');
+    await sheet(page).getByRole('button', { name: 'Fr', exact: true }).click();
+    await sheet(page).getByRole('button', { name: 'Mo', exact: true }).click();
+    await sheet(page).getByRole('button', { name: 'Save' }).click();
+    await expect(sheet(page)).toHaveCount(0);
+    await expect(page.getByTestId('toast')).toContainText('Repeats every 2 weeks on Fri');
+    await expect(page.getByTestId('detail-repeat')).toHaveText('↻ every 2 weeks on Fri');
+    // Due Mon 19 Oct moves to that week's Friday.
+    await expect
+      .poll(() => driveFile(page, 'tasks.md'))
+      .toContain('- [ ] Send the invoice 🔁 every 2 weeks on Friday 📅 2026-10-23');
+    // Reopening the picker shows the saved interval.
+    await page.keyboard.press('r');
+    await expect(sheet(page).getByLabel('Week interval')).toHaveValue('2');
+    await expect(sheet(page).getByRole('button', { name: 'Fr', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('every 3 months on day 25 and every 3 months save month rules', async ({ page }) => {
+    await start(page);
+    await row(page, 'Send the invoice').click();
+    await page.keyboard.press('r');
+    await sheet(page).getByLabel('Month interval').fill('3');
+    await sheet(page).getByLabel('Day of the month').fill('25');
+    await sheet(page).getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByTestId('toast')).toContainText('Repeats every 3 months on the 25th');
+    await expect
+      .poll(() => driveFile(page, 'tasks.md'))
+      .toContain('- [ ] Send the invoice 🔁 every 3 months on the 25th 📅 2026-10-25');
+
+    await page.keyboard.press('r');
+    await sheet(page).getByLabel('Repeat interval').fill('3');
+    await sheet(page).getByLabel('Interval unit').selectOption('months');
+    await sheet(page).getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByTestId('toast')).toContainText('Repeats every 3 months');
+    await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Send the invoice 🔁 every 3 months 📅 2026-10-25');
+  });
+
   test('Esc closes a sheet without changing anything', async ({ page }) => {
     await start(page);
     const before = await driveFile(page, 'tasks.md');

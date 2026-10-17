@@ -22,6 +22,54 @@ describe('convertDue', () => {
     expect(convertDue(due(s))).toEqual({ date: '2026-10-20', repeat: rule, warning: null });
   });
 
+  it.each([
+    ['every 2 weeks fri', { type: 'weekly', days: [4], n: 2 }],
+    ['every 2 weeks on Friday', { type: 'weekly', days: [4], n: 2 }],
+    ['every 2 weeks on mon, thu', { type: 'weekly', days: [0, 3], n: 2 }],
+    ['every 3 weeks Monday and Thursday', { type: 'weekly', days: [0, 3], n: 3 }],
+    ['every 1 week on fri', { type: 'weekly', days: [4] }],
+    ['every 3 months', { type: 'every', n: 3, unit: 'months' }],
+    ['every 1 month', { type: 'every', n: 1, unit: 'months' }],
+    ['every 3 months on the 18th', { type: 'monthly', day: 18, n: 3 }],
+    ['every 3 months on the 18', { type: 'monthly', day: 18, n: 3 }],
+    ['every 18th every 3 months', { type: 'monthly', day: 18, n: 3 }],
+  ])('interval rule %s', (s, rule) => {
+    expect(convertDue(due(s))).toEqual({ date: '2026-10-20', repeat: rule, warning: null });
+  });
+
+  it.each([
+    ['every 2 weeks Fri at 6:00 pm', { type: 'weekly', days: [4], n: 2 }, 'at 6:00 pm'],
+    ['Every 2 days at 7am', { type: 'every', n: 2, unit: 'days' }, 'at 7am'],
+    ['every day at 18:00', { type: 'daily' }, 'at 18:00'],
+    ['every mon at 9', { type: 'weekly', days: [0] }, 'at 9'],
+    ['every 3 months at 7:30 AM', { type: 'every', n: 3, unit: 'months' }, 'at 7:30 AM'],
+  ])('drops the time from %s and warns', (s, rule, time) => {
+    const r = convertDue({ date: '2026-10-23T18:00:00', string: s, is_recurring: true });
+    expect(r.date).toBe('2026-10-23');
+    expect(r.repeat).toEqual(rule);
+    expect(r.warning).toContain(`"${s}"`);
+    expect(r.warning).toContain(time);
+    expect(r.warning).toMatch(/time/);
+  });
+
+  it('the three real Todoist strings', () => {
+    expect(convertDue({ date: '2026-10-23T18:00:00', string: 'every 2 weeks Fri at 6:00 pm', is_recurring: true }).repeat)
+      .toEqual({ type: 'weekly', days: [4], n: 2 });
+    expect(convertDue({ date: '2026-10-18T07:00:00', string: 'Every 2 days at 7am', is_recurring: true }).repeat)
+      .toEqual({ type: 'every', n: 2, unit: 'days' });
+    expect(convertDue({ date: '2026-11-02', string: 'every 3 months', is_recurring: true })).toEqual({
+      date: '2026-11-02',
+      repeat: { type: 'every', n: 3, unit: 'months' },
+      warning: null,
+    });
+  });
+
+  it('an unsupported rule with a time warns with the original string', () => {
+    const r = convertDue(due('every 2nd tue at 9am'));
+    expect(r.repeat).toBeNull();
+    expect(r.warning).toContain('unsupported repeat "every 2nd tue at 9am"');
+  });
+
   it('bare every week/month use the due date', () => {
     expect(convertDue(due('Every  Week', '2026-10-22')).repeat).toEqual({ type: 'weekly', days: [3] });
     expect(convertDue(due('every month', '2026-10-22')).repeat).toEqual({ type: 'monthly', day: 22 });
@@ -74,6 +122,16 @@ describe('buildTasksMd', () => {
     expect(warnings[0]).toContain('every 2nd tue');
   });
 
+  it('names the task and the original string when a time is dropped', () => {
+    const { text, warnings } = buildTasksMd([
+      t({ content: 'Gym', due: { date: '2026-10-18T07:00:00', string: 'Every 2 days at 7am', is_recurring: true } }),
+    ]);
+    expect(text).toBe('# Always\n\n# Tasks\n- [ ] Gym 🔁 every 2 days 📅 2026-10-18\n');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('"Gym"');
+    expect(warnings[0]).toContain('"Every 2 days at 7am"');
+  });
+
   it('converts the fixture', () => {
     const { text, warnings } = buildTasksMd(fixture as TodoistTask[]);
     expect(text).toBe(
@@ -82,11 +140,20 @@ describe('buildTasksMd', () => {
         '- [ ] Pay rent 📅 2026-11-01\n' +
         '- [ ] Someday idea\n' +
         '- [ ] Water plants 🔁 every week on Monday, Thursday 📅 2026-10-18\n' +
-        '- [ ] Team sync 📅 2026-10-20\n',
+        '- [ ] Team sync 📅 2026-10-20\n' +
+        '- [ ] Take out the bins 🔁 every 2 weeks on Friday 📅 2026-10-23\n' +
+        '- [ ] Stretch 🔁 every 2 days 📅 2026-10-18\n' +
+        '- [ ] Replace the water filter 🔁 every 3 months 📅 2026-11-02\n',
     );
-    expect(warnings).toHaveLength(1);
+    expect(warnings).toHaveLength(3);
+    expect(warnings[1]).toContain('"Take out the bins"');
+    expect(warnings[1]).toContain('"every 2 weeks Fri at 6:00 pm"');
+    expect(warnings[2]).toContain('"Stretch"');
     const titles = parseTasks(text).items.flatMap((i) => (i.kind === 'task' ? [i.task.title] : []));
-    expect(titles).toEqual(['Buy milk', 'Pay rent', 'Someday idea', 'Water plants', 'Team sync']);
+    expect(titles).toEqual([
+      'Buy milk', 'Pay rent', 'Someday idea', 'Water plants', 'Team sync', 'Take out the bins', 'Stretch',
+      'Replace the water filter',
+    ]);
   });
 
   it('flattens grandchildren into the top-level task, in order', () => {
