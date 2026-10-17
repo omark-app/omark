@@ -10,6 +10,8 @@
     onselect,
     oncomplete,
     onpickdate,
+    ondragstart,
+    ondragend,
   }: {
     task: Task;
     ctx: WeekCtx;
@@ -18,6 +20,8 @@
     onselect?: () => void;
     oncomplete?: () => void;
     onpickdate?: () => void;
+    ondragstart?: (e: DragEvent) => void;
+    ondragend?: () => void;
   } = $props();
 
   let el: HTMLDivElement | undefined = $state();
@@ -34,7 +38,7 @@
 
 <!-- Keyboard users select with j/k, so the click handler is a pointer convenience. -->
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div bind:this={el} class="task" class:sel={selected} data-testid="task-row" data-id={task.id} onclick={onselect}>
+<div bind:this={el} class="task" class:sel={selected} data-testid="task-row" data-id={task.id} draggable="true" onclick={onselect} {ondragstart} {ondragend}>
   <button class="check" data-testid="task-check" aria-label="Complete {task.title}" onclick={(e) => { e.stopPropagation(); oncomplete?.(); }}></button>
   <div class="title">
     {task.title}{#if task.notes.length > 0}<span class="ni" title="{task.notes.length} note{task.notes.length > 1 ? 's' : ''}">≡</span>{/if}
@@ -47,6 +51,7 @@
 <style>
   .task { position: relative; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 6px 6px 6px 10px; border-radius: 8px; touch-action: pan-y; user-select: none; transition: background .12s; cursor: default; -webkit-touch-callout: none; }
   .task:hover { background: color-mix(in srgb, var(--sel) 55%, transparent); }
+  .task:global(.drop-before) { box-shadow: inset 0 2px 0 var(--accent); }
   .task.sel { background: var(--sel); }
   .check { width: 16px; height: 16px; margin-top: 3px; padding: 0; border: 1.5px solid var(--faint); border-radius: 50%; background: transparent; cursor: pointer; }
   .check:hover { border-color: var(--good); background: color-mix(in srgb, var(--good) 15%, transparent); }

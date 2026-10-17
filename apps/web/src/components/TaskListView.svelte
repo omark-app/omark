@@ -10,9 +10,9 @@
   import AddInput from './AddInput.svelte';
   import TaskDetail from './TaskDetail.svelte';
   import { createCommands, createPhone, selectedTask } from '../lib/commands.svelte.ts';
-  import type { OnCommand } from '../lib/commands.svelte.ts';
+  import type { OnCommand, OnDropPickDate } from '../lib/commands.svelte.ts';
 
-  let { store, onCommand = () => {} }: { store: AppStore; onCommand?: OnCommand } = $props();
+  let { store, onCommand = () => {}, onDropPickDate = () => {} }: { store: AppStore; onCommand?: OnCommand; onDropPickDate?: OnDropPickDate } = $props();
 
   let addInput: AddInput | undefined = $state();
   let detail: TaskDetail | undefined = $state();
@@ -43,7 +43,7 @@
       {#if !phone.value}<AddInput bind:this={addInput} {store} />{/if}
       <div class="buckets">
         {#each BUCKETS as b (b.key)}
-          <Bucket {store} key={b.key} name={b.name} onpickdate={(id) => onCommand('pickDate', id)} />
+          <Bucket {store} key={b.key} name={b.name} onpickdate={(id) => onCommand('pickDate', id)} ondroppickdate={onDropPickDate} />
         {/each}
       </div>
     </section>

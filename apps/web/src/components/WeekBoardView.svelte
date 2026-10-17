@@ -10,9 +10,9 @@
   import AddInput from './AddInput.svelte';
   import TaskDetail from './TaskDetail.svelte';
   import { createCommands, createPhone, selectedTask } from '../lib/commands.svelte.ts';
-  import type { OnCommand } from '../lib/commands.svelte.ts';
+  import type { OnCommand, OnDropPickDate } from '../lib/commands.svelte.ts';
 
-  let { store, onCommand = () => {} }: { store: AppStore; onCommand?: OnCommand } = $props();
+  let { store, onCommand = () => {}, onDropPickDate = () => {} }: { store: AppStore; onCommand?: OnCommand; onDropPickDate?: OnDropPickDate } = $props();
 
   let addInput: AddInput | undefined = $state();
   let detail: TaskDetail | undefined = $state();
@@ -56,12 +56,12 @@
     <!-- Double-click is a pointer convenience; the keyboard edits with Enter. -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="board" data-testid="board" {ondblclick}>
-      <div class="col" data-testid="board-col"><Bucket {store} key="today" name="Today" foldable={false} onpickdate={pick} /></div>
-      <div class="col" data-testid="board-col"><Bucket {store} key="week" name="This week" foldable={false} onpickdate={pick} /></div>
-      <div class="col" data-testid="board-col"><Bucket {store} key="next" name="Next week" foldable={false} onpickdate={pick} /></div>
+      <div class="col" data-testid="board-col"><Bucket {store} key="today" name="Today" foldable={false} onpickdate={pick} ondroppickdate={onDropPickDate} /></div>
+      <div class="col" data-testid="board-col"><Bucket {store} key="week" name="This week" foldable={false} onpickdate={pick} ondroppickdate={onDropPickDate} /></div>
+      <div class="col" data-testid="board-col"><Bucket {store} key="next" name="Next week" foldable={false} onpickdate={pick} ondroppickdate={onDropPickDate} /></div>
       <div class="col" data-testid="board-col">
-        <Bucket {store} key="later" name="Later" onpickdate={pick} />
-        <Bucket {store} key="someday" name="Someday" onpickdate={pick} />
+        <Bucket {store} key="later" name="Later" onpickdate={pick} ondroppickdate={onDropPickDate} />
+        <Bucket {store} key="someday" name="Someday" onpickdate={pick} ondroppickdate={onDropPickDate} />
       </div>
     </div>
   </div>

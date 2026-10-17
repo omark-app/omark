@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { ISODate } from '@taskapp/core';
   import { boot } from './lib/boot.ts';
   import type { BootResult } from './lib/boot.ts';
   import TaskListView from './components/TaskListView.svelte';
@@ -8,8 +9,8 @@
   import DatePicker from './components/DatePicker.svelte';
   import RepeatPicker from './components/RepeatPicker.svelte';
 
-  /** The open picker. Task 26 sets `suggested` and `beforeId` when a task is dropped on Later. */
-  type OpenSheet = { kind: 'date'; id: string; suggested?: string; beforeId?: string } | { kind: 'repeat'; id: string };
+  /** The open picker. A drop on Later sets `suggested` and `beforeId`. */
+  type OpenSheet = { kind: 'date'; id: string; suggested?: ISODate; beforeId?: string } | { kind: 'repeat'; id: string };
 
   let result = $state.raw<BootResult | null>(null);
   let error = $state<string | null>(null);
@@ -30,6 +31,10 @@
   function openSheet(command: ShellCommand, id: string): void {
     if (command === 'pickDate') sheet = { kind: 'date', id };
     else if (command === 'repeat') sheet = { kind: 'repeat', id };
+  }
+
+  function openDropDate(id: string, suggested: ISODate, beforeId: string | null): void {
+    sheet = { kind: 'date', id, suggested, beforeId: beforeId ?? undefined };
   }
 
   async function signIn(): Promise<void> {
@@ -53,9 +58,9 @@
   </div>
 {:else}
   {#if result.store.view === 'board'}
-    <WeekBoardView store={result.store} onCommand={openSheet} />
+    <WeekBoardView store={result.store} onCommand={openSheet} onDropPickDate={openDropDate} />
   {:else}
-    <TaskListView store={result.store} onCommand={openSheet} />
+    <TaskListView store={result.store} onCommand={openSheet} onDropPickDate={openDropDate} />
   {/if}
   <Sheet open={sheet !== null} onclose={() => (sheet = null)}>
     {#if sheet?.kind === 'date'}
