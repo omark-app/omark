@@ -39,6 +39,14 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      - name: Require the Entra client ID
+        run: |
+          if [ -z "$MSAL_CLIENT_ID" ]; then
+            echo "::error::Repository variable MSAL_CLIENT_ID is empty; the app would build without a sign-in client ID."
+            exit 1
+          fi
+        env:
+          MSAL_CLIENT_ID: ${{ vars.MSAL_CLIENT_ID }}
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter web build
         env:
@@ -47,4 +55,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy apps/web/dist --project-name=taskapp
+          command: pages deploy apps/web/dist --project-name=taskapp --branch=main
