@@ -44,3 +44,19 @@ test('matchesRule', () => {
   expect(matchesRule({ type: 'monthly', day: 31 }, '2026-11-29')).toBe(false);
   expect(matchesRule({ type: 'yearly' }, '2026-11-29')).toBe(true);
 });
+
+test('monthly from an off-pattern due date takes that month\'s occurrence (I2)', () => {
+  // Moved early (date picker, move chips, drag) and completed the same day.
+  expect(nextDate({ type: 'monthly', day: 15 }, '2026-10-05', '2026-10-05')).toBe('2026-10-15');
+  expect(nextDate({ type: 'monthly', day: 31 }, '2026-10-17', '2026-10-17')).toBe('2026-10-31');
+  // On-pattern, completed early: still at least one step past the due date.
+  expect(nextDate({ type: 'monthly', day: 15 }, '2026-10-15', '2026-10-12')).toBe('2026-11-15');
+  // Off-pattern, completed after this month's occurrence passed.
+  expect(nextDate({ type: 'monthly', day: 15 }, '2026-10-05', '2026-10-16')).toBe('2026-11-15');
+  // Off-pattern after this month's occurrence: the next month's.
+  expect(nextDate({ type: 'monthly', day: 15 }, '2026-10-20', '2026-10-20')).toBe('2026-11-15');
+  // Weekly already behaves this way.
+  expect(nextDate({ type: 'weekly', days: [0] }, '2026-10-14', '2026-10-14')).toBe('2026-10-19');
+  // Yearly is unchanged: at least one year on.
+  expect(nextDate({ type: 'yearly' }, '2026-10-05', '2026-10-05')).toBe('2027-10-05');
+});

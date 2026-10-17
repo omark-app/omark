@@ -41,11 +41,22 @@ function anchored(rule: RepeatRule, start: ISODate, k: number): ISODate {
   return make(y + k, m, d); // yearly
 }
 
-/** First date of the pattern after `today`, stepping from the current due date (at least one step). */
+/**
+ * First date of the pattern after `today`, stepping from the current due date (at least one step: the
+ * result is also after the due date). Monthly considers the due month's own occurrence, so a task moved
+ * off its day (e.g. to the 5th of a "15th" rule) and completed then moves to the 15th, as weekly does.
+ */
 export function nextDate(rule: RepeatRule, due: ISODate | null, today: ISODate): ISODate {
   if (rule.type === 'after') return addDays(today, rule.n);
   const start = due ?? today;
-  if (rule.type === 'monthly' || rule.type === 'yearly') {
+  if (rule.type === 'monthly') {
+    for (let k = 0; k < MAX_STEPS; k++) {
+      const c = anchored(rule, start, k);
+      if (c > today && (due === null || c > due)) return c;
+    }
+    throw new Error('nextDate: no date found');
+  }
+  if (rule.type === 'yearly') {
     for (let k = due ? 1 : 0; k < MAX_STEPS; k++) {
       const c = anchored(rule, start, k);
       if (c > today) return c;

@@ -85,6 +85,7 @@ The next date is the first date strictly after the completion date that fits the
 
 - Day, weekday, weekly and every-N rules step forward from the due date and take the first date after the completion date that fits. `every day` steps 1 day, `every N days` N days, `every N weeks` N weeks, and `every weekday` and `every week on ...` step day by day to the next matching weekday. A due date in the future still moves at least one step.
 - Monthly and yearly rules use the same calendar day each month or year, never drifting: the 31st falls on the last day of shorter months, and 29 Feb falls on 28 Feb in other years.
+- A monthly rule takes the first rule day after both the due date and the completion date, counting the due date's own month: a "15th" task moved to the 5th and completed then goes to the 15th of that month. Yearly always moves at least one year on.
 - `when done` is the completion date plus N days; the due date is ignored.
 - With no `📅`, step from the completion date.
 
@@ -97,6 +98,9 @@ The next date is the first date strictly after the completion date that fits the
 | `every 3 days` | 2026-10-10 | 2026-10-16 | 2026-10-19 |
 | `every 2 weeks` | 2026-10-02 | 2026-10-16 | 2026-10-30 |
 | `every month on the 15th` | 2025-01-15 | 2026-10-16 | 2026-11-15 |
+| `every month on the 15th` | 2026-10-05 | 2026-10-05 | 2026-10-15 |
+| `every month on the 15th` | 2026-10-15 | 2026-10-12 | 2026-11-15 |
+| `every month on the 31st` | 2026-10-17 | 2026-10-17 | 2026-10-31 |
 | `every month on the 31st` | 2026-10-31 | 2026-10-31 | 2026-11-30 |
 | `every month on the 31st` | 2026-11-30 | 2026-11-30 | 2026-12-31 |
 | `every year` | 2028-02-29 | 2028-02-29 | 2029-02-28 |
