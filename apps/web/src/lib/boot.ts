@@ -117,6 +117,8 @@ async function openCache(): Promise<{ cache: LocalCache } & CacheInfo> {
     return { cache: new MemoryCache(), cacheWarning: CACHE_WARNING, durableCache: false };
   }
   await migrateLegacyCache(cache);
+  // Ask the browser not to evict the cache under storage pressure (it may hold unsynced edits).
+  void navigator.storage?.persist?.().catch(() => {});
   return { cache, cacheWarning: null, durableCache: true };
 }
 
