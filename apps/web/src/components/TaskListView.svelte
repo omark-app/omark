@@ -121,10 +121,10 @@
         {#key selected.id}
           <TaskDetail bind:this={detail} {store} task={selected} oncommand={(c) => onCommand(c, selected.id)} />
         {/key}
-        <div class="under"><span class="lab">Always</span><AlwaysList lines={store.state.doc.always} /></div>
+        <div class="under"><span class="lab">Always</span><AlwaysList {store} /></div>
       {:else}
         <span class="legend">always</span>
-        <AlwaysList lines={store.state.doc.always} />
+        <AlwaysList {store} />
       {/if}
       {#if !phone}<Stats stats={store.stats} variant="box" />{/if}
     </aside>
