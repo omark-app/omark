@@ -1,0 +1,19 @@
+{
+  "name": "@taskapp/storage",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --root ../.. --project @taskapp/storage"
+  },
+  "dependencies": {
+    "@azure/msal-browser": "^5.25.1",
+    "@taskapp/core": "workspace:*",
+    "idb-keyval": "^6.3.0"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.6"
+  }
+}

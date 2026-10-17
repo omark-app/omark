@@ -1,0 +1,89 @@
+import {
+  BrowserAuthError,
+  BrowserAuthErrorCodes,
+  BrowserCacheLocation,
+  InteractionRequiredAuthError,
+  PublicClientApplication,
+  type AccountInfo,
+  type IPublicClientApplication,
+} from '@azure/msal-browser';
+import { AuthRequiredError } from './errors.ts';
+
+export interface Auth {
+  signIn(): Promise<void>;
+  getToken(): Promise<string>;
+  isSignedIn(): boolean;
+  handleRedirect(): Promise<void>;
+}
+
+const SCOPES = ['Files.ReadWrite'];
+const AUTHORITY = 'https://login.microsoftonline.com/consumers';
+
+/**
+ * Silent-refresh failures that only a fresh sign-in fixes. Once the refresh token is gone, MSAL renews in
+ * a hidden iframe; where the browser blocks Microsoft's cookies there (Safari, iOS home-screen apps) that
+ * iframe times out or closes instead of answering with `InteractionRequiredAuthError`.
+ */
+const SIGN_IN_CODES: readonly string[] = [
+  BrowserAuthErrorCodes.timedOut,
+  BrowserAuthErrorCodes.iframeClosedPrematurely,
+  BrowserAuthErrorCodes.noAccountError,
+];
+
+const needsSignIn = (e: unknown): boolean =>
+  e instanceof InteractionRequiredAuthError ||
+  (e instanceof BrowserAuthError && SIGN_IN_CODES.includes(e.errorCode));
+
+export function createAuth(opts: {
+  clientId: string;
+  redirectUri: string;
+  msal?: IPublicClientApplication;
+}): Auth {
+  const msal =
+    opts.msal ??
+    new PublicClientApplication({
+      auth: { clientId: opts.clientId, authority: AUTHORITY, redirectUri: opts.redirectUri },
+      cache: { cacheLocation: BrowserCacheLocation.LocalStorage },
+    });
+
+  let ready: Promise<void> | undefined;
+  const init = () => (ready ??= msal.initialize());
+
+  const account = (): AccountInfo | null => msal.getActiveAccount() ?? msal.getAllAccounts()[0] ?? null;
+
+  return {
+    async handleRedirect() {
+      await init();
+      const result = await msal.handleRedirectPromise();
+      if (result?.account) msal.setActiveAccount(result.account);
+      else if (!msal.getActiveAccount()) {
+        const first = msal.getAllAccounts()[0];
+        if (first) msal.setActiveAccount(first);
+      }
+    },
+    async signIn() {
+      await init();
+      // Entra caps an SPA's refresh token at 24 h and Safari/Brave block the hidden-iframe renewal, so
+      // a re-sign-in is needed about daily. With the account known, the redirect names it and is usually
+      // a quick bounce on the existing Microsoft session instead of the account picker.
+      const acct = account();
+      if (acct) await msal.acquireTokenRedirect({ scopes: SCOPES, account: acct });
+      else await msal.loginRedirect({ scopes: SCOPES });
+    },
+    async getToken() {
+      await init();
+      const acct = account();
+      if (!acct) throw new AuthRequiredError('Not signed in');
+      try {
+        const res = await msal.acquireTokenSilent({ scopes: SCOPES, account: acct });
+        return res.accessToken;
+      } catch (e) {
+        if (needsSignIn(e)) throw new AuthRequiredError('Sign in needed');
+        throw e; // e.g. no network: the caller reads it as offline and retries later
+      }
+    },
+    isSignedIn() {
+      return account() !== null;
+    },
+  };
+}

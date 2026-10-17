@@ -1,0 +1,18 @@
+{
+  "name": "taskapp",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.7",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "e2e": "pnpm -r --if-present e2e",
+    "e2e:real:login": "pnpm --filter web e2e:real:login",
+    "e2e:real": "pnpm --filter web e2e:real"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

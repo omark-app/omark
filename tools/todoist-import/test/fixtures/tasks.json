@@ -1,0 +1,8 @@
+[
+  { "id": "1", "content": "Buy milk", "description": "2 litres\nsemi-skimmed", "parent_id": null, "due": { "date": "2026-10-20", "string": "20 Oct", "is_recurring": false } },
+  { "id": "2", "content": "Pay rent", "description": "", "parent_id": null, "due": { "date": "2026-11-01", "string": "1 Nov", "is_recurring": false } },
+  { "id": "3", "content": "Check bank", "description": "", "parent_id": "1", "due": null },
+  { "id": "4", "content": "Someday idea", "description": "", "parent_id": null, "due": null },
+  { "id": "5", "content": "Water plants", "description": "", "parent_id": null, "due": { "date": "2026-10-18", "string": "every mon, thu", "is_recurring": true } },
+  { "id": "6", "content": "Team sync", "description": "", "parent_id": null, "due": { "date": "2026-10-20T10:00:00", "string": "every 2nd tue", "is_recurring": true } }
+]

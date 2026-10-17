@@ -1,0 +1,17 @@
+{
+  "name": "todoist-import",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --experimental-strip-types --disable-warning=ExperimentalWarning src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --root ../.. --project todoist-import"
+  },
+  "dependencies": {
+    "@taskapp/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5"
+  }
+}
