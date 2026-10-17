@@ -103,6 +103,8 @@ const SWIPE_HINT_PX = 40;
 /** A click this soon after a swipe, scroll or hold is the release of that gesture, not a tap. */
 const CLICK_AFTER_GESTURE_MS = 400;
 
+const TOUCH_EVENTS = ['touchmove', 'touchend', 'touchcancel'] as const;
+
 /** The one finger being tracked on a row. */
 interface Gesture {
   tracker: GestureTracker;
@@ -126,8 +128,13 @@ interface Gesture {
  * (complete, date label) keep their own taps. Vertical moves are left to the browser's scrolling (rows are
  * `touch-action: pan-y`) except while a row is lifted. Mouse pointers are ignored: mouse drag is HTML5 DnD.
  *
- * One gesture is tracked at a time. Its moves and release are heard on the window, so a row that is removed
- * mid-gesture still ends it.
+ * A lifted row also follows touch events: iOS may cancel the pointer when the finger moves (rows are
+ * `touch-action: pan-y`), so a `pointercancel` leaves a lift in place, and `touchmove` / `touchend` carry it
+ * on. Whichever release comes first (`pointerup` or `touchend`) drops it; the other finds no gesture.
+ *
+ * One gesture is tracked at a time. Its pointer events are heard on the window, so a row removed mid-gesture
+ * still ends it. Touch events stay with the element the finger first touched even once it is removed, so
+ * they are heard on the gesture's row as well as on the window (which keeps every touchmove cancelable).
  */
 export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
   let opts = initial;
@@ -138,6 +145,7 @@ export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
   function release(): void {
     if (!active) return;
     clearTimeout(active.holdTimer);
+    for (const type of TOUCH_EVENTS) active.row.removeEventListener(type, ontouch);
     active.drag?.cancel();
     active.row.style.transition = '';
     active.row.style.transform = '';
@@ -166,6 +174,7 @@ export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
       holdTimer: setTimeout(() => lift(gesture, downAt + HOLD_MS), HOLD_MS),
       drag: null,
     };
+    for (const type of TOUCH_EVENTS) row.addEventListener(type, ontouch, { passive: false });
     active = gesture;
   }
 
@@ -175,6 +184,8 @@ export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
     // The timer ran, so the hold time is up even if the clock reads a hair less.
     if (gesture.tracker.tick(Math.max(performance.now(), heldUntil)) !== 'drag') return;
     gesture.drag = liftRow(gesture.row, gesture.x, gesture.y);
+    // Not a row in a bucket: let go, rather than hold the page still for a drag that can't happen.
+    if (!gesture.drag) release();
   }
 
   /** Moves a swiped row with the finger. */
@@ -204,7 +215,12 @@ export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
   }
 
   function onpointerup(e: PointerEvent): void {
-    if (!active || e.pointerId !== active.pointerId) return;
+    if (active && e.pointerId === active.pointerId) finish();
+  }
+
+  /** The finger was let go: reads what the gesture was and acts on it. */
+  function finish(): void {
+    if (!active) return;
     const { tracker, id, drag } = active;
     const dropped = drag?.drop() ?? null;
     release();
@@ -216,14 +232,30 @@ export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
   }
 
   function onpointercancel(e: PointerEvent): void {
-    if (!active || e.pointerId !== active.pointerId) return;
+    if (!active || e.pointerId !== active.pointerId || active.drag) return; // a lift carries on by touch events
     release();
     swallowUntil = performance.now() + CLICK_AFTER_GESTURE_MS;
   }
 
+  /** The last touch event handled: one heard on the row is heard again on the window. */
+  let handledTouch: TouchEvent | null = null;
+
   // Non-passive, so the page doesn't scroll under a lifted row; every other move scrolls as usual.
-  function ontouchmove(e: TouchEvent): void {
-    if (active?.tracker.tick(performance.now()) === 'drag') e.preventDefault();
+  function ontouch(e: TouchEvent): void {
+    if (e === handledTouch) return;
+    handledTouch = e;
+    switch (e.type) {
+      case 'touchcancel':
+        release();
+        return;
+      case 'touchend':
+        if (active?.drag && e.touches.length === 0) finish();
+        return;
+    }
+    if (active?.tracker.tick(performance.now()) !== 'drag') return;
+    e.preventDefault();
+    const finger = e.touches.length === 1 ? e.changedTouches[0] : undefined; // a second finger doesn't steer
+    if (finger && active.drag) active.drag.move(finger.clientX, finger.clientY);
   }
 
   // A drag or swipe left behind by an app switch or the lock screen is put down, not resumed.
@@ -247,7 +279,7 @@ export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
   window.addEventListener('pointermove', onpointermove);
   window.addEventListener('pointerup', onpointerup);
   window.addEventListener('pointercancel', onpointercancel);
-  node.addEventListener('touchmove', ontouchmove, { passive: false });
+  for (const type of TOUCH_EVENTS) window.addEventListener(type, ontouch, { passive: false });
   document.addEventListener('visibilitychange', onvisibilitychange);
   node.addEventListener('click', onclick, true);
   node.addEventListener('contextmenu', oncontextmenu);
@@ -262,7 +294,7 @@ export function rowGestures(node: HTMLElement, initial: RowGestureOptions) {
       window.removeEventListener('pointermove', onpointermove);
       window.removeEventListener('pointerup', onpointerup);
       window.removeEventListener('pointercancel', onpointercancel);
-      node.removeEventListener('touchmove', ontouchmove);
+      for (const type of TOUCH_EVENTS) window.removeEventListener(type, ontouch);
       document.removeEventListener('visibilitychange', onvisibilitychange);
       node.removeEventListener('click', onclick, true);
       node.removeEventListener('contextmenu', oncontextmenu);
