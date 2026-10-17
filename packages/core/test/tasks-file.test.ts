@@ -280,3 +280,32 @@ test('a valid rule after an unparseable 🔁 in the title survives a rewrite', (
   expect(out).toContain('- [ ] Odd 🔁 every 2nd tue 🔁 every day\n');
   expect(byTitle(parseTasks(out), 'Odd 🔁 every 2nd tue').repeat).toEqual({ type: 'daily' });
 });
+
+test('a rewrite that leaves the notes alone keeps the note lines verbatim (I5)', () => {
+  const notes = ['    - [ ] pack', '        - socks', '\t- tab note', '    * star', '    + plus', '    1. step one'];
+  const text = ['# Always', '', '# Tasks', '- [ ] Trip 📅 2026-10-19', ...notes, '- [ ] Other', ''].join('\n');
+  const doc = parseTasks(text);
+  const trip = byTitle(doc, 'Trip');
+  // Moved, retitled and given a repeat: only the head line changes.
+  const changed = withTask(doc, trip.id, {
+    title: 'Trip north',
+    date: '2026-10-26',
+    repeat: { type: 'weekly', days: [0] },
+  });
+  const out = serializeTasks(changed);
+  expect(out).toBe(
+    ['# Always', '', '# Tasks', '- [ ] Trip north 🔁 every week on Monday 📅 2026-10-26', ...notes, '- [ ] Other', ''].join('\n'),
+  );
+  // It reads back to the same task, and a second rewrite is stable.
+  const back = byTitle(parseTasks(out), 'Trip north');
+  expect(back.notes).toEqual(trip.notes);
+  expect(serializeTasks(parseTasks(out))).toBe(out);
+});
+
+test('edited notes are written canonically (I5)', () => {
+  const text = '# Always\n\n# Tasks\n- [ ] Trip 📅 2026-10-19\n    - [ ] pack\n        - socks\n';
+  const doc = parseTasks(text);
+  const trip = byTitle(doc, 'Trip');
+  const out = serializeTasks(withTask(doc, trip.id, { notes: [...trip.notes, 'passport'] }));
+  expect(out).toBe('# Always\n\n# Tasks\n- [ ] Trip 📅 2026-10-19\n    - [ ] pack\n    - socks\n    - passport\n');
+});

@@ -165,13 +165,23 @@ function noteText(line: string): string {
   return line.trim().replace(NOTE_MARKER, '');
 }
 
-/** The lines `serializeTasks` writes for `t`: its raw block while unchanged, else the canonical form. */
+/**
+ * The lines `serializeTasks` writes for `t`: its raw block while unchanged, else the canonical task line
+ * followed by the note lines as read while the notes are unchanged (keeping nesting, tabs and markers),
+ * or canonical `    - {note}` lines once the notes were edited.
+ */
 export function taskLines(t: Task): string[] {
   if (t.raw && t.rawKey !== null && taskKey(t) === t.rawKey) return t.raw;
   const head = ['- [ ]', t.title];
   if (t.repeat) head.push(`${REPEAT} ${formatRepeat(t.repeat)}`);
   if (t.date) head.push(`${DUE} ${t.date}`);
-  return [head.filter((p) => p !== '').join(' '), ...t.notes.map((n) => `    - ${n}`)];
+  const rawNotes = t.raw?.slice(1) ?? null;
+  const notesUnchanged =
+    rawNotes !== null &&
+    rawNotes.length === t.notes.length &&
+    rawNotes.every((line, i) => noteText(line) === t.notes[i]);
+  const notes = notesUnchanged ? rawNotes : t.notes.map((n) => `    - ${n}`);
+  return [head.filter((p) => p !== '').join(' '), ...notes];
 }
 
 export interface Fields {
