@@ -2,6 +2,7 @@
   import { bucketOf, BUCKETS, describeRepeat, dueText, movableBuckets } from '@taskapp/core';
   import type { Task } from '@taskapp/core';
   import type { AppStore } from '../lib/store.svelte.ts';
+  import { autogrow } from '../lib/autogrow.ts';
   import { createTaskEdit } from '../lib/task-edit.svelte.ts';
 
   let {
@@ -97,7 +98,8 @@
       bind:value={edit.notes}
       class="d-notes"
       data-testid="detail-notes"
-      rows={Math.max(3, edit.notes.split('\n').length + 1)}
+      rows={3}
+      use:autogrow={edit.notes}
       placeholder="Notes, one per line"
       aria-label="Notes"
       oninput={() => typed('notes')}
@@ -136,7 +138,7 @@
   .lab { font: 500 11px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
   .d-title, .d-notes { box-sizing: border-box; width: 100%; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--ink); outline: 0; padding: 4px 6px; }
   .d-title { font: 600 17px/1.4 var(--mono); }
-  .d-notes { font: 14px/1.6 var(--mono); color: var(--muted); resize: vertical; min-height: 60px; }
+  .d-notes { font: 14px/1.6 var(--mono); color: var(--muted); resize: none; overflow-y: hidden; }
   .d-title:hover, .d-notes:hover { border-color: var(--line); }
   .d-title:focus, .d-notes:focus { border-color: var(--accent); background: var(--surface); }
   .fields { display: flex; flex-direction: column; gap: 8px; padding: 10px 6px; border-block: 1px dashed var(--line); }

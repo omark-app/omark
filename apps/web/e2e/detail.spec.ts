@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { driveFile, openApp, SPEC_TASKS } from './helpers';
+import { driveFile, fitsNotes, LONG_NOTE, openApp, SPEC_TASKS } from './helpers';
 
 test.skip(({ isMobile }) => isMobile, 'the detail pane is a desktop feature');
 
@@ -176,4 +176,16 @@ test('the This week chip is hidden on a Sunday', async ({ page }) => {
   const d = page.getByTestId('detail');
   await expect(d.getByRole('button', { name: 'Next week', exact: true })).toBeVisible();
   await expect(d.getByRole('button', { name: 'This week', exact: true })).toHaveCount(0);
+});
+
+test('the notes box grows to fit long notes instead of scrolling inside', async ({ page }) => {
+  await openApp(page, { files: { 'tasks.md': `${SPEC_TASKS}- [ ] Buy fishing gear 📅 2026-10-16\n    - ${LONG_NOTE}\n    - ${LONG_NOTE}\n` } });
+  await row(page, 'Buy fishing gear').click();
+  const notes = page.getByTestId('detail-notes');
+  await expect(notes).toHaveValue(`${LONG_NOTE}\n${LONG_NOTE}`);
+  expect(await fitsNotes(notes)).toBe(true);
+  await notes.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type(` ${LONG_NOTE}`);
+  expect(await fitsNotes(notes)).toBe(true);
 });

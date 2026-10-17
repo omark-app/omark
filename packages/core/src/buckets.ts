@@ -56,7 +56,9 @@ export function tasksInBucket(doc: TasksDoc, key: BucketKey, ctx: WeekCtx): Task
 export function bucketRange(key: BucketKey, ctx: WeekCtx): string {
   if (key === 'week') {
     if (!hasWeekLeft(ctx)) return '';
-    return `${weekdayShort(addDays(ctx.today, 1))}–${weekdayShort(endOfWeek(ctx))}`;
+    const first = addDays(ctx.today, 1);
+    const last = endOfWeek(ctx);
+    return first === last ? weekdayShort(last) : `${weekdayShort(first)}–${weekdayShort(last)}`;
   }
   if (key === 'next') {
     return `${dayMonth(addDays(endOfWeek(ctx), 1), ctx)} – ${dayMonth(endOfNextWeek(ctx), ctx)}`;

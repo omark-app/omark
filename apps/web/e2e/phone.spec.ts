@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
-import { driveFile, openApp, SPEC_TASKS } from './helpers';
+import { driveFile, fitsNotes, LONG_NOTE, openApp, SPEC_TASKS } from './helpers';
 
 test.skip(({ isMobile }) => !isMobile, 'the phone layout and touch gestures run on the iphone project');
 
@@ -129,6 +129,14 @@ test('tapping a row opens the edit sheet; Save keeps the new notes and shows ≡
   await expect(page.getByTestId('toast')).toContainText('Saved');
   await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Send the invoice 📅 2026-10-19\n    - net 30\n');
   await expect(page.locator('.task.sel')).toHaveCount(0);
+});
+
+test('long notes grow the edit sheet instead of scrolling inside the notes box', async ({ page }) => {
+  await start(page);
+  await row(page, 'Send the invoice').tap();
+  const notes = sheet(page).getByLabel('Notes');
+  await notes.fill(`${LONG_NOTE}\n${LONG_NOTE}\n${LONG_NOTE}`);
+  expect(await fitsNotes(notes)).toBe(true);
 });
 
 test('text typed in the edit sheet is saved when the page is hidden', async ({ page }) => {

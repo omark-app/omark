@@ -1,6 +1,7 @@
 <script lang="ts">
   import { describeRepeat, dueText, findTask } from '@taskapp/core';
   import type { MovableBucket } from '@taskapp/core';
+  import { autogrow } from '../lib/autogrow.ts';
   import type { AppStore } from '../lib/store.svelte.ts';
   import { createTaskEdit } from '../lib/task-edit.svelte.ts';
   import MoveOptions from './MoveOptions.svelte';
@@ -66,7 +67,8 @@
   <textarea
     bind:value={edit.notes}
     class="fld"
-    rows={Math.max(2, edit.notes.split('\n').length + 1)}
+    rows={2}
+    use:autogrow={edit.notes}
     placeholder="Notes, one per line"
     aria-label="Notes"
     oninput={() => edit.typed('notes')}

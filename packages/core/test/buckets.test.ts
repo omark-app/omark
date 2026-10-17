@@ -57,6 +57,7 @@ test('tasksInBucket orders by date then file order', () => {
 test('bucketRange', () => {
   expect(bucketRange('next', fri)).toBe('19 Oct – 25 Oct');
   expect(bucketRange('week', fri)).toBe('Sat–Sun');
+  expect(bucketRange('week', { today: '2026-10-17', weekStart: 0 })).toBe('Sun'); // one day left: no Sun–Sun
   expect(bucketRange('week', sun)).toBe('');
   expect(bucketRange('today', fri)).toBe('');
   expect(bucketRange('later', fri)).toBe('');
