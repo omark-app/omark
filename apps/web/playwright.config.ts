@@ -6,7 +6,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
-  use: { baseURL: 'http://localhost:4173' },
+  // Service workers are blocked except in offline.spec.ts, so no other spec sees precaching or a mid-test takeover.
+  use: { baseURL: 'http://localhost:4173', serviceWorkers: 'block' },
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 }, colorScheme: 'light' } },
     { name: 'iphone', use: { ...devices['iPhone 15'], colorScheme: 'light' } },

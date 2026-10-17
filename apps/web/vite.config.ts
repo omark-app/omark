@@ -14,6 +14,8 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,woff2,png,svg,webmanifest}'],
         navigateFallback: 'index.html',
+        // Asset and file-extension URLs are never the SPA; '/' with ?code=&state= (MSAL return) still is.
+        navigateFallbackDenylist: [/^\/assets\//, /^[^?]*\/[^/?]+\.[^/?]+(\?.*)?$/],
         cleanupOutdatedCaches: true,
       },
       manifest: {
