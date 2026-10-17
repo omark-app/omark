@@ -1,6 +1,7 @@
 <script lang="ts">
   import { addDays, describeRepeat, endOfNextWeek, endOfWeek, findTask, hasWeekLeft, weekdayShort } from '@taskapp/core';
   import type { ISODate } from '@taskapp/core';
+  import { createPhone } from '../lib/commands.svelte.ts';
   import type { AppStore } from '../lib/store.svelte.ts';
 
   let {
@@ -29,6 +30,9 @@
   // svelte-ignore state_referenced_locally
   let picked = $state(suggested ?? task?.date ?? '');
 
+  // On a phone the date field is not focused on open: iOS would open its date wheel over the chips.
+  const phone = createPhone();
+
   const ctx = $derived(store.ctx);
   const chips = $derived([
     { label: 'Today', date: ctx.today as ISODate | null },
@@ -53,7 +57,7 @@
     {/each}
   </div>
   <form class="row" onsubmit={(e) => { e.preventDefault(); set(picked || null); }}>
-    <input type="date" class="fld" data-autofocus aria-label="Due date" bind:value={picked} />
+    <input type="date" class="fld" data-autofocus={phone.value ? undefined : ''} aria-label="Due date" bind:value={picked} />
     <button type="submit" class="btn primary">Set date</button>
   </form>
   <div class="actions"><button class="btn ghost" onclick={onclose}>Cancel</button></div>

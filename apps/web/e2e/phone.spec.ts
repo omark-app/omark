@@ -170,10 +170,13 @@ test('Delete in the edit sheet saves the typed text first, so Undo brings it bac
   await expect(row(page, 'Send the final invoice')).toHaveCount(1);
 });
 
-test('tapping task-meta opens the date picker directly', async ({ page }) => {
+test('tapping task-meta opens the date picker directly, with the date field not focused', async ({ page }) => {
   await start(page);
   await row(page, 'Send the invoice').getByTestId('task-meta').tap();
   await expect(sheet(page).getByLabel('Due date')).toBeVisible();
+  // A focused date field would open the iOS date wheel over the chips.
+  const focused = () => page.evaluate(() => document.activeElement?.getAttribute('role') ?? document.activeElement?.tagName);
+  await expect.poll(focused).toBe('dialog');
   await expect(sheet(page).getByLabel('Task title')).toHaveCount(0);
   await expect(page.getByTestId('sheet')).toHaveCount(1);
 });

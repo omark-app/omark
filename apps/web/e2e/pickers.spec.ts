@@ -112,11 +112,12 @@ test.describe('desktop detail', () => {
     await expect.poll(() => driveFile(page, 'tasks.md')).toContain('Learn Polish sign language 🔁 every 3 days when done');
   });
 
-  test('the detail Due button opens the date picker', async ({ page }) => {
+  test('the detail Due button opens the date picker with the date field focused', async ({ page }) => {
     await start(page);
     await row(page, 'Learn Polish').click();
     await page.getByTestId('detail-due').click();
     await expect(sheet(page).getByLabel('Due date')).toBeVisible();
+    await expect(sheet(page).getByLabel('Due date')).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(sheet(page)).toHaveCount(0);
   });
