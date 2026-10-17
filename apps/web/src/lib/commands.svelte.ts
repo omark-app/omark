@@ -5,7 +5,7 @@ import type { AppStore } from './store.svelte.ts';
 import { commandFor, isTypingTarget, sheetOpen } from './keys.ts';
 
 /** What the views report upward: the app shell owns the pickers. Each carries the task id. */
-export type ShellCommand = 'pickDate' | 'repeat' | 'edit';
+export type ShellCommand = 'pickDate' | 'repeat' | 'edit' | 'move';
 export type OnCommand = (command: ShellCommand, id: string) => void;
 /** A task was dropped on Later: open the date picker with the suggested date and the row to place it before. */
 export type OnDropPickDate = (id: string, suggested: ISODate, beforeId: string | null) => void;

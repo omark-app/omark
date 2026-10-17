@@ -10,6 +10,7 @@
   import AddInput from './AddInput.svelte';
   import TaskDetail from './TaskDetail.svelte';
   import { createCommands, createPhone, selectedTask } from '../lib/commands.svelte.ts';
+  import { rowGestures } from '../lib/gestures.ts';
   import type { OnCommand, OnDropPickDate } from '../lib/commands.svelte.ts';
 
   let { store, onCommand = () => {}, onDropPickDate = () => {} }: { store: AppStore; onCommand?: OnCommand; onDropPickDate?: OnDropPickDate } = $props();
@@ -18,8 +19,10 @@
   let detail: TaskDetail | undefined = $state();
   const selected = $derived(selectedTask(store));
 
-  // Under 720 px is "phone": a compact stats line on top instead of the tiles in the right pane.
+  // Under 720 px is "phone" (spec 11.2): a compact stats line on top, ALWAYS below the buckets, no add
+  // input, detail or hints; a tap opens the edit sheet and rows take swipes.
   const phone = createPhone();
+  const open = (id: string): void => onCommand('edit', id);
   // svelte-ignore state_referenced_locally
   const { onkeydown, ondblclick } = createCommands({
     store,
@@ -41,9 +44,19 @@
     <section class="pane tasks" {ondblclick}>
       <span class="legend">tasks</span>
       {#if !phone.value}<AddInput bind:this={addInput} {store} />{/if}
-      <div class="buckets">
+      <div
+        class="buckets"
+        use:rowGestures={{ enabled: phone.value, onswiperight: (id) => store.complete(id), onswipeleft: (id) => onCommand('move', id) }}
+      >
         {#each BUCKETS as b (b.key)}
-          <Bucket {store} key={b.key} name={b.name} onpickdate={(id) => onCommand('pickDate', id)} ondroppickdate={onDropPickDate} />
+          <Bucket
+            {store}
+            key={b.key}
+            name={b.name}
+            onpickdate={(id) => onCommand('pickDate', id)}
+            ondroppickdate={onDropPickDate}
+            onopen={phone.value ? open : undefined}
+          />
         {/each}
       </div>
     </section>
@@ -62,7 +75,7 @@
     </aside>
   </div>
   <footer class="foot">
-    <Hints />
+    {#if !phone.value}<Hints />{/if}
     <StatusLine status={store.status} />
   </footer>
 </div>
@@ -82,7 +95,9 @@
     .frame { grid-template-columns: 1fr; gap: 26px; padding: 0; background: transparent; box-shadow: none; border-radius: 0; }
     .pane { min-height: 0; border: 0; padding: 0; }
     .legend { position: static; padding: 0 8px; background: none; }
-    .side { border-top: 1px solid var(--line); padding-top: 16px; }
+    .side { border-top: 1px solid var(--line); border-radius: 0; padding-top: 16px; }
+    /* A swiped row slides past the edge without widening the page. */
+    .buckets { overflow-x: clip; }
     .foot { display: none; }
   }
 </style>

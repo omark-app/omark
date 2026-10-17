@@ -64,12 +64,13 @@ test('emptying a line and blurring removes it', async ({ page }) => {
   await expect.poll(() => alwaysOnDrive(page)).toBe('# Always\n- One tab at a time\n\n');
 });
 
-test('keys typed in a line are text, not commands', async ({ page }) => {
+test('keys typed in a line are text, not commands', async ({ page, isMobile }) => {
   await start(page);
   const rowsBefore = await page.getByTestId('task-row').allTextContents();
   const counts = () => Promise.all(['today', 'week', 'next', 'later', 'someday'].map((k) => page.getByTestId(`bucket-count-${k}`).textContent()));
   const countsBefore = await counts();
-  await page.getByTestId('task-row').first().click();
+  // A selected task is what the keys would act on; on a phone a tap opens the edit sheet instead.
+  if (!isMobile) await page.getByTestId('task-row').first().click();
   const selected = page.locator('[data-testid="task-row"][aria-selected="true"], [data-testid="task-row"].sel');
   const selectedBefore = await selected.allTextContents();
   await lines(page).first().click();

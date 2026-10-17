@@ -9,3 +9,7 @@ button { font: inherit; color: inherit; }
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-block: 28px 140px;
 }
+@media (max-width: 719.98px) {
+  /* Room under the notch or status bar; the bottom clears the + button and the toast. */
+  #app { padding-block: calc(18px + env(safe-area-inset-top, 0px)) 150px; }
+}

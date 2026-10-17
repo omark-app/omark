@@ -11,6 +11,7 @@
     name,
     onpickdate,
     ondroppickdate,
+    onopen,
     foldable = true,
   }: {
     store: AppStore;
@@ -19,6 +20,8 @@
     onpickdate?: (id: string) => void;
     /** A task was dropped on Later, which needs a date: the suggestion and the row to place it before. */
     ondroppickdate?: (id: string, suggested: ISODate, beforeId: string | null) => void;
+    /** Given on a phone: a row tap opens the task (its edit sheet) instead of selecting it. */
+    onopen?: (id: string) => void;
     foldable?: boolean;
   } = $props();
 
@@ -34,6 +37,12 @@
   const range = $derived(bucketRange(key, store.ctx));
   const folded = $derived(foldable && store.folded[key]);
   let section: HTMLElement | undefined = $state();
+
+  /** Without `onopen` (desktop) the date label selects its row too, as a click on the row would. */
+  function pickDate(id: string): void {
+    if (!onopen) store.select(id);
+    onpickdate?.(id);
+  }
 
   function ondrop(e: DragEvent): void {
     const dropped = dropAt(e, key);
@@ -73,9 +82,9 @@
         ctx={store.ctx}
         labelStyle={store.config.dateLabels}
         selected={store.selectedId === task.id}
-        onselect={() => store.select(task.id)}
+        onselect={() => (onopen ? onopen(task.id) : store.select(task.id))}
         oncomplete={() => store.complete(task.id)}
-        onpickdate={() => onpickdate?.(task.id)}
+        onpickdate={() => pickDate(task.id)}
         ondragstart={(e) => dragStart(e, task.id, key)}
         ondragend={dragEnd}
       />

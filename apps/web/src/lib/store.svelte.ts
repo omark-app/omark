@@ -42,7 +42,8 @@ import type { SyncStatus, Workspace } from '@taskapp/storage';
 import type { Clock } from './clock.ts';
 import * as msg from './messages.ts';
 
-type MovableBucket = Exclude<BucketKey, 'later'>;
+/** A bucket a task can be moved to by date shortcut (Later has no single date). */
+export type MovableBucket = Exclude<BucketKey, 'later'>;
 export type View = 'list' | 'board';
 export interface Toast {
   message: string;

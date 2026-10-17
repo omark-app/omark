@@ -38,6 +38,18 @@ test.describe('desktop board', () => {
     await expect(page.getByTestId('board')).toHaveCount(0);
   });
 
+  test('narrowing the window below 720 px shows the list, and widening it brings the board back', async ({ page }) => {
+    await start(page, { 'config.yaml': 'defaultView: board\n' });
+    await expect(page.getByTestId('board')).toBeVisible();
+    await page.setViewportSize({ width: 600, height: 800 });
+    await expect(page.getByTestId('board')).toHaveCount(0);
+    await expect(page.getByTestId('bucket-today')).toBeVisible();
+    await expect(page.getByTestId('fab')).toBeVisible();
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(page.getByTestId('board')).toBeVisible();
+    await expect(page.getByTestId('fab')).toHaveCount(0);
+  });
+
   test('four columns, fold control only on Later and Someday, which start folded', async ({ page }) => {
     await start(page);
     await page.keyboard.press('v');
