@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { createStore } from 'idb-keyval';
 import type { UseStore } from 'idb-keyval';
 import { describe, expect, it } from 'vitest';
-import { IdbCache, MemoryCache } from '../src/cache.ts';
+import { IdbCache, MemoryCache, migrateCache } from '../src/cache.ts';
 import type { CachedFile, LocalCache } from '../src/cache.ts';
 
 let n = 0;
@@ -77,5 +77,36 @@ describe('IdbCache reconnect (I3)', () => {
     const dead: UseStore = () => Promise.reject(new Error('gone'));
     const c = new IdbCache(`test-reconnect-${n++}`, () => dead);
     await expect(c.put('tasks.md', sample())).rejects.toThrow('gone');
+  });
+});
+
+describe('migrateCache (M3)', () => {
+  const dirty = (local: string): CachedFile => ({ base: 'b', baseEtag: 'e', local, dirty: true });
+  const clean = (local: string): CachedFile => ({ base: local, baseEtag: 'e', local, dirty: false });
+
+  it('moves dirty entries the target lacks, drops clean ones, then clears the old cache', async () => {
+    const legacy = new MemoryCache();
+    const target = new MemoryCache();
+    await legacy.put('tasks.md', dirty('typed offline'));
+    await legacy.put('done.md', clean('old done'));
+    await legacy.put('config.yaml', dirty('old config'));
+    await target.put('config.yaml', clean('newer config'));
+
+    await migrateCache(legacy, target, ['tasks.md', 'done.md', 'config.yaml']);
+
+    expect(await target.get('tasks.md')).toEqual(dirty('typed offline'));
+    expect(await target.get('done.md')).toBeNull();
+    expect(await target.get('config.yaml')).toEqual(clean('newer config'));
+    expect(await legacy.get('tasks.md')).toBeNull();
+    expect(await legacy.get('config.yaml')).toBeNull();
+  });
+
+  it('works across IndexedDB databases', async () => {
+    const legacy = new IdbCache(`test-legacy-${n++}`);
+    const target = new IdbCache(`test-target-${n++}`);
+    await legacy.put('tasks.md', dirty('x'));
+    await migrateCache(legacy, target, ['tasks.md']);
+    expect(await target.get('tasks.md')).toEqual(dirty('x'));
+    expect(await legacy.get('tasks.md')).toBeNull();
   });
 });

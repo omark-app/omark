@@ -4,10 +4,11 @@ import {
   FakeOneDrive,
   IdbCache,
   MemoryCache,
+  migrateCache,
   OneDriveAdapter,
 } from '@taskapp/storage';
 import type { Auth, FileName, LocalCache, StorageAdapter, Workspace } from '@taskapp/storage';
-import { MSAL_CLIENT_ID, ONEDRIVE_FOLDER, STORAGE_MODE } from '../env.ts';
+import { DEFAULT_ONEDRIVE_FOLDER, MSAL_CLIENT_ID, ONEDRIVE_FOLDER, STORAGE_MODE } from '../env.ts';
 import { createAuthStub, tokenGated } from './auth-stub.ts';
 import type { AuthStub, AuthStubState } from './auth-stub.ts';
 import { systemClock } from './clock.ts';
@@ -97,13 +98,40 @@ async function ready(workspace: Workspace, cache: CacheInfo, auth: Auth | null):
   return { kind: 'ready', store, auth };
 }
 
-/** IndexedDB can throw on construction or first use (iOS private mode): then use memory. */
+/** The cache's IndexedDB database before it was keyed by folder (it only ever held the default folder's files on the deployed origin). */
+const LEGACY_DB = 'taskapp';
+const MIGRATED_KEY = 'taskapp:cache-migrated';
+const FILES: readonly FileName[] = ['tasks.md', 'done.md', 'config.yaml'];
+
+/**
+ * IndexedDB can throw on construction or first use (iOS private mode): then use memory. The database is
+ * keyed by OneDrive folder, so builds for different folders on one origin (`pnpm dev` and the real-OneDrive
+ * smoke on localhost) never mix their cached text.
+ */
 async function openCache(): Promise<{ cache: LocalCache } & CacheInfo> {
+  let cache: IdbCache;
   try {
-    const cache = new IdbCache();
+    cache = new IdbCache(`taskapp:${ONEDRIVE_FOLDER}`);
     await cache.get('tasks.md');
-    return { cache, cacheWarning: null, durableCache: true };
   } catch {
     return { cache: new MemoryCache(), cacheWarning: CACHE_WARNING, durableCache: false };
+  }
+  await migrateLegacyCache(cache);
+  return { cache, cacheWarning: null, durableCache: true };
+}
+
+/**
+ * Once per browser, moves unsynced edits from the old unkeyed database into the default folder's one,
+ * then empties it. Other folders never take them (on localhost the old database may hold another
+ * folder's files). Failures are ignored: the old database is left as it was and tried again next time.
+ */
+async function migrateLegacyCache(cache: LocalCache): Promise<void> {
+  if (ONEDRIVE_FOLDER !== DEFAULT_ONEDRIVE_FOLDER) return;
+  try {
+    if (localStorage.getItem(MIGRATED_KEY)) return;
+    await migrateCache(new IdbCache(LEGACY_DB), cache, FILES);
+    localStorage.setItem(MIGRATED_KEY, '1');
+  } catch (e) {
+    console.warn('TaskApp: could not migrate the old offline cache', e);
   }
 }
