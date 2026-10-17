@@ -23,6 +23,8 @@ declare global {
     __taskappFake?: FakeOneDrive;
     /** Fake builds only: boot through sign-in with a stubbed account (set by e2e tests before the app loads). */
     __TASKAPP_AUTH_STUB__?: AuthStubState;
+    /** Fake builds only: keep the cache in IndexedDB and start the fake drive offline when the browser is. */
+    __TASKAPP_FAKE_DURABLE__?: boolean;
     /** The stubbed account, so e2e tests can see sign-in attempts. */
     __taskappAuth?: AuthStub;
   }
@@ -61,6 +63,11 @@ export async function boot(): Promise<BootResult> {
   if (STORAGE_MODE === 'fake') {
     const drive = new FakeOneDrive(window.__TASKAPP_SEED__ ?? {});
     window.__taskappFake = drive;
+    if (window.__TASKAPP_FAKE_DURABLE__) {
+      drive.setOffline(!navigator.onLine);
+      const opened = await openCache();
+      return ready(createWorkspace(drive, opened.cache), opened, null);
+    }
     const stub = window.__TASKAPP_AUTH_STUB__;
     if (!stub) return ready(createWorkspace(drive, new MemoryCache()), MEMORY, null);
     const auth = (window.__taskappAuth = createAuthStub(stub));

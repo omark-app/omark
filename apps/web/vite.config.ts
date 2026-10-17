@@ -8,6 +8,14 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icons/apple-touch-icon.png'],
+      // The app shell, fonts and icons are precached; there is deliberately no runtimeCaching, so Graph,
+      // login.microsoftonline.com and OneDrive download URLs always go straight to the network. A new
+      // version is installed in the background and takes effect on the next open (no reload mid-session).
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,woff2,png,svg,webmanifest}'],
+        navigateFallback: 'index.html',
+        cleanupOutdatedCaches: true,
+      },
       manifest: {
         name: 'TaskApp',
         short_name: 'TaskApp',
