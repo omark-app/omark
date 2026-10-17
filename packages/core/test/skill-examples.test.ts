@@ -51,10 +51,11 @@ describe('SKILL.md', () => {
   test.each(rows)('%s, due %s, completed %s -> %s', (...cells) => {
     expect(cells).toHaveLength(4);
     const [rule, due, completedOn, next] = cells;
-    for (const d of [due, completedOn, next]) expect(d).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    // `none` in the due column is a task with no 📅.
+    for (const d of [due === 'none' ? '2000-01-01' : due, completedOn, next]) expect(d).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     const parsed = parseRepeat(unquote(rule!));
     expect(parsed).not.toBeNull();
-    expect(nextDate(parsed!, due!, completedOn!)).toBe(next);
+    expect(nextDate(parsed!, due === 'none' ? null : due!, completedOn!)).toBe(next);
   });
 
   test('every repeat wording row parses and formats back to itself', () => {

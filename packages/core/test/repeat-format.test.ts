@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { describeRepeat, formatRepeat, parseRepeat } from '../src/index.ts';
+import { describeRepeat, formatRepeat, MAX_INTERVAL, parseRepeat } from '../src/index.ts';
 
 const rows: [string, Parameters<typeof formatRepeat>[0], string][] = [
   ['every day', { type: 'daily' }, 'every day'],
@@ -16,6 +16,12 @@ const rows: [string, Parameters<typeof formatRepeat>[0], string][] = [
   ['every 2 weeks', { type: 'every', n: 2, unit: 'weeks' }, 'every 2 weeks'],
   ['every 3 days when done', { type: 'after', n: 3 }, '3 days after done'],
   ['every 1 day when done', { type: 'after', n: 1 }, '1 day after done'],
+  ['every 2 weeks on Friday', { type: 'weekly', days: [4], n: 2 }, 'every 2 weeks on Fri'],
+  ['every 2 weeks on Monday, Thursday', { type: 'weekly', days: [0, 3], n: 2 }, 'every 2 weeks on Mon, Thu'],
+  ['every 3 months', { type: 'every', n: 3, unit: 'months' }, 'every 3 months'],
+  ['every 1 month', { type: 'every', n: 1, unit: 'months' }, 'every 1 month'],
+  ['every 3 months on the 18th', { type: 'monthly', day: 18, n: 3 }, 'every 3 months on the 18th'],
+  ['every 2 months on the 31st', { type: 'monthly', day: 31, n: 2 }, 'every 2 months on the 31st'],
 ];
 
 test.each(rows)('round-trips and describes %s', (text, rule, described) => {
@@ -47,6 +53,59 @@ test('accepts singular and plural units symmetrically', () => {
   expect(parseRepeat('every 1 days when done')).toEqual({ type: 'after', n: 1 });
   expect(formatRepeat({ type: 'every', n: 1, unit: 'days' })).toBe('every 1 day');
   expect(formatRepeat({ type: 'every', n: 1, unit: 'weeks' })).toBe('every 1 week');
+});
+
+test('N = 1 keeps the existing canonical forms and rule shapes', () => {
+  // Existing files must read and write exactly as before: no `n` on plain weekly/monthly rules.
+  expect(parseRepeat('every week on Monday, Thursday')).toStrictEqual({ type: 'weekly', days: [0, 3] });
+  expect(parseRepeat('every month on the 15th')).toStrictEqual({ type: 'monthly', day: 15 });
+  expect(parseRepeat('every 2 weeks')).toStrictEqual({ type: 'every', n: 2, unit: 'weeks' });
+  expect(parseRepeat('every 3 days')).toStrictEqual({ type: 'every', n: 3, unit: 'days' });
+  // An explicit 1 reads as the plain rule and writes back in its canonical form.
+  expect(parseRepeat('every 1 week on Friday')).toStrictEqual({ type: 'weekly', days: [4] });
+  expect(parseRepeat('every 1 month on the 15th')).toStrictEqual({ type: 'monthly', day: 15 });
+  expect(formatRepeat({ type: 'weekly', days: [4], n: 1 })).toBe('every week on Friday');
+  expect(formatRepeat({ type: 'monthly', day: 15, n: 1 })).toBe('every month on the 15th');
+  expect(describeRepeat({ type: 'weekly', days: [4], n: 1 })).toBe('every Fri');
+  expect(describeRepeat({ type: 'monthly', day: 15, n: 1 })).toBe('every month on the 15th');
+});
+
+test('parses N-interval rules case-insensitively, with singular or plural units', () => {
+  expect(parseRepeat('Every 2 Weeks On friday, monday')).toEqual({ type: 'weekly', days: [0, 4], n: 2 });
+  expect(parseRepeat('every 2 week on Friday')).toEqual({ type: 'weekly', days: [4], n: 2 });
+  expect(parseRepeat('every 3 month on the 18th')).toEqual({ type: 'monthly', day: 18, n: 3 });
+  expect(parseRepeat('every 3 month')).toEqual({ type: 'every', n: 3, unit: 'months' });
+  expect(parseRepeat('every 1 months')).toEqual({ type: 'every', n: 1, unit: 'months' });
+});
+
+test('rejects invalid N-interval text', () => {
+  expect(parseRepeat('every 0 weeks on Friday')).toBeNull();
+  expect(parseRepeat('every 2 weeks on Funday')).toBeNull();
+  expect(parseRepeat('every 2 weeks on')).toBeNull();
+  expect(parseRepeat('every 0 months')).toBeNull();
+  expect(parseRepeat('every 0 months on the 5th')).toBeNull();
+  expect(parseRepeat('every 2 months on the 32nd')).toBeNull();
+  expect(parseRepeat('every 2 months on the 2th')).toBeNull();
+  expect(parseRepeat('every 2 months when done')).toBeNull();
+});
+
+test('caps every interval at MAX_INTERVAL (999); a larger N is not a rule', () => {
+  expect(MAX_INTERVAL).toBe(999);
+  expect(parseRepeat('every 999 days')).toEqual({ type: 'every', n: 999, unit: 'days' });
+  expect(parseRepeat('every 999 weeks on Friday')).toEqual({ type: 'weekly', days: [4], n: 999 });
+  expect(parseRepeat('every 999 months on the 5th')).toEqual({ type: 'monthly', day: 5, n: 999 });
+  for (const text of [
+    'every 1000 days',
+    'every 1000 weeks',
+    'every 1000 months',
+    'every 1000 days when done',
+    'every 1000 weeks on Friday',
+    'every 1000 months on the 5th',
+    'every 1000000000 weeks on Friday',
+    'every 9007199254740993 days',
+  ]) {
+    expect(parseRepeat(text), text).toBeNull();
+  }
 });
 
 test('rejects invalid text', () => {

@@ -151,6 +151,7 @@ Chosen from a small picker; there is no natural-language parsing.
 - monthly on day N
 - yearly
 - every N days or weeks
+- every N weeks on chosen days, every N months, every N months on day N (added after v1, 2026-10-17)
 - N days after completion (Todoist `every!`)
 
 Completing a recurring task moves it to its next date. An overdue recurring task stays in Today until done; it never skips ahead silently.

@@ -117,6 +117,72 @@ test('a changed task is written as title, repeat, date, then notes', () => {
   );
 });
 
+test('N-interval rules are written canonically and read back', () => {
+  const doc = parseTasks('# Always\n\n# Tasks\n');
+  const mk = (id: string, title: string, repeat: Task['repeat'], date: string): Item => ({
+    kind: 'task',
+    task: { id, title, notes: [], date, repeat, raw: null, rawKey: null },
+  });
+  const text = serializeTasks({
+    ...doc,
+    items: [
+      mk('a', 'Bins', { type: 'weekly', days: [4], n: 2 }, '2026-10-23'),
+      mk('b', 'Filter', { type: 'every', n: 3, unit: 'months' }, '2026-11-02'),
+      mk('c', 'Review', { type: 'monthly', day: 18, n: 3 }, '2026-10-18'),
+    ],
+  });
+  expect(text).toBe(
+    '# Always\n\n# Tasks\n' +
+      '- [ ] Bins 🔁 every 2 weeks on Friday 📅 2026-10-23\n' +
+      '- [ ] Filter 🔁 every 3 months 📅 2026-11-02\n' +
+      '- [ ] Review 🔁 every 3 months on the 18th 📅 2026-10-18\n',
+  );
+  expect(tasksOf(parseTasks(text)).map((t) => t.repeat)).toEqual([
+    { type: 'weekly', days: [4], n: 2 },
+    { type: 'every', n: 3, unit: 'months' },
+    { type: 'monthly', day: 18, n: 3 },
+  ]);
+  expect(serializeTasks(parseTasks(text))).toBe(text);
+});
+
+test('every existing rule wording still round-trips byte-for-byte, as read and when rewritten', () => {
+  const lines = [
+    '- [ ] A 🔁 every day 📅 2026-10-16',
+    '- [ ] B 🔁 every weekday 📅 2026-10-16',
+    '- [ ] C 🔁 every week on Monday, Thursday 📅 2026-10-19',
+    '- [ ] D 🔁 every month on the 15th 📅 2026-11-15',
+    '- [ ] E 🔁 every year 📅 2027-01-01',
+    '- [ ] F 🔁 every 3 days 📅 2026-10-19',
+    '- [ ] G 🔁 every 2 weeks 📅 2026-10-30',
+    '- [ ] H 🔁 every 3 days when done 📅 2026-10-19',
+  ];
+  const text = `# Always\n\n# Tasks\n${lines.join('\n')}\n`;
+  const doc = parseTasks(text);
+  expect(serializeTasks(doc)).toBe(text);
+  // Dropping raw forces the canonical writer; the lines must not change.
+  const fresh = {
+    ...doc,
+    items: doc.items.map((i) => (i.kind === 'task' ? { ...i, task: { ...i.task, raw: null, rawKey: null } } : i)),
+  };
+  expect(serializeTasks(fresh)).toBe(text);
+});
+
+test('an out-of-range interval stays in the title and round-trips byte-for-byte', () => {
+  const lines = [
+    '- [ ] Bins 🔁 every 1000000000 weeks on Friday 📅 2026-10-23',
+    '- [ ] Filter 🔁 every 1000000000 months 📅 2026-11-02',
+    '- [ ] Odd 🔁 every 5000 days',
+  ];
+  const text = `# Always\n\n# Tasks\n${lines.join('\n')}\n`;
+  const doc = parseTasks(text);
+  expect(tasksOf(doc).map((t) => [t.title, t.repeat, t.date])).toEqual([
+    ['Bins 🔁 every 1000000000 weeks on Friday', null, '2026-10-23'],
+    ['Filter 🔁 every 1000000000 months', null, '2026-11-02'],
+    ['Odd 🔁 every 5000 days', null, null],
+  ]);
+  expect(serializeTasks(doc)).toBe(text);
+});
+
 test('a new task without raw is written canonically', () => {
   const doc = parseTasks('# Always\n\n# Tasks\n');
   const task: Task = { id: 'n', title: 'New', notes: [], date: null, repeat: null, raw: null, rawKey: null };

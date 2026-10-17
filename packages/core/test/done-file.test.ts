@@ -47,6 +47,16 @@ test('doneLine writes the canonical line', () => {
 
 const state = (tasks: string, done: DoneDoc = { lines: [] }): State => ({ doc: parseTasks(tasks), done });
 
+test('sweeping a ticked line with an out-of-range interval does not throw; it is a one-off', () => {
+  const s: State = {
+    doc: parseTasks('# Always\n\n# Tasks\n- [x] Bins 🔁 every 1000000000 weeks on Friday 📅 2026-10-23\n'),
+    done: parseDone(''),
+  };
+  const r = sweepCompleted(s, '2026-10-16')!;
+  expect(r.doc.items).toEqual([]);
+  expect(serializeDone(r.done)).toBe('- [x] Bins 🔁 every 1000000000 weeks on Friday ✅ 2026-10-16\n');
+});
+
 test('sweepCompleted moves done items and leaves open tasks', () => {
   const s = state('# Tasks\n- [ ] Keep\n- [x] Finished ✅ 2026-10-15\n    - a note\n');
   const r = sweepCompleted(s, '2026-10-16')!;

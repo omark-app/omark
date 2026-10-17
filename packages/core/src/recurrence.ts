@@ -1,5 +1,5 @@
 import type { ISODate, RepeatRule } from './model.ts';
-import { addDays, dayOfWeek, daysInMonth } from './dates.ts';
+import { addDays, dayOfWeek, daysBetween, daysInMonth } from './dates.ts';
 
 const MAX_STEPS = 100_000;
 
@@ -13,7 +13,10 @@ function make(year: number, month1: number, day: number): ISODate {
   return `${pad(year, 4)}-${pad(month1, 2)}-${pad(Math.min(day, daysInMonth(year, month1)), 2)}`;
 }
 
-/** Does this date lie on the rule's pattern? `yearly`, `every` and `after` have no pattern to miss. */
+/**
+ * Does this date lie on the rule's pattern? `yearly`, `every` and `after` have no pattern to miss. A weekly
+ * or monthly interval is ignored here (it needs an anchor; see `nextOnCycle`).
+ */
 export function matchesRule(rule: RepeatRule, d: ISODate): boolean {
   switch (rule.type) {
     case 'daily':
@@ -31,34 +34,70 @@ export function matchesRule(rule: RepeatRule, d: ISODate): boolean {
   }
 }
 
-/** The k-th calendar step (k >= 0) from `start`, anchored on the rule's day so clamping never drifts. */
-function anchored(rule: RepeatRule, start: ISODate, k: number): ISODate {
-  const [y, m, d] = parts(start);
+/** Calendar months from the month of `a` to the month of `b`. */
+function monthsBetween(a: ISODate, b: ISODate): number {
+  const [ay, am] = parts(a);
+  const [by, bm] = parts(b);
+  return (by - ay) * 12 + (bm - am);
+}
+
+/** `start` moved `k` calendar months on, keeping `day` (clamped to the month's length). */
+function addMonths(start: ISODate, k: number, day: number): ISODate {
+  const [y, m] = parts(start);
+  const idx = y * 12 + (m - 1) + k;
+  return make(Math.floor(idx / 12), (idx % 12) + 1, day);
+}
+
+/**
+ * The first date strictly after `after` on an interval rule's cycle, counted from `anchor`: weekly uses
+ * the listed days in Monday-to-Sunday weeks 0, n, 2n, … from the anchor's week; monthly uses the rule day
+ * in months 0, n, 2n, … from the anchor's month (so the anchor's own week or month counts). N = 1 is the
+ * plain weekly / monthly rule. Starts at the cycle just before `after`, so a long overdue task is one jump.
+ */
+function nextOnCycle(rule: Extract<RepeatRule, { type: 'weekly' | 'monthly' }>, anchor: ISODate, after: ISODate): ISODate {
+  const n = rule.n ?? 1;
   if (rule.type === 'monthly') {
-    const idx = y * 12 + (m - 1) + k;
-    return make(Math.floor(idx / 12), (idx % 12) + 1, rule.day);
+    const from = Math.max(0, Math.floor(monthsBetween(anchor, after) / n));
+    for (let k = from; k < from + 3; k++) {
+      const c = addMonths(anchor, k * n, rule.day);
+      if (c > after) return c;
+    }
+  } else {
+    const monday = addDays(anchor, -dayOfWeek(anchor));
+    const from = Math.max(0, Math.floor(daysBetween(monday, after) / 7 / n));
+    for (let k = from; k < from + 3; k++) {
+      for (const day of rule.days) {
+        const c = addDays(monday, k * n * 7 + day);
+        if (c > after) return c;
+      }
+    }
   }
-  return make(y + k, m, d); // yearly
+  throw new Error('nextOnCycle: no date found');
 }
 
 /**
  * First date of the pattern after `today`, stepping from the current due date (at least one step: the
  * result is also after the due date). Monthly considers the due month's own occurrence, so a task moved
  * off its day (e.g. to the 5th of a "15th" rule) and completed then moves to the 15th, as weekly does.
+ * Interval weekly / monthly rules count their weeks or months from the due date's. With no due date they
+ * act as if the task were dated where `fitDate` would put it: the first rule day on or after `today` is
+ * next if it is after `today`; if it is `today`, that was this cycle's occurrence and the next is N on.
  */
 export function nextDate(rule: RepeatRule, due: ISODate | null, today: ISODate): ISODate {
   if (rule.type === 'after') return addDays(today, rule.n);
   const start = due ?? today;
-  if (rule.type === 'monthly') {
-    for (let k = 0; k < MAX_STEPS; k++) {
-      const c = anchored(rule, start, k);
-      if (c > today && (due === null || c > due)) return c;
+  if (rule.type === 'weekly' || rule.type === 'monthly') {
+    if (due === null) {
+      const first = fitDate(rule, null, today);
+      if (first > today) return first;
     }
-    throw new Error('nextDate: no date found');
+    return nextOnCycle(rule, start, due !== null && due > today ? due : today);
   }
-  if (rule.type === 'yearly') {
-    for (let k = due ? 1 : 0; k < MAX_STEPS; k++) {
-      const c = anchored(rule, start, k);
+  if (rule.type === 'yearly' || (rule.type === 'every' && rule.unit === 'months')) {
+    const months = rule.type === 'yearly' ? 12 : rule.n;
+    const k0 = Math.max(1, Math.floor(monthsBetween(start, today) / months));
+    for (let k = k0; k < k0 + 3; k++) {
+      const c = addMonths(start, k * months, parts(start)[2]);
       if (c > today) return c;
     }
     throw new Error('nextDate: no date found');
@@ -72,7 +111,11 @@ export function nextDate(rule: RepeatRule, due: ISODate | null, today: ISODate):
   throw new Error('nextDate: no date found');
 }
 
-/** Keep `date` if it fits the rule, else the first fitting date on or after it (or today). */
+/**
+ * Keep `date` if it fits the rule, else the first fitting date on or after it (or today). A weekly or
+ * monthly interval is ignored (Ruling 46): the first listed weekday or rule day is taken whatever N is, and
+ * `nextDate` then counts the cycle from that date, since it becomes the due date.
+ */
 export function fitDate(rule: RepeatRule, date: ISODate | null, today: ISODate): ISODate {
   let d = date ?? today;
   for (let i = 0; i < 1000; i++) {

@@ -4,5 +4,8 @@
   { "id": "3", "content": "Check bank", "description": "", "parent_id": "1", "due": null },
   { "id": "4", "content": "Someday idea", "description": "", "parent_id": null, "due": null },
   { "id": "5", "content": "Water plants", "description": "", "parent_id": null, "due": { "date": "2026-10-18", "string": "every mon, thu", "is_recurring": true } },
-  { "id": "6", "content": "Team sync", "description": "", "parent_id": null, "due": { "date": "2026-10-20T10:00:00", "string": "every 2nd tue", "is_recurring": true } }
+  { "id": "6", "content": "Team sync", "description": "", "parent_id": null, "due": { "date": "2026-10-20T10:00:00", "string": "every 2nd tue", "is_recurring": true } },
+  { "id": "7", "content": "Take out the bins", "description": "", "parent_id": null, "due": { "date": "2026-10-23T18:00:00", "string": "every 2 weeks Fri at 6:00 pm", "is_recurring": true } },
+  { "id": "8", "content": "Stretch", "description": "", "parent_id": null, "due": { "date": "2026-10-18T07:00:00", "string": "Every 2 days at 7am", "is_recurring": true } },
+  { "id": "9", "content": "Replace the water filter", "description": "", "parent_id": null, "due": { "date": "2026-11-02", "string": "every 3 months", "is_recurring": true } }
 ]

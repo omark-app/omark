@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { dayOfWeek, findTask } from '@taskapp/core';
+  import { dayOfWeek, findTask, MAX_INTERVAL } from '@taskapp/core';
   import type { RepeatRule } from '@taskapp/core';
   import type { AppStore } from '../lib/store.svelte.ts';
 
@@ -21,9 +21,11 @@
   const anchor = task?.date ?? store.ctx.today;
   let kind = $state<Kind>(rule?.type ?? 'none');
   let days = $state<number[]>(rule?.type === 'weekly' ? [...rule.days] : [dayOfWeek(anchor)]);
+  let weekN = $state(rule?.type === 'weekly' ? (rule.n ?? 1) : 1);
   let monthDay = $state(rule?.type === 'monthly' ? rule.day : Number(anchor.slice(8)));
+  let monthN = $state(rule?.type === 'monthly' ? (rule.n ?? 1) : 1);
   let everyN = $state(rule?.type === 'every' ? rule.n : 2);
-  let everyUnit = $state<'days' | 'weeks'>(rule?.type === 'every' ? rule.unit : 'days');
+  let everyUnit = $state<Extract<RepeatRule, { type: 'every' }>['unit']>(rule?.type === 'every' ? rule.unit : 'days');
   let afterN = $state(rule?.type === 'after' ? rule.n : 3);
 
   function toggleDay(i: number): void {
@@ -35,15 +37,18 @@
     kind = 'weekly';
   }
 
-  const count = (n: number, max = Infinity): number => Math.min(max, Math.max(1, Math.trunc(n) || 1));
+  const count = (n: number, max = MAX_INTERVAL): number => Math.min(max, Math.max(1, Math.trunc(n) || 1));
+  // An interval of 1 is the plain weekly / monthly rule, which has no `n`.
+  const interval = (n: number): { n?: number } => (count(n) > 1 ? { n: count(n) } : {});
+  const plural = (n: number, unit: string): string => (count(n) === 1 ? unit : `${unit}s`);
 
   function save(): void {
     const rules: Record<Kind, RepeatRule | null> = {
       none: null,
       daily: { type: 'daily' },
       weekdays: { type: 'weekdays' },
-      weekly: { type: 'weekly', days: [...days] },
-      monthly: { type: 'monthly', day: count(monthDay, 31) },
+      weekly: { type: 'weekly', days: [...days], ...interval(weekN) },
+      monthly: { type: 'monthly', day: count(monthDay, 31), ...interval(monthN) },
       yearly: { type: 'yearly' },
       every: { type: 'every', n: count(everyN), unit: everyUnit },
       after: { type: 'after', n: count(afterN) },
@@ -61,12 +66,14 @@
 {#if task}
   <h3>{task.title}</h3>
   <div class="sub">Repeat</div>
-  <form class="list" onsubmit={(e) => { e.preventDefault(); save(); }}>
+  <form class="list" novalidate onsubmit={(e) => { e.preventDefault(); save(); }}>
     <label><input type="radio" name="rep" value="none" bind:group={kind} data-autofocus /> No repeat</label>
     <label><input type="radio" name="rep" value="daily" bind:group={kind} /> Every day</label>
     <label><input type="radio" name="rep" value="weekdays" bind:group={kind} /> Weekdays</label>
     <label>
-      <input type="radio" name="rep" value="weekly" bind:group={kind} /> Every week on
+      <input type="radio" name="rep" value="weekly" bind:group={kind} /> Every
+      <input class="fld small" type="number" min="1" max={MAX_INTERVAL} aria-label="Week interval" bind:value={weekN} onfocus={pick('weekly')} />
+      {plural(weekN, 'week')} on
       <span class="days">
         {#each DAYS as d, i (i)}
           <button type="button" class:on={days.includes(i)} aria-pressed={days.includes(i)} onclick={() => toggleDay(i)}>{d}</button>
@@ -74,21 +81,24 @@
       </span>
     </label>
     <label>
-      <input type="radio" name="rep" value="monthly" bind:group={kind} /> Every month on day
+      <input type="radio" name="rep" value="monthly" bind:group={kind} /> Every
+      <input class="fld small" type="number" min="1" max={MAX_INTERVAL} aria-label="Month interval" bind:value={monthN} onfocus={pick('monthly')} />
+      {plural(monthN, 'month')} on day
       <input class="fld small" type="number" min="1" max="31" aria-label="Day of the month" bind:value={monthDay} onfocus={pick('monthly')} />
     </label>
     <label><input type="radio" name="rep" value="yearly" bind:group={kind} /> Every year</label>
     <label>
       <input type="radio" name="rep" value="every" bind:group={kind} /> Every
-      <input class="fld small" type="number" min="1" aria-label="Repeat interval" bind:value={everyN} onfocus={pick('every')} />
+      <input class="fld small" type="number" min="1" max={MAX_INTERVAL} aria-label="Repeat interval" bind:value={everyN} onfocus={pick('every')} />
       <select class="fld" aria-label="Interval unit" bind:value={everyUnit} onfocus={pick('every')}>
         <option value="days">days</option>
         <option value="weeks">weeks</option>
+        <option value="months">months</option>
       </select>
     </label>
     <label>
       <input type="radio" name="rep" value="after" bind:group={kind} />
-      <input class="fld small" type="number" min="1" aria-label="Days after completion" bind:value={afterN} onfocus={pick('after')} /> days after I complete it
+      <input class="fld small" type="number" min="1" max={MAX_INTERVAL} aria-label="Days after completion" bind:value={afterN} onfocus={pick('after')} /> days after I complete it
     </label>
     <div class="actions">
       <button type="button" class="btn ghost" onclick={onclose}>Cancel</button>
