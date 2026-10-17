@@ -64,6 +64,14 @@ describe('convertDue', () => {
     });
   });
 
+  it('an interval the app cannot read back is unsupported', () => {
+    for (const s of ['every 1000 days', 'every 1000 weeks fri', 'every 1000 months']) {
+      const r = convertDue(due(s));
+      expect(r.repeat, s).toBeNull();
+      expect(r.warning).toContain(`unsupported repeat "${s}"`);
+    }
+  });
+
   it('an unsupported rule with a time warns with the original string', () => {
     const r = convertDue(due('every 2nd tue at 9am'));
     expect(r.repeat).toBeNull();

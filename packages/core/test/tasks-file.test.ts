@@ -167,6 +167,22 @@ test('every existing rule wording still round-trips byte-for-byte, as read and w
   expect(serializeTasks(fresh)).toBe(text);
 });
 
+test('an out-of-range interval stays in the title and round-trips byte-for-byte', () => {
+  const lines = [
+    '- [ ] Bins 🔁 every 1000000000 weeks on Friday 📅 2026-10-23',
+    '- [ ] Filter 🔁 every 1000000000 months 📅 2026-11-02',
+    '- [ ] Odd 🔁 every 5000 days',
+  ];
+  const text = `# Always\n\n# Tasks\n${lines.join('\n')}\n`;
+  const doc = parseTasks(text);
+  expect(tasksOf(doc).map((t) => [t.title, t.repeat, t.date])).toEqual([
+    ['Bins 🔁 every 1000000000 weeks on Friday', null, '2026-10-23'],
+    ['Filter 🔁 every 1000000000 months', null, '2026-11-02'],
+    ['Odd 🔁 every 5000 days', null, null],
+  ]);
+  expect(serializeTasks(doc)).toBe(text);
+});
+
 test('a new task without raw is written canonically', () => {
   const doc = parseTasks('# Always\n\n# Tasks\n');
   const task: Task = { id: 'n', title: 'New', notes: [], date: null, repeat: null, raw: null, rawKey: null };

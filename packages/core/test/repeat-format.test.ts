@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { describeRepeat, formatRepeat, parseRepeat } from '../src/index.ts';
+import { describeRepeat, formatRepeat, MAX_INTERVAL, parseRepeat } from '../src/index.ts';
 
 const rows: [string, Parameters<typeof formatRepeat>[0], string][] = [
   ['every day', { type: 'daily' }, 'every day'],
@@ -87,6 +87,25 @@ test('rejects invalid N-interval text', () => {
   expect(parseRepeat('every 2 months on the 32nd')).toBeNull();
   expect(parseRepeat('every 2 months on the 2th')).toBeNull();
   expect(parseRepeat('every 2 months when done')).toBeNull();
+});
+
+test('caps every interval at MAX_INTERVAL (999); a larger N is not a rule', () => {
+  expect(MAX_INTERVAL).toBe(999);
+  expect(parseRepeat('every 999 days')).toEqual({ type: 'every', n: 999, unit: 'days' });
+  expect(parseRepeat('every 999 weeks on Friday')).toEqual({ type: 'weekly', days: [4], n: 999 });
+  expect(parseRepeat('every 999 months on the 5th')).toEqual({ type: 'monthly', day: 5, n: 999 });
+  for (const text of [
+    'every 1000 days',
+    'every 1000 weeks',
+    'every 1000 months',
+    'every 1000 days when done',
+    'every 1000 weeks on Friday',
+    'every 1000 months on the 5th',
+    'every 1000000000 weeks on Friday',
+    'every 9007199254740993 days',
+  ]) {
+    expect(parseRepeat(text), text).toBeNull();
+  }
 });
 
 test('rejects invalid text', () => {

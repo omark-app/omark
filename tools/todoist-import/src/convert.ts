@@ -1,4 +1,4 @@
-import { serializeTasks } from '@taskapp/core';
+import { formatRepeat, parseRepeat, serializeTasks } from '@taskapp/core';
 import type { ISODate, Item, RepeatRule, TasksDoc } from '@taskapp/core';
 
 export interface TodoistTask {
@@ -74,7 +74,9 @@ export function convertDue(
   if (!due.is_recurring) return { date, repeat: null, warning: null };
   const text = due.string.trim().replace(/\s+/g, ' ');
   const time = TIME.exec(text);
-  const repeat = parseRule(time ? text.slice(0, time.index) : text, date);
+  const rule = parseRule(time ? text.slice(0, time.index) : text, date);
+  // Only rules the app reads back (e.g. N within MAX_INTERVAL); anything else would be title text.
+  const repeat = rule && parseRepeat(formatRepeat(rule)) ? rule : null;
   let warning: string | null = null;
   if (!repeat) warning = `unsupported repeat "${due.string}" (date kept, no repeat)`;
   else if (time) warning = `time "${time[0].trim()}" dropped from repeat "${due.string}" (TaskApp has no times)`;

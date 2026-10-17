@@ -10,10 +10,16 @@ function ordinal(n: number): string {
   return `${n}${suffix}`;
 }
 
+/**
+ * The largest N a rule may have, for every unit (999 days, weeks or months; 999 months is 83 years). A
+ * larger N is not a rule: it stays in the title as text, like any other 🔁 text the app can't read.
+ */
+export const MAX_INTERVAL = 999;
+
 function parseCount(s: string): number | null {
   if (!/^\d+$/.test(s)) return null;
   const n = Number(s);
-  return Number.isSafeInteger(n) && n >= 1 ? n : null;
+  return n >= 1 && n <= MAX_INTERVAL ? n : null;
 }
 
 /** `{ n }` for an interval above 1, else nothing: N = 1 is the plain rule. */

@@ -149,7 +149,8 @@ test('every N months steps N calendar months from the due date, clamped', () => 
   expect(nextDate(m3, '2026-10-17', '2026-10-17')).toBe('2027-01-17');
   expect(nextDate(m3, '2026-11-30', '2026-11-30')).toBe('2027-02-28');
   expect(nextDate(m3, '2026-08-31', '2026-08-31')).toBe('2026-11-30');
-  // Anchored on the due day: two steps from 31 Aug reach 28 Feb, with no drift to the 30th.
+  // Within one call steps are anchored on the due day: two steps from 31 Aug reach 28 Feb, not the 30th.
+  // Across completions the clamped day is the new due day (31 Jan, 28 Feb, 28 Mar), as for yearly.
   expect(nextDate(m3, '2026-08-31', '2026-12-01')).toBe('2027-02-28');
   expect(nextDate({ type: 'every', n: 1, unit: 'months' }, '2027-01-31', '2027-03-01')).toBe('2027-03-31');
   // Early and late completion.
@@ -158,6 +159,25 @@ test('every N months steps N calendar months from the due date, clamped', () => 
   // No due date: N months from the completion date.
   expect(nextDate(m3, null, '2026-10-16')).toBe('2027-01-16');
   expect(nextDate({ type: 'every', n: 1, unit: 'months' }, null, '2026-01-31')).toBe('2026-02-28');
+});
+
+test('the largest parseable interval gives a real date for every rule type', () => {
+  const rules: RepeatRule[] = [
+    { type: 'every', n: 999, unit: 'days' },
+    { type: 'every', n: 999, unit: 'weeks' },
+    { type: 'every', n: 999, unit: 'months' },
+    { type: 'weekly', days: [4], n: 999 },
+    { type: 'monthly', day: 31, n: 999 },
+    { type: 'after', n: 999 },
+  ];
+  for (const rule of rules) {
+    for (const due of ['2026-10-23', null, '1990-01-31']) {
+      const next = nextDate(rule, due, '2026-10-23');
+      expect(next, JSON.stringify([rule, due])).toMatch(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/);
+      expect(next > '2026-10-23').toBe(true);
+    }
+  }
+  expect(nextDate({ type: 'every', n: 999, unit: 'months' }, '2026-10-17', '2026-10-17')).toBe('2110-01-17');
 });
 
 test('fitDate for N-interval rules', () => {

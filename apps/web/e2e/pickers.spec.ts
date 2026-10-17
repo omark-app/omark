@@ -79,6 +79,16 @@ test.describe('desktop keys', () => {
       .toContain('- [ ] Learn Polish sign language 🔁 every 2 weeks on Friday 📅 2026-10-23');
   });
 
+  test('an interval above 999 is saved as 999, a rule the app can read back', async ({ page }) => {
+    await start(page);
+    await row(page, 'Learn Polish').click();
+    await page.keyboard.press('r');
+    await sheet(page).getByLabel('Repeat interval').fill('5000');
+    await sheet(page).getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByTestId('toast')).toContainText('Repeats every 999 days');
+    await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Learn Polish sign language 🔁 every 999 days 📅 2026-10-16');
+  });
+
   test('every 3 months on day 25 and every 3 months save month rules', async ({ page }) => {
     await start(page);
     await row(page, 'Send the invoice').click();
