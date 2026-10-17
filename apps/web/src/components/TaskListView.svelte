@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { tick } from 'svelte';
-  import { BUCKETS, findTask, hasWeekLeft } from '@taskapp/core';
-  import type { Command } from '@taskapp/core';
+  import { BUCKETS } from '@taskapp/core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import Bucket from './Bucket.svelte';
   import AlwaysList from './AlwaysList.svelte';
@@ -11,104 +9,38 @@
   import Toast from './Toast.svelte';
   import AddInput from './AddInput.svelte';
   import TaskDetail from './TaskDetail.svelte';
-  import { commandFor, isTypingTarget, sheetOpen } from '../lib/keys.ts';
+  import { createCommands, createPhone, selectedTask } from '../lib/commands.svelte.ts';
+  import type { OnCommand } from '../lib/commands.svelte.ts';
 
-  /** `pickDate` and `repeat` open the sheets (the app shell owns them) and `edit` is reported too; each carries the task id. */
-  let {
-    store,
-    onCommand = () => {},
-  }: { store: AppStore; onCommand?: (command: 'pickDate' | 'repeat' | 'edit', id: string) => void } = $props();
+  let { store, onCommand = () => {} }: { store: AppStore; onCommand?: OnCommand } = $props();
 
   let addInput: AddInput | undefined = $state();
   let detail: TaskDetail | undefined = $state();
-  const selected = $derived(store.selectedId === null ? null : (findTask(store.state, store.selectedId) ?? null));
+  const selected = $derived(selectedTask(store));
 
   // Under 720 px is "phone": a compact stats line on top instead of the tiles in the right pane.
-  const query = window.matchMedia('(max-width: 719.98px)');
-  let phone = $state(query.matches);
-  $effect(() => {
-    const on = (): void => {
-      phone = query.matches;
-    };
-    query.addEventListener('change', on);
-    return () => query.removeEventListener('change', on);
+  const phone = createPhone();
+  // svelte-ignore state_referenced_locally
+  const { onkeydown, ondblclick } = createCommands({
+    store,
+    phone,
+    focusAdd: () => addInput?.focus(),
+    focusTitle: () => detail?.focusTitle(),
+    onCommand: (command, id) => onCommand(command, id),
   });
-
-  /** Runs `command`; true when it did something, so the key press is consumed. */
-  function run(command: Command): boolean {
-    switch (command) {
-      case 'focusAdd':
-        if (phone) return false;
-        addInput?.focus();
-        return true;
-      case 'down': store.selectNext(1); return true;
-      case 'up': store.selectNext(-1); return true;
-      case 'undo': store.undo(); return true;
-      case 'deselect': store.select(null); return true;
-      case 'switchView': store.switchView(); return true;
-    }
-    const id = store.selectedId;
-    if (id === null) return false;
-    switch (command) {
-      case 'today': store.moveTo(id, 'today'); break;
-      case 'thisWeek': store.moveTo(id, hasWeekLeft(store.ctx) ? 'week' : 'today'); break;
-      case 'nextWeek': store.moveTo(id, 'next'); break;
-      case 'someday': store.moveTo(id, 'someday'); break;
-      case 'complete': store.complete(id); break;
-      case 'delete': store.remove(id); break;
-      case 'edit':
-        if (phone) return false;
-        void tick().then(() => detail?.focusTitle());
-        onCommand(command, id);
-        break;
-      case 'pickDate':
-      case 'repeat':
-        onCommand(command, id);
-        break;
-    }
-    return true;
-  }
-
-  /** Enter on a focused button or link is that control's own click, never the edit command. */
-  const isControl = (el: EventTarget | null): boolean => el instanceof Element && el.closest('button, a') !== null;
-
-  function ondblclick(e: MouseEvent): void {
-    if (phone || isControl(e.target)) return;
-    const row = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-testid="task-row"]') : null;
-    if (!row?.dataset.id) return;
-    store.select(row.dataset.id);
-    run('edit');
-  }
-
-  function onkeydown(e: KeyboardEvent): void {
-    const command = commandFor(
-      {
-        key: e.key,
-        ctrlKey: e.ctrlKey,
-        metaKey: e.metaKey,
-        altKey: e.altKey,
-        shiftKey: e.shiftKey,
-        repeat: e.repeat,
-        typing: isTypingTarget(e.target) || sheetOpen(),
-      },
-      store.config.shortcuts,
-    );
-    if (command === 'edit' && isControl(e.target)) return;
-    if (command !== null && run(command)) e.preventDefault();
-  }
 </script>
 
 <svelte:window {onkeydown} />
 
 <div class="wrap">
   {#if store.cacheWarning}<p class="warn" role="status">{store.cacheWarning}</p>{/if}
-  {#if phone}<Stats stats={store.stats} variant="line" />{/if}
+  {#if phone.value}<Stats stats={store.stats} variant="line" />{/if}
   <div class="frame">
     <!-- Double-click is a pointer convenience; the keyboard edits with Enter. -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <section class="pane tasks" {ondblclick}>
       <span class="legend">tasks</span>
-      {#if !phone}<AddInput bind:this={addInput} {store} />{/if}
+      {#if !phone.value}<AddInput bind:this={addInput} {store} />{/if}
       <div class="buckets">
         {#each BUCKETS as b (b.key)}
           <Bucket {store} key={b.key} name={b.name} onpickdate={(id) => onCommand('pickDate', id)} />
@@ -116,7 +48,7 @@
       </div>
     </section>
     <aside class="pane side">
-      {#if selected && !phone}
+      {#if selected && !phone.value}
         <span class="legend">task</span>
         {#key selected.id}
           <TaskDetail bind:this={detail} {store} task={selected} oncommand={(c) => onCommand(c, selected.id)} />
@@ -126,7 +58,7 @@
         <span class="legend">always</span>
         <AlwaysList {store} />
       {/if}
-      {#if !phone}<Stats stats={store.stats} variant="box" />{/if}
+      {#if !phone.value}<Stats stats={store.stats} variant="box" />{/if}
     </aside>
   </div>
   <footer class="foot">

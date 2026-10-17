@@ -9,7 +9,8 @@
     key,
     name,
     onpickdate,
-  }: { store: AppStore; key: BucketKey; name: string; onpickdate?: (id: string) => void } = $props();
+    foldable = true,
+  }: { store: AppStore; key: BucketKey; name: string; onpickdate?: (id: string) => void; foldable?: boolean } = $props();
 
   const EMPTY: Record<BucketKey, string> = {
     today: 'Nothing due. Enjoy it.',
@@ -21,17 +22,22 @@
 
   const tasks = $derived(tasksInBucket(store.state.doc, key, store.ctx));
   const range = $derived(bucketRange(key, store.ctx));
-  const folded = $derived(store.folded[key]);
+  const folded = $derived(foldable && store.folded[key]);
 </script>
 
 <section class="bucket" data-testid="bucket-{key}">
+  {#snippet head()}
+    {#if foldable}<span class="chev" aria-hidden="true">{folded ? '▸' : '▾'}</span>{/if}
+    <span class="name">{name}</span>
+    {#if range}<span class="range">{range}</span>{/if}
+    <span class="count" data-testid="bucket-count-{key}">{tasks.length}</span>
+  {/snippet}
   <h2>
-    <button class="bhead" data-testid="bucket-head-{key}" aria-expanded={!folded} onclick={() => store.toggleFold(key)}>
-      <span class="chev" aria-hidden="true">{folded ? '▸' : '▾'}</span>
-      <span class="name">{name}</span>
-      {#if range}<span class="range">{range}</span>{/if}
-      <span class="count" data-testid="bucket-count-{key}">{tasks.length}</span>
-    </button>
+    {#if foldable}
+      <button class="bhead" data-testid="bucket-head-{key}" aria-expanded={!folded} onclick={() => store.toggleFold(key)}>{@render head()}</button>
+    {:else}
+      <div class="bhead static" data-testid="bucket-head-{key}">{@render head()}</div>
+    {/if}
   </h2>
   {#if !folded}
     {#each tasks as task (task.id)}
@@ -53,6 +59,7 @@
 <style>
   .bucket { display: flex; flex-direction: column; gap: 1px; border-radius: 10px; }
   .bhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; width: 100%; padding: 6px 10px; color: inherit; background: none; border: 0; cursor: pointer; text-align: left; user-select: none; border-radius: 6px; }
+  .bhead.static { cursor: default; }
   .bhead:hover .chev { color: var(--ink); }
   h2 { margin: 0; font: inherit; }
   .name { font: 600 17px/1.3 var(--mono); letter-spacing: -.01em; color: var(--ink); }

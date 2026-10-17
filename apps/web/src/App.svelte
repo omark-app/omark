@@ -2,6 +2,8 @@
   import { boot } from './lib/boot.ts';
   import type { BootResult } from './lib/boot.ts';
   import TaskListView from './components/TaskListView.svelte';
+  import WeekBoardView from './components/WeekBoardView.svelte';
+  import type { ShellCommand } from './lib/commands.svelte.ts';
   import Sheet from './components/Sheet.svelte';
   import DatePicker from './components/DatePicker.svelte';
   import RepeatPicker from './components/RepeatPicker.svelte';
@@ -25,6 +27,11 @@
     },
   );
 
+  function openSheet(command: ShellCommand, id: string): void {
+    if (command === 'pickDate') sheet = { kind: 'date', id };
+    else if (command === 'repeat') sheet = { kind: 'repeat', id };
+  }
+
   async function signIn(): Promise<void> {
     if (result?.kind !== 'signin') return;
     try {
@@ -45,13 +52,11 @@
     {#if signInError}<p role="alert">Sign-in failed: {signInError}</p>{/if}
   </div>
 {:else}
-  <TaskListView
-    store={result.store}
-    onCommand={(command, id) => {
-      if (command === 'pickDate') sheet = { kind: 'date', id };
-      else if (command === 'repeat') sheet = { kind: 'repeat', id };
-    }}
-  />
+  {#if result.store.view === 'board'}
+    <WeekBoardView store={result.store} onCommand={openSheet} />
+  {:else}
+    <TaskListView store={result.store} onCommand={openSheet} />
+  {/if}
   <Sheet open={sheet !== null} onclose={() => (sheet = null)}>
     {#if sheet?.kind === 'date'}
       <DatePicker store={result.store} taskId={sheet.id} suggested={sheet.suggested} beforeId={sheet.beforeId} onclose={() => (sheet = null)} />
