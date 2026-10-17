@@ -19,7 +19,11 @@ export type RepeatRule =
   | { type: 'every'; n: number; unit: 'days' | 'weeks' }
   | { type: 'after'; n: number };
 
-/** An open task in `tasks.md`. `raw`/`rawKey` are the block as read and its `taskKey`; null for tasks the app created. */
+/**
+ * An open task in `tasks.md`. `raw`/`rawKey` are the block as read and its `taskKey`; null for tasks the
+ * app created. A task made from a swept recurring `- [x]` block keeps that block as `raw` (so its note
+ * lines are written as read) with `rawKey` null (so its task line is always written canonically).
+ */
 export interface Task {
   id: string;
   title: string;
@@ -37,10 +41,13 @@ export interface DoneEntry {
   doneOn: ISODate | null;
 }
 
-/** A block of the Tasks section, in file order. `raw` lines are kept exactly as read. */
+/**
+ * A block of the Tasks section, in file order. `raw` lines are kept exactly as read. A done item keeps
+ * the 📅 `date` its line carried (null when none), so an undated recurring tick can be moved on from it.
+ */
 export type Item =
   | { kind: 'task'; task: Task }
-  | { kind: 'done'; entry: DoneEntry; raw: string[] }
+  | { kind: 'done'; entry: DoneEntry; date: ISODate | null; raw: string[] }
   | { kind: 'raw'; lines: string[] };
 
 /**

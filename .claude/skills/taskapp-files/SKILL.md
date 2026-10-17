@@ -38,7 +38,7 @@ Three UTF-8 files, LF line endings, in `C:\Users\alipk\OneDrive\ALAI\TaskApp\`: 
 - Dates are `YYYY-MM-DD`, local time.
 - Notes: `    - {note}` (four spaces).
 - A `🔁` rule TaskApp can't parse stays in the title and the task counts as non-repeating. Use only the wording below.
-- A `- [x]` line in `tasks.md` moves to `done.md` on the next sync. Leave it for the app unless asked to complete the task.
+- A `- [x]` line in `tasks.md` moves to `done.md` on the next sync. One with a `✅` date moves as it is. One without gets today's `✅`; if it repeats, the app also keeps the task in place as `- [ ]` on its next date (notes stay with it). Leave such lines for the app unless asked to complete the task, and then complete it as below instead of ticking it.
 
 ## Repeat wording
 

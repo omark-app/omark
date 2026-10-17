@@ -89,7 +89,54 @@ test('several done items among open tasks are swept in file order; repeats handl
     '- [x] Three 🔁 every week on Monday ✅ 2026-10-16',
     '- [x] Four ✅ 2026-10-16',
   ]);
+  // The undated recurring tick stays in place as its next occurrence (I1).
   const titles = r.doc.items.flatMap((i) => (i.kind === 'task' ? [i.task.title] : []));
-  expect(titles).toEqual(['Open1', 'Open2']);
+  expect(titles).toEqual(['Open1', 'Open2', 'Three']);
   expect(r.doc.items.some((i) => i.kind === 'done')).toBe(false);
+});
+
+test('an undated recurring tick is logged and stays in place as its next occurrence (I1)', () => {
+  const src = [
+    '# Always',
+    '',
+    '# Tasks',
+    '- [ ] Before',
+    '- [x] Water the plants 🔁 every week on Monday 📅 2026-10-19',
+    '    - the ferns too',
+    '\t- and the cactus',
+    '- [ ] After',
+    '',
+  ].join('\n');
+  const r = sweepCompleted(state(src), '2026-10-19')!;
+  expect(serializeTasks(r.doc)).toBe(
+    [
+      '# Always',
+      '',
+      '# Tasks',
+      '- [ ] Before',
+      '- [ ] Water the plants 🔁 every week on Monday 📅 2026-10-26',
+      '    - the ferns too',
+      '\t- and the cactus',
+      '- [ ] After',
+      '',
+    ].join('\n'),
+  );
+  // The notes stay on the task; only the done line is logged.
+  expect(serializeDone(r.done)).toBe('- [x] Water the plants 🔁 every week on Monday ✅ 2026-10-19\n');
+  const water = r.doc.items.find((i) => i.kind === 'task' && i.task.title === 'Water the plants');
+  expect(water?.kind === 'task' && water.task.notes).toEqual(['the ferns too', 'and the cactus']);
+});
+
+test('an undated recurring tick without a due date steps from today (I1)', () => {
+  const r = sweepCompleted(state('# Tasks\n- [x] Rent 🔁 every month on the 1st\n'), '2026-10-16')!;
+  expect(serializeTasks(r.doc)).toBe('# Always\n\n# Tasks\n- [ ] Rent 🔁 every month on the 1st 📅 2026-11-01\n');
+  expect(serializeDone(r.done)).toBe('- [x] Rent 🔁 every month on the 1st ✅ 2026-10-16\n');
+});
+
+test('a dated recurring tick (Obsidian Tasks made the next one) is only moved (I1)', () => {
+  const src =
+    '# Tasks\n- [ ] Water 🔁 every week on Monday 📅 2026-10-26\n- [x] Water 🔁 every week on Monday 📅 2026-10-19 ✅ 2026-10-19\n';
+  const r = sweepCompleted(state(src), '2026-10-19')!;
+  expect(serializeTasks(r.doc)).toBe('# Always\n\n# Tasks\n- [ ] Water 🔁 every week on Monday 📅 2026-10-26\n');
+  expect(serializeDone(r.done)).toBe('- [x] Water 🔁 every week on Monday 📅 2026-10-19 ✅ 2026-10-19\n');
 });

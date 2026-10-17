@@ -143,6 +143,7 @@ test('a completed line in the Tasks section becomes a done item', () => {
     {
       kind: 'done',
       entry: { title: 'Done thing', repeat: null, doneOn: '2026-10-15' },
+      date: null,
       raw: ['- [x] Done thing ✅ 2026-10-15'],
     },
   ]);
@@ -154,19 +155,26 @@ test('a completed recurring line keeps its rule', () => {
     {
       kind: 'done',
       entry: { title: 'Water', repeat: { type: 'weekly', days: [0] }, doneOn: '2026-10-19' },
+      date: null,
       raw: ['- [x] Water 🔁 every week on Monday ✅ 2026-10-19', '    - a note'],
     },
   ]);
+});
+
+test('a done item keeps its due date', () => {
+  const doc = parseTasks('# Tasks\n- [x] Water 🔁 every week on Monday 📅 2026-10-19\n');
+  expect(doc.items[0]).toMatchObject({ kind: 'done', date: '2026-10-19', entry: { doneOn: null } });
 });
 
 test('a completed line with no done date is a done item with doneOn null', () => {
   const text = '# Always\n\n# Tasks\n- [x] No date\n- [X] Weekly 🔁 every week on Monday\n';
   const doc = parseTasks(text);
   expect(doc.items).toEqual([
-    { kind: 'done', entry: { title: 'No date', repeat: null, doneOn: null }, raw: ['- [x] No date'] },
+    { kind: 'done', entry: { title: 'No date', repeat: null, doneOn: null }, date: null, raw: ['- [x] No date'] },
     {
       kind: 'done',
       entry: { title: 'Weekly', repeat: { type: 'weekly', days: [0] }, doneOn: null },
+      date: null,
       raw: ['- [X] Weekly 🔁 every week on Monday'],
     },
   ]);

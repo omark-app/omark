@@ -155,13 +155,14 @@ function parseItems(lines: string[], newId: () => string): Item[] {
       // An undated `- [x]` (ticked in Obsidian without a ✅ date) is still done; doneOn is null.
       const f = parseFields(done![1]!, true);
       const entry: DoneEntry = { title: f.title, repeat: f.repeat, doneOn: f.doneOn };
-      items.push({ kind: 'done', entry, raw: block });
+      items.push({ kind: 'done', entry, date: f.date, raw: block });
     }
   }
   return items;
 }
 
-function noteText(line: string): string {
+/** A note line's text as the app shows it: trimmed, without its `-`, `*` or `+` marker. */
+export function noteText(line: string): string {
   return line.trim().replace(NOTE_MARKER, '');
 }
 

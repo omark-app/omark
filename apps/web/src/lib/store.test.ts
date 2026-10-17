@@ -192,6 +192,21 @@ describe('app store', () => {
     );
   });
 
+  it('keeps a recurring task ticked in Obsidian without a done date recurring (I1)', async () => {
+    const tasks = '# Tasks\n- [x] Water the plants 🔁 every week on Monday 📅 2026-10-16\n    - the ferns too\n';
+    const { drive, store } = await setup({ 'tasks.md': tasks });
+    expect(allTasks(store.state.doc).map((t) => [t.title, t.date])).toEqual([['Water the plants', '2026-10-19']]);
+    expect(store.stats.today).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.waitFor(() =>
+      expect(drive.peek('tasks.md')).toBe(
+        '# Always\n\n# Tasks\n- [ ] Water the plants 🔁 every week on Monday 📅 2026-10-19\n    - the ferns too\n',
+      ),
+    );
+    expect(drive.peek('done.md')).toBe('- [x] Water the plants 🔁 every week on Monday ✅ 2026-10-16\n');
+  });
+
   it('tick after midnight moves tomorrow’s task to Today', async () => {
     const { store } = await setup();
     expect(titles(store, 'week')).toEqual(['Send the invoice']);
