@@ -98,20 +98,11 @@
 {/if}
 
 <style>
-  h3 { margin: 0; font: 600 15px var(--mono); overflow-wrap: anywhere; }
-  .sub { font: 12px var(--mono); color: var(--muted); margin-top: -8px; }
   .list { display: flex; flex-direction: column; gap: 4px; }
   label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 4px; font: 13.5px var(--mono); border-radius: 8px; }
   label:hover { background: var(--sel); }
   .days { display: flex; gap: 3px; }
   .days button { width: 30px; height: 26px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 6px; font: 11px var(--mono); cursor: pointer; padding: 0; }
   .days button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-  .fld { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); padding: 8px 10px; font: 14px var(--mono); outline: 0; min-width: 0; }
-  .fld:focus { border-color: var(--accent); }
-  .fld.small { width: 64px; }
-  .actions { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; }
-  .btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 7px 13px; font: 500 13px var(--sans); cursor: pointer; }
-  .btn:hover { border-color: var(--faint); }
-  .btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
-  .btn.ghost { border-color: transparent; color: var(--muted); }
+  .actions { margin-top: 8px; }
 </style>
