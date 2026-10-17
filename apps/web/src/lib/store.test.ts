@@ -424,6 +424,47 @@ describe('app store', () => {
     expect(text).toContain('- [ ] Remote\n');
   });
 
+  it('text typed while a refresh reads is kept when the remote edited the same task (I4)', async () => {
+    let during: (() => Promise<void>) | null = null;
+    const { drive, store, synced } = await setup(
+      { 'tasks.md': SEED_TASKS },
+      {
+        wrap: (ws) => ({
+          ...ws,
+          refresh: async () => {
+            await during?.();
+            return ws.refresh();
+          },
+        }),
+      },
+    );
+    const id = idOf(store, 'Call the dentist');
+    store.select(id);
+    // Like createTaskEdit: typed text waits in the component until a pending callback commits it.
+    let typed: string | null = 'Call the dentist today';
+    store.registerPending(() => {
+      const t = findTask(store.state, id);
+      if (typed !== null && t) store.edit(id, { title: typed, notes: t.notes });
+      typed = null;
+    });
+
+    during = async () => {
+      // The first part of the typing was committed and uploaded when the refresh began...
+      await vi.waitFor(() => expect(drive.peek('tasks.md')).toContain('Call the dentist today'));
+      // ...then the phone edits the same task, and typing goes on while the read is in flight.
+      drive.externalWrite('tasks.md', drive.peek('tasks.md')!.replace('bring the old x-ray', 'bring the x-ray and the card'));
+      typed = 'Call the dentist today at 9';
+    };
+    await store.refresh();
+
+    expect(store.selectedId).toBe(id);
+    expect(findTask(store.state, id)?.title).toBe('Call the dentist today at 9');
+    await synced();
+    const text = drive.peek('tasks.md')!;
+    expect(text).toContain('- [ ] Call the dentist today at 9 📅 2026-10-16\n    - bring the old x-ray\n');
+    expect(text).toContain('bring the x-ray and the card');
+  });
+
   it('a flush caches the edit even while an earlier upload hangs, so a killed page keeps it', async () => {
     const drive = new SlowDrive({ 'tasks.md': SEED_TASKS });
     const cache = new MemoryCache();

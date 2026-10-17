@@ -83,7 +83,8 @@ export interface AppStore {
   undo(): void;
   /**
    * Registers a callback that commits input still waiting in the UI (e.g. debounced typing). `flush()` and
-   * `refresh()` run every callback before they stage. Returns the unregister function.
+   * `refresh()` run every callback before they stage, and `refresh()` again before it merges what it read.
+   * Returns the unregister function.
    */
   registerPending(fn: () => void): () => void;
   toggleFold(key: BucketKey): void;
@@ -235,8 +236,13 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
    * are now (every staged edit plus whatever was absorbed from the remote), never the text the pull
    * returned earlier: a flush during the read may have staged more since. Against the current bases,
    * that text differs only by outside changes, and the state only by edits not yet staged.
+   *
+   * Input typed while the read was in flight is committed first, so it is a local change in the merge:
+   * if the remote changed the same task, both versions are kept and the local one (identical to the
+   * state's) keeps the task's id, so the open detail or edit sheet stays on it.
    */
   function adopt(): void {
+    for (const fn of [...pending]) fn();
     const next = workspace.texts();
     if (next.config !== configText) applyConfig(next.config);
     if (next.tasks === base.tasks && next.done === base.done) return;
