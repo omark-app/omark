@@ -13,6 +13,8 @@ Three UTF-8 files, LF line endings, in `C:\Users\alipk\OneDrive\ALAI\TaskApp\`: 
 - Never add IDs, markers or metadata. A task is identified by its text.
 - Append new tasks at the end of the `# Tasks` section.
 - Finish every file with one newline.
+- Existing files may carry a BOM or CRLF line endings; the app tolerates both but writes UTF-8 without BOM and with LF. Keep LF and never add a BOM.
+- "Today" is today's local date (system clock, or the date given in the conversation), never UTC.
 
 ## tasks.md
 
@@ -81,7 +83,7 @@ Repeating: keep the block in `tasks.md` (the sample shows the whole file), set i
 
 The next date is the first date strictly after the completion date that fits the rule.
 
-- Day, weekday, weekly and every-N rules step forward from the due date by the rule's stride (1 day; 7 days for `every week`; N days; N weeks) and take the first fitting date after the completion date. A due date in the future still moves at least one step.
+- Day, weekday, weekly and every-N rules step forward from the due date and take the first date after the completion date that fits. `every day` steps 1 day, `every N days` N days, `every N weeks` N weeks, and `every weekday` and `every week on ...` step day by day to the next matching weekday. A due date in the future still moves at least one step.
 - Monthly and yearly rules use the same calendar day each month or year, never drifting: the 31st falls on the last day of shorter months, and 29 Feb falls on 28 Feb in other years.
 - `when done` is the completion date plus N days; the due date is ignored.
 - With no `📅`, step from the completion date.
@@ -112,8 +114,19 @@ Set the task's `📅` (leave the line's position alone) to:
 | Later | any date after the last day of next week |
 | Someday | no `📅` at all |
 
-Weeks run Monday to Sunday unless `firstDayOfWeek` in `config.yaml` says otherwise (0 = Monday ... 6 = Sunday). If today is the last day of the week, "This week" is empty: use Today. Overdue tasks (date on or before today) show under Today.
+Weeks run Monday to Sunday unless `firstDayOfWeek` in `config.yaml` names another first day (the week then ends the day before it).
 
 ## config.yaml
 
-YAML with only the settings that differ from the defaults (`defaultView`, `firstDayOfWeek`, `theme`, `dateLabels`, `newTaskBucket`, `saveDelaySeconds`, `foldedOnOpen`, `shortcuts`). Keep its comments. A mistake makes the app show a banner and fall back to the defaults, so change one key at a time and keep the YAML valid.
+YAML with only the settings that differ from the defaults. Keep its comments. A mistake makes the app show a banner and fall back to all defaults, so change one key at a time, use only the values below, and keep the YAML valid. Unknown keys are errors too.
+
+| key | values (default first) |
+| --- | --- |
+| `defaultView` | `list`, `board` |
+| `firstDayOfWeek` | day name: `monday`, `tuesday`, `wednesday`, `thursday`, `friday`, `saturday`, `sunday` |
+| `foldedOnOpen` | list of `today`, `week`, `next`, `later`, `someday` (default `[later, someday]`) |
+| `theme` | `system`, `light`, `dark` |
+| `dateLabels` | `short` (Thu, 12 Nov), `iso` |
+| `newTaskBucket` | `today`, `week`, `next`, `someday` |
+| `saveDelaySeconds` | number, 0 or more (default 1) |
+| `shortcuts` | map of command to a key or list of keys (`KeyboardEvent.key` names); a key binds to one command only. Commands: focusAdd, down, up, today, thisWeek, nextWeek, pickDate, someday, repeat, complete, edit, delete, deselect, undo, switchView |
