@@ -418,6 +418,8 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
 
   // Lines ticked in Obsidian were swept on load: write them out.
   if (isDirty()) scheduleSave();
+  // Started from the cache without the network (a hanging one must not hold up the list): pull now.
+  if (snap.fromCache) void refresh();
 
   return {
     get state() { return state; },

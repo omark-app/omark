@@ -60,6 +60,11 @@ export class FileSync {
     return () => this.listeners.delete(cb);
   }
 
+  /** Loads the cache without touching the network: the cached working text, or null when there is none. */
+  async cached(): Promise<string | null> {
+    return (await this.load()) ? this.file.local : null;
+  }
+
   /**
    * Loads the cached copy, then pulls; creates the remote file if missing. Resolves with the text the
    * caller should adopt (the cached text, with status `offline`, when OneDrive is unreachable).

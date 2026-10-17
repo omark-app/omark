@@ -403,6 +403,24 @@ describe('app store', () => {
     drive.release();
   });
 
+  it('starts on the cached text while the network hangs, syncing, then takes in the remote', async () => {
+    const drive = new SlowDrive({ 'tasks.md': SEED_TASKS });
+    const cache = new MemoryCache();
+    await createStore({ workspace: createWorkspace(drive, cache), clock, isPhone: () => false });
+    drive.externalWrite('tasks.md', `${SEED_TASKS}- [ ] From another device 📅 2026-10-16\n`);
+
+    drive.holdReads = true; // "lie-fi": connected, but nothing comes back
+    const store = await createStore({ workspace: createWorkspace(drive, cache), clock, isPhone: () => false });
+    expect(allTitles(store)).toContain('Call the dentist');
+    expect(allTitles(store)).not.toContain('From another device');
+    expect(store.status).toBe('syncing');
+    await vi.waitFor(() => expect(drive.stalled).toBeGreaterThan(0)); // the pull has started by itself
+
+    drive.release();
+    await vi.waitFor(() => expect(store.status).toBe('saved'));
+    expect(allTitles(store)).toContain('From another device');
+  });
+
   it('a hung refresh does not hold up a flush', async () => {
     const drive = new SlowDrive({ 'tasks.md': SEED_TASKS });
     const cache = new MemoryCache();

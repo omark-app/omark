@@ -29,7 +29,7 @@ describe('createWorkspace', () => {
   it('creates the three files on first run, done.md as a zero-byte file', async () => {
     const drive = new FakeOneDrive();
     const snap = await createWorkspace(drive, new MemoryCache()).open();
-    expect(snap).toEqual({ tasks: TASKS0, done: '', config: DEFAULT_CONFIG_YAML });
+    expect(snap).toEqual({ tasks: TASKS0, done: '', config: DEFAULT_CONFIG_YAML, fromCache: false });
     expect(drive.peek('tasks.md')).toBe(TASKS0);
     expect(drive.peek('done.md')).toBe('');
     expect(drive.peek('config.yaml')).toBe(DEFAULT_CONFIG_YAML);
@@ -38,9 +38,46 @@ describe('createWorkspace', () => {
   it('does not overwrite existing files', async () => {
     const drive = new FakeOneDrive({ 'tasks.md': S, 'done.md': 'x\n', 'config.yaml': 'a: 1\n' });
     const snap = await createWorkspace(drive, new MemoryCache()).open();
-    expect(snap).toEqual({ tasks: S, done: 'x\n', config: 'a: 1\n' });
+    expect(snap).toEqual({ tasks: S, done: 'x\n', config: 'a: 1\n', fromCache: false });
     expect(drive.peek('tasks.md')).toBe(S);
     expect(drive.peek('config.yaml')).toBe('a: 1\n');
+  });
+
+  it('open() with all three files cached returns the cached text at once, before any read', async () => {
+    const drive = new FakeOneDrive({ 'tasks.md': S, 'done.md': '', 'config.yaml': 'a: 1\n' });
+    const cache = new MemoryCache();
+    await createWorkspace(drive, cache).open();
+    drive.externalWrite('tasks.md', `${S}- [ ] From elsewhere\n`);
+
+    // A network that never answers ("lie-fi"): open() must not wait for it.
+    const reads: FileName[] = [];
+    const hung: StorageAdapter = {
+      read: (name) => {
+        reads.push(name);
+        return new Promise(() => {});
+      },
+      write: () => new Promise(() => {}),
+    };
+    const snap = await createWorkspace(hung, cache).open();
+    expect(snap).toEqual({ tasks: S, done: '', config: 'a: 1\n', fromCache: true });
+    expect(reads).toEqual([]);
+
+    // A refresh afterwards brings the remote in; the status reads syncing until it has.
+    const ws = createWorkspace(drive, cache);
+    expect((await ws.open()).fromCache).toBe(true);
+    expect(ws.status()).toBe('syncing');
+    const r = await ws.refresh();
+    expect(r.changed).toBe(true);
+    expect(r.tasks).toContain('From elsewhere');
+    expect(ws.status()).toBe('saved');
+  });
+
+  it('open() pulls first when any file has no cached copy', async () => {
+    const drive = new FakeOneDrive({ 'tasks.md': S, 'done.md': 'x\n' });
+    const cache = new MemoryCache();
+    await cache.put('tasks.md', { base: S, baseEtag: '"v1"', local: S, dirty: false });
+    const snap = await createWorkspace(drive, cache).open();
+    expect(snap).toEqual({ tasks: S, done: 'x\n', config: DEFAULT_CONFIG_YAML, fromCache: false });
   });
 
   it('refresh reports an external config.yaml edit', async () => {

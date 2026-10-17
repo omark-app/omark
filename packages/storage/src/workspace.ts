@@ -11,7 +11,12 @@ export interface Snapshot {
 }
 
 export interface Workspace {
-  open(): Promise<Snapshot>;
+  /**
+   * The texts to start from. When all three files are cached it resolves with the cached texts at once,
+   * without the network (`fromCache`, status `syncing`): call `refresh()` next to bring the remote in.
+   * Otherwise it pulls first (creating missing files), so a first run never shows an empty list.
+   */
+  open(): Promise<Snapshot & { fromCache: boolean }>;
   /** Re-reads all three files; `changed` is true when remote content altered any of them. */
   refresh(): Promise<Snapshot & { changed: boolean }>;
   /** Saves tasks.md first, then done.md; each only if given. `base` is the text the edit started from. */
@@ -73,8 +78,10 @@ export function createWorkspace(adapter: StorageAdapter, cache: LocalCache): Wor
 
   return {
     async open() {
+      const [ct, cd, cc] = await Promise.all([tasks.cached(), done.cached(), config.cached()]);
+      if (ct !== null && cd !== null && cc !== null) return { tasks: ct, done: cd, config: cc, fromCache: true };
       const [t, d, c] = await Promise.all([tasks.open(), done.open(), config.open()]);
-      return { tasks: t, done: d, config: c };
+      return { tasks: t, done: d, config: c, fromCache: false };
     },
     async refresh() {
       const [t, d, c] = await Promise.all([tasks.pull(), done.pull(), config.pull()]);
