@@ -4,23 +4,62 @@
 
   let { store }: { store: AppStore } = $props();
 
-  /** The line being edited. `origin` is its saved text (null for a line not added yet). */
-  type Editing = { el: HTMLElement; index: number; origin: string | null };
+  type Row = { id: number; text: string };
+  /** The line being edited, by row id. */
+  type Editing = { el: HTMLElement; id: number };
 
   let adding = $state(false);
   let editing = $state.raw<Editing | null>(null);
-  let els: HTMLElement[] = $state([]);
+  const els = new Map<number, HTMLElement>();
 
-  const rows = $derived(adding ? [...store.state.doc.always, ''] : store.state.doc.always);
+  let nextId = 0;
+  let prev: Row[] = [];
+
+  /**
+   * Rows carry a stable id so an edited element survives inserts and deletes around it. Ids carry over
+   * from the previous rows by common prefix/suffix, then an in-place edit (same count), then equal text.
+   */
+  function reconcile(texts: readonly string[]): Row[] {
+    const out: (Row | undefined)[] = new Array(texts.length);
+    let lo = 0;
+    while (lo < texts.length && lo < prev.length && texts[lo] === prev[lo]!.text) {
+      out[lo] = prev[lo];
+      lo++;
+    }
+    let hn = texts.length;
+    let hp = prev.length;
+    while (hn > lo && hp > lo && texts[hn - 1] === prev[hp - 1]!.text) {
+      hn--;
+      hp--;
+      out[hn] = prev[hp];
+    }
+    const spare = prev.slice(lo, hp);
+    if (spare.length === hn - lo) {
+      for (let i = lo; i < hn; i++) out[i] = { id: spare[i - lo]!.id, text: texts[i]! };
+    } else {
+      for (let i = lo; i < hn; i++) {
+        const k = spare.findIndex((r) => r.text === texts[i]);
+        out[i] = k >= 0 ? spare.splice(k, 1)[0] : { id: nextId++, text: texts[i]! };
+      }
+    }
+    return (prev = out as Row[]);
+  }
+
+  const rows = $derived(reconcile(adding ? [...store.state.doc.always, ''] : store.state.doc.always));
 
   // The DOM of a line is owned here, not by Svelte's text rendering, so a refresh that re-renders the
   // lines never touches the line being typed in.
   $effect(() => {
-    rows.forEach((text, i) => {
-      const el = els[i];
-      if (el && editing?.el !== el && el.textContent !== text) el.textContent = text;
-    });
+    for (const row of rows) {
+      const el = els.get(row.id);
+      if (el && editing?.el !== el && el.textContent !== row.text) el.textContent = row.text;
+    }
   });
+
+  function track(el: HTMLElement, id: number) {
+    els.set(id, el);
+    return { destroy: () => void (els.get(id) === el && els.delete(id)) };
+  }
 
   const clean = (el: HTMLElement) => (el.textContent ?? '').replace(/\s+/g, ' ').trim();
 
@@ -33,8 +72,8 @@
     if (!cur) return;
     const text = clean(cur.el);
     const lines = store.state.doc.always;
-    let at = -1;
-    if (cur.origin !== null) at = lines[cur.index] === cur.origin ? cur.index : lines.indexOf(cur.origin);
+    const found = rows.findIndex((r) => r.id === cur.id);
+    const at = found >= 0 && found < lines.length ? found : -1;
     if (text === '') {
       if (!final) return;
       if (at >= 0) store.setAlways(lines.filter((_, i) => i !== at));
@@ -42,15 +81,11 @@
       if (text !== lines[at]) store.setAlways(lines.map((l, i) => (i === at ? text : l)));
     } else {
       store.setAlways([...lines, text]);
-      at = lines.length;
     }
+    adding = false;
     if (final) {
       editing = null;
-      adding = false;
       cur.el.textContent = text;
-    } else {
-      editing = { el: cur.el, index: at, origin: text };
-      adding = false;
     }
   }
 
@@ -63,11 +98,12 @@
     };
   });
 
-  function focused(el: HTMLElement, index: number): void {
-    editing = { el, index, origin: store.state.doc.always[index] ?? null };
+  function focused(el: HTMLElement, id: number): void {
+    editing = { el, id };
   }
 
   function keydown(e: KeyboardEvent): void {
+    if (e.isComposing || e.keyCode === 229) return;
     if (e.key === 'Enter' || e.key === 'Escape') {
       e.preventDefault();
       (e.currentTarget as HTMLElement).blur();
@@ -76,6 +112,7 @@
 
   // Soft keyboards report Enter here rather than through keydown.
   function beforeinput(e: InputEvent): void {
+    if (e.isComposing) return;
     if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
       e.preventDefault();
       (e.currentTarget as HTMLElement).blur();
@@ -91,12 +128,12 @@
   async function add(): Promise<void> {
     adding = true;
     await tick();
-    els[store.state.doc.always.length]?.focus();
+    els.get(rows[rows.length - 1]!.id)?.focus();
   }
 </script>
 
 <div class="alist">
-  {#each rows as _, i (i)}
+  {#each rows as row (row.id)}
     <div
       class="aline"
       data-testid="always-line"
@@ -104,8 +141,8 @@
       role="textbox"
       tabindex="0"
       spellcheck="false"
-      bind:this={els[i]}
-      onfocus={(e) => focused(e.currentTarget, i)}
+      use:track={row.id}
+      onfocus={(e) => focused(e.currentTarget, row.id)}
       onblur={() => commit(true)}
       onkeydown={keydown}
       onbeforeinput={beforeinput}

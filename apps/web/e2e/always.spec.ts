@@ -66,6 +66,12 @@ test('emptying a line and blurring removes it', async ({ page }) => {
 
 test('keys typed in a line are text, not commands', async ({ page }) => {
   await start(page);
+  const rowsBefore = await page.getByTestId('task-row').allTextContents();
+  const counts = () => Promise.all(['today', 'week', 'next', 'later', 'someday'].map((k) => page.getByTestId(`bucket-count-${k}`).textContent()));
+  const countsBefore = await counts();
+  await page.getByTestId('task-row').first().click();
+  const selected = page.locator('[data-testid="task-row"][aria-selected="true"], [data-testid="task-row"].sel');
+  const selectedBefore = await selected.allTextContents();
   await lines(page).first().click();
   await page.keyboard.press('End');
   await page.keyboard.type(' xj');
@@ -73,6 +79,9 @@ test('keys typed in a line are text, not commands', async ({ page }) => {
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('toast')).toContainText('Saved');
   await expect.poll(() => driveFile(page, 'done.md')).toBe('');
+  expect(await page.getByTestId('task-row').allTextContents()).toEqual(rowsBefore);
+  expect(await counts()).toEqual(countsBefore);
+  expect(await selected.allTextContents()).toEqual(selectedBefore);
 });
 
 test('paste inserts plain text and Enter never adds a line break', async ({ page }) => {
@@ -111,13 +120,38 @@ test('a remote refresh does not wipe the line being typed', async ({ page }) => 
   await externalWrite(page, 'tasks.md', SPEC_TASKS.replace('# Always\n', '# Always\n- Stretch\n'));
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await expect(lines(page)).toHaveCount(3);
-  await expect(lines(page).nth(1)).toBeFocused();
-  await expect(lines(page).nth(1)).toHaveText('One tab at a time mine');
+  await expect(lines(page).nth(2)).toBeFocused();
+  await expect(lines(page).nth(2)).toHaveText('One tab at a time mine');
   await page.keyboard.press('Enter');
   await expect(lines(page)).toHaveText(['Stretch', 'Walk before the first coffee', 'One tab at a time mine']);
   await expect.poll(() => alwaysOnDrive(page)).toBe(
     '# Always\n- Stretch\n- Walk before the first coffee\n- One tab at a time mine\n\n',
   );
+});
+
+test('a remote delete of the line above keeps the edit and its later typing', async ({ page }) => {
+  await start(page);
+  await lines(page).nth(1).click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' mine');
+  await externalWrite(page, 'tasks.md', SPEC_TASKS.replace('- Walk before the first coffee\n', ''));
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(lines(page)).toHaveCount(1);
+  await expect(lines(page).first()).toBeFocused();
+  await page.keyboard.type(' more');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => alwaysOnDrive(page)).toBe('# Always\n- One tab at a time mine more\n\n');
+});
+
+test('editing the second of two identical lines leaves the first alone', async ({ page }) => {
+  await openApp(page, { files: { 'tasks.md': '# Always\n- Same\n- Same\n\n# Tasks\n' } });
+  await lines(page).nth(1).click();
+  await page.keyboard.press('End');
+  await page.keyboard.type('!');
+  await externalWrite(page, 'tasks.md', '# Always\n- Top\n- Same\n- Same\n\n# Tasks\n');
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.keyboard.press('Enter');
+  await expect.poll(() => alwaysOnDrive(page)).toBe('# Always\n- Top\n- Same\n- Same!\n\n');
 });
 
 test('ALWAYS lines are in no bucket count or stat', async ({ page }) => {
