@@ -3,6 +3,7 @@ import type { MovableBucket } from './buckets.ts';
 import { doneLine } from './done-file.ts';
 import type { ISODate, Item, RepeatRule, State, Task, WeekCtx } from './model.ts';
 import { fitDate, nextDate } from './recurrence.ts';
+import { noteLines } from './tasks-file.ts';
 
 
 let lastId = 0;
@@ -68,14 +69,21 @@ export function reorder(s: State, id: string, beforeId: string): State {
   return placeBefore(s, id, beforeId);
 }
 
+/**
+ * Completes a task: appends its done line to done.md. A one-off task leaves tasks.md and takes its notes
+ * along as indented lines under the done line (not counted as completions); a repeating one keeps its
+ * notes and moves to its next date.
+ */
 export function completeTask(s: State, id: string, today: ISODate): { state: State; next: ISODate | null } {
   const task = findTask(s, id);
   if (!task) return { state: s, next: null };
-  const done = { ...s.done, lines: [...s.done.lines, doneLine(task, today)] };
   if (!task.repeat) {
+    const notes = noteLines(task).map((raw) => ({ entry: null, raw }));
+    const done = { ...s.done, lines: [...s.done.lines, doneLine(task, today), ...notes] };
     const items = s.doc.items.filter((i) => !(i.kind === 'task' && i.task.id === id));
     return { state: { ...withItems(s, items), done }, next: null };
   }
+  const done = { ...s.done, lines: [...s.done.lines, doneLine(task, today)] };
   const next = nextDate(task.repeat, task.date, today);
   return { state: { ...updateTask(s, id, (t) => ({ ...t, date: next })), done }, next };
 }

@@ -55,15 +55,16 @@ Three UTF-8 files, LF line endings, in `C:\Users\alipk\OneDrive\ALAI\TaskApp\`: 
 
 ## Completing a task
 
-The done line is `- [x] {title} 🔁 {rule} ✅ {today}`. The `🔁 {rule}` part appears only when the task repeats. The `📅` date and the notes do not go to `done.md`.
+The done line is `- [x] {title} 🔁 {rule} ✅ {today}`. The `🔁 {rule}` part appears only when the task repeats. The `📅` date never goes to `done.md`.
 
-Non-repeating: delete the whole block (line and notes) from `tasks.md`, then append the done line to the end of `done.md`.
+Non-repeating: delete the whole block (line and notes) from `tasks.md`, then append the done line to the end of `done.md` with the task's note lines, exactly as they were, right under it. Indented lines in `done.md` are not counted as completions.
 
 ```markdown
 - [x] Call the dentist ✅ 2026-10-19
+    - ask about zirconia
 ```
 
-Repeating: keep the block in `tasks.md` (the sample shows the whole file), set its `📅` to the next date (below), and append the done line with the rule.
+Repeating: keep the block, notes included, in `tasks.md` (the sample shows the whole file), set its `📅` to the next date (below), and append the done line with the rule. The notes are not copied to `done.md`.
 
 ```markdown
 # Always

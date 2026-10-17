@@ -143,6 +143,20 @@ describe('app store', () => {
     expect(store.stats.today).toBe(0);
   });
 
+  it('completing a one-off task carries its notes to done.md, and undo takes them back (Ruling 44)', async () => {
+    const { drive, store, synced } = await setup();
+    store.complete(idOf(store, 'Call the dentist'));
+    await synced();
+    expect(drive.peek('done.md')).toBe('- [x] Call the dentist ✅ 2026-10-16\n    - bring the old x-ray\n');
+    expect(drive.peek('tasks.md')).not.toContain('Call the dentist');
+    expect(store.stats.today).toBe(1);
+    expect(store.stats.all).toBe(1);
+    store.undo();
+    await synced();
+    expect(drive.peek('tasks.md')).toBe(SEED_TASKS);
+    expect(drive.peek('done.md')).toBe('');
+  });
+
   it('add reports whether a task was added (a blank title is not)', async () => {
     const { store } = await setup();
     expect(store.add('   ')).toBe(false);

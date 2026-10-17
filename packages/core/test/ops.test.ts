@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 import {
   addTask, allTasks, completeTask, deleteTask, editTask, findTask, moveToBucket, parseDone, parseTasks,
-  reorder, serializeDone, serializeTasks, setAlways, setDate, setRepeat, type State, type WeekCtx,
+  computeStats, reorder, serializeDone, serializeTasks, setAlways, setDate, setRepeat, toBlocks, type State,
+  type WeekCtx,
 } from '../src/index.ts';
 
 const TODAY = '2026-10-16';
@@ -120,6 +121,44 @@ describe('completeTask', () => {
   test('unknown id', () => {
     const s = make();
     expect(completeTask(s, 'nope', TODAY)).toEqual({ state: s, next: null });
+  });
+  test('a one-off task takes its notes to done.md, uncounted (Ruling 44)', () => {
+    const id = idOf(make(), DENTIST);
+    const r = pure((s) => completeTask(s, id, TODAY));
+    expect(findTask(r.state, id)).toBeNull();
+    const text = serializeDone(r.state.done);
+    expect(text).toBe(
+      '- [x] Call the dentist about the crown ✅ 2026-10-16\n    - ask about zirconia\n    - bring the old x-ray\n',
+    );
+    // It reads back the same way: one entry, the notes as uncounted lines.
+    const back = parseDone(text);
+    expect(back.lines.map((l) => l.entry?.title ?? null)).toEqual(['Call the dentist about the crown', null, null]);
+    expect(computeStats(back, TODAY).all).toBe(1);
+    expect(toBlocks(text)).toEqual([text.trimEnd()]);
+  });
+  test('hand-written note lines go to done.md as written; edited notes canonically (Ruling 44)', () => {
+    const s0: State = {
+      doc: parseTasks('# Tasks\n- [ ] Trip\n    - [ ] pack\n        - socks\n\t* tab note\n'),
+      done: parseDone(''),
+    };
+    const id = allTasks(s0.doc)[0]!.id;
+    expect(serializeDone(completeTask(s0, id, TODAY).state.done)).toBe(
+      '- [x] Trip ✅ 2026-10-16\n    - [ ] pack\n        - socks\n\t* tab note\n',
+    );
+    const edited = editTask(s0, id, { title: 'Trip', notes: ['passport'] });
+    expect(serializeDone(completeTask(edited, id, TODAY).state.done)).toBe('- [x] Trip ✅ 2026-10-16\n    - passport\n');
+  });
+  test('a repeating task keeps its notes in tasks.md and copies none (Ruling 44)', () => {
+    const s0: State = {
+      doc: parseTasks('# Tasks\n- [ ] Water 🔁 every week on Monday 📅 2026-10-19\n    - the ferns too\n'),
+      done: parseDone(''),
+    };
+    const id = allTasks(s0.doc)[0]!.id;
+    const r = completeTask(s0, id, '2026-10-19');
+    expect(serializeDone(r.state.done)).toBe('- [x] Water 🔁 every week on Monday ✅ 2026-10-19\n');
+    expect(serializeTasks(r.state.doc)).toBe(
+      '# Always\n\n# Tasks\n- [ ] Water 🔁 every week on Monday 📅 2026-10-26\n    - the ferns too\n',
+    );
   });
 });
 
