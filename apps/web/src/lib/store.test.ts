@@ -270,15 +270,17 @@ describe('app store', () => {
     expect(store.toast?.message).toBe('Nothing to undo');
   });
 
-  it('a rejected save keeps the change and a later flush writes it', async () => {
+  it('a rejected save keeps the change, still uploads it at once, and a later flush settles it (I3)', async () => {
     const cache = new FlakyCache();
     const { drive, store, synced } = await setup({ 'tasks.md': SEED_TASKS }, { cache });
     cache.failing = true;
     store.add('Buy milk');
     await store.flush();
-    expect(drive.peek('tasks.md')).toBe(SEED_TASKS);
-    expect(store.status).toBe('offline');
     expect(titles(store, 'today')).toContain('Buy milk');
+    // The cache is broken, so OneDrive is the only durable copy: the upload does not wait for a refresh.
+    await vi.waitFor(() => expect(drive.peek('tasks.md')).toBe(`${SEED_TASKS}- [ ] Buy milk 📅 2026-10-16\n`));
+    await vi.waitFor(() => expect(store.status).toBe('offline'));
+    expect(store.wouldLoseEdits()).toBe(true);
 
     cache.failing = false;
     await synced();
@@ -292,7 +294,8 @@ describe('app store', () => {
     cache.failing = true;
     store.add('Local edit');
     await store.flush();
-    drive.externalWrite('tasks.md', `${SEED_TASKS}- [ ] Remote edit\n`);
+    await vi.waitFor(() => expect(drive.peek('tasks.md')).toContain('Local edit'));
+    drive.externalWrite('tasks.md', `${drive.peek('tasks.md')}- [ ] Remote edit\n`);
     cache.failing = false;
 
     await store.refresh();

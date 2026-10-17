@@ -484,7 +484,7 @@ describe('FileSync', () => {
     expect(drive.peek(NAME)).toBe(withLocal);
   });
 
-  it('a failed cache write in save rejects, goes offline, and a later sync brings the cache up to memory', async () => {
+  it('a failed cache write in save rejects, still uploads, and the sync brings the cache up to memory', async () => {
     const drive = new FakeOneDrive({ [NAME]: S });
     const inner = new MemoryCache();
     let failPuts = 0;
@@ -504,7 +504,7 @@ describe('FileSync', () => {
 
     failPuts = 1;
     await expect(sync.save(withLocal, S)).rejects.toThrow('QuotaExceededError');
-    expect(sync.status()).toBe('offline');
+    expect(sync.status()).not.toBe('saved'); // offline, then syncing: the upload goes ahead (I3)
     expect(sync.text()).toBe(withLocal);
 
     await sync.pull();
@@ -660,7 +660,26 @@ describe('FileSync', () => {
     await until(() => sync.status() === 'saved');
     cache.failing = true;
     await expect(sync.stage(S, sync.text())).rejects.toThrow('put failed');
-    expect(sync.status()).toBe('offline');
+    await until(() => sync.status() === 'offline');
+  });
+
+  it('an edit whose cache write fails still goes to OneDrive at once, without a pull (I3)', async () => {
+    const cache = new FailingCache();
+    const drive = new FakeOneDrive({ [NAME]: S });
+    const sync = makeSync(drive, cache);
+    await sync.open();
+    cache.failing = true; // e.g. iOS: "Connection to Indexed Database server lost"
+    await expect(sync.stage(withLocal, S)).rejects.toThrow('put failed');
+    expect(sync.text()).toBe(withLocal);
+    await until(() => drive.peek(NAME) === withLocal);
+    // The cache is still broken, so the status keeps saying the copy here is not safe.
+    await until(() => sync.status() === 'offline');
+
+    // Once the cache works again, the next sync stores the state and reaches saved.
+    cache.failing = false;
+    await sync.pull();
+    expect(sync.status()).toBe('saved');
+    expect(await cache.get(NAME)).toMatchObject({ base: withLocal, local: withLocal, dirty: false });
   });
 });
 

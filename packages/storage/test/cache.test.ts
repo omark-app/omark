@@ -1,4 +1,6 @@
 import 'fake-indexeddb/auto';
+import { createStore } from 'idb-keyval';
+import type { UseStore } from 'idb-keyval';
 import { describe, expect, it } from 'vitest';
 import { IdbCache, MemoryCache } from '../src/cache.ts';
 import type { CachedFile, LocalCache } from '../src/cache.ts';
@@ -54,5 +56,26 @@ describe('IdbCache persistence', () => {
     const db = `test-persist-${n++}`;
     await new IdbCache(db).put('tasks.md', sample());
     expect(await new IdbCache(db).get('tasks.md')).toEqual(sample());
+  });
+});
+
+describe('IdbCache reconnect (I3)', () => {
+  it('reopens the store once when an operation fails, and keeps the reopened store', async () => {
+    const db = `test-reconnect-${n++}`;
+    let opened = 0;
+    const dead: UseStore = () => Promise.reject(new Error('Connection to Indexed Database server lost'));
+    const open = (dbName: string, storeName: string): UseStore => (++opened === 1 ? dead : createStore(dbName, storeName));
+    const c = new IdbCache(db, open);
+    await c.put('tasks.md', sample());
+    expect(opened).toBe(2);
+    expect(await c.get('tasks.md')).toEqual(sample());
+    expect(opened).toBe(2);
+    expect(await new IdbCache(db).get('tasks.md')).toEqual(sample());
+  });
+
+  it('rejects when the reopened store fails too', async () => {
+    const dead: UseStore = () => Promise.reject(new Error('gone'));
+    const c = new IdbCache(`test-reconnect-${n++}`, () => dead);
+    await expect(c.put('tasks.md', sample())).rejects.toThrow('gone');
   });
 });

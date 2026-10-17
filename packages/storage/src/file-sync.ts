@@ -19,13 +19,15 @@ const MAX_WRITE_ATTEMPTS = 3;
 /**
  * Keeps one OneDrive file in sync with a cached local copy. The cache holds `{ base, baseEtag, local,
  * dirty }`: `base` is the last text known to be on OneDrive under `baseEtag`, `local` is the working text.
- * Every change to `local` reaches the cache before the next network write (if that cache write fails,
- * the write to OneDrive still goes ahead and the cache is brought up to date after the next successful
- * operation). All network work runs on one promise chain, so writes never overlap and each write sends
- * the latest `local`.
+ * Every change to `local` is put in the cache before the network write that sends it. If that cache write
+ * fails (e.g. iOS dropped the IndexedDB connection), the edit is still uploaded at once, since OneDrive is
+ * then the only copy that outlives the page, and the cache is brought up to date by the next operation
+ * that can write it. All network work runs on one promise chain, so writes never overlap and each write
+ * sends the latest `local`.
  *
- * Callers adopt the text returned by `open()` and `pull()`, and pass to `save()` the text their edit
- * started from, so an edit made on an older text is replayed onto whatever arrived since.
+ * Callers start from the text `cached()` or `open()` gives them and record each edit with `stage()`
+ * (or `save()`), passing the text the edit started from, so an edit made on an older text is merged onto
+ * whatever arrived since. `pull()` brings remote changes in; `text()` is the working text at any moment.
  */
 export class FileSync {
   private readonly opts: FileSyncOptions;
@@ -101,7 +103,8 @@ export class FileSync {
    * `open`, `pull` or the previous `save` gave it). If `local` moved on since `base`, the edit is merged
    * onto it. The result is stored in the cache as dirty before any network call, then written. Resolves
    * when that sync attempt is over; network failures only show in `status()` (the text is safe in the
-   * cache and the next pull or save retries). Rejects, with status `offline`, if the cache write fails.
+   * cache and the next pull or save retries). Rejects, with status `offline`, if the cache write fails;
+   * the upload then still goes ahead. Used by tests; the app stages (`stage`).
    */
   async save(text: string, base: string): Promise<void> {
     const { synced } = await this.record(text, base);
@@ -111,7 +114,7 @@ export class FileSync {
   /**
    * Like `save`, but resolves as soon as the edit is in the cache; the network write is queued and not
    * waited for (a slow or hung upload never delays caching the next edit). Rejects, with status
-   * `offline`, if the cache write fails.
+   * `offline`, if the cache write fails; the upload then still goes ahead.
    */
   async stage(text: string, base: string): Promise<void> {
     await this.record(text, base);
@@ -120,7 +123,8 @@ export class FileSync {
   /**
    * Applies an edit (merged onto `local` if it moved on since `base`), stores it in the cache as dirty,
    * then queues the write. `synced` resolves when that sync attempt is over and never rejects; it is
-   * wrapped so awaiting `record` does not wait for it.
+   * wrapped so awaiting `record` does not wait for it. If the cache write fails the write is queued anyway
+   * and `record` rejects.
    */
   private async record(text: string, base: string): Promise<{ synced: Promise<boolean> }> {
     await this.load();
@@ -130,7 +134,10 @@ export class FileSync {
     try {
       await this.persist();
     } catch (e) {
+      // The cache is broken (e.g. iOS dropped the IndexedDB connection): OneDrive is now the only copy
+      // that survives the page, so upload at once rather than waiting for the next pull.
       this.setStatus('offline');
+      void this.enqueue(() => this.writeLocal(), true);
       throw e;
     }
     // Skipped when an earlier queued operation already wrote this text.
