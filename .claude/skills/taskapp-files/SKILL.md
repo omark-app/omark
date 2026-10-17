@@ -1,0 +1,119 @@
+---
+name: taskapp-files
+description: Use when reading or editing TaskApp's tasks.md, done.md or config.yaml
+---
+
+# TaskApp files
+
+Three UTF-8 files, LF line endings, in `C:\Users\alipk\OneDrive\ALAI\TaskApp\`: `tasks.md`, `done.md`, `config.yaml`. TaskApp re-reads them on every sync, so edit them exactly as the app would.
+
+## Edit rules
+
+- Change only the lines the request touches. Leave every other byte as it is: other headings, free text, other emoji fields, odd spacing, order.
+- Never add IDs, markers or metadata. A task is identified by its text.
+- Append new tasks at the end of the `# Tasks` section.
+- Finish every file with one newline.
+
+## tasks.md
+
+```markdown
+# Always
+
+- Inbox zero by Friday
+- Drink water
+
+# Tasks
+
+- [ ] Pay rent 🔁 every month on the 1st 📅 2026-11-01
+    - transfer from savings
+- [ ] Call the dentist 📅 2026-10-19
+- [ ] Learn Rust
+```
+
+- `# Always` lists reminders, one `- text` per line. They have no dates.
+- `# Tasks` holds task blocks. A block is the task line plus the indented lines under it (its notes).
+- Task line: `- [ ] {title} 🔁 {rule} 📅 {date}`. `🔁` and `📅` are each optional; no date means Someday.
+- Dates are `YYYY-MM-DD`, local time.
+- Notes: `    - {note}` (four spaces).
+- A `🔁` rule TaskApp can't parse stays in the title and the task counts as non-repeating. Use only the wording below.
+- A `- [x]` line in `tasks.md` moves to `done.md` on the next sync. Leave it for the app unless asked to complete the task.
+
+## Repeat wording
+
+| write | meaning |
+| --- | --- |
+| `every day` | daily |
+| `every weekday` | Monday to Friday |
+| `every week on Monday, Thursday` | the named days, full English names, comma-separated |
+| `every month on the 15th` | that day each month (1st, 2nd, 3rd, 4th ... 31st) |
+| `every year` | same day each year |
+| `every 3 days` | every N days (`every 1 day` also valid) |
+| `every 2 weeks` | every N weeks |
+| `every 3 days when done` | N days after the completion date |
+
+## Completing a task
+
+The done line is `- [x] {title} 🔁 {rule} ✅ {today}`. The `🔁 {rule}` part appears only when the task repeats. The `📅` date and the notes do not go to `done.md`.
+
+Non-repeating: delete the whole block (line and notes) from `tasks.md`, then append the done line to the end of `done.md`.
+
+```markdown
+- [x] Call the dentist ✅ 2026-10-19
+```
+
+Repeating: keep the block in `tasks.md` (the sample shows the whole file), set its `📅` to the next date (below), and append the done line with the rule.
+
+```markdown
+# Always
+
+# Tasks
+- [ ] Pay rent 🔁 every month on the 1st 📅 2026-12-01
+    - transfer from savings
+```
+
+```markdown
+- [x] Pay rent 🔁 every month on the 1st ✅ 2026-11-01
+```
+
+`done.md` is an append-only log, oldest first. Never rewrite its existing lines.
+
+## Next date
+
+The next date is the first date strictly after the completion date that fits the rule.
+
+- Day, weekday, weekly and every-N rules step forward from the due date by the rule's stride (1 day; 7 days for `every week`; N days; N weeks) and take the first fitting date after the completion date. A due date in the future still moves at least one step.
+- Monthly and yearly rules use the same calendar day each month or year, never drifting: the 31st falls on the last day of shorter months, and 29 Feb falls on 28 Feb in other years.
+- `when done` is the completion date plus N days; the due date is ignored.
+- With no `📅`, step from the completion date.
+
+| rule | due | completed on | next |
+| --- | --- | --- | --- |
+| `every day` | 2026-10-13 | 2026-10-16 | 2026-10-17 |
+| `every day` | 2026-10-20 | 2026-10-16 | 2026-10-21 |
+| `every weekday` | 2026-10-16 | 2026-10-16 | 2026-10-19 |
+| `every week on Monday, Thursday` | 2026-10-12 | 2026-10-14 | 2026-10-15 |
+| `every 3 days` | 2026-10-10 | 2026-10-16 | 2026-10-19 |
+| `every 2 weeks` | 2026-10-02 | 2026-10-16 | 2026-10-30 |
+| `every month on the 15th` | 2025-01-15 | 2026-10-16 | 2026-11-15 |
+| `every month on the 31st` | 2026-10-31 | 2026-10-31 | 2026-11-30 |
+| `every month on the 31st` | 2026-11-30 | 2026-11-30 | 2026-12-31 |
+| `every year` | 2028-02-29 | 2028-02-29 | 2029-02-28 |
+| `every 3 days when done` | 2026-10-01 | 2026-10-16 | 2026-10-19 |
+
+## Moving a task to a bucket
+
+Set the task's `📅` (leave the line's position alone) to:
+
+| bucket | date |
+| --- | --- |
+| Today | today |
+| This week | the last day of the current week |
+| Next week | the last day of next week (7 days after that) |
+| Later | any date after the last day of next week |
+| Someday | no `📅` at all |
+
+Weeks run Monday to Sunday unless `firstDayOfWeek` in `config.yaml` says otherwise (0 = Monday ... 6 = Sunday). If today is the last day of the week, "This week" is empty: use Today. Overdue tasks (date on or before today) show under Today.
+
+## config.yaml
+
+YAML with only the settings that differ from the defaults (`defaultView`, `firstDayOfWeek`, `theme`, `dateLabels`, `newTaskBucket`, `saveDelaySeconds`, `foldedOnOpen`, `shortcuts`). Keep its comments. A mistake makes the app show a banner and fall back to the defaults, so change one key at a time and keep the YAML valid.
