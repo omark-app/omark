@@ -22,6 +22,17 @@ describe('convertDue', () => {
     expect(convertDue(due(s))).toEqual({ date: '2026-10-20', repeat: rule, warning: null });
   });
 
+  it('bare every week/month use the due date', () => {
+    expect(convertDue(due('Every  Week', '2026-10-22')).repeat).toEqual({ type: 'weekly', days: [3] });
+    expect(convertDue(due('every month', '2026-10-22')).repeat).toEqual({ type: 'monthly', day: 22 });
+  });
+
+  it('bare every week/month without a date warn', () => {
+    const r = convertDue({ date: '', string: 'every week', is_recurring: true });
+    expect(r.repeat).toBeNull();
+    expect(r.warning).toContain('every week');
+  });
+
   it('warns on unsupported rules and keeps the date', () => {
     const r = convertDue(due('every 2nd tue'));
     expect(r.repeat).toBeNull();
@@ -76,5 +87,37 @@ describe('buildTasksMd', () => {
     expect(warnings).toHaveLength(1);
     const titles = parseTasks(text).items.flatMap((i) => (i.kind === 'task' ? [i.task.title] : []));
     expect(titles).toEqual(['Buy milk', 'Pay rent', 'Someday idea', 'Water plants', 'Team sync']);
+  });
+
+  it('flattens grandchildren into the top-level task, in order', () => {
+    const { text } = buildTasksMd([
+      t({ id: 'a', content: 'Top', description: 'd' }),
+      t({ id: 'c', content: 'Grandchild', parent_id: 'b' }),
+      t({ id: 'b', content: 'Child', parent_id: 'a' }),
+      t({ id: 'e', content: 'Child2', parent_id: 'a' }),
+      t({ id: 'o', content: 'Orphan', parent_id: 'missing' }),
+    ]);
+    expect(text).toBe(
+      '# Always\n\n# Tasks\n- [ ] Top\n    - d\n    - Child\n    - Grandchild\n    - Child2\n- [ ] Orphan\n',
+    );
+  });
+
+  it('survives parent cycles without losing tasks', () => {
+    const { text } = buildTasksMd([
+      t({ id: 'x', content: 'X', parent_id: 'y' }),
+      t({ id: 'y', content: 'Y', parent_id: 'x' }),
+    ]);
+    expect(text).toContain('- [ ] X');
+  });
+
+  it('warns when a subtask loses its description or due date', () => {
+    const { warnings } = buildTasksMd([
+      t({ id: 'a', content: 'Top' }),
+      t({ id: 'b', content: 'Sub', parent_id: 'a', description: 'x' }),
+      t({ id: 'c', content: 'Sub2', parent_id: 'a', due: due('20 Oct') }),
+      t({ id: 'd', content: 'Plain', parent_id: 'a' }),
+    ]);
+    expect(warnings).toHaveLength(2);
+    expect(warnings[0]).toContain('Sub');
   });
 });
