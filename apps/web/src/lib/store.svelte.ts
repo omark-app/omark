@@ -490,8 +490,17 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     return refreshing;
   }
 
+  /** Set while the first pull from a cache start runs: whichever adopt brings its changes in repacks. */
+  let repackOnAdopt = false;
+  function adoptAndRepack(): void {
+    if (adopt() && repackOnAdopt) {
+      repackOnAdopt = false;
+      packs++;
+    }
+  }
+
   async function refreshOnce(): Promise<void> {
-    const repack = repackOnPull;
+    repackOnAdopt = repackOnPull;
     repackOnPull = false;
     for (const fn of [...pending]) fn();
     clearTimeout(saveTimer);
@@ -502,15 +511,19 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     try {
       await workspace.refresh();
     } catch {
+      repackOnAdopt = false;
       return; // The cache could not be read (status shows offline); the next refresh tries again.
     }
-    await serial(async () => {
-      if (adopt() && repack) packs++;
-    });
+    // A save during the pull may already have merged its changes in (onRemoteChange below) and repacked.
+    try {
+      await serial(async () => adoptAndRepack());
+    } finally {
+      repackOnAdopt = false;
+    }
   }
 
   // A save that met another device's change merged it in (#6): show it now, not on the next focus.
-  workspace.onRemoteChange(() => void serial(async () => adopt()).catch((e: unknown) => console.error(e)));
+  workspace.onRemoteChange(() => void serial(async () => adoptAndRepack()).catch((e: unknown) => console.error(e)));
 
   // Lines ticked in Obsidian were swept on load: write them out.
   if (isDirty()) scheduleSave();
