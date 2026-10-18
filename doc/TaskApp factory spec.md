@@ -1,6 +1,6 @@
 # TaskApp factory spec
 
-Status: draft, 2026-10-18. Agreed points are from the session that compared ready-made factories (zazencodes, addyosmani/factory, claude-code-action, PranayHaldiya/software-factory and others).
+Status: approved, 2026-10-18. Agreed points are from the session that compared ready-made factories (zazencodes, addyosmani/factory, claude-code-action, PranayHaldiya/software-factory and others).
 Related: [[TaskApp v1 spec]], [[TaskApp backlog]].
 
 ## 1. Goal
@@ -120,7 +120,7 @@ The real-OneDrive smoke (`pnpm e2e:real`) stays manual, since its sign-in lasts 
 | URL | `pr-<n>.taskapp-staging.pages.dev` | `tasks-staging.alipka.com` | `tasks.alipka.com` (as today) |
 | Cloudflare Pages project | `taskapp-staging` (preview branches) | `taskapp-staging` (production branch) | `taskapp` |
 | Storage | Fake drive, seeded with sample tasks | Real OneDrive, `ALAI/TaskApp-staging` | Real OneDrive, `ALAI/TaskApp` |
-| Sign-in | Stubbed (fake build) | Same Entra app; redirect URI added once | As today |
+| Sign-in | Stubbed (fake build) | Same Entra app: its own Web redirect URI, client secret and Pages secrets | As today |
 | Looks | "PREVIEW" in the footer | Name "TaskApp Staging", "STAGING" in the footer, different theme colour | Unchanged |
 
 - `staging` gets its own Pages project so its "production" branch is staging and `tasks-staging` can be a plain custom domain. A one-level subdomain (`tasks-staging`, not `staging.tasks`) stays inside Cloudflare's free certificate.
@@ -202,7 +202,7 @@ Cloud environment settings can't be committed, so `doc/TaskApp cloud environment
 
 ## 9. What I do by hand (once)
 
-1. Add `https://tasks-staging.alipka.com/` as a redirect URI on the Entra app (tenant-scoped portal).
+1. On the Entra app (tenant-scoped portal), add the **Web** redirect URI `https://tasks-staging.alipka.com/api/auth/callback` and a second client secret `taskapp staging`. Then set the Pages secrets `MSAL_CLIENT_ID`, `MSAL_CLIENT_SECRET` and `COOKIE_KEY` on `taskapp-staging`, as README → Sign-in does for `taskapp`.
 2. Create the cloud environment at claude.ai from `doc/TaskApp cloud environment.md`.
 3. Check that the Claude GitHub App has access to `alipkagit/TaskApp` (cloud sessions and Auto-fix need it).
 4. GitHub → Settings → Billing and licensing → Budgets: an Actions budget of $0 with "stop usage when budget limit is reached" on (or no payment method on file).
