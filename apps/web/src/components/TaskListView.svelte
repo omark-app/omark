@@ -62,7 +62,8 @@
           ondrop: (id, target) => applyDrop(store, id, target, onDropPickDate),
         }}
       >
-        {#each BUCKETS as b (b.key)}
+        <!-- Overdue shows only when it has tasks. -->
+        {#each BUCKETS.filter((b) => b.key !== 'overdue' || store.counts.overdue > 0) as b (b.key)}
           <Bucket
             {store}
             key={b.key}

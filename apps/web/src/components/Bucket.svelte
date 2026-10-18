@@ -13,7 +13,6 @@
     onpickdate,
     ondroppickdate,
     onopen,
-    foldable = true,
   }: {
     store: AppStore;
     key: BucketKey;
@@ -23,10 +22,11 @@
     ondroppickdate?: (id: string, suggested: ISODate, beforeId: string | null) => void;
     /** Given on a phone: a row tap opens the task (its edit sheet) instead of selecting it, and rows lift by long press, not HTML5 drag. */
     onopen?: (id: string) => void;
-    foldable?: boolean;
   } = $props();
 
+  /** Shown only in an empty bucket the user unfolded: an empty one starts folded. */
   const EMPTY: Record<BucketKey, string> = {
+    overdue: 'Nothing overdue.',
     today: 'Nothing due. Enjoy it.',
     week: 'Nothing else this week.',
     next: 'Nothing planned yet.',
@@ -36,7 +36,7 @@
 
   const tasks = $derived(tasksInBucket(store.state.doc, key, store.ctx));
   const range = $derived(bucketRange(key, store.ctx));
-  const folded = $derived(foldable && store.folded[key]);
+  const folded = $derived(store.folded[key]);
   let section: HTMLElement | undefined = $state();
 
   /** Without `onopen` (desktop) the date label selects its row too, as a click on the row would. */
@@ -62,18 +62,13 @@
   ondragleave={(e) => section && dragLeave(e, section)}
   {ondrop}
 >
-  {#snippet head()}
-    {#if foldable}<span class="chev" aria-hidden="true">{folded ? '▸' : '▾'}</span>{/if}
-    <span class="name">{name}</span>
-    {#if range}<span class="range">{range}</span>{/if}
-    <span class="count" data-testid="bucket-count-{key}">{tasks.length}</span>
-  {/snippet}
   <h2>
-    {#if foldable}
-      <button class="bhead" data-testid="bucket-head-{key}" aria-expanded={!folded} onclick={() => store.toggleFold(key)}>{@render head()}</button>
-    {:else}
-      <div class="bhead static" data-testid="bucket-head-{key}">{@render head()}</div>
-    {/if}
+    <button class="bhead" data-testid="bucket-head-{key}" aria-expanded={!folded} onclick={() => store.toggleFold(key)}>
+      <span class="chev" aria-hidden="true">{folded ? '▸' : '▾'}</span>
+      <span class="name">{name}</span>
+      {#if range}<span class="range">{range}</span>{/if}
+      <span class="count" data-testid="bucket-count-{key}">{tasks.length}</span>
+    </button>
   </h2>
   {#if !folded}
     {#each tasks as task (task.id)}
@@ -99,7 +94,6 @@
   .bucket:global(.drop-into) { background: color-mix(in srgb, var(--accent) 7%, transparent); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent); }
   .bucket { display: flex; flex-direction: column; gap: 1px; border-radius: 10px; }
   .bhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; width: 100%; padding: 6px 10px; color: inherit; background: none; border: 0; cursor: pointer; text-align: left; user-select: none; border-radius: 6px; }
-  .bhead.static { cursor: default; }
   .bhead:hover .chev { color: var(--ink); }
   h2 { margin: 0; font: inherit; }
   .name { font: 600 17px/1.3 var(--mono); letter-spacing: -.01em; color: var(--ink); }

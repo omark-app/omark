@@ -94,14 +94,17 @@ Weeks run Monday–Sunday. All dates use the device's local time zone; days end 
 
 | Bucket | Contains | Default fold |
 |---|---|---|
-| **Today** | Due today or earlier (overdue folds in) | Open |
+| **Overdue** | Due before today; hidden when empty (added after v1, 2026-10-18) | Open |
+| **Today** | Due today | Open |
 | **This week** | Due tomorrow to this Sunday | Open |
 | **Next week** | Due next Monday to next Sunday | Open |
 | **Later** | Due after next Sunday | Folded |
 | **Someday** | No date | Folded |
 
 - Every bucket header shows a count, including when folded.
-- Fold state resets to the default every time the app opens.
+- An empty bucket shows its header only (count 0), folded. Overdue is the exception: it is not shown at all when empty.
+- Fold state resets to the default every time the app opens. Folding or unfolding a bucket by hand wins over the default (also over the empty-bucket rule) until then.
+- Overdue is not a move target: no shortcut, chip or add option puts a task there, and dropping a task on it does nothing (tasks only land there as days pass).
 - Tasks move between buckets by themselves as days pass.
 
 ### 4.2 Setting a date ("moving to a bucket")
@@ -119,12 +122,13 @@ Moving a task means setting its date:
 ### 4.3 Ordering
 
 - Within a bucket: earliest date first, then the line order in `tasks.md`.
-- Overdue tasks sit at the top of Today.
+- Overdue sits above Today.
 
 ### 4.4 Dragging (desktop mouse drag, phone long-press drag)
 
 - **Drop between tasks in the same bucket** → reorder (changes line order in `tasks.md`). Order only applies among tasks with the same date, since date sorts first; dropping among other dates keeps the date and says so.
 - **Drop on another bucket** (its header or anywhere in it, including folded headers) → set the date as in 4.2: Today, This week (this Sunday), Next week (next Sunday), Someday (no date). Dropping between two tasks there also places it at that position.
+- **Drop on Overdue** from another bucket → not accepted (no highlight, nothing changes). Overdue tasks can still be reordered among themselves.
 - **Drop on Later** → opens the date picker, pre-filled with the day after next Sunday, because Later has no single date.
 - The bucket under the pointer is highlighted; a line shows the insert position.
 
@@ -137,7 +141,7 @@ Moving a task means setting its date:
 
 - Left: a round complete button. Middle: the title, followed by a faint `≡` when the task has notes. Notes are **not** shown in the list; they appear in the task detail (section 11) or the phone's edit sheet.
 - Right: one **meta label**, clickable to open the date picker:
-  - a short date: `Thu` in This week and Next week, `12 Nov` in Later; overdue tasks in Today show their date in red (`Wed`, or `3 Oct` if more than a week ago);
+  - a short date: `Thu` in This week and Next week, `12 Nov` in Later; overdue tasks show their date in red (`Wed`, or `3 Oct` if more than a week ago);
   - a repeating task shows `↻` in the same place, before its date (`↻ Thu`, or just `↻` when due today); the full rule is in the tooltip and the detail;
   - no label for non-repeating tasks due today or in Someday; on hover the empty spot shows a faint `today` / `no date` so it can still be clicked (desktop only).
 
@@ -154,7 +158,7 @@ Chosen from a small picker; there is no natural-language parsing.
 - every N weeks on chosen days, every N months, every N months on day N (added after v1, 2026-10-17)
 - N days after completion (Todoist `every!`)
 
-Completing a recurring task moves it to its next date. An overdue recurring task stays in Today until done; it never skips ahead silently.
+Completing a recurring task moves it to its next date. An overdue recurring task stays in Overdue until done; it never skips ahead silently.
 
 - **Next date** = the first date of the pattern that is **after today**, stepping from the current due date. So an "every day" task that is 3 days overdue moves to tomorrow, not to two days ago. "Every Mon, Thu" completed on an overdue Monday on Wednesday moves to Thursday.
 - **N days after completion** = today + N.
@@ -259,14 +263,17 @@ Two views on desktop, switched with `v` (default from config). **Phones (narrow 
 
 **Task list** (default):
 - One framed sheet with two panes.
-- **Left pane "tasks"**: the add input, then the five buckets stacked (section 4), one-line rows (5.1).
+- **Left pane "tasks"**: the add input, then the buckets stacked (section 4: Overdue when it has tasks, then the other five), one-line rows (5.1).
 - **Right pane**: when a task is selected, its **detail** on top and the **ALWAYS** lines right below it; with nothing selected, just ALWAYS. The completion **stats** (section 8) sit at the bottom of the right pane.
 - **Task detail**: bucket name, editable title, editable notes (one per line), Due (button opening the date picker, red when overdue) with quick chips Today / This week / Next week / Someday, Repeat (button opening the repeat picker), Complete and Delete buttons, and an `esc` close button.
 - Below the sheet: the keyboard-hint strip and the save status.
 
 **Week board** (desktop only):
 - Left rail: app name and today's date, the stats, then one box that shows ALWAYS, or the selected task's detail in its place; then the hint strip and save status.
-- Main area: the add input, then four columns: Today | This week | Next week | Later + Someday stacked (Later and Someday folded on open as usual; the first three columns never fold). Columns wrap to two per row on narrower desktop windows.
+- Main area: the add input, then the buckets in four columns. The buckets keep their order (Overdue when it has tasks, Today, This week, Next week, Later, Someday) and are cut into four groups of one or more, stacked within a column. The cuts are chosen so the tallest column is as short as possible, counting a folded or empty bucket as one row (its header) and an open one as one row plus one per task; among equally tall layouts the best balanced one wins (the next tallest column as short as possible, and so on), then the one closest to the default `Overdue + Today | This week | Next week | Later + Someday` (fewest buckets out of their default column). Example: Overdue 6 tasks, Today 5, This week empty, Next week 2, Later and Someday folded gives `Overdue | Today | This week + Next week | Later + Someday` (7 rows tall, against 13 for the default).
+- The layout is worked out when the board is shown (the app opens or reloads, or the view switches to the board) and then kept while you work: completing, adding, moving, dragging or folding never moves a bucket to another column. Starting from the offline cache, it is worked out once more if the first sync brings changes. If Overdue empties meanwhile it keeps its place as an empty header; if a task turns overdue meanwhile, Overdue joins Today's column.
+- Overdue, Today, This week and Next week start open on the board whatever `foldedOnOpen` says (an empty one still starts folded); Later and Someday fold on open as usual. Every bucket header folds and unfolds on click.
+- Columns wrap to two per row on narrower desktop windows (the same four groups in a 2×2 grid) (packing added after v1, 2026-10-18).
 
 **Phone (Task list)**: a compact stats line at the top, the buckets, ALWAYS at the bottom, a + button at the bottom right. No detail pane; tap opens the edit sheet (9.2).
 

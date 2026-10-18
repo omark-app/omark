@@ -145,7 +145,7 @@ Set the task's `📅` (leave the line's position alone) to:
 
 Weeks run Monday to Sunday unless `firstDayOfWeek` in `config.yaml` names another first day (the week then ends the day before it).
 
-On the last day of the week "This week" is empty (today is already that date): use Today. Overdue tasks (a `📅` before today) show under Today.
+On the last day of the week "This week" is empty (today is already that date): use Today. Overdue tasks (a `📅` before today) show in their own Overdue bucket above Today; nothing is ever moved to Overdue on purpose.
 
 ## config.yaml
 
@@ -155,7 +155,7 @@ YAML with only the settings that differ from the defaults. Keep its comments. A 
 | --- | --- |
 | `defaultView` | `list`, `board` |
 | `firstDayOfWeek` | day name: `monday`, `tuesday`, `wednesday`, `thursday`, `friday`, `saturday`, `sunday` |
-| `foldedOnOpen` | list of `today`, `week`, `next`, `later`, `someday` (default `[later, someday]`) |
+| `foldedOnOpen` | list of `overdue`, `today`, `week`, `next`, `later`, `someday` (default `[later, someday]`); empty buckets start folded anyway |
 | `theme` | `system`, `light`, `dark` |
 | `dateLabels` | `short` (Thu, 12 Nov), `iso` |
 | `newTaskBucket` | `today`, `week`, `next`, `someday` |
