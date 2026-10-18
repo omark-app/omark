@@ -1,14 +1,24 @@
 import type { DoneDoc, DoneEntry, DoneLine, ISODate, Item, RepeatRule, State, Task } from './model.ts';
 import { nextDate } from './recurrence.ts';
 import { formatRepeat } from './repeat-format.ts';
-import { DONE_LINE, noteText, parseFields, toLines } from './tasks-file.ts';
+import { blockEnd, DONE_LINE, noteLines, noteText, parseFields, toLines } from './tasks-file.ts';
 
 let lastId = 0;
 const defaultNewId = (): string => `s${++lastId}`;
 
-/** Parses `done.md`. A line without a valid `- [x] … ✅ date` shape is kept as is with `entry: null`. */
+/**
+ * Parses `done.md`. A line without a valid `- [x] … ✅ date` shape is kept as is with `entry: null`. The
+ * indented lines under a done line are its notes: each stays a line of its own (entry null, never counted)
+ * and their text is also on the entry's `notes`.
+ */
 export function parseDone(text: string): DoneDoc {
-  const lines = toLines(text).map<DoneLine>((raw) => ({ entry: doneEntry(raw), raw }));
+  const all = toLines(text);
+  const lines: DoneLine[] = [];
+  for (let i = 0; i < all.length; ) {
+    const end = blockEnd(all, i);
+    lines.push(...doneBlock(all.slice(i, end)));
+    i = end;
+  }
   return { lines };
 }
 
@@ -19,17 +29,22 @@ export function serializeDone(doc: DoneDoc): string {
   return `${text}\n`;
 }
 
-/** The canonical line for completing `task` today: `- [x] {title} 🔁 {rule} ✅ {today}`. */
+/** The canonical line for completing `task` today: `- [x] {title} 🔁 {rule} ✅ {today}`. Its entry has the task's notes. */
 export function doneLine(task: Task, today: ISODate): DoneLine {
-  return canonical(task.title, task.repeat, today);
+  return canonical(task.title, task.repeat, today, task.notes);
+}
+
+/** What completing `task` today appends to `done.md`: `doneLine`, then the note lines `serializeTasks` writes for it. */
+export function doneLines(task: Task, today: ISODate): DoneLine[] {
+  return [doneLine(task, today), ...noteLines(task).map((raw) => ({ entry: null, raw }))];
 }
 
 /**
- * Moves every `- [x]` item out of the Tasks section into `done.md`. Dated lines are appended unchanged
- * (with Obsidian Tasks, which stamps the ✅ date, the next occurrence is already its own `- [ ]` line).
- * Undated ones (ticked without the plugin) are written canonically, stamped with `today`; a non-repeating
- * one takes its notes along, while a repeating one stays where it is as an open task (same title, rule and
- * notes) on its next date, as if completed in the app. Null when there is nothing to sweep.
+ * Moves every `- [x]` item out of the Tasks section into `done.md`, notes and all. Dated blocks are appended
+ * unchanged (with Obsidian Tasks, which stamps the ✅ date, the next occurrence is already its own `- [ ]`
+ * line). Undated ones (ticked without the plugin) are written canonically, stamped with `today`, with their
+ * note lines as read; a repeating one also stays where it is as an open task (same title, rule and notes)
+ * on its next date, as if completed in the app. Null when there is nothing to sweep.
  */
 export function sweepCompleted(state: State, today: ISODate, newId: () => string = defaultNewId): State | null {
   const appended: DoneLine[] = [];
@@ -38,18 +53,17 @@ export function sweepCompleted(state: State, today: ISODate, newId: () => string
     if (item.kind !== 'done') return [item];
     swept = true;
     if (item.entry.doneOn !== null) {
-      for (const raw of item.raw) appended.push({ entry: doneEntry(raw), raw });
+      appended.push(...doneBlock(item.raw));
       return [];
     }
-    appended.push(canonical(item.entry.title, item.entry.repeat, today));
-    if (!item.entry.repeat) {
-      for (const raw of item.raw.slice(1)) appended.push({ entry: doneEntry(raw), raw });
-      return [];
-    }
+    const notes = item.raw.slice(1);
+    appended.push(canonical(item.entry.title, item.entry.repeat, today, notes.map(noteText)));
+    for (const raw of notes) appended.push({ entry: null, raw });
+    if (!item.entry.repeat) return [];
     const task: Task = {
       id: newId(),
       title: item.entry.title,
-      notes: item.raw.slice(1).map(noteText),
+      notes: notes.map(noteText),
       date: nextDate(item.entry.repeat, item.date, today),
       repeat: item.entry.repeat,
       raw: item.raw,
@@ -64,17 +78,24 @@ export function sweepCompleted(state: State, today: ISODate, newId: () => string
   };
 }
 
-function canonical(title: string, repeat: RepeatRule | null, doneOn: ISODate): DoneLine {
+function canonical(title: string, repeat: RepeatRule | null, doneOn: ISODate, notes: string[]): DoneLine {
   const parts = ['- [x]', title];
   if (repeat) parts.push(`🔁 ${formatRepeat(repeat)}`);
   parts.push(`✅ ${doneOn}`);
-  const entry: DoneEntry = { title, repeat, doneOn };
+  const entry: DoneEntry = { title, repeat, doneOn, notes: [...notes] };
   return { entry, raw: parts.filter((p) => p !== '').join(' ') };
 }
 
-function doneEntry(raw: string): DoneEntry | null {
+/** The lines of one `blockEnd` block of `done.md`; only the first can carry an entry. */
+function doneBlock(block: string[]): DoneLine[] {
+  const [head, ...rest] = block as [string, ...string[]];
+  return [{ entry: doneEntry(head, rest), raw: head }, ...rest.map((raw) => ({ entry: null, raw }))];
+}
+
+function doneEntry(raw: string, noteRaw: string[]): DoneEntry | null {
   const m = DONE_LINE.exec(raw);
   if (!m) return null;
   const f = parseFields(m[1]!, true);
-  return f.doneOn === null ? null : { title: f.title, repeat: f.repeat, doneOn: f.doneOn };
+  if (f.doneOn === null) return null;
+  return { title: f.title, repeat: f.repeat, doneOn: f.doneOn, notes: noteRaw.map(noteText) };
 }

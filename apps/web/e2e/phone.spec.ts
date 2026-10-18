@@ -100,12 +100,6 @@ test('the round check completes a task without opening the edit sheet', async ({
   await expect(sheet(page)).toHaveCount(0);
 });
 
-test('the build beside the save status tells which build the phone runs', async ({ page }) => {
-  await start(page);
-  await expect(page.getByTestId('build')).toHaveText(/^([0-9a-f]{7}|dev)$/);
-  await expect(page.getByTestId('status')).toHaveText('saved');
-});
-
 // Issue #8: a title saved with 🔁 text is a repeating task in the file, so it must repeat on this phone too.
 test('a task added with 🔁 text in its title repeats, and the round check reschedules it', async ({ page }) => {
   await openApp(page, { files: { 'tasks.md': SPEC_TASKS }, now: '2026-10-18T09:00:00' });

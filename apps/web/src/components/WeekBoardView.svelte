@@ -1,11 +1,13 @@
 <script lang="ts">
-  import { dayMonth, weekdayShort } from '@taskapp/core';
+  import { BUCKETS, dayMonth, weekdayShort } from '@taskapp/core';
+  import type { BucketKey } from '@taskapp/core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import Bucket from './Bucket.svelte';
   import AlwaysList from './AlwaysList.svelte';
   import Stats from './Stats.svelte';
   import Hints from './Hints.svelte';
   import StatusLine from './StatusLine.svelte';
+  import SyncBanner from './SyncBanner.svelte';
   import ConfigBanner from './ConfigBanner.svelte';
   import Toast from './Toast.svelte';
   import AddInput from './AddInput.svelte';
@@ -35,6 +37,7 @@
     onCommand: (command, id) => onCommand(command, id),
   });
   const pick = (id: string): void => onCommand('pickDate', id);
+  const nameOf = (key: BucketKey): string => BUCKETS.find((b) => b.key === key)!.name;
 </script>
 
 <svelte:window {onkeydown} />
@@ -54,22 +57,24 @@
       {/if}
     </div>
     <Hints />
-    <StatusLine status={store.status} onsignin={onSignIn} />
+    <StatusLine status={store.status} />
   </aside>
   <div class="main">
+    <SyncBanner {store} onsignin={onSignIn} />
     {#if store.cacheWarning}<p class="warn" role="status">{store.cacheWarning}</p>{/if}
     {#if store.configError}<ConfigBanner error={store.configError} />{/if}
     <AddInput bind:this={addInput} {store} />
     <!-- Double-click is a pointer convenience; the keyboard edits with Enter. -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="board" data-testid="board" {ondblclick}>
-      <div class="col" data-testid="board-col"><Bucket {store} key="today" name="Today" foldable={false} onpickdate={pick} ondroppickdate={onDropPickDate} /></div>
-      <div class="col" data-testid="board-col"><Bucket {store} key="week" name="This week" foldable={false} onpickdate={pick} ondroppickdate={onDropPickDate} /></div>
-      <div class="col" data-testid="board-col"><Bucket {store} key="next" name="Next week" foldable={false} onpickdate={pick} ondroppickdate={onDropPickDate} /></div>
-      <div class="col" data-testid="board-col">
-        <Bucket {store} key="later" name="Later" onpickdate={pick} ondroppickdate={onDropPickDate} />
-        <Bucket {store} key="someday" name="Someday" onpickdate={pick} ondroppickdate={onDropPickDate} />
-      </div>
+      <!-- Four columns packed from the buckets in order when the board is shown, then kept (store.boardColumns). -->
+      {#each store.boardColumns as col, i (i)}
+        <div class="col" data-testid="board-col">
+          {#each col as key (key)}
+            <Bucket {store} {key} name={nameOf(key)} onpickdate={pick} ondroppickdate={onDropPickDate} />
+          {/each}
+        </div>
+      {/each}
     </div>
   </div>
 </div>

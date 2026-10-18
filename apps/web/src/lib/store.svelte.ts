@@ -1,3 +1,4 @@
+import { untrack } from 'svelte';
 import {
   addTask,
   bucketOf,
@@ -12,6 +13,7 @@ import {
   mergeTasksText,
   metaLabel,
   moveToBucket,
+  packBoard,
   parseConfig,
   parseDone,
   parseTasks,
@@ -59,10 +61,25 @@ export interface AppStore {
   readonly config: Config;
   readonly configError: ConfigError | null;
   readonly selectedId: string | null;
+  /** Open tasks per bucket. */
+  readonly counts: Record<BucketKey, number>;
+  /**
+   * Whether each bucket is folded in the current view: the user's own fold or unfold wins; otherwise an
+   * empty bucket is folded, and so is one in `foldedOnOpen` (but not the dated ones on the board).
+   */
   readonly folded: Record<BucketKey, boolean>;
+  /**
+   * The week board's columns, in bucket order (spec 11.2). Packed when the board is first shown after the
+   * app opens and again on each switch to it (and once more when the first pull after a start from the
+   * cache brings changes), then kept while the user works. An Overdue that fills up meanwhile joins Today's
+   * column; one that empties keeps its place.
+   */
+  readonly boardColumns: BucketKey[][];
   readonly view: View;
   readonly toast: Toast | null;
   readonly status: SyncStatus;
+  /** When every file was last in step with OneDrive (status `saved`), here or in an earlier session. */
+  readonly syncedAt: Date | null;
   readonly stats: Stats;
   /** Set when the offline cache could not be used (e.g. iOS private mode); edits then live only in memory. */
   readonly cacheWarning: string | null;
@@ -116,20 +133,20 @@ export interface StoreDeps {
   cacheWarning?: string | null;
   /** True when the cache outlives the page (IndexedDB); a memory cache is lost on reload. Default false. */
   durableCache?: boolean;
+  /** Keeps `syncedAt` across sessions (the app uses localStorage). */
+  syncedAtStore?: { load(): Date | null; save(at: Date): void };
 }
 
 const TOAST_MS = 4200;
 const UNDO_LIMIT = 100;
-/** On the week board the first three columns never fold. */
-const BOARD_OPEN: readonly BucketKey[] = ['today', 'week', 'next'];
+/** On the week board the dated buckets start open whatever `foldedOnOpen` says (an empty one still folds). */
+const BOARD_OPEN: readonly BucketKey[] = ['overdue', 'today', 'week', 'next'];
+const BOARD_COLUMNS = 4;
 
 const bucketName = (key: BucketKey): string => BUCKETS.find((b) => b.key === key)!.name;
 
-const foldsFrom = (config: Config): Record<BucketKey, boolean> =>
-  Object.fromEntries(BUCKETS.map((b) => [b.key, config.foldedOnOpen.includes(b.key)])) as Record<
-    BucketKey,
-    boolean
-  >;
+const byBucket = <T>(value: (key: BucketKey) => T): Record<BucketKey, T> =>
+  Object.fromEntries(BUCKETS.map((b) => [b.key, value(b.key)])) as Record<BucketKey, T>;
 
 const sameList = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((x, i) => x === b[i]);
@@ -155,16 +172,37 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   let ctx = $state.raw<WeekCtx>(firstCtx);
   let state = $state.raw<State>(loadState(parseTasks(snap.tasks), snap.done, firstCtx.today));
   let selectedId = $state<string | null>(null);
-  let folded = $state.raw<Record<BucketKey, boolean>>(foldsFrom(first.config));
+  /** Fold state resets on every open (spec 4.1): the config as it was then, and the user's toggles since. */
+  const foldedOnOpen = first.config.foldedOnOpen;
+  let toggled = $state.raw<Partial<Record<BucketKey, boolean>>>({});
   let view = $state<View>(isPhone() ? 'list' : first.config.defaultView);
+  const counts = $derived(byBucket((key) => tasksInBucket(state.doc, key, ctx).length));
+  const foldsIn = (v: View): Record<BucketKey, boolean> =>
+    byBucket(
+      (key) =>
+        toggled[key] ??
+        (counts[key] === 0 || (foldedOnOpen.includes(key) && !(v === 'board' && BOARD_OPEN.includes(key)))),
+    );
+  const folded = $derived(foldsIn(view));
+  /** Bumped to pack the board again; the packing itself reads nothing reactively, so work never moves it. */
+  let packs = $state(0);
+  let packed: { packs: number; columns: BucketKey[][] } | null = null;
+  /** A start from the cache packs again when the first successful pull brings changes. */
+  let repackOnPull = snap.fromCache;
   let toast = $state.raw<Toast | null>(null);
   let status = $state<SyncStatus>(workspace.status());
+  // Opening without a cache pulled before this point, so a `saved` status here is a fresh sync.
+  let syncedAt = $state.raw<Date | null>(status === 'saved' ? clock.now() : (deps.syncedAtStore?.load() ?? null));
   const stats = $derived(computeStats(state.done, ctx.today));
   /** The user changed something that has not reached OneDrive since (cleared when all is saved). */
   let unsynced = false;
   workspace.onStatus((s) => {
     status = s;
     if (s === 'saved' && !isDirty()) unsynced = false;
+    if (s === 'saved') {
+      syncedAt = clock.now();
+      deps.syncedAtStore?.save(syncedAt);
+    }
   });
 
   let undoStack: State[] = [];
@@ -239,13 +277,14 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
    *
    * Input typed while the read was in flight is committed first, so it is a local change in the merge:
    * if the remote changed the same task, both versions are kept and the local one (identical to the
-   * state's) keeps the task's id, so the open detail or edit sheet stays on it.
+   * state's) keeps the task's id, so the open detail or edit sheet stays on it. True when outside changes
+   * came in.
    */
-  function adopt(): void {
+  function adopt(): boolean {
     for (const fn of [...pending]) fn();
     const next = workspace.texts();
     if (next.config !== configText) applyConfig(next.config);
-    if (next.tasks === base.tasks && next.done === base.done) return;
+    if (next.tasks === base.tasks && next.done === base.done) return false;
 
     const localTasks = serializeTasks(state.doc);
     const localDone = serializeDone(state.done);
@@ -255,17 +294,19 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     base.done = next.done;
     // When the merge equals what we hold (e.g. only our own failed-to-cache edit came back), nothing came
     // in from outside: keep state and undo.
-    if (tasksText !== localTasks || doneText !== localDone) {
+    const outside = tasksText !== localTasks || doneText !== localDone;
+    if (outside) {
       state = loadState(carryIds(state.doc, parseTasks(tasksText)), doneText, ctx.today);
       undoStack = [];
       if (selectedId !== null && !findTask(state, selectedId)) selectedId = null;
     }
     if (isDirty()) scheduleSave();
+    return outside;
   }
 
   // ---- selection -------------------------------------------------------------------------------------
 
-  const isOpen = (key: BucketKey): boolean => !folded[key] || (view === 'board' && BOARD_OPEN.includes(key));
+  const isOpen = (key: BucketKey): boolean => !folded[key];
 
   const visibleTasks = (): Task[] =>
     BUCKETS.filter((b) => isOpen(b.key)).flatMap((b) => tasksInBucket(state.doc, b.key, ctx));
@@ -399,6 +440,23 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
 
   // ---- view ------------------------------------------------------------------------------------------
 
+  /** Board column groups for the tasks as they are now; Overdue only when it has tasks. */
+  function pack(): BucketKey[][] {
+    const folds = foldsIn('board');
+    const rows = BUCKETS.filter((b) => b.key !== 'overdue' || counts.overdue > 0).map((b) => ({
+      key: b.key,
+      rows: folds[b.key] ? 1 : 1 + counts[b.key],
+    }));
+    return packBoard(rows, BOARD_COLUMNS);
+  }
+
+  function boardColumns(): BucketKey[][] {
+    if (packed?.packs !== packs) packed = { packs, columns: untrack(pack) };
+    const columns = packed.columns;
+    if (counts.overdue === 0 || columns.some((c) => c.includes('overdue'))) return columns;
+    return columns.map((c) => (c.includes('today') ? ['overdue', ...c] : c));
+  }
+
   function selectNext(delta: 1 | -1): void {
     const vis = visibleTasks();
     if (vis.length === 0) return;
@@ -422,10 +480,19 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   /** Regaining focus fires both `focus` and `visibilitychange`: callers during a refresh share it. */
   let refreshing: Promise<void> | null = null;
   function refresh(): Promise<void> {
-    refreshing ??= refreshOnce().finally(() => {
-      refreshing = null;
-    });
+    // Never rejects: a refresh that failed (e.g. a pending edit that threw) leaves the status to say so,
+    // and an unhandled rejection would be all anyone saw of it.
+    refreshing ??= refreshOnce()
+      .catch((e: unknown) => console.error('TaskApp: refresh failed', e))
+      .finally(() => {
+        refreshing = null;
+      });
     return refreshing;
+  }
+
+  /** Adopts outside changes; the first successful pull after a start from the cache packs the board again. */
+  function adoptRemote(): void {
+    if (adopt() && repackOnPull) packs++;
   }
 
   async function refreshOnce(): Promise<void> {
@@ -440,8 +507,15 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     } catch {
       return; // The cache could not be read (status shows offline); the next refresh tries again.
     }
-    await serial(async () => adopt());
+    await serial(async () => {
+      adoptRemote();
+      repackOnPull = false;
+    });
   }
+
+  // A pull or save that met another device's change merged it in (#6): show it now, not on the next focus.
+  // During the first pull this can run before `refreshOnce` adopts, so it may pack the board too.
+  workspace.onRemoteChange(() => void serial(async () => adoptRemote()).catch((e: unknown) => console.error(e)));
 
   // Lines ticked in Obsidian were swept on load: write them out.
   if (isDirty()) scheduleSave();
@@ -454,10 +528,13 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     get config() { return config; },
     get configError() { return configError; },
     get selectedId() { return selectedId; },
+    get counts() { return counts; },
     get folded() { return folded; },
+    get boardColumns() { return boardColumns(); },
     get view() { return view; },
     get toast() { return toast; },
     get status() { return status; },
+    get syncedAt() { return syncedAt; },
     get stats() { return stats; },
     cacheWarning: deps.cacheWarning ?? null,
     add,
@@ -481,10 +558,12 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
       };
     },
     toggleFold(key) {
-      folded = { ...folded, [key]: !folded[key] };
+      toggled = { ...toggled, [key]: !folded[key] };
     },
     switchView() {
-      if (!isPhone()) view = view === 'list' ? 'board' : 'list';
+      if (isPhone()) return;
+      view = view === 'list' ? 'board' : 'list';
+      if (view === 'board') packs++;
     },
     refresh,
     flush,

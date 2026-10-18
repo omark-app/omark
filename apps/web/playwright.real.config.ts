@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 import { E2E_FOLDER, E2E_PORT, STATE_PATH } from './e2e-real/state';
 
 // Real OneDrive, by hand only (`pnpm e2e:real:login` once, then `pnpm e2e:real`). Never part of `pnpm e2e` or CI.
-// The origin is http://localhost:5173, one of the redirect URIs already registered in Entra.
+// The origin is http://localhost:5173; its /api/auth/callback must be a Web redirect URI in Entra.
 const origin = `http://localhost:${E2E_PORT}`;
 
 export default defineConfig({
@@ -22,9 +22,11 @@ export default defineConfig({
     },
   ],
   webServer: {
-    // The client ID comes from VITE_MSAL_CLIENT_ID in the environment or apps/web/.env.local.
+    // `wrangler pages dev` serves the build together with the sign-in helper (functions/ at the repo root,
+    // hence the cwd). The helper's secrets come from .dev.vars at the repo root (git-ignored).
     env: { VITE_STORAGE: 'onedrive', VITE_ONEDRIVE_FOLDER: E2E_FOLDER },
-    command: `vite build --outDir dist-real && vite preview --outDir dist-real --port ${E2E_PORT} --strictPort`,
+    cwd: '../..',
+    command: `pnpm --filter web exec vite build --outDir dist-real && pnpm exec wrangler pages dev apps/web/dist-real --port ${E2E_PORT}`,
     url: origin,
     reuseExistingServer: false,
     timeout: 120_000,

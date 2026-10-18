@@ -2,7 +2,7 @@ import { tick } from 'svelte';
 import { findTask, hasWeekLeft } from '@taskapp/core';
 import type { Command, ISODate } from '@taskapp/core';
 import type { AppStore } from './store.svelte.ts';
-import { commandFor, isTypingTarget, sheetOpen } from './keys.ts';
+import { commandFor, keyInput } from './keys.ts';
 
 /** What the views report upward: the app shell owns the pickers. Each carries the task id. */
 export type ShellCommand = 'pickDate' | 'repeat' | 'edit' | 'move';
@@ -56,6 +56,8 @@ export function createCommands(opts: {
       case 'undo': store.undo(); return true;
       case 'deselect': store.select(null); return true;
       case 'switchView': store.switchView(); return true;
+      // The app shell opens search (App.svelte).
+      case 'search': return false;
     }
     const id = store.selectedId;
     if (id === null) return false;
@@ -81,18 +83,7 @@ export function createCommands(opts: {
 
   return {
     onkeydown(e) {
-      const command = commandFor(
-        {
-          key: e.key,
-          ctrlKey: e.ctrlKey,
-          metaKey: e.metaKey,
-          altKey: e.altKey,
-          shiftKey: e.shiftKey,
-          repeat: e.repeat,
-          typing: isTypingTarget(e.target) || sheetOpen(),
-        },
-        store.config.shortcuts,
-      );
+      const command = commandFor(keyInput(e), store.config.shortcuts);
       if (command === 'edit' && isControl(e.target)) return;
       if (command !== null && run(command)) e.preventDefault();
     },

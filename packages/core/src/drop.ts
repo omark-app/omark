@@ -17,7 +17,8 @@ export type DropOutcome =
 
 /**
  * What a drop of task `id` on `target` does (spec 4.4). Same bucket: reorder before `beforeId`.
- * Later has no single date, so it asks for one. Any other bucket: set the date and place it.
+ * Overdue takes no tasks from elsewhere, so a drop there does nothing. Later has no single date, so it
+ * asks for one. Any other bucket: set the date and place it.
  */
 export function planDrop(s: State, id: string, target: DropTarget, ctx: WeekCtx): DropOutcome {
   const task = findTask(s, id);
@@ -30,6 +31,8 @@ export function planDrop(s: State, id: string, target: DropTarget, ctx: WeekCtx)
     if (!before) return { kind: 'none' };
     return { kind: 'reorder', state: reorder(s, id, beforeId), sameDate: task.date === before.date };
   }
+
+  if (target.bucket === 'overdue') return { kind: 'none' };
 
   if (target.bucket === 'later') {
     return { kind: 'pickDate', suggested: addDays(endOfNextWeek(ctx), 1), beforeId: target.beforeId };

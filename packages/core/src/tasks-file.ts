@@ -156,7 +156,8 @@ function parseItems(lines: string[], newId: () => string): Item[] {
     } else {
       // An undated `- [x]` (ticked in Obsidian without a ✅ date) is still done; doneOn is null.
       const f = parseFields(done![1]!, true);
-      const entry: DoneEntry = { title: f.title, repeat: f.repeat, doneOn: f.doneOn };
+      const notes = block.slice(1).map(noteText);
+      const entry: DoneEntry = { title: f.title, repeat: f.repeat, doneOn: f.doneOn, notes };
       items.push({ kind: 'done', entry, date: f.date, raw: block });
     }
   }

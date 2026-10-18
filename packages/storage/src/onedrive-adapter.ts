@@ -1,27 +1,38 @@
 import type { FileName, RemoteFile, StorageAdapter } from './adapter.ts';
 import { AuthRequiredError, OfflineError, PreconditionFailedError } from './errors.ts';
+import { quickXorHash } from './quick-xor-hash.ts';
 
 const GRAPH = 'https://graph.microsoft.com/v1.0/me/drive/root:/';
 const DEFAULT_TIMEOUT_MS = 20_000;
+/** Reads (metadata plus download) tried before giving up on content that does not match its hash. */
+const MAX_READ_ATTEMPTS = 3;
 
 export interface OneDriveAdapterOptions {
   folder: string;
-  getToken: () => Promise<string>;
+  /** `fresh`: Graph rejected the last token, so get a new one. */
+  getToken: (opts?: { fresh?: boolean }) => Promise<string>;
   fetch?: typeof fetch;
   /** Per request, body included; a request that takes longer fails with `OfflineError`. Default 20 s. */
   timeoutMs?: number;
 }
 
-/** A response whose body has been read in full. */
+/** A response whose body has been read in full (`text` is `bytes` decoded as UTF-8, without a BOM). */
 interface Reply {
   status: number;
   ok: boolean;
   text: string;
+  bytes: Uint8Array;
+}
+
+interface DriveItem {
+  eTag: string;
+  '@microsoft.graph.downloadUrl': string;
+  file?: { hashes?: { quickXorHash?: string } };
 }
 
 export class OneDriveAdapter implements StorageAdapter {
   private base: string;
-  private getToken: () => Promise<string>;
+  private getToken: (opts?: { fresh?: boolean }) => Promise<string>;
   private fetchFn: typeof fetch;
   private timeoutMs: number;
 
@@ -33,15 +44,26 @@ export class OneDriveAdapter implements StorageAdapter {
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
+  /**
+   * The eTag comes with the item's metadata and the text from a second request to its download URL. The
+   * text is taken only when it matches the hash the metadata reports with that eTag: text older than its
+   * eTag (a write landing between the two requests is the other way round, and harmless) would become the
+   * base of the next write, and that write, passing `If-Match`, would undo the newer change. On a mismatch
+   * both requests are repeated, and after 3 tries the read fails (the sync reads as offline and retries).
+   */
   async read(name: FileName): Promise<RemoteFile | null> {
-    const meta = await this.graph(this.base + encodeURIComponent(name), {});
-    if (meta.status === 404) return null;
-    if (!meta.ok) throw new Error(`Graph read failed: ${meta.status}`);
-    const item = JSON.parse(meta.text) as { eTag: string; '@microsoft.graph.downloadUrl': string };
-    // The pre-authenticated download URL must not receive the bearer token.
-    const body = await this.send(item['@microsoft.graph.downloadUrl'], {});
-    if (!body.ok) throw new Error(`Download failed: ${body.status}`);
-    return { text: body.text, etag: item.eTag };
+    for (let attempt = 1; ; attempt++) {
+      const meta = await this.graph(this.base + encodeURIComponent(name), {});
+      if (meta.status === 404) return null;
+      if (!meta.ok) throw new Error(`Graph read failed: ${meta.status}`);
+      const item = JSON.parse(meta.text) as DriveItem;
+      // The pre-authenticated download URL must not receive the bearer token.
+      const body = await this.send(item['@microsoft.graph.downloadUrl'], {});
+      if (!body.ok) throw new Error(`Download failed: ${body.status}`);
+      const expected = item.file?.hashes?.quickXorHash;
+      if (expected === undefined || quickXorHash(body.bytes) === expected) return { text: body.text, etag: item.eTag };
+      if (attempt >= MAX_READ_ATTEMPTS) throw new Error(`OneDrive sent ${name} content that does not match its eTag`);
+    }
   }
 
   async write(name: FileName, text: string, ifMatch: string | null): Promise<{ etag: string }> {
@@ -64,8 +86,8 @@ export class OneDriveAdapter implements StorageAdapter {
   /** Authenticated Graph call: one retry with a fresh token on 401. */
   private async graph(url: string, init: RequestInit): Promise<Reply> {
     for (let attempt = 0; attempt < 2; attempt++) {
-      // MSAL can stall too (a hung token refresh), so the token gets the same time limit as a request.
-      const token = await this.withTimeout(() => this.getToken());
+      // A token refresh can stall too, so the token gets the same time limit as a request.
+      const token = await this.withTimeout(() => this.getToken(attempt > 0 ? { fresh: true } : undefined));
       const headers = { ...(init.headers as Record<string, string> | undefined), Authorization: `Bearer ${token}` };
       const res = await this.send(url, { ...init, headers });
       if (res.status !== 401) return res;
@@ -78,7 +100,8 @@ export class OneDriveAdapter implements StorageAdapter {
     try {
       return await this.withTimeout(async (signal) => {
         const res = await this.fetchFn(url, { ...init, signal });
-        return { status: res.status, ok: res.ok, text: await res.text() };
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        return { status: res.status, ok: res.ok, text: new TextDecoder().decode(bytes), bytes };
       });
     } catch (e) {
       if (e instanceof TypeError) throw new OfflineError('Network unreachable');

@@ -1,3 +1,5 @@
+import { quickXorHash } from '../src/quick-xor-hash.ts';
+
 /** In-test emulation of the Graph endpoints the OneDriveAdapter calls. */
 const BASE = 'https://graph.microsoft.com/v1.0/me/drive/root:/';
 const DL = 'https://download.example.test/';
@@ -9,17 +11,21 @@ export interface Call {
 }
 
 export class GraphFake {
-  files = new Map<string, { text: string; n: number }>();
+  files = new Map<string, { text: string; n: number; prev?: string }>();
   calls: Call[] = [];
   offline = false;
   /** Number of upcoming Graph (not download) requests to answer with 401. */
   unauthorized = 0;
+  /** Number of upcoming downloads that serve the file's previous text, as a lagging replica would. */
+  staleDownloads = 0;
+  /** False to leave the hashes out of the item metadata. */
+  hashes = true;
 
   constructor(private folder: string) {}
 
   external(name: string, text: string): void {
     const cur = this.files.get(name);
-    this.files.set(name, { text, n: (cur?.n ?? 0) + 1 });
+    this.files.set(name, { text, n: (cur?.n ?? 0) + 1, prev: cur?.text });
   }
 
   private etag(name: string): string {
@@ -36,7 +42,12 @@ export class GraphFake {
 
     if (url.startsWith(DL)) {
       const f = this.files.get(decodeURIComponent(url.slice(DL.length)));
-      return f ? new Response(f.text, { status: 200 }) : new Response('', { status: 404 });
+      if (!f) return new Response('', { status: 404 });
+      if (this.staleDownloads > 0 && f.prev !== undefined) {
+        this.staleDownloads--;
+        return new Response(f.prev, { status: 200 });
+      }
+      return new Response(f.text, { status: 200 });
     }
     if (this.unauthorized > 0) {
       this.unauthorized--;
@@ -56,6 +67,7 @@ export class GraphFake {
       return Response.json({
         eTag: this.etag(name),
         '@microsoft.graph.downloadUrl': DL + encodeURIComponent(name),
+        file: this.hashes ? { hashes: { quickXorHash: quickXorHash(new TextEncoder().encode(f.text)) } } : {},
       });
     }
     if (isContent && method === 'PUT') {

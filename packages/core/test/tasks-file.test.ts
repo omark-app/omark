@@ -208,7 +208,7 @@ test('a completed line in the Tasks section becomes a done item', () => {
   expect(doc.items).toEqual([
     {
       kind: 'done',
-      entry: { title: 'Done thing', repeat: null, doneOn: '2026-10-15' },
+      entry: { title: 'Done thing', repeat: null, doneOn: '2026-10-15', notes: [] },
       date: null,
       raw: ['- [x] Done thing ✅ 2026-10-15'],
     },
@@ -220,7 +220,7 @@ test('a completed recurring line keeps its rule', () => {
   expect(doc.items).toEqual([
     {
       kind: 'done',
-      entry: { title: 'Water', repeat: { type: 'weekly', days: [0] }, doneOn: '2026-10-19' },
+      entry: { title: 'Water', repeat: { type: 'weekly', days: [0] }, doneOn: '2026-10-19', notes: ['a note'] },
       date: null,
       raw: ['- [x] Water 🔁 every week on Monday ✅ 2026-10-19', '    - a note'],
     },
@@ -236,10 +236,10 @@ test('a completed line with no done date is a done item with doneOn null', () =>
   const text = '# Always\n\n# Tasks\n- [x] No date\n- [X] Weekly 🔁 every week on Monday\n';
   const doc = parseTasks(text);
   expect(doc.items).toEqual([
-    { kind: 'done', entry: { title: 'No date', repeat: null, doneOn: null }, date: null, raw: ['- [x] No date'] },
+    { kind: 'done', entry: { title: 'No date', repeat: null, doneOn: null, notes: [] }, date: null, raw: ['- [x] No date'] },
     {
       kind: 'done',
-      entry: { title: 'Weekly', repeat: { type: 'weekly', days: [0] }, doneOn: null },
+      entry: { title: 'Weekly', repeat: { type: 'weekly', days: [0] }, doneOn: null, notes: [] },
       date: null,
       raw: ['- [X] Weekly 🔁 every week on Monday'],
     },

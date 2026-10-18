@@ -4,7 +4,7 @@ import type { BucketKey } from './model.ts';
 
 export type Command =
   | 'focusAdd' | 'down' | 'up' | 'today' | 'thisWeek' | 'nextWeek' | 'pickDate' | 'someday'
-  | 'repeat' | 'complete' | 'edit' | 'delete' | 'deselect' | 'undo' | 'switchView';
+  | 'repeat' | 'complete' | 'edit' | 'delete' | 'deselect' | 'undo' | 'switchView' | 'search';
 
 /** Values are `KeyboardEvent.key` strings. */
 export type Shortcuts = Record<Command, string[]>;
@@ -17,7 +17,7 @@ export interface Config {
   foldedOnOpen: BucketKey[];
   theme: 'system' | 'light' | 'dark';
   dateLabels: DateLabelStyle;
-  newTaskBucket: Exclude<BucketKey, 'later'>;
+  newTaskBucket: Exclude<BucketKey, 'overdue' | 'later'>;
   saveDelaySeconds: number;
 }
 
@@ -44,6 +44,7 @@ export const DEFAULT_CONFIG: Config = {
     deselect: ['Escape'],
     undo: ['z'],
     switchView: ['v'],
+    search: ['f'],
   },
   defaultView: 'list',
   firstDayOfWeek: 0,
@@ -77,6 +78,7 @@ shortcuts:
   deselect: Escape
   undo: z
   switchView: v
+  search: f
 
 # View shown on desktop when the app opens: list or board.
 defaultView: list
@@ -84,7 +86,8 @@ defaultView: list
 # First day of the week: monday, tuesday, wednesday, thursday, friday, saturday or sunday.
 firstDayOfWeek: monday
 
-# Buckets that start folded when the app opens: any of today, week, next, later, someday.
+# Buckets that start folded when the app opens: any of overdue, today, week, next, later, someday.
+# Empty buckets always start folded.
 foldedOnOpen: [later, someday]
 
 # Colour theme: system, light or dark.
@@ -101,7 +104,7 @@ saveDelaySeconds: 1
 `;
 
 const COMMANDS = Object.keys(DEFAULT_CONFIG.shortcuts) as Command[];
-const BUCKETS: BucketKey[] = ['today', 'week', 'next', 'later', 'someday'];
+const BUCKETS: BucketKey[] = ['overdue', 'today', 'week', 'next', 'later', 'someday'];
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
 class ConfigFailure extends Error {

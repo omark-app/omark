@@ -18,7 +18,7 @@ A super simple personal task app replacing the parts of Todoist actually used: d
   - Windows 11: installed from Brave, pinned to the taskbar.
   - iPhone: added to the home screen.
   - Linux, Mac and Android work as a PWA for free; native wrappers are backlog.
-- **Hosting**: Cloudflare Pages at `tasks.alipka.com` (domain already on Cloudflare). The host serves only the app's static files.
+- **Hosting**: Cloudflare Pages at `tasks.alipka.com` (domain already on Cloudflare). The host serves the app's static files and a small stateless sign-in helper (Pages Functions under `/api/auth`).
 - **CI/CD**: GitHub Actions runs all tests; every push to `main` deploys to Cloudflare Pages.
 
 ## 3. Storage
@@ -26,7 +26,7 @@ A super simple personal task app replacing the parts of Todoist actually used: d
 ### 3.1 Provider
 
 - **OneDrive** via Microsoft Graph, called directly from the browser.
-- Sign-in with a Microsoft account using MSAL (SPA, auth code + PKCE). Requires a one-time free Microsoft Entra app registration that accepts personal accounts.
+- Sign-in with a Microsoft account through the sign-in helper (a token broker on the same origin: auth code + PKCE as a confidential web app, the refresh token in an encrypted HttpOnly cookie, a 90-day rolling session). Graph is still called from the browser with a short-lived access token. Requires a one-time free Microsoft Entra app registration that accepts personal accounts. (It replaced MSAL.js, whose SPA refresh tokens last 24 hours and whose hidden-iframe renewal Safari and Brave block.)
 - **Folder**: `OneDrive/ALAI/TaskApp/` (inside the existing Obsidian vault), chosen by the user. This needs the `Files.ReadWrite` scope.
   - For a later public release the default becomes the app's own folder (`Files.ReadWrite.AppFolder`) — see backlog.
 - Storage sits behind an adapter interface so other providers can be added later.
@@ -36,7 +36,7 @@ A super simple personal task app replacing the parts of Todoist actually used: d
 | File | Holds |
 |---|---|
 | `tasks.md` | ALWAYS lines and all open tasks |
-| `done.md` | One line per completion (the stats source) |
+| `done.md` | One line per completion (the stats source), with the task's notes under it |
 | `config.yaml` | User settings (section 10) |
 
 ### 3.3 `tasks.md` format
@@ -66,17 +66,25 @@ Obsidian Tasks–compatible markdown. Tasks are one flat list; buckets are compu
 
 ```markdown
 - [x] Send the invoice ✅ 2026-10-16
+- [x] Call the dentist about the crown ✅ 2026-10-16
+    - ask about zirconia
+    - bring the old x-ray
 - [x] Water the plants 🔁 every week on Monday ✅ 2026-10-19
 ```
 
-- Completing a task moves its line from `tasks.md` to `done.md` with today's date.
-- Completing a recurring task appends one line to `done.md` and moves the task in `tasks.md` to its next date.
-- Un-completing moves the line back to `tasks.md` and removes it from `done.md`.
+- Nothing is deleted on completion: completing a task moves its line from `tasks.md` to `done.md` with today's date, and its notes go along as indented lines under the done line, byte for byte as they were in `tasks.md`.
+- Completing a recurring task appends its done line, with a copy of its notes, to `done.md` and moves the task in `tasks.md` (notes included) to its next date.
+- A `- [x]` line ticked outside the app (e.g. in Obsidian) moves to `done.md` on the next sync with its notes.
+- Each `- [x] … ✅ date` line counts once in the stats; the indented note lines under it never count. Older one-line entries without notes stay valid, and lines the app doesn't recognise are kept as they are.
+- A done line and its notes are one block when `done.md` is merged (section 3.5), so completions on two devices never mix up their notes.
+- Un-completing (Undo) moves the task back to `tasks.md` with its notes and removes its block from `done.md`.
 
 ### 3.5 Saving, sync, offline and conflicts
 
 - **Save** ~1 s after typing stops (configurable), plus on leaving a field and when the app is hidden or closed.
-- **Footer status**: `saved` · `syncing` · `offline`.
+- **Footer status**: a faint `saved` · `syncing`, next to the build's short commit hash (so it is clear which build a device runs).
+- **Sync banner** (added 2026-10-18), above the list on every layout, when the files are not in step with OneDrive: `Can't reach OneDrive since 11:02 — showing your last saved copy`, or `Sign in again to reach OneDrive …` with a Sign in button. A sync still running after 4 s gets a quieter one. "Since" is the last time every file was in sync on this device.
+- **Nothing waits for ever**: every network request, token request and cache read or write has a time limit, so the status always settles on `saved`, `offline` or `sign in needed`. If the sign-in library does not start within 15 s, the cached list opens anyway.
 - **Re-read** all files whenever the app regains focus, so edits from another device, Obsidian or Claude Code show up.
 - **Optimistic concurrency**: every write uses the file's eTag (`If-Match`). If the file changed since the last read, re-read and merge.
 - **Offline**: the app keeps a cached copy and works fully offline; edits are queued and written on reconnect.
@@ -94,14 +102,17 @@ Weeks run Monday–Sunday. All dates use the device's local time zone; days end 
 
 | Bucket | Contains | Default fold |
 |---|---|---|
-| **Today** | Due today or earlier (overdue folds in) | Open |
+| **Overdue** | Due before today; hidden when empty (added after v1, 2026-10-18) | Open |
+| **Today** | Due today | Open |
 | **This week** | Due tomorrow to this Sunday | Open |
 | **Next week** | Due next Monday to next Sunday | Open |
 | **Later** | Due after next Sunday | Folded |
 | **Someday** | No date | Folded |
 
 - Every bucket header shows a count, including when folded.
-- Fold state resets to the default every time the app opens.
+- An empty bucket shows its header only (count 0), folded. Overdue is the exception: it is not shown at all when empty.
+- Fold state resets to the default every time the app opens. Folding or unfolding a bucket by hand wins over the default (also over the empty-bucket rule) until then.
+- Overdue is not a move target: no shortcut, chip or add option puts a task there, and dropping a task on it does nothing (tasks only land there as days pass).
 - Tasks move between buckets by themselves as days pass.
 
 ### 4.2 Setting a date ("moving to a bucket")
@@ -119,12 +130,13 @@ Moving a task means setting its date:
 ### 4.3 Ordering
 
 - Within a bucket: earliest date first, then the line order in `tasks.md`.
-- Overdue tasks sit at the top of Today.
+- Overdue sits above Today.
 
 ### 4.4 Dragging (desktop mouse drag, phone long-press drag)
 
 - **Drop between tasks in the same bucket** → reorder (changes line order in `tasks.md`). Order only applies among tasks with the same date, since date sorts first; dropping among other dates keeps the date and says so.
 - **Drop on another bucket** (its header or anywhere in it, including folded headers) → set the date as in 4.2: Today, This week (this Sunday), Next week (next Sunday), Someday (no date). Dropping between two tasks there also places it at that position.
+- **Drop on Overdue** from another bucket → not accepted (no highlight, nothing changes). Overdue tasks can still be reordered among themselves.
 - **Drop on Later** → opens the date picker, pre-filled with the day after next Sunday, because Later has no single date.
 - The bucket under the pointer is highlighted; a line shows the insert position.
 
@@ -137,7 +149,7 @@ Moving a task means setting its date:
 
 - Left: a round complete button. Middle: the title, followed by a faint `≡` when the task has notes. Notes are **not** shown in the list; they appear in the task detail (section 11) or the phone's edit sheet.
 - Right: one **meta label**, clickable to open the date picker:
-  - a short date: `Thu` in This week and Next week, `12 Nov` in Later; overdue tasks in Today show their date in red (`Wed`, or `3 Oct` if more than a week ago);
+  - a short date: `Thu` in This week and Next week, `12 Nov` in Later; overdue tasks show their date in red (`Wed`, or `3 Oct` if more than a week ago);
   - a repeating task shows `↻` in the same place, before its date (`↻ Thu`, or just `↻` when due today); the full rule is in the tooltip and the detail;
   - no label for non-repeating tasks due today or in Someday; on hover the empty spot shows a faint `today` / `no date` so it can still be clicked (desktop only).
 
@@ -154,7 +166,7 @@ Chosen from a small picker; there is no natural-language parsing.
 - every N weeks on chosen days, every N months, every N months on day N (added after v1, 2026-10-17)
 - N days after completion (Todoist `every!`)
 
-Completing a recurring task moves it to its next date. An overdue recurring task stays in Today until done; it never skips ahead silently.
+Completing a recurring task moves it to its next date. An overdue recurring task stays in Overdue until done; it never skips ahead silently.
 
 - **Next date** = the first date of the pattern that is **after today**, stepping from the current due date. So an "every day" task that is 3 days overdue moves to tomorrow, not to two days ago. "Every Mon, Thu" completed on an overdue Monday on Wednesday moves to Thursday.
 - **N days after completion** = today + N.
@@ -202,7 +214,7 @@ Shown compactly, e.g. `Today 4 (3.2) · 7d 23 (19 ↑) · All 412`.
 | Delete / Backspace | Delete (with undo) |
 | Esc | Close the detail (deselect) |
 
-- Global: `z` or Ctrl+Z undo; `v` switch view (section 11).
+- Global: `z` or Ctrl+Z undo; `v` switch view (section 11); `f` or Ctrl+K search (9.3).
 - Clicking a task's date label opens the date picker; the picker has Today, Tomorrow, This week, Next week, Someday and a calendar field.
 - Mouse drag between and within buckets (section 4.4).
 - Every change shows a short toast with **Undo** (e.g. "Moved to Next week · Sun", "Done · next Mon 19 Oct").
@@ -216,9 +228,21 @@ Shown compactly, e.g. `Today 4 (3.2) · 7d 23 (19 ↑) · All 412`.
 - **Swipe right** → complete.
 - **Swipe left** → move sheet: Today, This week, Next week, Pick a date…, Someday, Repeat…, Delete.
 - Tapping a task's date label opens the date picker directly.
+- A 🔍 button at the top of the list, beside the save status, opens search full-screen (9.3).
 - **Long-press (~0.4 s, finger still) then drag** → move between and within buckets (section 4.4). The row lifts as a floating copy that follows the finger; the page auto-scrolls near the top and bottom edges; page scrolling is blocked only while dragging. No haptic feedback (not available to iPhone web apps). The iOS long-press text callout is disabled on task rows.
 - Swipe, tap, scroll and long-press are told apart by movement: moving before the hold time is a swipe or scroll; holding still is a drag.
 - Sheets slide up from the bottom; on desktop the same content appears as a small centred dialog.
+
+### 9.3 Search (added after v1, 2026-10-18)
+
+For finding an old task by any word in it, then opening it to read.
+
+- **Opening**: `f` or Ctrl+K (desktop, both views; not while typing in a field or with a sheet open) opens a search panel over the page, command-palette style. On the phone the 🔍 button opens the same search full-screen. Esc, ✕ or a click outside closes it and puts focus back where it was. `f` is configurable (`search`); Ctrl+K is fixed.
+- **Matching**: one free-text box; results update as you type. Every word must appear, in any order and as part of a word, in the title or a note. Case and diacritics are ignored (`zwloknienia` finds `zwłóknienia` and the other way round; `ł` counts as `l`).
+- **Results**: the title with the matched words highlighted, the task's date label as in the list (the bucket name, `Today` or `Someday`, where the row shows none; red when overdue; `↻` when repeating), and the best matching note line when a word matched outside the title. Order: every word in the title first, then words split between title and notes, then note-only matches; within each, earliest date first, undated last. ↑/↓ move through the results, Enter opens one; click or tap works too.
+- **Completed tasks**: only open tasks are searched at first. A last row, "Also search N completed", adds the matches from `done.md` (kept until search closes): struck through, with their ✅ date, newest first within the same order. At most 100 are shown; another word narrows them. Done entries' notes are matched too.
+- **Opening a result**: an open task opens in the detail (desktop: the side pane or the board's rail) or the edit sheet (phone). Closing it (Esc, `esc`, Save, ✕) comes back to search with the query and results kept; selecting another task leaves search. A completed task opens a read-only sheet: title, notes, completion date and repeat rule. It can't be reopened from there (backlog).
+- Out of scope: filters, saved searches, search syntax.
 
 ## 10. Config
 
@@ -233,7 +257,7 @@ Settings in v1:
 
 | Setting | Default |
 |---|---|
-| Keyboard shortcuts | As in section 9.1 |
+| Keyboard shortcuts | As in sections 9.1 and 9.3 |
 | Default view on desktop | Task list |
 | First day of week | Monday |
 | Buckets folded on open | Later, Someday |
@@ -259,14 +283,17 @@ Two views on desktop, switched with `v` (default from config). **Phones (narrow 
 
 **Task list** (default):
 - One framed sheet with two panes.
-- **Left pane "tasks"**: the add input, then the five buckets stacked (section 4), one-line rows (5.1).
+- **Left pane "tasks"**: the add input, then the buckets stacked (section 4: Overdue when it has tasks, then the other five), one-line rows (5.1).
 - **Right pane**: when a task is selected, its **detail** on top and the **ALWAYS** lines right below it; with nothing selected, just ALWAYS. The completion **stats** (section 8) sit at the bottom of the right pane.
 - **Task detail**: bucket name, editable title, editable notes (one per line), Due (button opening the date picker, red when overdue) with quick chips Today / This week / Next week / Someday, Repeat (button opening the repeat picker), Complete and Delete buttons, and an `esc` close button.
 - Below the sheet: the keyboard-hint strip and the save status.
 
 **Week board** (desktop only):
 - Left rail: app name and today's date, the stats, then one box that shows ALWAYS, or the selected task's detail in its place; then the hint strip and save status.
-- Main area: the add input, then four columns: Today | This week | Next week | Later + Someday stacked (Later and Someday folded on open as usual; the first three columns never fold). Columns wrap to two per row on narrower desktop windows.
+- Main area: the add input, then the buckets in four columns. The buckets keep their order (Overdue when it has tasks, Today, This week, Next week, Later, Someday) and are cut into four groups of one or more, stacked within a column. The cuts are chosen so the tallest column is as short as possible, counting a folded or empty bucket as one row (its header) and an open one as one row plus one per task; among equally tall layouts the best balanced one wins (the next tallest column as short as possible, and so on), then the one closest to the default `Overdue + Today | This week | Next week | Later + Someday` (fewest buckets out of their default column). Example: Overdue 6 tasks, Today 5, This week empty, Next week 2, Later and Someday folded gives `Overdue | Today | This week + Next week | Later + Someday` (7 rows tall, against 13 for the default).
+- The layout is worked out when the board is shown (the app opens or reloads, or the view switches to the board) and then kept while you work: completing, adding, moving, dragging or folding never moves a bucket to another column. Starting from the offline cache, it is worked out once more if the first sync brings changes. If Overdue empties meanwhile it keeps its place as an empty header; if a task turns overdue meanwhile, Overdue joins Today's column.
+- Overdue, Today, This week and Next week start open on the board whatever `foldedOnOpen` says (an empty one still starts folded); Later and Someday fold on open as usual. Every bucket header folds and unfolds on click.
+- Columns wrap to two per row on narrower desktop windows (the same four groups in a 2×2 grid) (packing added after v1, 2026-10-18).
 
 **Phone (Task list)**: a compact stats line at the top, the buckets, ALWAYS at the bottom, a + button at the bottom right. No detail pane; tap opens the edit sheet (9.2).
 
@@ -289,8 +316,9 @@ TypeScript monorepo (pnpm workspaces):
 
 | Package | Responsibility |
 |---|---|
-| `packages/core` | Pure TS with no UI or IO: parse/serialize `tasks.md`, `done.md` and `config.yaml`; bucket logic; recurrence; stats; three-way merge; config defaults and validation |
-| `packages/storage` | Storage adapter interface, OneDrive (Graph + MSAL) implementation, in-memory fake for tests, offline cache and write queue |
+| `packages/core` | Pure TS with no UI or IO: parse/serialize `tasks.md`, `done.md` and `config.yaml`; bucket logic; recurrence; stats; search matching and ranking; three-way merge; config defaults and validation |
+| `packages/storage` | Storage adapter interface, OneDrive (Graph) implementation, sign-in client, in-memory fake for tests, offline cache and write queue |
+| `packages/signin` | The sign-in helper behind `/api/auth/*` (served by `functions/` at the repo root as Cloudflare Pages Functions) |
 | `apps/web` | Svelte 5 + Vite PWA: UI, keyboard and touch handling, service worker |
 | `tools/todoist-import` | One-time import script |
 
@@ -309,7 +337,7 @@ TDD throughout: tests are written first.
 
 ## 16. Implementation risks to check early
 
-- MSAL sign-in and token refresh inside an iOS home-screen PWA (standalone mode and redirect flow).
+- Sign-in and token refresh inside an iOS home-screen PWA (standalone mode and redirect flow).
 - Graph file download/upload from the browser (CORS, eTag behaviour on simple uploads).
 - Service worker caching and update flow on iOS.
 - Line-level three-way merge on hand-edited markdown (Obsidian or Claude Code may reformat lines).

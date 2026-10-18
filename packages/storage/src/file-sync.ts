@@ -12,9 +12,15 @@ export interface FileSyncOptions {
   merge: (base: string, local: string, remote: string) => string;
   /** Text of a file that exists nowhere yet. */
   initial: string;
+  /** A cache read or write that takes longer fails (like a broken IndexedDB). Default 10 s. */
+  cacheTimeoutMs?: number;
+  /** An operation still running after this long shows `offline` until it ends. Default 60 s. */
+  stallMs?: number;
 }
 
 const MAX_WRITE_ATTEMPTS = 3;
+const DEFAULT_CACHE_TIMEOUT_MS = 10_000;
+const DEFAULT_STALL_MS = 60_000;
 /** Unanswered write texts remembered for spotting a write that landed (see `absorb`). */
 const MAX_UNCONFIRMED = 5;
 
@@ -40,6 +46,9 @@ export class FileSync {
   private loading: Promise<boolean> | null = null;
   /** Remote content altered `local` since `open` or `pull` last returned. */
   private remoteChanged = false;
+  /** Remote content altered `local` during the running operation; reported to `onRemoteChange` after it. */
+  private absorbed = false;
+  private readonly remoteListeners = new Set<() => void>();
   private current: SyncStatus = 'syncing';
   private readonly listeners = new Set<(s: SyncStatus) => void>();
   private chain: Promise<unknown> = Promise.resolve();
@@ -67,6 +76,16 @@ export class FileSync {
   onStatus(cb: (s: SyncStatus) => void): () => void {
     this.listeners.add(cb);
     return () => this.listeners.delete(cb);
+  }
+
+  /**
+   * Calls `cb` after any operation that merged remote content into `local`: a pull, or a save whose
+   * write met a newer file (412) and merged it in before writing again. A caller that only re-reads on
+   * `pull` would otherwise go on showing the text from before that merge.
+   */
+  onRemoteChange(cb: () => void): () => void {
+    this.remoteListeners.add(cb);
+    return () => this.remoteListeners.delete(cb);
   }
 
   /** Loads the cache without touching the network: the cached working text, or null when there is none. */
@@ -157,7 +176,7 @@ export class FileSync {
    * status goes `offline`, and the next call tries again.
    */
   private load(): Promise<boolean> {
-    this.loading ??= this.opts.cache.get(this.opts.name).then(
+    this.loading ??= this.cacheCall('read', () => this.opts.cache.get(this.opts.name)).then(
       (cached) => {
         if (cached) {
           this.file = cached;
@@ -179,6 +198,12 @@ export class FileSync {
     const run = this.chain.then(async () => {
       if (onlyIfDirty && !this.file.dirty) return true;
       this.setStatus('syncing');
+      // Every step has its own time limit, but an operation can take several (up to three writes and
+      // reads): past `stallMs` the status stops claiming progress. The chain still waits for the
+      // operation, so writes never overlap.
+      const stall = setTimeout(() => {
+        if (this.current === 'syncing') this.setStatus('offline');
+      }, this.opts.stallMs ?? DEFAULT_STALL_MS);
       try {
         await op();
         // A cache write failed earlier: memory is ahead of the cache, so store it now.
@@ -188,11 +213,13 @@ export class FileSync {
         // edit in memory (and in the cache when it works); the next pull or save retries.
         this.setStatus(e instanceof AuthRequiredError ? 'signin' : 'offline');
         return false;
+      } finally {
+        clearTimeout(stall);
       }
       // Still dirty only if a save arrived meanwhile; its own queued operation will write it.
       if (!this.file.dirty) this.setStatus('saved');
       return true;
-    });
+    }).finally(() => this.reportAbsorbed());
     this.chain = run.catch(() => {});
     return run.catch(() => false);
   }
@@ -228,7 +255,7 @@ export class FileSync {
     }
     // `local` now builds on this remote, not on the unanswered writes.
     this.unconfirmed = [];
-    if (this.file.local !== f.local) this.remoteChanged = true;
+    if (this.file.local !== f.local) this.remoteChanged = this.absorbed = true;
     await this.persist();
   }
 
@@ -266,11 +293,30 @@ export class FileSync {
   private persist(): Promise<void> {
     const put = this.persisting.then(async () => {
       const version = this.version;
-      await this.opts.cache.put(this.opts.name, { ...this.file });
+      const f = { ...this.file };
+      await this.cacheCall('write', () => this.opts.cache.put(this.opts.name, f));
       this.persistedVersion = Math.max(this.persistedVersion, version);
     });
     this.persisting = put.catch(() => {});
     return put;
+  }
+
+  /**
+   * Runs one cache call within `cacheTimeoutMs`. A call that never settles (an IndexedDB that stopped
+   * answering) would otherwise hold up this file's every operation, and the status would read `syncing`
+   * for good, with the remote text read but never shown. On timeout the call rejects like a failed one.
+   */
+  private cacheCall<T>(what: 'read' | 'write', call: () => Promise<T>): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`Cache ${what} of ${this.opts.name} timed out`)),
+        this.opts.cacheTimeoutMs ?? DEFAULT_CACHE_TIMEOUT_MS,
+      );
+      Promise.resolve()
+        .then(call)
+        .then(resolve, reject)
+        .finally(() => clearTimeout(timer));
+    });
   }
 
   /**
@@ -284,6 +330,18 @@ export class FileSync {
       p = this.persisting;
       await p;
     } while (p !== this.persisting);
+  }
+
+  private reportAbsorbed(): void {
+    if (!this.absorbed) return;
+    this.absorbed = false;
+    for (const cb of this.remoteListeners) {
+      try {
+        cb();
+      } catch (e) {
+        console.error('FileSync remote-change listener failed', e);
+      }
+    }
   }
 
   private setStatus(s: SyncStatus): void {

@@ -581,6 +581,98 @@ describe('FileSync', () => {
     expect(await sync.pull()).toEqual({ text, changed: false });
   });
 
+  it("onRemoteChange fires once a save's 412 retry merged in a remote change, and not for a plain save (#6)", async () => {
+    const { drive, sync } = await opened();
+    const seen: string[] = [];
+    sync.onRemoteChange(() => seen.push(sync.text()));
+    await sync.save(withLocal, S);
+    expect(seen).toEqual([]);
+    drive.externalWrite(NAME, withRemote + '- [ ] Second remote\n');
+    await sync.save(`${withLocal}- [ ] Another local\n`, withLocal);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toContain('- [ ] Second remote');
+    expect(seen[0]).toContain('- [ ] Another local');
+    expect(sync.status()).toBe('saved');
+    await sync.pull();
+    expect(seen).toHaveLength(1); // nothing new arrived
+  });
+
+  describe('nothing hangs in syncing', () => {
+    /** A cache whose calls can be made to never settle, like an IndexedDB that stopped answering. */
+    class HangingCache extends MemoryCache {
+      hangPuts = false;
+      hangGets = false;
+      override get(name: FileName) {
+        return this.hangGets ? new Promise<never>(() => {}) : super.get(name);
+      }
+      override put(name: FileName, f: CachedFile) {
+        return this.hangPuts ? new Promise<never>(() => {}) : super.put(name, f);
+      }
+    }
+
+    it('a cache write that never settles fails after the cache timeout; the remote is still read and the edit uploaded', async () => {
+      vi.useFakeTimers();
+      try {
+        const drive = new FakeOneDrive({ [NAME]: S });
+        const cache = new HangingCache();
+        const sync = new FileSync({ name: NAME, adapter: drive, cache, merge: mergeTasksText, initial: INITIAL, cacheTimeoutMs: 1000 });
+        await sync.open();
+        cache.hangPuts = true;
+        drive.externalWrite(NAME, withRemote);
+        const pulled = sync.pull();
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(await pulled).toEqual({ text: withRemote, changed: true });
+        expect(sync.status()).toBe('offline'); // the cache is broken, so the text lives only in memory
+
+        const saved = sync.save(`${withRemote}- [ ] Local task\n`, withRemote);
+        saved.catch(() => {});
+        await vi.advanceTimersByTimeAsync(3000);
+        await expect(saved).rejects.toThrow('timed out');
+        expect(drive.peek(NAME)).toBe(`${withRemote}- [ ] Local task\n`);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('a cache read that never settles rejects open after the cache timeout, offline', async () => {
+      vi.useFakeTimers();
+      try {
+        const cache = new HangingCache();
+        cache.hangGets = true;
+        const sync = new FileSync({ name: NAME, adapter: new FakeOneDrive({ [NAME]: S }), cache, merge: mergeTasksText, initial: INITIAL, cacheTimeoutMs: 1000 });
+        const opening = sync.open();
+        opening.catch(() => {});
+        await vi.advanceTimersByTimeAsync(1000);
+        await expect(opening).rejects.toThrow('timed out');
+        expect(sync.status()).toBe('offline');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('an operation still running after stallMs shows offline, and saved once it ends', async () => {
+      vi.useFakeTimers();
+      try {
+        const drive = new FakeOneDrive({ [NAME]: S });
+        const adapter = new TrackingAdapter(drive);
+        const sync = new FileSync({ name: NAME, adapter, cache: new MemoryCache(), merge: mergeTasksText, initial: INITIAL, stallMs: 5000 });
+        await sync.open();
+        const g = gate();
+        adapter.readGate = g.promise;
+        const pulled = sync.pull();
+        await vi.advanceTimersByTimeAsync(4999);
+        expect(sync.status()).toBe('syncing');
+        await vi.advanceTimersByTimeAsync(1);
+        expect(sync.status()).toBe('offline');
+        g.open();
+        await pulled;
+        expect(sync.status()).toBe('saved');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   it('a failed cache load rejects and goes offline; the next open() retries the load', async () => {
     const drive = new FakeOneDrive({ [NAME]: S });
     const inner = new MemoryCache();
