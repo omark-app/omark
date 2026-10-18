@@ -16,7 +16,7 @@ import { systemClock } from './clock.ts';
 import { installLifecycle } from './lifecycle.ts';
 import { createStore } from './store.svelte.ts';
 import type { AppStore } from './store.svelte.ts';
-import { sampleFiles } from './sample-files.ts';
+import { fakeSeed } from './sample-files.ts';
 import { installUpdates } from './updates.ts';
 
 declare global {
@@ -65,9 +65,7 @@ const isPhone = (): boolean => window.matchMedia(PHONE_QUERY).matches;
  */
 export async function boot(): Promise<BootResult> {
   if (STORAGE_MODE === 'fake') {
-    // A PR preview with no test seed starts with sample tasks; locally (and in e2e) the drive starts empty.
-    const seed = window.__TASKAPP_SEED__ ?? (APP_ENV === 'preview' ? sampleFiles(toISODate(new Date())) : {});
-    const drive = new FakeOneDrive(seed);
+    const drive = new FakeOneDrive(fakeSeed(APP_ENV, window.__TASKAPP_SEED__, toISODate(new Date())));
     window.__taskappFake = drive;
     if (window.__TASKAPP_FAKE_DURABLE__) {
       drive.setOffline(!navigator.onLine);

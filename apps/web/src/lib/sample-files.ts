@@ -1,6 +1,19 @@
 import { addDays, dayOfWeek, DEFAULT_CONFIG_YAML, endOfWeek } from '@taskapp/core';
 import type { ISODate } from '@taskapp/core';
 import type { FileName } from '@taskapp/storage';
+import type { AppEnv } from './environment.ts';
+
+/**
+ * What a fake build's drive starts with: the e2e test seed when one is set, else sample files on a PR
+ * preview, else nothing (locally the drive starts empty).
+ */
+export function fakeSeed(
+  env: AppEnv,
+  testSeed: Partial<Record<FileName, string>> | undefined,
+  today: ISODate,
+): Partial<Record<FileName, string>> {
+  return testSeed ?? (env === 'preview' ? sampleFiles(today) : {});
+}
 
 /**
  * Files a PR preview's fake drive starts with, so a preview is worth opening on the phone: every bucket,

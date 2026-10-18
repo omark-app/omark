@@ -20,8 +20,8 @@ export default defineConfig({
     __BUILD_ID__: JSON.stringify(buildId()),
     __BUILD_TIME__: JSON.stringify(`${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`),
   },
-  // e2e/environment.spec.ts reaches the preview server under the staging and PR-preview host names.
-  preview: { allowedHosts: ['tasks-staging.alipka.com', 'pr-1.taskapp-staging.pages.dev'] },
+  // e2e/environment.spec.ts reaches the preview server under the staging host name.
+  preview: { allowedHosts: ['tasks-staging.alipka.com'] },
   plugins: [
     svelte(),
     VitePWA({
