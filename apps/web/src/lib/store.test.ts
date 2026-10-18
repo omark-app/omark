@@ -157,6 +157,22 @@ describe('app store', () => {
     expect(drive.peek('done.md')).toBe('');
   });
 
+  it('completing a repeating task copies its notes to done.md, and undo takes them back', async () => {
+    const tasks = '# Always\n\n# Tasks\n- [ ] Water the plants 🔁 every week on Monday 📅 2026-10-16\n    - the ferns too\n';
+    const { drive, store, synced } = await setup({ 'tasks.md': tasks });
+    store.complete(idOf(store, 'Water the plants'));
+    await synced();
+    expect(drive.peek('done.md')).toBe('- [x] Water the plants 🔁 every week on Monday ✅ 2026-10-16\n    - the ferns too\n');
+    expect(drive.peek('tasks.md')).toBe(
+      '# Always\n\n# Tasks\n- [ ] Water the plants 🔁 every week on Monday 📅 2026-10-19\n    - the ferns too\n',
+    );
+    expect(store.stats.all).toBe(1);
+    store.undo();
+    await synced();
+    expect(drive.peek('tasks.md')).toBe(tasks);
+    expect(drive.peek('done.md')).toBe('');
+  });
+
   it('add reports whether a task was added (a blank title is not)', async () => {
     const { store } = await setup();
     expect(store.add('   ')).toBe(false);
@@ -218,16 +234,17 @@ describe('app store', () => {
         '# Always\n\n# Tasks\n- [ ] Water the plants 🔁 every week on Monday 📅 2026-10-19\n    - the ferns too\n',
       ),
     );
-    expect(drive.peek('done.md')).toBe('- [x] Water the plants 🔁 every week on Monday ✅ 2026-10-16\n');
+    expect(drive.peek('done.md')).toBe('- [x] Water the plants 🔁 every week on Monday ✅ 2026-10-16\n    - the ferns too\n');
   });
 
-  it('tick after midnight moves tomorrow’s task to Today', async () => {
+  it('tick after midnight moves tomorrow’s task to Today and today’s to Overdue', async () => {
     const { store } = await setup();
     expect(titles(store, 'week')).toEqual(['Send the invoice']);
     now = new Date(2026, 9, 17, 0, 0, 5);
     store.tick();
     expect(store.ctx.today).toBe('2026-10-17');
-    expect(titles(store, 'today')).toEqual(['Call the dentist', 'Send the invoice']);
+    expect(titles(store, 'today')).toEqual(['Send the invoice']);
+    expect(titles(store, 'overdue')).toEqual(['Call the dentist']);
   });
 
   it('an invalid config shows the error and uses the defaults', async () => {
@@ -339,7 +356,8 @@ describe('app store', () => {
     const seed = { 'tasks.md': SEED_TASKS, 'config.yaml': 'defaultView: board\nfoldedOnOpen: [someday]\n' };
     const desk = (await setup(seed)).store;
     expect(desk.view).toBe('board');
-    expect(desk.folded).toEqual({ today: false, week: false, next: false, later: false, someday: true });
+    // Overdue and Later are empty, so they start folded.
+    expect(desk.folded).toEqual({ overdue: true, today: false, week: false, next: false, later: true, someday: true });
     desk.switchView();
     expect(desk.view).toBe('list');
 
@@ -347,6 +365,49 @@ describe('app store', () => {
     expect(phone.view).toBe('list');
     phone.switchView();
     expect(phone.view).toBe('list');
+  });
+
+  it('folds empty buckets until the user unfolds them; the board keeps the dated ones open', async () => {
+    const seed = { 'tasks.md': SEED_TASKS, 'config.yaml': 'foldedOnOpen: [today, later, someday]\n' };
+    const { store } = await setup(seed);
+    expect(store.counts).toEqual({ overdue: 0, today: 1, week: 1, next: 1, later: 0, someday: 1 });
+    expect(store.folded).toMatchObject({ overdue: true, today: true, week: false, later: true });
+    store.switchView();
+    expect(store.folded).toMatchObject({ overdue: true, today: false, week: false, later: true });
+    store.toggleFold('later');
+    expect(store.folded.later).toBe(false);
+    store.complete(idOf(store, 'Send the invoice'));
+    expect(store.folded.week).toBe(true);
+    store.toggleFold('week');
+    expect(store.folded.week).toBe(false);
+    store.add('Pack the bag', 'week');
+    store.toggleFold('week');
+    expect(store.folded.week).toBe(true);
+  });
+
+  it('packs the board when it is shown and keeps the columns while the user works', async () => {
+    const tasks = `# Tasks
+${['A', 'B', 'C', 'D', 'E', 'F'].map((t) => `- [ ] Old ${t} 📅 2026-10-10`).join('\n')}
+${['A', 'B', 'C', 'D', 'E'].map((t) => `- [ ] Now ${t} 📅 2026-10-16`).join('\n')}
+- [ ] Soon A 📅 2026-10-20
+- [ ] Soon B 📅 2026-10-21
+- [ ] Far A 📅 2026-12-01
+- [ ] Idea A
+`;
+    const { store } = await setup({ 'tasks.md': tasks, 'config.yaml': 'defaultView: board\n' });
+    // This week is empty (only Saturday and Sunday left, nothing due): Overdue gets a column to itself.
+    expect(store.boardColumns).toEqual([['overdue'], ['today'], ['week', 'next'], ['later', 'someday']]);
+    for (const t of ['A', 'B', 'C', 'D', 'E', 'F']) store.complete(idOf(store, `Old ${t}`));
+    store.add('Later still', 'next');
+    store.toggleFold('someday');
+    // Overdue is empty now but keeps its place until the board is packed again.
+    expect(store.boardColumns).toEqual([['overdue'], ['today'], ['week', 'next'], ['later', 'someday']]);
+    store.switchView();
+    store.switchView();
+    expect(store.boardColumns).toEqual([['today'], ['week'], ['next'], ['later', 'someday']]);
+    // A task that turns overdue meanwhile joins Today's column.
+    store.setDate(idOf(store, 'Soon A'), '2026-10-12');
+    expect(store.boardColumns).toEqual([['overdue', 'today'], ['week'], ['next'], ['later', 'someday']]);
   });
 
   it('moves the selection on when the selected task leaves the visible list', async () => {
@@ -501,6 +562,27 @@ describe('app store', () => {
     drive.release();
     await vi.waitFor(() => expect(store.status).toBe('saved'));
     expect(allTitles(store)).toContain('From another device');
+  });
+
+  it('a start from the cache packs the board again once, when the first pull brings changes', async () => {
+    const drive = new SlowDrive({ 'tasks.md': SEED_TASKS, 'config.yaml': 'defaultView: board\n' });
+    const cache = new MemoryCache();
+    await createStore({ workspace: createWorkspace(drive, cache), clock, isPhone: () => false });
+    const overdue = ['A', 'B', 'C', 'D', 'E', 'F'].map((t) => `- [ ] Old ${t} 📅 2026-10-10\n`).join('');
+    drive.externalWrite('tasks.md', `${SEED_TASKS}${overdue}`);
+
+    drive.holdReads = true;
+    const store = await createStore({ workspace: createWorkspace(drive, cache), clock, isPhone: () => false });
+    expect(store.boardColumns).toEqual([['today'], ['week'], ['next'], ['later', 'someday']]);
+    drive.release();
+    await vi.waitFor(() => expect(store.status).toBe('saved'));
+    expect(store.boardColumns).toEqual([['overdue'], ['today', 'week'], ['next'], ['later', 'someday']]);
+
+    // Later pulls leave the columns alone.
+    drive.externalWrite('tasks.md', SEED_TASKS);
+    await store.refresh();
+    expect(store.counts.overdue).toBe(0);
+    expect(store.boardColumns).toEqual([['overdue'], ['today', 'week'], ['next'], ['later', 'someday']]);
   });
 
   it('a hung refresh does not hold up a flush', async () => {
@@ -692,6 +774,97 @@ describe('app store', () => {
       const store = await createStore({ workspace: createWorkspace(drive, new MemoryCache()), clock, isPhone: () => false });
       expect(store.status).toBe('offline'); // the files wait to be created
       expect(store.wouldLoseEdits()).toBe(false);
+    });
+  });
+  describe('a cache that stops answering (the PC stuck on "syncing")', () => {
+    /** A cache whose writes can be made to never settle, like an IndexedDB that stopped answering. */
+    class HangingCache extends MemoryCache {
+      hangPuts = false;
+      override put(name: FileName, f: CachedFile): Promise<void> {
+        return this.hangPuts ? new Promise<never>(() => {}) : super.put(name, f);
+      }
+    }
+
+    it("reopened from the cache, it still shows the other device's change and leaves syncing", async () => {
+      const drive = new FakeOneDrive({ 'tasks.md': SEED_TASKS });
+      const cache = new HangingCache();
+      await createStore({ workspace: createWorkspace(drive, cache), clock, isPhone: () => false });
+      drive.externalWrite('tasks.md', `${SEED_TASKS}- [ ] Added on the phone\n`);
+
+      // Reopen (a reload or Ctrl+F5): the list comes from the cache, then a refresh reads the drive.
+      cache.hangPuts = true;
+      const store = await createStore({ workspace: createWorkspace(drive, cache), clock, isPhone: () => false });
+      expect(allTitles(store)).not.toContain('Added on the phone');
+      expect(store.status).toBe('syncing');
+      await vi.advanceTimersByTimeAsync(10_000);
+      await vi.waitFor(() => expect(allTitles(store)).toContain('Added on the phone'));
+      expect(store.status).toBe('offline'); // the cache cannot keep it, and the banner says so
+    });
+  });
+
+  describe('two devices on one drive', () => {
+    const TWO = `# Always
+
+# Tasks
+- [ ] A 📅 2026-10-18
+- [ ] leki 🔁 every 2 days 📅 2026-10-18
+- [ ] dep 🔁 every week on Sunday 📅 2026-10-18
+- [ ] B 📅 2026-10-19
+`;
+
+    async function devices() {
+      now = new Date(2026, 9, 18, 9, 0); // Sunday
+      const drive = new FakeOneDrive({ 'tasks.md': TWO });
+      const open = async () => {
+        const ws = createWorkspace(drive, new MemoryCache());
+        const store = await createStore({ workspace: ws, clock, isPhone: () => false });
+        return { store, ws };
+      };
+      return { drive, pc: await open(), phone: await open() };
+    }
+
+    /** Stages, then waits until the upload (and any 412 retry it runs) is over, without a refresh. */
+    const upload = async (d: { store: AppStore; ws: Workspace }): Promise<void> => {
+      await d.store.flush();
+      await vi.waitFor(() => expect(d.ws.status()).toBe('saved'));
+      await vi.advanceTimersByTimeAsync(0);
+    };
+
+    it("a save that merges another device's change shows it at once, with no refresh (#6)", async () => {
+      const { drive, pc, phone } = await devices();
+      phone.store.complete(idOf(phone.store, 'leki'));
+      await upload(phone);
+      expect(drive.peek('tasks.md')).toContain('leki 🔁 every 2 days 📅 2026-10-20');
+
+      pc.store.complete(idOf(pc.store, 'A'));
+      await upload(pc); // its write meets the phone's change (412), merges and writes again
+      expect(drive.peek('tasks.md')).toContain('leki 🔁 every 2 days 📅 2026-10-20');
+      await vi.waitFor(() => expect(titles(pc.store, 'next')).toContain('leki'));
+      expect(titles(pc.store, 'today')).not.toContain('leki');
+      expect(pc.store.stats.today).toBe(2);
+      expect(pc.store.status).toBe('saved');
+    });
+
+    it('a repeating task completed on both devices, one of them stale, stays one task (#7)', async () => {
+      const { drive, pc, phone } = await devices();
+      phone.store.complete(idOf(phone.store, 'leki'));
+      await phone.store.refresh();
+      pc.store.complete(idOf(pc.store, 'dep')); // the PC has not seen the phone's change
+      phone.store.complete(idOf(phone.store, 'dep'));
+      await pc.store.refresh();
+      for (const d of [phone, pc, phone, pc]) {
+        await d.store.flush();
+        await d.store.refresh();
+      }
+      const tasks = drive.peek('tasks.md')!;
+      expect(tasks.match(/dep 🔁/g)).toHaveLength(1);
+      expect(tasks.match(/leki 🔁/g)).toHaveLength(1);
+      expect(tasks).toContain('dep 🔁 every week on Sunday 📅 2026-10-25');
+      expect(drive.peek('done.md')!.match(/dep/g)).toHaveLength(1);
+      for (const d of [pc, phone]) {
+        expect(allTitles(d.store).filter((t) => t === 'dep')).toHaveLength(1);
+        expect(d.store.stats.today).toBe(2);
+      }
     });
   });
 });

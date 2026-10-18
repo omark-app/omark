@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { driveFile, externalWrite, openApp, SPEC_TASKS } from './helpers';
 
-type AuthStub = 'signed-out' | 'expired' | 'redirect-error';
+type AuthStub = 'signed-out' | 'expired' | 'redirect-error' | 'stalled-start';
 
 const row = (page: Page, title: string) => page.getByTestId('task-row').filter({ hasText: title });
 
@@ -33,11 +33,11 @@ async function addTask(page: Page, title: string, isMobile: boolean) {
 }
 
 /** Boots the fake build through the sign-in path, with the stubbed Microsoft account in `state`. */
-async function startWithAuth(page: Page, state: AuthStub) {
+async function startWithAuth(page: Page, state: AuthStub, opts: { fakeTimers?: boolean } = {}) {
   await page.addInitScript((s) => {
     (window as unknown as { __TASKAPP_AUTH_STUB__: string }).__TASKAPP_AUTH_STUB__ = s;
   }, state);
-  await openApp(page, { files: { 'tasks.md': SPEC_TASKS } });
+  await openApp(page, { files: { 'tasks.md': SPEC_TASKS }, fakeTimers: opts.fakeTimers });
 }
 
 const signIns = (page: Page) =>
@@ -84,18 +84,36 @@ test('theme in config.yaml forces dark or light; system follows the device', asy
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(242, 244, 247)');
 });
 
-test('offline shows in the status; back online and focused, the task reaches the drive', async ({ page, isMobile }) => {
+test('offline shows a banner with the last sync time; back online and focused, the task reaches the drive', async ({ page, isMobile }) => {
   await start(page);
   await expect(page.getByTestId('status')).toHaveText('saved');
+  await expect(page.getByTestId('sync-banner')).toHaveCount(0);
   await page.evaluate(() => (window as unknown as { __taskappFake: { setOffline(o: boolean): void } }).__taskappFake.setOffline(true));
   await addTask(page, 'Written offline', isMobile);
-  await expect(page.getByTestId('status')).toHaveText('offline');
+  await expect(page.getByTestId('sync-banner')).toHaveText("Can't reach OneDrive since 09:00 — showing your last saved copy");
+  await expect(page.getByTestId('status')).toHaveCount(0); // the banner says it instead of the faint status
   expect(await driveFile(page, 'tasks.md')).not.toContain('Written offline');
 
   await page.evaluate(() => (window as unknown as { __taskappFake: { setOffline(o: boolean): void } }).__taskappFake.setOffline(false));
   await regainFocus(page);
   await expect(page.getByTestId('status')).toHaveText('saved');
+  await expect(page.getByTestId('sync-banner')).toHaveCount(0);
   expect(await driveFile(page, 'tasks.md')).toContain('- [ ] Written offline');
+});
+
+test("a save that meets another device's change shows that change without a focus change (#6)", async ({ page, isMobile }) => {
+  await start(page);
+  await externalWrite(page, 'tasks.md', `${SPEC_TASKS}- [ ] Added on the phone 📅 2026-10-16\n`);
+  await addTask(page, 'Added here', isMobile); // its write gets a 412, merges the phone's task in and writes
+  await expect(row(page, 'Added on the phone')).toHaveCount(1);
+  await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Added here');
+  await expect(page.getByTestId('status')).toHaveText('saved');
+});
+
+test('the build this device runs is shown beside the status', async ({ page }) => {
+  await start(page);
+  await expect(page.getByTestId('build')).toHaveText(/^[0-9a-f]{7}$|^dev$/);
+  await expect(page.getByTestId('build')).toHaveAttribute('title', /^Build /);
 });
 
 test('buckets move on at local midnight without a focus change', async ({ page }) => {
@@ -119,15 +137,15 @@ test('with no signed-in account the sign-in screen shows, and its button starts 
   await expect.poll(() => signIns(page)).toBe(1);
 });
 
-test('a failed token refresh reads "sign in needed", and clicking it starts sign-in', async ({ page }) => {
+test('a failed token refresh shows a sign-in banner, and its button starts sign-in', async ({ page }) => {
   await startWithAuth(page, 'expired');
   const dialogs: string[] = [];
   page.on('dialog', (d) => {
     dialogs.push(d.message());
     void d.dismiss();
   });
-  const status = page.getByTestId('status');
-  await expect(status).toHaveText('sign in needed');
+  await expect(page.getByTestId('sync-banner')).toContainText('Sign in again to reach OneDrive — showing your last saved copy');
+  const status = page.getByTestId('sync-banner').getByRole('button', { name: 'Sign in' });
   await status.click();
   await expect.poll(() => signIns(page)).toBe(1);
   expect(dialogs).toEqual([]); // nothing to lose, nothing to ask
@@ -136,8 +154,8 @@ test('a failed token refresh reads "sign in needed", and clicking it starts sign
 test('signing in again with edits only in memory asks first', async ({ page, isMobile }) => {
   await startWithAuth(page, 'expired'); // the fake build caches in memory only
   await addTask(page, 'Not on OneDrive yet', isMobile);
-  const status = page.getByTestId('status');
-  await expect(status).toHaveText('sign in needed');
+  const status = page.getByTestId('sync-banner').getByRole('button', { name: 'Sign in' });
+  await expect(status).toBeVisible();
 
   const dialogs: string[] = [];
   page.once('dialog', (d) => {
@@ -153,6 +171,14 @@ test('signing in again with edits only in memory asks first', async ({ page, isM
   page.once('dialog', (d) => void d.accept());
   await status.click();
   await expect.poll(() => signIns(page)).toBe(1);
+});
+
+test('a sign-in library that never finishes starting still opens the list, asking to sign in', async ({ page }) => {
+  await startWithAuth(page, 'stalled-start', { fakeTimers: true });
+  await expect(page.getByText('Loading…')).toBeVisible();
+  await page.clock.fastForward(15_000);
+  await expect(page.getByTestId('bucket-today')).toBeVisible();
+  await expect(page.getByTestId('sync-banner').getByRole('button', { name: 'Sign in' })).toBeVisible();
 });
 
 test('a start-up failure shows the error with a way to try again', async ({ page }) => {

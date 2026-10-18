@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('bucket counts', async ({ page }) => {
-  const counts = { today: '2', week: '0', next: '2', later: '1', someday: '1' };
+  const counts = { overdue: '1', today: '1', week: '0', next: '2', later: '1', someday: '1' };
   for (const [k, n] of Object.entries(counts)) {
     await expect(page.getByTestId(`bucket-count-${k}`)).toHaveText(n);
   }
@@ -25,23 +25,54 @@ test('later and someday are folded on open, and unfold on click', async ({ page 
   await expect(page.getByTestId('bucket-someday').getByTestId('task-row')).toHaveCount(1);
 });
 
+test('Overdue sits above Today', async ({ page }) => {
+  const heads = page.locator('[data-testid^="bucket-head-"]');
+  await expect(heads).toHaveCount(6);
+  await expect(heads.nth(0)).toHaveAttribute('data-testid', 'bucket-head-overdue');
+  await expect(heads.nth(1)).toHaveAttribute('data-testid', 'bucket-head-today');
+  await expect(page.getByTestId('bucket-head-overdue')).toHaveAttribute('aria-expanded', 'true');
+});
+
+test('no Overdue section when nothing is overdue', async ({ page }) => {
+  await openApp(page, { files: { 'tasks.md': SPEC_TASKS } });
+  await expect(page.getByTestId('bucket-today')).toBeVisible();
+  await expect(page.getByTestId('bucket-overdue')).toHaveCount(0);
+  await expect(page.locator('[data-testid^="bucket-head-"]')).toHaveCount(5);
+});
+
+test('completing the last overdue task hides Overdue', async ({ page }) => {
+  await page.getByTestId('task-row').filter({ hasText: 'Old thing' }).getByTestId('task-check').click();
+  await expect(page.getByTestId('bucket-overdue')).toHaveCount(0);
+});
+
 test('rows, meta labels and notes marker', async ({ page }) => {
-  const today = page.getByTestId('bucket-today').getByTestId('task-row');
-  await expect(today).toHaveCount(2);
-  await expect(today.nth(0)).toContainText('Old thing');
-  await expect(today.nth(1)).toContainText('Call the dentist');
-  const old = today.nth(0).getByTestId('task-meta');
+  const overdue = page.getByTestId('bucket-overdue').getByTestId('task-row');
+  await expect(overdue).toHaveCount(1);
+  await expect(overdue.nth(0)).toContainText('Old thing');
+  const old = overdue.nth(0).getByTestId('task-meta');
   await expect(old).toHaveText('3 Oct');
   await expect(old).toHaveClass(/over/);
-  await expect(today.nth(1)).toContainText('≡');
+  const today = page.getByTestId('bucket-today').getByTestId('task-row');
+  await expect(today).toHaveCount(1);
+  await expect(today.nth(0)).toContainText('Call the dentist');
+  await expect(today.nth(0)).toContainText('≡');
   const next = page.getByTestId('bucket-next').getByTestId('task-row');
   await expect(next.filter({ hasText: 'Water the plants' }).getByTestId('task-meta')).toHaveText('↻ Mon');
   await page.getByTestId('bucket-head-later').click();
   await expect(page.getByTestId('bucket-later').getByTestId('task-meta')).toHaveText('12 Nov');
 });
 
-test('empty copy, always lines, stats, status, legends, hints', async ({ page }) => {
+test('an empty bucket shows its header folded, until the user unfolds it', async ({ page }) => {
+  const head = page.getByTestId('bucket-head-week');
+  await expect(head).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByTestId('bucket-count-week')).toHaveText('0');
+  await expect(page.getByTestId('bucket-week')).not.toContainText('Nothing else this week.');
+  await head.click();
+  await expect(head).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByTestId('bucket-week')).toContainText('Nothing else this week.');
+});
+
+test('always lines, stats, status, legends, hints', async ({ page }) => {
   await expect(page.getByTestId('always-line')).toHaveCount(2);
   const stats = page.getByTestId('stats');
   await expect(stats).toContainText('Today 0 (–)');
@@ -72,6 +103,6 @@ test('reload resets folds to defaults', async ({ page }) => {
   await page.getByTestId('bucket-head-today').click();
   await expect(page.getByTestId('bucket-today').getByTestId('task-row')).toHaveCount(0);
   await page.reload();
-  await expect(page.getByTestId('bucket-today').getByTestId('task-row')).toHaveCount(2);
+  await expect(page.getByTestId('bucket-today').getByTestId('task-row')).toHaveCount(1);
   await expect(page.getByTestId('bucket-someday').getByTestId('task-row')).toHaveCount(0);
 });

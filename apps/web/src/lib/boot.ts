@@ -80,20 +80,71 @@ export async function boot(): Promise<BootResult> {
   return signedIn(auth, adapter, openCache);
 }
 
-/** Reports a failed sign-in redirect if there was one; opens the store when an account is signed in. */
+/**
+ * How long start-up waits for the sign-in client to start (reading a sign-in redirect's result). Every
+ * later token request has the adapter's own time limit; this one runs before the list can show.
+ */
+export const AUTH_START_MS = 15_000;
+
+/**
+ * Reports a failed sign-in redirect if there was one; opens the store when an account is signed in. If that
+ * takes longer than `AUTH_START_MS`, the store opens anyway from what is cached: the list shows, and
+ * the first token request fails as offline or sign-in needed instead of the app hanging on "Loading…".
+ */
 async function signedIn(
   auth: Auth,
   adapter: StorageAdapter,
   cache: () => Promise<{ cache: LocalCache } & CacheInfo>,
 ): Promise<BootResult> {
-  await auth.handleRedirect();
-  if (!auth.isSignedIn()) return { kind: 'signin', auth };
+  if (!(await settlesWithin(auth.handleRedirect(), AUTH_START_MS))) {
+    console.warn('TaskApp: sign-in did not finish starting; opening the cached copy');
+  } else if (!auth.isSignedIn()) {
+    return { kind: 'signin', auth };
+  }
   const opened = await cache();
   return ready(createWorkspace(adapter, opened.cache), opened, auth);
 }
 
+/** True when `p` resolves within `ms`, false on timeout; rejects if `p` rejects first. */
+export function settlesWithin(p: Promise<unknown>, ms: number): Promise<boolean> {
+  return new Promise<boolean>((resolve, reject) => {
+    const timer = setTimeout(() => resolve(false), ms);
+    p.then(
+      () => {
+        clearTimeout(timer);
+        resolve(true);
+      },
+      (e: unknown) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
+const SYNCED_AT_KEY = `taskapp:synced-at:${ONEDRIVE_FOLDER}`;
+
+/** `syncedAt` in localStorage, so a reopened app can say since when it has not synced. */
+const syncedAtStore = {
+  load(): Date | null {
+    try {
+      const ms = Number(localStorage.getItem(SYNCED_AT_KEY));
+      return ms > 0 ? new Date(ms) : null;
+    } catch {
+      return null;
+    }
+  },
+  save(at: Date): void {
+    try {
+      localStorage.setItem(SYNCED_AT_KEY, String(at.getTime()));
+    } catch {
+      // Storage blocked: the banner just leaves out "since".
+    }
+  },
+};
+
 async function ready(workspace: Workspace, cache: CacheInfo, auth: Auth | null): Promise<BootResult> {
-  const store = await createStore({ workspace, clock: systemClock, isPhone, ...cache });
+  const store = await createStore({ workspace, clock: systemClock, isPhone, syncedAtStore, ...cache });
   installLifecycle(store);
   return { kind: 'ready', store, auth };
 }

@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import {
-  doneLine, parseDone, parseTasks, serializeDone, serializeTasks, sweepCompleted,
+  computeStats, doneLine, doneLines, parseDone, parseTasks, serializeDone, serializeTasks, sweepCompleted,
   type DoneDoc, type State, type Task,
 } from '../src/index.ts';
 
@@ -13,8 +13,8 @@ test('spec block round-trips and parses entries', () => {
   const d = parseDone(SPEC);
   expect(serializeDone(d)).toBe(SPEC);
   expect(d.lines.map((l) => l.entry)).toEqual([
-    { title: 'Send the invoice', repeat: null, doneOn: '2026-10-16' },
-    { title: 'Water the plants', repeat: { type: 'weekly', days: [0] }, doneOn: '2026-10-19' },
+    { title: 'Send the invoice', repeat: null, doneOn: '2026-10-16', notes: [] },
+    { title: 'Water the plants', repeat: { type: 'weekly', days: [0] }, doneOn: '2026-10-19', notes: [] },
   ]);
 });
 
@@ -41,8 +41,44 @@ test('doneLine writes the canonical line', () => {
   expect(doneLine(t, '2026-10-16').raw).toBe('- [x] Water the plants 🔁 every week on Monday ✅ 2026-10-16');
   expect(doneLine(task('Water the plants'), '2026-10-16')).toEqual({
     raw: '- [x] Water the plants ✅ 2026-10-16',
-    entry: { title: 'Water the plants', repeat: null, doneOn: '2026-10-16' },
+    entry: { title: 'Water the plants', repeat: null, doneOn: '2026-10-16', notes: [] },
   });
+});
+
+test('doneLines appends the note lines as serializeTasks writes them; the entry carries their text', () => {
+  const [t] = parseTasks('# Tasks\n- [ ] Trip\n    - passport\n\t* tickets\n').items.flatMap((i) =>
+    i.kind === 'task' ? [i.task] : [],
+  );
+  const lines = doneLines(t!, '2026-10-16');
+  expect(lines.map((l) => l.raw)).toEqual(['- [x] Trip ✅ 2026-10-16', '    - passport', '\t* tickets']);
+  expect(lines.map((l) => l.entry?.notes ?? null)).toEqual([['passport', 'tickets'], null, null]);
+  expect(doneLines(task('Bare'), '2026-10-16')).toEqual([doneLine(task('Bare'), '2026-10-16')]);
+});
+
+test('notes: indented lines under a done line are its notes, kept as uncounted lines', () => {
+  const text = [
+    '- [x] Old one-liner ✅ 2026-10-01',
+    '- [x] Dentist ✅ 2026-10-16',
+    '    - ask about zirconia',
+    '\t* odd  marker  ',
+    '        - nested',
+    '',
+    '    - after a blank line: a stray line, not a note',
+    '- [x] no date',
+    '    - under an invalid line',
+    'free text',
+    '- [x] Water 🔁 every day ✅ 2026-10-17',
+    '    - ferns',
+    '',
+  ].join('\n');
+  const d = parseDone(text);
+  expect(serializeDone(d)).toBe(text);
+  expect(d.lines.flatMap((l) => (l.entry ? [[l.entry.title, l.entry.notes]] : []))).toEqual([
+    ['Old one-liner', []],
+    ['Dentist', ['ask about zirconia', 'odd  marker', 'nested']],
+    ['Water', ['ferns']],
+  ]);
+  expect(computeStats(d, '2026-10-18').all).toBe(3);
 });
 
 const state = (tasks: string, done: DoneDoc = { lines: [] }): State => ({ doc: parseTasks(tasks), done });
@@ -62,6 +98,7 @@ test('sweepCompleted moves done items and leaves open tasks', () => {
   const r = sweepCompleted(s, '2026-10-16')!;
   expect(serializeTasks(r.doc)).toBe('# Always\n\n# Tasks\n- [ ] Keep\n');
   expect(r.done.lines.map((l) => l.raw)).toEqual(['- [x] Finished ✅ 2026-10-15', '    - a note']);
+  expect(r.done.lines.map((l) => l.entry?.notes ?? null)).toEqual([['a note'], null]);
   expect(sweepCompleted(state('# Tasks\n- [ ] Keep\n'), '2026-10-16')).toBeNull();
 });
 
@@ -75,6 +112,7 @@ test('undated done items are stamped with today and appended after existing line
 test('an undated item keeps its notes after the stamped line', () => {
   const r = sweepCompleted(state('# Tasks\n- [x] Ticked\n    - keep me\n    - and me\n'), '2026-10-16')!;
   expect(r.done.lines.map((l) => l.raw)).toEqual(['- [x] Ticked ✅ 2026-10-16', '    - keep me', '    - and me']);
+  expect(r.done.lines[0]!.entry?.notes).toEqual(['keep me', 'and me']);
 });
 
 test('several done items among open tasks are swept in file order; repeats handled; inputs unchanged', () => {
@@ -131,8 +169,11 @@ test('an undated recurring tick is logged and stays in place as its next occurre
       '',
     ].join('\n'),
   );
-  // The notes stay on the task; only the done line is logged.
-  expect(serializeDone(r.done)).toBe('- [x] Water the plants 🔁 every week on Monday ✅ 2026-10-19\n');
+  // The notes stay on the task, and the done line takes a copy, as written.
+  expect(serializeDone(r.done)).toBe(
+    '- [x] Water the plants 🔁 every week on Monday ✅ 2026-10-19\n    - the ferns too\n\t- and the cactus\n',
+  );
+  expect(r.done.lines[0]!.entry?.notes).toEqual(['the ferns too', 'and the cactus']);
   const water = r.doc.items.find((i) => i.kind === 'task' && i.task.title === 'Water the plants');
   expect(water?.kind === 'task' && water.task.notes).toEqual(['the ferns too', 'and the cactus']);
 });

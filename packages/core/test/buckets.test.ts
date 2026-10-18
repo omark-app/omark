@@ -11,13 +11,13 @@ const docOf = (tasks: Task[]): TasksDoc => ({
 });
 
 test('BUCKETS', () => {
-  expect(BUCKETS.map((b) => b.name)).toEqual(['Today', 'This week', 'Next week', 'Later', 'Someday']);
-  expect(BUCKETS.map((b) => b.key)).toEqual(['today', 'week', 'next', 'later', 'someday']);
+  expect(BUCKETS.map((b) => b.name)).toEqual(['Overdue', 'Today', 'This week', 'Next week', 'Later', 'Someday']);
+  expect(BUCKETS.map((b) => b.key)).toEqual(['overdue', 'today', 'week', 'next', 'later', 'someday']);
 });
 
 test('bucketOf', () => {
   const cases: [string | null, string][] = [
-    ['2026-10-10', 'today'], ['2026-10-16', 'today'], ['2026-10-17', 'week'], ['2026-10-18', 'week'],
+    ['2026-10-10', 'overdue'], ['2026-10-15', 'overdue'], ['2026-10-16', 'today'], ['2026-10-17', 'week'], ['2026-10-18', 'week'],
     ['2026-10-19', 'next'], ['2026-10-25', 'next'], ['2026-10-26', 'later'], [null, 'someday'],
   ];
   for (const [d, b] of cases) expect(bucketOf(mk('a', d), fri)).toBe(b);
@@ -31,7 +31,7 @@ test('dateForBucket', () => {
   expect(dateForBucket('someday', fri)).toBeNull();
 });
 
-test('movableBuckets leaves out Later, and This week on its last day', () => {
+test('movableBuckets leaves out Overdue and Later, and This week on its last day', () => {
   expect(movableBuckets(fri)).toEqual([
     { key: 'today', name: 'Today' },
     { key: 'week', name: 'This week' },
@@ -49,7 +49,8 @@ test('allTasks keeps file order and skips non-tasks', () => {
 
 test('tasksInBucket orders by date then file order', () => {
   const doc = docOf([mk('t1', '2026-10-16'), mk('o', '2026-10-10'), mk('t2', '2026-10-16'), mk('w', '2026-10-17'), mk('s', null)]);
-  expect(tasksInBucket(doc, 'today', fri).map((t) => t.id)).toEqual(['o', 't1', 't2']);
+  expect(tasksInBucket(doc, 'overdue', fri).map((t) => t.id)).toEqual(['o']);
+  expect(tasksInBucket(doc, 'today', fri).map((t) => t.id)).toEqual(['t1', 't2']);
   expect(tasksInBucket(doc, 'week', fri).map((t) => t.id)).toEqual(['w']);
   expect(tasksInBucket(doc, 'someday', fri).map((t) => t.id)).toEqual(['s']);
 });
@@ -59,6 +60,7 @@ test('bucketRange', () => {
   expect(bucketRange('week', fri)).toBe('Sat–Sun');
   expect(bucketRange('week', { today: '2026-10-17', weekStart: 0 })).toBe('Sun'); // one day left: no Sun–Sun
   expect(bucketRange('week', sun)).toBe('');
+  expect(bucketRange('overdue', fri)).toBe('');
   expect(bucketRange('today', fri)).toBe('');
   expect(bucketRange('later', fri)).toBe('');
   expect(bucketRange('someday', fri)).toBe('');

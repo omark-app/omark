@@ -29,7 +29,7 @@ test('reloads offline from the precached shell with the cached task, fonts from 
   await page.reload();
   await expect(row).toHaveCount(1);
   expect(await page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
-  await expect(page.getByTestId('status')).toHaveText('offline');
+  await expect(page.getByTestId('sync-banner')).toContainText("Can't reach OneDrive");
   const fonts = await page.evaluate(async () => {
     await document.fonts.ready;
     return [...document.fonts].filter((f) => f.status === 'loaded').map((f) => f.family);
@@ -39,6 +39,6 @@ test('reloads offline from the precached shell with the cached task, fonts from 
 
   // The sign-in redirect return (query params, odd characters) still gets the app shell.
   await page.goto('/?code=0.AbC/d.e&state=xyz');
-  await expect(page.getByTestId('status')).toBeVisible();
+  await expect(page.getByTestId('sync-banner')).toBeVisible();
   await expect(row).toHaveCount(1);
 });
