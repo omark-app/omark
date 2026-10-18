@@ -7,7 +7,7 @@ export interface WeekCtx {
   weekStart: number;
 }
 
-export type BucketKey = 'today' | 'week' | 'next' | 'later' | 'someday';
+export type BucketKey = 'overdue' | 'today' | 'week' | 'next' | 'later' | 'someday';
 
 /**
  * A repeat rule from the 🔁 field of a task. Weekly `days`: 0 = Monday … 6 = Sunday, sorted, non-empty.

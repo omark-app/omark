@@ -102,6 +102,7 @@ describe('parseConfig', () => {
   it('validates foldedOnOpen', () => {
     expect(parseConfig('foldedOnOpen: [week]\n').config.foldedOnOpen).toEqual(['week']);
     expect(parseConfig('foldedOnOpen: []\n').config.foldedOnOpen).toEqual([]);
+    expect(parseConfig('foldedOnOpen: [overdue, later]\n').config.foldedOnOpen).toEqual(['overdue', 'later']);
     expect(parseConfig('foldedOnOpen: [bogus]\n').error?.message).toContain('foldedOnOpen');
     expect(parseConfig('foldedOnOpen: later\n').error?.message).toContain('foldedOnOpen');
   });

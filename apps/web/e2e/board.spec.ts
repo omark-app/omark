@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { fitsNotes, LONG_NOTE, openApp } from './helpers';
+import { driveFile, fitsNotes, LONG_NOTE, openApp } from './helpers';
 
 const TASKS = `# Always
 - Walk before the first coffee
@@ -13,7 +13,25 @@ const TASKS = `# Always
 - [ ] Learn Polish sign language
 `;
 
+/**
+ * The board of Sun 18 Oct: one overdue task, five today, This week over, two next week, Later and Someday
+ * folded. Packed, Overdue gets a column to itself and the weeks stack; without Overdue it is the default.
+ */
+const BUSY = `# Tasks
+- [ ] Renew the passport 📅 2026-10-14
+${[1, 2, 3, 4, 5].map((n) => `- [ ] Errand ${n} 📅 2026-10-18`).join('\n')}
+- [ ] Plan the trip 📅 2026-10-21
+- [ ] Book the venue 📅 2026-10-22
+- [ ] Repaint the fence 📅 2026-12-01
+- [ ] Learn Polish sign language
+`;
+
 const row = (page: Page, title: string) => page.getByTestId('task-row').filter({ hasText: title });
+/** The bucket keys in each board column, left to right. */
+const columns = (page: Page) =>
+  page.getByTestId('board-col').evaluateAll((cols) =>
+    cols.map((c) => [...c.querySelectorAll<HTMLElement>('[data-bucket]')].map((b) => b.dataset.bucket)),
+  );
 const selected = (page: Page) => page.locator('[data-testid="task-row"].sel');
 
 async function start(page: Page, files: Record<string, string> = {}) {
@@ -50,8 +68,8 @@ test.describe('desktop board', () => {
     await expect(page.getByTestId('fab')).toHaveCount(0);
   });
 
-  test('four columns, fold control only on Later and Someday, which start folded', async ({ page }) => {
-    await start(page);
+  test('four columns in the default layout, the dated buckets open and Later and Someday folded', async ({ page }) => {
+    await start(page, { 'config.yaml': 'foldedOnOpen: [today, later, someday]\n' });
     await page.keyboard.press('v');
     const cols = page.getByTestId('board-col');
     await expect(cols).toHaveCount(4);
@@ -60,14 +78,61 @@ test.describe('desktop board', () => {
     await expect(cols.nth(2).getByTestId('bucket-next')).toBeVisible();
     await expect(cols.nth(3).getByTestId('bucket-later')).toBeVisible();
     await expect(cols.nth(3).getByTestId('bucket-someday')).toBeVisible();
+    await expect(page.getByTestId('bucket-overdue')).toHaveCount(0);
     for (const key of ['today', 'week', 'next']) {
-      await expect(page.getByTestId(`bucket-head-${key}`).getByRole('button')).toHaveCount(0);
+      await expect(page.getByTestId(`bucket-head-${key}`)).toHaveAttribute('aria-expanded', 'true');
     }
     await expect(page.getByTestId('bucket-head-later')).toHaveAttribute('aria-expanded', 'false');
     await expect(page.getByTestId('bucket-head-someday')).toHaveAttribute('aria-expanded', 'false');
     await expect(row(page, 'Book the venue')).toHaveCount(0);
     await page.getByTestId('bucket-head-later').click();
     await expect(row(page, 'Book the venue')).toBeVisible();
+    await page.getByTestId('bucket-head-today').click();
+    await expect(row(page, 'Call the dentist')).toHaveCount(0);
+  });
+
+  test('an empty bucket shows only its header, folded, and Overdue only when it has tasks', async ({ page }) => {
+    await start(page, { 'config.yaml': 'defaultView: board\n' });
+    await row(page, 'Send the invoice').getByTestId('task-check').click();
+    await expect(page.getByTestId('bucket-head-week')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByTestId('bucket-count-week')).toHaveText('0');
+    await expect(page.getByTestId('bucket-week')).not.toContainText('Nothing else this week.');
+    await expect(page.getByTestId('bucket-overdue')).toHaveCount(0);
+  });
+
+  test('the board packs its columns when it opens and keeps them while you work', async ({ page }) => {
+    await openApp(page, { files: { 'tasks.md': BUSY, 'config.yaml': 'defaultView: board\n' }, now: '2026-10-18T09:00:00' });
+    await expect(page.getByTestId('board')).toBeVisible();
+    const packed = [['overdue'], ['today'], ['week', 'next'], ['later', 'someday']];
+    expect(await columns(page)).toEqual(packed);
+
+    // Completing the overdue task (and others) leaves every bucket in its column.
+    await row(page, 'Renew the passport').getByTestId('task-check').click();
+    await row(page, 'Errand 1').getByTestId('task-check').click();
+    await page.getByTestId('bucket-head-someday').click();
+    await expect(page.getByTestId('bucket-count-overdue')).toHaveText('0');
+    expect(await columns(page)).toEqual(packed);
+
+    // A reload opens on the saved files and packs again: no Overdue, the default layout.
+    await expect.poll(() => driveFile(page, 'tasks.md')).not.toContain('Errand 1');
+    const saved = await driveFile(page, 'tasks.md');
+    await page.evaluate((t) => sessionStorage.setItem('e2e-tasks', t), saved);
+    await page.addInitScript(() => {
+      const t = sessionStorage.getItem('e2e-tasks');
+      if (t) (window as unknown as { __TASKAPP_SEED__: unknown }).__TASKAPP_SEED__ = { 'tasks.md': t, 'config.yaml': 'defaultView: board\n' };
+    });
+    await page.reload();
+    await expect(page.getByTestId('board')).toBeVisible();
+    await expect(row(page, 'Errand 2')).toBeVisible();
+    expect(await columns(page)).toEqual([['today'], ['week'], ['next'], ['later', 'someday']]);
+  });
+
+  test('a task dragged onto Overdue stays where it was', async ({ page }) => {
+    await openApp(page, { files: { 'tasks.md': BUSY, 'config.yaml': 'defaultView: board\n' }, now: '2026-10-18T09:00:00' });
+    await row(page, 'Plan the trip').dragTo(page.getByTestId('bucket-head-overdue'));
+    await expect(page.getByTestId('bucket-next').getByTestId('task-row').filter({ hasText: 'Plan the trip' })).toHaveCount(1);
+    await expect(page.getByTestId('bucket-count-overdue')).toHaveText('1');
+    await expect(page.getByTestId('toast')).toHaveCount(0);
   });
 
   test('selecting a task replaces Always with the detail; Esc brings it back', async ({ page }) => {
