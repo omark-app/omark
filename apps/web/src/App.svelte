@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ISODate } from '@taskapp/core';
+  import type { DoneEntry, ISODate } from '@taskapp/core';
   import { boot } from './lib/boot.ts';
   import type { BootResult } from './lib/boot.ts';
   import TaskListView from './components/TaskListView.svelte';
@@ -14,14 +14,23 @@
   import MoveSheet from './components/MoveSheet.svelte';
   import Fab from './components/Fab.svelte';
   import SignIn from './components/SignIn.svelte';
+  import SearchPanel from './components/SearchPanel.svelte';
+  import DoneSheet from './components/DoneSheet.svelte';
+  import { createSearch } from './lib/search.svelte.ts';
+  import type { SearchResult } from './lib/search.svelte.ts';
+  import { commandFor, keyInput } from './lib/keys.ts';
 
-  /** The open sheet. A drop on Later sets `suggested` and `beforeId`. Add, edit and move are phone sheets. */
+  /**
+   * The open sheet. A drop on Later sets `suggested` and `beforeId`. Add, edit and move are phone sheets;
+   * done shows a completed task found by search.
+   */
   type OpenSheet =
     | { kind: 'date'; id: string; suggested?: ISODate; beforeId?: string }
     | { kind: 'repeat'; id: string }
     | { kind: 'add' }
     | { kind: 'edit'; id: string }
-    | { kind: 'move'; id: string };
+    | { kind: 'move'; id: string }
+    | { kind: 'done'; entry: DoneEntry };
 
   let result = $state.raw<BootResult | null>(null);
   let error = $state<string | null>(null);
@@ -29,6 +38,7 @@
   let sheet = $state<OpenSheet | null>(null);
   // Phones always get the Task list (whatever the view), with the + button.
   const phone = createPhone();
+  const search = createSearch();
 
   const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
@@ -56,6 +66,39 @@
   function openDropDate(id: string, suggested: ISODate, beforeId: string | null): void {
     sheet = { kind: 'date', id, suggested, beforeId: beforeId ?? undefined };
   }
+
+  /** `f` or Ctrl+K anywhere but a field or an open sheet (the views ignore the command). */
+  function onkeydown(e: KeyboardEvent): void {
+    if (result?.kind !== 'ready' || search.mode === 'open') return;
+    if (commandFor(keyInput(e), result.store.config.shortcuts) !== 'search') return;
+    e.preventDefault();
+    search.open();
+  }
+
+  /** An open task shows in the desktop detail or the phone's edit sheet; a completed one in its own sheet. */
+  function openResult(r: SearchResult): void {
+    if (result?.kind !== 'ready') return;
+    if (r.kind === 'done') {
+      sheet = { kind: 'done', entry: r.entry };
+      search.view(null);
+    } else if (phone.value) {
+      sheet = { kind: 'edit', id: r.id };
+      search.view(null);
+    } else {
+      result.store.select(r.id);
+      search.view(r.id);
+    }
+  }
+
+  // Closing the opened result goes back to search. Selecting another task on desktop leaves search.
+  $effect(() => {
+    if (search.mode !== 'viewing' || result?.kind !== 'ready') return;
+    const selectedId = result.store.selectedId;
+    if (search.viewing === null) {
+      if (sheet === null) search.back();
+    } else if (selectedId === null) search.back();
+    else if (selectedId !== search.viewing) search.close(false);
+  });
 
   const LOSE_EDITS =
     "You have changes that aren't saved to OneDrive yet. Signing in again will lose them. Continue?";
@@ -91,6 +134,8 @@
   });
 </script>
 
+<svelte:window {onkeydown} />
+
 {#if error !== null}
   <div class="notice">
     <p role="alert">TaskApp could not start: {error}</p>
@@ -108,9 +153,10 @@
   {#if store.view === 'board' && !phone.value}
     <WeekBoardView {store} onCommand={openSheet} onDropPickDate={openDropDate} {onSignIn} />
   {:else}
-    <TaskListView {store} onCommand={openSheet} onDropPickDate={openDropDate} {onSignIn} />
+    <TaskListView {store} onCommand={openSheet} onDropPickDate={openDropDate} {onSignIn} onSearch={() => search.open()} />
   {/if}
   {#if phone.value}<Fab onclick={() => (sheet = { kind: 'add' })} />{/if}
+  {#if search.mode === 'open'}<SearchPanel {store} {search} onopen={openResult} />{/if}
   <!-- One sheet per kind, so a sheet opened from another (move → date) gets its own focus and backdrop guard. -->
   {#key sheet?.kind}
     <Sheet open={sheet !== null} onclose={closeSheet}>
@@ -126,6 +172,8 @@
       {:else if sheet?.kind === 'move'}
         {@const id = sheet.id}
         <MoveSheet {store} taskId={id} oncommand={(c) => openSheet(c, id)} onclose={closeSheet} />
+      {:else if sheet?.kind === 'done'}
+        <DoneSheet {store} entry={sheet.entry} onclose={closeSheet} />
       {/if}
     </Sheet>
   {/key}

@@ -57,6 +57,14 @@ describe('commandFor', () => {
     expect(commandFor(ev('X', { shiftKey: true }), sc)).toBeNull();
   });
 
+  it('maps f and Ctrl+K (and Cmd+K) to search, but not while typing', () => {
+    expect(commandFor(ev('f'), sc)).toBe('search');
+    expect(commandFor(ev('k', { ctrlKey: true }), sc)).toBe('search');
+    expect(commandFor(ev('K', { metaKey: true }), sc)).toBe('search');
+    expect(commandFor(ev('f', { typing: true }), sc)).toBeNull();
+    expect(commandFor(ev('k', { ctrlKey: true, typing: true }), sc)).toBeNull();
+  });
+
   it('ignores AltGr characters', () => {
     expect(commandFor(ev('ż', { ctrlKey: true, altKey: true }), sc)).toBeNull();
   });

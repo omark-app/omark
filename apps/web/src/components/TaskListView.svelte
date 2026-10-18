@@ -21,7 +21,14 @@
     onCommand = () => {},
     onDropPickDate = () => {},
     onSignIn,
-  }: { store: AppStore; onCommand?: OnCommand; onDropPickDate?: OnDropPickDate; onSignIn?: () => void } = $props();
+    onSearch,
+  }: {
+    store: AppStore;
+    onCommand?: OnCommand;
+    onDropPickDate?: OnDropPickDate;
+    onSignIn?: () => void;
+    onSearch?: () => void;
+  } = $props();
 
   let addInput: AddInput | undefined = $state();
   let detail: TaskDetail | undefined = $state();
@@ -48,7 +55,15 @@
   {#if store.cacheWarning}<p class="warn" role="status">{store.cacheWarning}</p>{/if}
   {#if store.configError}<ConfigBanner error={store.configError} />{/if}
   <!-- Phones have no footer: the save status sits beside the stats (problems are in the sync banner above). -->
-  {#if phone.value}<div class="top"><Stats stats={store.stats} variant="line" /><StatusLine status={store.status} /></div>{/if}
+  {#if phone.value}
+    <div class="top">
+      <Stats stats={store.stats} variant="line" />
+      <span class="topr">
+        <StatusLine status={store.status} />
+        {#if onSearch}<button class="find" data-testid="search-open" aria-label="Search" onclick={onSearch}>🔍</button>{/if}
+      </span>
+    </div>
+  {/if}
   <div class="frame">
     <!-- Double-click is a pointer convenience; the keyboard edits with Enter. -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -122,4 +137,7 @@
     .buckets { overflow-x: clip; }
   }
   .top { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 14px; flex-wrap: wrap; }
+  .topr { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; }
+  .find { width: 36px; height: 32px; margin: -8px -6px -8px 0; padding: 0; border: 0; border-radius: 8px; background: none; font-size: 16px; filter: grayscale(1); opacity: .7; cursor: pointer; }
+  .find:active { background: var(--sel); }
 </style>
