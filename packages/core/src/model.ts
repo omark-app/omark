@@ -39,11 +39,15 @@ export interface Task {
   rawKey: string | null;
 }
 
-/** One completion, as written to `done.md` (Task 9). `doneOn` is null for a `- [x]` line with no ✅ date. */
+/**
+ * One completion, as written to `done.md` (Task 9). `doneOn` is null for a `- [x]` line with no ✅ date.
+ * `notes` are the indented lines under it as `noteText` reads them (empty for a one-line entry).
+ */
 export interface DoneEntry {
   title: string;
   repeat: RepeatRule | null;
   doneOn: ISODate | null;
+  notes: string[];
 }
 
 /**
@@ -68,7 +72,10 @@ export interface TasksDoc {
   alwaysRaw: { lines: string[]; key: string } | null;
 }
 
-/** One line of `done.md`. `entry` is null for a line without a valid ✅ date (kept as is); `raw` has no newline. */
+/**
+ * One line of `done.md`. `entry` is null for a line without a valid ✅ date and for the note lines under a
+ * done line (both kept as is); `raw` has no newline.
+ */
 export interface DoneLine {
   entry: DoneEntry | null;
   raw: string;

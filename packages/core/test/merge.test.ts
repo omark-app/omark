@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import {
-  carryIds, merge3, mergeDoneText, mergeTasksText, parseTasks, serializeTasks, toBlocks,
+  carryIds, doneBlocks, merge3, mergeDoneText, mergeTasksText, parseDone, parseTasks, serializeTasks, toBlocks,
   type Item, type Task, type TasksDoc,
 } from '../src/index.ts';
 
@@ -247,6 +247,55 @@ test('mergeDoneText: the same line appended twice on one side keeps both copies,
   const other = DONE_BASE + md('- [x] Renew passport ✅ 2026-10-20');
   expect(mergeDoneText(DONE_BASE, twice, other)).toBe(DONE_BASE + md(water, water, '- [x] Renew passport ✅ 2026-10-20'));
   expect(mergeDoneText(DONE_BASE, other, twice)).toBe(DONE_BASE + md('- [x] Renew passport ✅ 2026-10-20', water, water));
+});
+
+test('mergeDoneText: completions with notes on both devices keep each note under its own line', () => {
+  const dentist = ['- [x] Call the dentist ✅ 2026-10-20', '    - ask about zirconia', '    - bring the old x-ray'];
+  const trip = ['- [x] Trip ✅ 2026-10-20', '\t* passport', '        - nested'];
+  const local = DONE_BASE + md(...dentist);
+  const remote = DONE_BASE + md(...trip);
+  expect(mergeDoneText(DONE_BASE, local, remote)).toBe(DONE_BASE + md(...dentist, ...trip));
+  expect(mergeDoneText(DONE_BASE, remote, local)).toBe(DONE_BASE + md(...trip, ...dentist));
+  const notes = parseDone(mergeDoneText(DONE_BASE, local, remote)).lines.flatMap((l) =>
+    l.entry ? [[l.entry.title, l.entry.notes]] : [],
+  );
+  expect(notes.slice(2)).toEqual([
+    ['Call the dentist', ['ask about zirconia', 'bring the old x-ray']],
+    ['Trip', ['passport', 'nested']],
+  ]);
+});
+
+test('mergeDoneText: the same repeating task completed on both devices keeps both blocks, notes unmixed', () => {
+  const a = ['- [x] Water 🔁 every day ✅ 2026-10-20', '    - ferns'];
+  const b = ['- [x] Water 🔁 every day ✅ 2026-10-20', '    - ferns and the cactus'];
+  for (const [x, y] of [[a, b], [b, a]] as const) {
+    expect(mergeDoneText(DONE_BASE, DONE_BASE + md(...x), DONE_BASE + md(...y))).toBe(DONE_BASE + md(...x, ...y));
+  }
+  // Identical blocks are the same completion, written once (as for one-line entries).
+  expect(mergeDoneText(DONE_BASE, DONE_BASE + md(...a), DONE_BASE + md(...a))).toBe(DONE_BASE + md(...a));
+  // Several blocks on each side stay whole and in each side's order.
+  const c = ['- [x] Post ✅ 2026-10-20', '    - stamps'];
+  expect(mergeDoneText(DONE_BASE, DONE_BASE + md(...a, ...c), DONE_BASE + md(...b))).toBe(
+    DONE_BASE + md(...a, ...c, ...b),
+  );
+});
+
+test('mergeDoneText: undoing a completion takes its notes along; a note added by hand is kept', () => {
+  const dentist = ['- [x] Call the dentist ✅ 2026-10-20', '    - ask about zirconia'];
+  const trip = ['- [x] Trip ✅ 2026-10-20', '    - passport'];
+  const base = DONE_BASE + md(...dentist);
+  expect(mergeDoneText(base, DONE_BASE, base + md(...trip))).toBe(DONE_BASE + md(...trip));
+  // A note added under an old entry in Obsidian on one side, a completion on the other.
+  const annotated = md('- [x] Send the invoice ✅ 2026-10-16', '    - paid on the 18th') + DONE_BASE.split('\n')[1] + '\n';
+  expect(mergeDoneText(DONE_BASE, annotated, DONE_BASE + md(...trip))).toBe(annotated + md(...trip));
+});
+
+test('mergeDoneText: a tasks.md heading in done.md does not split a done line from its notes', () => {
+  const base = md('# Tasks', '- [x] A ✅ 2026-10-01', '    - a note');
+  const local = base + md('- [x] B ✅ 2026-10-02', '    - b note');
+  const remote = base + md('- [x] C ✅ 2026-10-02', '    - c note');
+  expect(mergeDoneText(base, local, remote)).toBe(base + md('- [x] B ✅ 2026-10-02', '    - b note', '- [x] C ✅ 2026-10-02', '    - c note'));
+  expect(doneBlocks(md('# Always', '- [x] A ✅ 2026-10-01', '    - a note'))).toEqual(['# Always', '- [x] A ✅ 2026-10-01\n    - a note']);
 });
 
 // ---------- copies of identical blocks ----------

@@ -110,16 +110,35 @@ function counts(xs: string[]): Map<string, number> {
 
 /** Merges three versions of `tasks.md`; the result is LF with one final newline ('' when empty). */
 export function mergeTasksText(base: string, local: string, remote: string): string {
-  return mergeText(base, local, remote);
+  return mergeText(base, local, remote, toBlocks);
 }
 
-/** Merges three versions of `done.md`; the result is LF with one final newline ('' when empty). */
+/**
+ * Merges three versions of `done.md`; the result is LF with one final newline ('' when empty). A done line
+ * and its note lines are one block, so concurrent completions never mix their notes.
+ */
 export function mergeDoneText(base: string, local: string, remote: string): string {
-  return mergeText(base, local, remote);
+  return mergeText(base, local, remote, doneBlocks);
 }
 
-function mergeText(base: string, local: string, remote: string): string {
-  const blocks = merge3(toBlocks(base), toBlocks(local), toBlocks(remote));
+/**
+ * Splits `done.md` into merge blocks as `parseDone` reads it: a `- [x]` line takes its indented lines,
+ * every other line is a block of its own. Unlike `toBlocks` it never looks for `tasks.md` headings, so a
+ * stray `# Always` or `# Tasks` line cannot split a done line from its notes.
+ */
+export function doneBlocks(text: string): string[] {
+  const lines = toLines(text);
+  const blocks: string[] = [];
+  for (let i = 0; i < lines.length; ) {
+    const end = blockEnd(lines, i);
+    blocks.push(lines.slice(i, end).join('\n'));
+    i = end;
+  }
+  return blocks;
+}
+
+function mergeText(base: string, local: string, remote: string, split: (text: string) => string[]): string {
+  const blocks = merge3(split(base), split(local), split(remote));
   return blocks.length === 0 ? '' : `${blocks.join('\n')}\n`;
 }
 
