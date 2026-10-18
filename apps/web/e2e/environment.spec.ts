@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 // Chromium can map the staging host name to the local preview server; WebKit can't, so the iPhone check
 // is done by hand on tasks-staging.alipka.com.
 test.skip(({ browserName }) => browserName !== 'chromium', 'needs --host-resolver-rules');
-test.use({ launchOptions: { args: ['--host-resolver-rules=MAP tasks-staging.alipka.com 127.0.0.1, MAP pr-1.taskapp-staging.pages.dev 127.0.0.1'] } });
+test.use({ launchOptions: { args: ['--host-resolver-rules=MAP tasks-staging.alipka.com localhost, MAP pr-1.taskapp-staging.pages.dev localhost'] } });
 
 const STAGING = 'http://tasks-staging.alipka.com:4173/';
 const PREVIEW = 'http://pr-1.taskapp-staging.pages.dev:4173/';
