@@ -46,6 +46,11 @@ export interface Workspace {
    * brings in only outside changes.
    */
   texts(): Snapshot;
+  /**
+   * Calls `cb` after a sync operation brought remote content into a working text: a `refresh`, and also a
+   * save whose write met a newer file (another device's change) and merged it in. Read `texts()` then.
+   */
+  onRemoteChange(cb: () => void): () => void;
   /** Worst of the three files: signin > offline > syncing > saved. */
   status(): SyncStatus;
   onStatus(cb: (s: SyncStatus) => void): () => void;
@@ -119,6 +124,12 @@ export function createWorkspace(adapter: StorageAdapter, cache: LocalCache): Wor
       if (errors.length > 0) throw errors[0];
     },
     status,
+    onRemoteChange(cb) {
+      const offs = all.map((f) => f.onRemoteChange(cb));
+      return () => {
+        for (const off of offs) off();
+      };
+    },
     onStatus(cb) {
       if (!wired) {
         wired = true;

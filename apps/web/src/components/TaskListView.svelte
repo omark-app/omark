@@ -6,6 +6,7 @@
   import Stats from './Stats.svelte';
   import Hints from './Hints.svelte';
   import StatusLine from './StatusLine.svelte';
+  import SyncBanner from './SyncBanner.svelte';
   import ConfigBanner from './ConfigBanner.svelte';
   import Toast from './Toast.svelte';
   import AddInput from './AddInput.svelte';
@@ -43,10 +44,11 @@
 <svelte:window {onkeydown} />
 
 <div class="wrap">
+  <SyncBanner {store} onsignin={onSignIn} />
   {#if store.cacheWarning}<p class="warn" role="status">{store.cacheWarning}</p>{/if}
   {#if store.configError}<ConfigBanner error={store.configError} />{/if}
-  <!-- Phones have no footer: the save status sits beside the stats, so `sign in needed` is in reach. -->
-  {#if phone.value}<div class="top"><Stats stats={store.stats} variant="line" /><StatusLine status={store.status} onsignin={onSignIn} /></div>{/if}
+  <!-- Phones have no footer: the save status sits beside the stats (problems are in the sync banner above). -->
+  {#if phone.value}<div class="top"><Stats stats={store.stats} variant="line" /><StatusLine status={store.status} /></div>{/if}
   <div class="frame">
     <!-- Double-click is a pointer convenience; the keyboard edits with Enter. -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -95,7 +97,7 @@
   {#if !phone.value}
     <footer class="foot">
       <Hints />
-      <StatusLine status={store.status} onsignin={onSignIn} />
+      <StatusLine status={store.status} />
     </footer>
   {/if}
 </div>

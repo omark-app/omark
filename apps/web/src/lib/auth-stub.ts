@@ -6,9 +6,10 @@ import type { Auth, FileName, StorageAdapter } from '@taskapp/storage';
  * app loads. Only the fake-storage build reads it (see `boot`):
  * - `signed-out`: no account, so the sign-in screen shows;
  * - `expired`: signed in, but every token refresh needs a fresh sign-in;
- * - `redirect-error`: returning from the sign-in page fails, so the app cannot start.
+ * - `redirect-error`: returning from the sign-in page fails, so the app cannot start;
+ * - `stalled-start`: the sign-in library never finishes starting (a hung MSAL), and tokens need a sign-in.
  */
-export type AuthStubState = 'signed-out' | 'expired' | 'redirect-error';
+export type AuthStubState = 'signed-out' | 'expired' | 'redirect-error' | 'stalled-start';
 
 /** A stand-in for MSAL. `signIns` counts sign-in attempts (the real one would leave the page). */
 export interface AuthStub extends Auth {
@@ -23,6 +24,7 @@ export function createAuthStub(state: AuthStubState): AuthStub {
     },
     async handleRedirect() {
       if (state === 'redirect-error') throw new Error('The sign-in response could not be read');
+      if (state === 'stalled-start') await new Promise<never>(() => {});
     },
     isSignedIn: () => state !== 'signed-out',
     async signIn() {

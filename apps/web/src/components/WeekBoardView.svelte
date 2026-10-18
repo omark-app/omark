@@ -7,6 +7,7 @@
   import Stats from './Stats.svelte';
   import Hints from './Hints.svelte';
   import StatusLine from './StatusLine.svelte';
+  import SyncBanner from './SyncBanner.svelte';
   import ConfigBanner from './ConfigBanner.svelte';
   import Toast from './Toast.svelte';
   import AddInput from './AddInput.svelte';
@@ -56,9 +57,10 @@
       {/if}
     </div>
     <Hints />
-    <StatusLine status={store.status} onsignin={onSignIn} />
+    <StatusLine status={store.status} />
   </aside>
   <div class="main">
+    <SyncBanner {store} onsignin={onSignIn} />
     {#if store.cacheWarning}<p class="warn" role="status">{store.cacheWarning}</p>{/if}
     {#if store.configError}<ConfigBanner error={store.configError} />{/if}
     <AddInput bind:this={addInput} {store} />

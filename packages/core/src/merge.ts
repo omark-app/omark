@@ -1,4 +1,4 @@
-import { diff3Merge } from 'node-diff3';
+import { diff3Merge, diffComm } from 'node-diff3';
 import type { Item, TasksDoc } from './model.ts';
 import { blockEnd, itemsStart, taskLines, toLines } from './tasks-file.ts';
 
@@ -21,10 +21,10 @@ export function toBlocks(text: string): string[] {
 
 /**
  * Three-way merge of block lists. A change on one side wins; where both sides changed the same stretch,
- * every block either side added or edited is kept (local's first, then remote's), so nothing is lost and
- * the same task edited on both sides comes out as two tasks. A base block survives a conflict only if
- * both sides kept it. A base block never ends up with more copies than either side has (so a block both
- * sides moved is not duplicated).
+ * every block either side added or edited is kept, so nothing is lost and the same task edited on both
+ * sides comes out as two tasks. A base block survives a conflict only if both sides kept it. No block ends
+ * up with more copies than either side has: a block both sides moved is not duplicated, and neither is a
+ * block both sides added (the same completion of a repeating task on two devices).
  */
 export function merge3(base: string[], local: string[], remote: string[]): string[] {
   const merged: { block: string; conflict: boolean }[] = [];
@@ -36,13 +36,16 @@ export function merge3(base: string[], local: string[], remote: string[]): strin
       for (const block of resolveConflict(a, o, b)) merged.push({ block, conflict: true });
     }
   }
-  return capBaseCopies(merged, base, local, remote);
+  return capCopies(merged, local, remote);
 }
 
 /**
  * Resolves one conflict hunk by counting copies. For each block x (counts aₓ, oₓ, bₓ in the hunk) the hunk
  * keeps min(oₓ, aₓ, bₓ) base copies both sides kept, plus max(aₓ − oₓ, bₓ − oₓ, 0) new copies. The copies
- * are emitted walking local in order, then remote for whatever is left.
+ * are emitted in base order: each block where it sits against the base on its side, local's first where
+ * both sides put something at one spot. So a hunk where each side only changed blocks in place keeps its
+ * order (emitting all of local, then remote, could swap two tasks, and a later merge against a base in the
+ * old order would then read the swapped block as new and keep it twice).
  */
 function resolveConflict(a: string[], o: string[], b: string[]): string[] {
   const ca = counts(a);
@@ -55,8 +58,30 @@ function resolveConflict(a: string[], o: string[], b: string[]): string[] {
     const bx = cb.get(x) ?? 0;
     quota.set(x, Math.min(ox, ax, bx) + Math.max(ax - ox, bx - ox, 0));
   }
+  // Each side's blocks keyed by where they sit against the base: a kept block at its base index i, a
+  // block that replaced base blocks from i at i too, and a pure insertion before base block i at i − ½.
+  // Sorting by key (local before remote on a tie) interleaves the two sides around the base.
+  const placed = (side: string[]): number[] => {
+    const keys: number[] = [];
+    let i = 0;
+    for (const part of diffComm(o, side)) {
+      if (part.common) {
+        keys.push(...part.common.map(() => i++));
+      } else {
+        const key = part.buffer1.length > 0 ? i : i - 0.5;
+        keys.push(...part.buffer2.map(() => key));
+        i += part.buffer1.length;
+      }
+    }
+    return keys;
+  };
+  const ka = placed(a);
+  const kb = placed(b);
+  const walk = [...a.map((x, i) => ({ x, key: ka[i]! })), ...b.map((x, i) => ({ x, key: kb[i]! }))]
+    .sort((p, q) => p.key - q.key)
+    .map((p) => p.x);
   const out: string[] = [];
-  for (const x of [...a, ...b]) {
+  for (const x of walk) {
     const left = quota.get(x)!;
     if (left > 0) {
       out.push(x);
@@ -67,22 +92,16 @@ function resolveConflict(a: string[], o: string[], b: string[]): string[] {
 }
 
 /**
- * Removes surplus copies of base blocks: a block in base appears at most max(local count, remote count)
- * times. Copies from conflict hunks go first, then from stable stretches, the latest first in each.
- * Blocks not in base are left alone.
+ * Removes surplus copies: a block appears at most max(local count, remote count) times. Copies from
+ * conflict hunks go first, then from stable stretches, the latest first in each. A block cannot exceed
+ * that bound by any one side's doing, so a surplus is always the same block kept from both sides (a base
+ * block both sides moved, or a block both sides added in different places).
  */
-function capBaseCopies(
-  merged: { block: string; conflict: boolean }[],
-  base: string[],
-  local: string[],
-  remote: string[],
-): string[] {
-  const inBase = new Set(base);
+function capCopies(merged: { block: string; conflict: boolean }[], local: string[], remote: string[]): string[] {
   const cl = counts(local);
   const cr = counts(remote);
   const surplus = new Map<string, number>();
   for (const [x, n] of counts(merged.map((m) => m.block))) {
-    if (!inBase.has(x)) continue;
     const extra = n - Math.max(cl.get(x) ?? 0, cr.get(x) ?? 0);
     if (extra > 0) surplus.set(x, extra);
   }
