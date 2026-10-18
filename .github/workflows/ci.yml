@@ -1,7 +1,18 @@
 name: CI
+# PRs: check, e2e, and a preview of the fake build e2e just tested. Merges to main: the same checks, then a
+# deploy to staging. Production only changes through promote.yml. (doc/TaskApp factory spec.md, section 6)
 on:
-  push:
   pull_request:
+    paths-ignore: ['doc/**', '**/*.md']
+  push:
+    branches: [main]
+    paths-ignore: ['doc/**', '**/*.md']
+concurrency:
+  group: ci-${{ github.ref }}
+  # A newer push to a PR replaces the older run; runs on main always finish, so staging gets every merge.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+permissions:
+  contents: read
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -13,10 +24,17 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Lint workflows
+        uses: docker://rhysd/actionlint:1.7.7
+        with:
+          args: -color
       - run: pnpm typecheck
       - run: pnpm test
   e2e:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -25,39 +43,101 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Playwright version
+        id: pw
         working-directory: apps/web
-      - run: pnpm e2e
-  deploy:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [check, e2e]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
         with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      # The client ID is no longer built in: the sign-in helper reads it from the Pages secret MSAL_CLIENT_ID.
-      - run: pnpm --filter web build
-      - uses: cloudflare/wrangler-action@v3
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - name: Install Playwright browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        working-directory: apps/web
+        run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Install Playwright system packages
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        working-directory: apps/web
+        run: pnpm exec playwright install-deps chromium webkit
+      - run: pnpm e2e
+      # The preview is the fake build e2e just tested (apps/web/dist), so it costs no extra build or job.
+      - name: Make sure the staging project exists
+        if: github.event_name == 'pull_request'
+        run: node tools/ci/ensure-staging.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Deploy the preview
+        id: preview
+        if: github.event_name == 'pull_request'
+        uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # Use the workspace's pinned wrangler; the action can't `pnpm add` it at a workspace root.
           wranglerVersion: '4.151.1'
+          command: pages deploy apps/web/dist --project-name=taskapp-staging --branch=pr-${{ github.event.number }}
+      - name: Comment the preview link
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.pages-deployment-alias-url || steps.preview.outputs.deployment-url }}
+        with:
+          script: |
+            const marker = '<!-- taskapp-preview -->';
+            const sha = context.payload.pull_request.head.sha.slice(0, 7);
+            const body = `${marker}\n**Preview:** ${process.env.PREVIEW_URL}\n\nFake drive with sample tasks, build \`${sha}\`. Sign-in is stubbed.`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const old = comments.find((c) => c.body?.startsWith(marker));
+            if (old) await github.rest.issues.updateComment({ owner, repo, comment_id: old.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+  deploy-staging:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [check, e2e]
+    runs-on: ubuntu-latest
+    concurrency:
+      group: staging
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # One build for staging and production: the app picks its folder and look from the host name.
+      - run: pnpm --filter web build
+      - name: Keep the build for Promote
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist
+          retention-days: 30
+      - name: Make sure the staging project exists
+        run: node tools/ci/ensure-staging.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: '4.151.1'
           # Run from the repo root, so wrangler also bundles functions/ (the sign-in helper at /api/auth/*).
-          command: pages deploy apps/web/dist --project-name=taskapp --branch=main
+          command: pages deploy apps/web/dist --project-name=taskapp-staging --branch=main
       - name: Check the sign-in helper is live
         # /api/auth/login answers with a redirect to Microsoft only when the functions shipped and the
-        # MSAL_CLIENT_ID, MSAL_CLIENT_SECRET and COOKIE_KEY secrets are set.
+        # MSAL_CLIENT_ID, MSAL_CLIENT_SECRET and COOKIE_KEY secrets are set on taskapp-staging.
         run: |
-          for i in 1 2 3 4 5 6; do
-            location=$(curl -s -o /dev/null -w '%{redirect_url}' https://tasks.alipka.com/api/auth/login)
+          for _ in 1 2 3 4 5 6; do
+            location=$(curl -s -o /dev/null -w '%{redirect_url}' https://tasks-staging.alipka.com/api/auth/login)
             case "$location" in https://login.microsoftonline.com/consumers/*) echo "Sign-in helper OK"; exit 0;; esac
             sleep 10
           done
-          echo "::error::https://tasks.alipka.com/api/auth/login does not redirect to Microsoft; check the Pages secrets (README, Sign-in)."
+          echo "::error::https://tasks-staging.alipka.com/api/auth/login does not redirect to Microsoft; check the taskapp-staging Pages secrets (README, Sign-in)."
           exit 1
