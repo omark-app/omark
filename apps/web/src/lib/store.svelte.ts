@@ -187,7 +187,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   /** Bumped to pack the board again; the packing itself reads nothing reactively, so work never moves it. */
   let packs = $state(0);
   let packed: { packs: number; columns: BucketKey[][] } | null = null;
-  /** A start from the cache packs again once, if the first pull brings changes. */
+  /** A start from the cache packs again when the first successful pull brings changes. */
   let repackOnPull = snap.fromCache;
   let toast = $state.raw<Toast | null>(null);
   let status = $state<SyncStatus>(workspace.status());
@@ -490,9 +490,12 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     return refreshing;
   }
 
+  /** Adopts outside changes; the first successful pull after a start from the cache packs the board again. */
+  function adoptRemote(): void {
+    if (adopt() && repackOnPull) packs++;
+  }
+
   async function refreshOnce(): Promise<void> {
-    const repack = repackOnPull;
-    repackOnPull = false;
     for (const fn of [...pending]) fn();
     clearTimeout(saveTimer);
     saveTimer = undefined;
@@ -505,12 +508,14 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
       return; // The cache could not be read (status shows offline); the next refresh tries again.
     }
     await serial(async () => {
-      if (adopt() && repack) packs++;
+      adoptRemote();
+      repackOnPull = false;
     });
   }
 
-  // A save that met another device's change merged it in (#6): show it now, not on the next focus.
-  workspace.onRemoteChange(() => void serial(async () => adopt()).catch((e: unknown) => console.error(e)));
+  // A pull or save that met another device's change merged it in (#6): show it now, not on the next focus.
+  // During the first pull this can run before `refreshOnce` adopts, so it may pack the board too.
+  workspace.onRemoteChange(() => void serial(async () => adoptRemote()).catch((e: unknown) => console.error(e)));
 
   // Lines ticked in Obsidian were swept on load: write them out.
   if (isDirty()) scheduleSave();
