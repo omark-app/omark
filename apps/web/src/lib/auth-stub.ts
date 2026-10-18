@@ -11,7 +11,7 @@ import type { Auth, FileName, StorageAdapter } from '@taskapp/storage';
  */
 export type AuthStubState = 'signed-out' | 'expired' | 'redirect-error' | 'stalled-start';
 
-/** A stand-in for MSAL. `signIns` counts sign-in attempts (the real one would leave the page). */
+/** A stand-in for the sign-in helper. `signIns` counts sign-in attempts (the real one would leave the page). */
 export interface AuthStub extends Auth {
   readonly signIns: number;
 }

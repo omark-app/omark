@@ -10,6 +10,7 @@
     "test": "vitest run",
     "typecheck": "pnpm -r --if-present typecheck",
     "e2e": "pnpm -r --if-present e2e",
+    "dev:signin": "pnpm --filter web build && wrangler pages dev apps/web/dist --port 5173",
     "e2e:real:login": "pnpm --filter web e2e:real:login",
     "e2e:real": "pnpm --filter web e2e:real"
   },

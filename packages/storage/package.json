@@ -9,7 +9,6 @@
     "test": "vitest run --root ../.. --project @taskapp/storage"
   },
   "dependencies": {
-    "@azure/msal-browser": "^5.25.1",
     "@taskapp/core": "workspace:*",
     "idb-keyval": "^6.3.0"
   },

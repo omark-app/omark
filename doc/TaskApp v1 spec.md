@@ -18,7 +18,7 @@ A super simple personal task app replacing the parts of Todoist actually used: d
   - Windows 11: installed from Brave, pinned to the taskbar.
   - iPhone: added to the home screen.
   - Linux, Mac and Android work as a PWA for free; native wrappers are backlog.
-- **Hosting**: Cloudflare Pages at `tasks.alipka.com` (domain already on Cloudflare). The host serves only the app's static files.
+- **Hosting**: Cloudflare Pages at `tasks.alipka.com` (domain already on Cloudflare). The host serves the app's static files and a small stateless sign-in helper (Pages Functions under `/api/auth`).
 - **CI/CD**: GitHub Actions runs all tests; every push to `main` deploys to Cloudflare Pages.
 
 ## 3. Storage
@@ -26,7 +26,7 @@ A super simple personal task app replacing the parts of Todoist actually used: d
 ### 3.1 Provider
 
 - **OneDrive** via Microsoft Graph, called directly from the browser.
-- Sign-in with a Microsoft account using MSAL (SPA, auth code + PKCE). Requires a one-time free Microsoft Entra app registration that accepts personal accounts.
+- Sign-in with a Microsoft account through the sign-in helper (a token broker on the same origin: auth code + PKCE as a confidential web app, the refresh token in an encrypted HttpOnly cookie, a 90-day rolling session). Graph is still called from the browser with a short-lived access token. Requires a one-time free Microsoft Entra app registration that accepts personal accounts. (It replaced MSAL.js, whose SPA refresh tokens last 24 hours and whose hidden-iframe renewal Safari and Brave block.)
 - **Folder**: `OneDrive/ALAI/TaskApp/` (inside the existing Obsidian vault), chosen by the user. This needs the `Files.ReadWrite` scope.
   - For a later public release the default becomes the app's own folder (`Files.ReadWrite.AppFolder`) — see backlog.
 - Storage sits behind an adapter interface so other providers can be added later.
@@ -317,7 +317,8 @@ TypeScript monorepo (pnpm workspaces):
 | Package | Responsibility |
 |---|---|
 | `packages/core` | Pure TS with no UI or IO: parse/serialize `tasks.md`, `done.md` and `config.yaml`; bucket logic; recurrence; stats; search matching and ranking; three-way merge; config defaults and validation |
-| `packages/storage` | Storage adapter interface, OneDrive (Graph + MSAL) implementation, in-memory fake for tests, offline cache and write queue |
+| `packages/storage` | Storage adapter interface, OneDrive (Graph) implementation, sign-in client, in-memory fake for tests, offline cache and write queue |
+| `packages/signin` | The sign-in helper behind `/api/auth/*` (served by `functions/` at the repo root as Cloudflare Pages Functions) |
 | `apps/web` | Svelte 5 + Vite PWA: UI, keyboard and touch handling, service worker |
 | `tools/todoist-import` | One-time import script |
 
@@ -336,7 +337,7 @@ TDD throughout: tests are written first.
 
 ## 16. Implementation risks to check early
 
-- MSAL sign-in and token refresh inside an iOS home-screen PWA (standalone mode and redirect flow).
+- Sign-in and token refresh inside an iOS home-screen PWA (standalone mode and redirect flow).
 - Graph file download/upload from the browser (CORS, eTag behaviour on simple uploads).
 - Service worker caching and update flow on iOS.
 - Line-level three-way merge on hand-edited markdown (Obsidian or Claude Code may reformat lines).

@@ -1,106 +1,176 @@
-import {
-  BrowserAuthError,
-  BrowserAuthErrorCodes,
-  InteractionRequiredAuthError,
-  type AccountInfo,
-  type IPublicClientApplication,
-} from '@azure/msal-browser';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAuth } from '../src/auth.ts';
-import { AuthRequiredError } from '../src/errors.ts';
+import { AuthRequiredError, OfflineError } from '../src/errors.ts';
 
-const account = { homeAccountId: 'h', username: 'u@example.com' } as AccountInfo;
+const NOW = 1_800_000_000_000;
 
-function stub(overrides: Record<string, unknown> = {}) {
-  const msal = {
-    initialize: vi.fn(async () => {}),
-    handleRedirectPromise: vi.fn(async () => null),
-    getActiveAccount: vi.fn(() => account as AccountInfo | null),
-    getAllAccounts: vi.fn(() => [account]),
-    setActiveAccount: vi.fn(),
-    acquireTokenSilent: vi.fn(async () => ({ accessToken: 'tok' })),
-    loginRedirect: vi.fn(async () => {}),
-    acquireTokenRedirect: vi.fn(async () => {}),
-    ...overrides,
-  };
-  return msal as typeof msal & IPublicClientApplication;
+/** The sign-in helper's `/api/auth/token`: answers each call with the next queued reply. */
+function helper() {
+  const calls: Array<{ url: string; init: RequestInit }> = [];
+  const replies: Array<(signal: AbortSignal) => Promise<Response>> = [];
+  const fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(url), init: init! });
+    const reply = replies.shift();
+    if (!reply) throw new Error('unexpected token call');
+    return reply(init!.signal!);
+  });
+  const token = (accessToken: string, expiresAt = NOW + 3_600_000) =>
+    replies.push(async () => Response.json({ accessToken, expiresAt }));
+  const status = (code: number, body: unknown = {}) => replies.push(async () => Response.json(body, { status: code }));
+  const down = () =>
+    replies.push(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+  /** Never answers until aborted. */
+  const hang = () =>
+    replies.push(
+      (signal) =>
+        new Promise<Response>((_, reject) => signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))),
+    );
+  return { calls, fetch, token, status, down, hang };
 }
-const mk = (msal: IPublicClientApplication) =>
-  createAuth({ clientId: 'cid', redirectUri: 'https://x/', msal });
 
-describe('createAuth', () => {
-  it('getToken returns the silent access token', async () => {
-    const msal = stub();
-    expect(await mk(msal).getToken()).toBe('tok');
-    expect(msal.acquireTokenSilent).toHaveBeenCalledWith({ scopes: ['Files.ReadWrite'], account });
+let api: ReturnType<typeof helper>;
+let now: number;
+let cookie: string;
+const navigate = vi.fn();
+const mk = (timeoutMs?: number) =>
+  createAuth({ fetch: api.fetch as typeof fetch, navigate, cookies: () => cookie, now: () => now, timeoutMs });
+
+beforeEach(() => {
+  api = helper();
+  now = NOW;
+  cookie = 'other=1; taskapp_signed_in=1';
+  navigate.mockReset();
+});
+
+describe('createAuth (sign-in helper)', () => {
+  it('getToken POSTs to /api/auth/token with the CSRF header and returns the access token', async () => {
+    api.token('at1');
+    expect(await mk().getToken()).toBe('at1');
+    const { url, init } = api.calls[0]!;
+    expect(url).toBe('/api/auth/token');
+    expect(init.method).toBe('POST');
+    expect(init.headers).toEqual({ 'X-TaskApp-Auth': '1' });
+    expect(init.credentials).toBe('same-origin');
   });
 
-  it('throws AuthRequiredError without redirecting when interaction is required', async () => {
-    const msal = stub({
-      acquireTokenSilent: vi.fn(async () => {
-        throw new InteractionRequiredAuthError('interaction_required', 'needs interaction');
-      }),
-    });
-    await expect(mk(msal).getToken()).rejects.toBeInstanceOf(AuthRequiredError);
-    expect(msal.loginRedirect).not.toHaveBeenCalled();
-    expect(msal.acquireTokenRedirect).not.toHaveBeenCalled();
+  it('keeps the access token in memory until a minute before it expires', async () => {
+    const auth = mk();
+    api.token('at1', NOW + 10 * 60_000);
+    expect(await auth.getToken()).toBe('at1');
+    now = NOW + 8 * 60_000;
+    expect(await auth.getToken()).toBe('at1');
+    expect(api.calls).toHaveLength(1);
+    now = NOW + 9 * 60_000 + 1;
+    api.token('at2');
+    expect(await auth.getToken()).toBe('at2');
+    expect(api.calls).toHaveLength(2);
   });
 
-  it.each([BrowserAuthErrorCodes.timedOut, BrowserAuthErrorCodes.iframeClosedPrematurely, BrowserAuthErrorCodes.noAccountError])(
-    'throws AuthRequiredError when the silent refresh fails with %s (a fresh sign-in is needed)',
-    async (code) => {
-      const msal = stub({
-        acquireTokenSilent: vi.fn(async () => {
-          throw new BrowserAuthError(code, 'cid');
-        }),
+  it('fetches a new token when asked for a fresh one (Graph rejected the kept one)', async () => {
+    const auth = mk();
+    api.token('at1');
+    await auth.getToken();
+    api.token('at2');
+    expect(await auth.getToken({ fresh: true })).toBe('at2');
+  });
+
+  it('shares one refresh between concurrent callers', async () => {
+    const auth = mk();
+    api.token('at1');
+    expect(await Promise.all([auth.getToken(), auth.getToken(), auth.getToken()])).toEqual(['at1', 'at1', 'at1']);
+    expect(api.calls).toHaveLength(1);
+  });
+
+  it('maps 401 to AuthRequiredError and forgets the kept token', async () => {
+    const auth = mk();
+    api.token('at1', NOW + 2 * 60_000);
+    await auth.getToken();
+    now += 90_000;
+    api.status(401, { signin: true });
+    await expect(auth.getToken()).rejects.toBeInstanceOf(AuthRequiredError);
+    api.status(401, { signin: true });
+    await expect(auth.getToken()).rejects.toBeInstanceOf(AuthRequiredError);
+  });
+
+  it.each([
+    ['a 503', () => api.status(503)],
+    ['a 500', () => api.status(500)],
+    ['no network', () => api.down()],
+    ['a body without a token', () => api.status(200, { nope: 1 })],
+  ])('maps %s to OfflineError (retried later, not "sign in needed")', async (_, reply) => {
+    const auth = mk();
+    reply();
+    await expect(auth.getToken()).rejects.toBeInstanceOf(OfflineError);
+    api.token('at1');
+    expect(await auth.getToken()).toBe('at1');
+  });
+
+  it('gives up on a token call after the time limit, as offline', async () => {
+    api.hang();
+    await expect(mk(20).getToken()).rejects.toThrow(new OfflineError('Sign-in helper timed out'));
+  });
+
+  it('signIn navigates the whole page to /api/auth/login', async () => {
+    await mk().signIn();
+    expect(navigate).toHaveBeenCalledWith('/api/auth/login');
+    expect(api.fetch).not.toHaveBeenCalled();
+  });
+
+  it('isSignedIn reads the helper’s readable hint cookie', () => {
+    expect(mk().isSignedIn()).toBe(true);
+    cookie = 'other=1';
+    expect(mk().isSignedIn()).toBe(false);
+    cookie = 'not_taskapp_signed_in=1';
+    expect(mk().isSignedIn()).toBe(false);
+  });
+
+  describe('handleRedirect', () => {
+    let store: Map<string, string>;
+    const replaceState = vi.fn();
+
+    beforeEach(() => {
+      store = new Map([
+        ['msal.3.account.keys', '[]'],
+        ['msal.3|acct|login.windows.net', '{}'],
+        ['taskapp:cache-migrated', '1'],
+      ]);
+      vi.stubGlobal('localStorage', {
+        get length() {
+          return store.size;
+        },
+        key: (i: number) => [...store.keys()][i] ?? null,
+        removeItem: (k: string) => store.delete(k),
       });
-      await expect(mk(msal).getToken()).rejects.toBeInstanceOf(AuthRequiredError);
-      expect(msal.loginRedirect).not.toHaveBeenCalled();
-    },
-  );
-
-  it('passes a network failure through unchanged (it reads as offline, not sign in needed)', async () => {
-    const offline = new BrowserAuthError(BrowserAuthErrorCodes.noNetworkConnectivity, 'cid');
-    const msal = stub({
-      acquireTokenSilent: vi.fn(async () => {
-        throw offline;
-      }),
+      replaceState.mockReset();
     });
-    await expect(mk(msal).getToken()).rejects.toBe(offline);
-  });
+    afterEach(() => vi.unstubAllGlobals());
 
-  it('throws AuthRequiredError when there is no account', async () => {
-    const msal = stub({ getActiveAccount: vi.fn(() => null), getAllAccounts: vi.fn(() => []) });
-    await expect(mk(msal).getToken()).rejects.toBeInstanceOf(AuthRequiredError);
-  });
+    const at = (href: string) =>
+      vi.stubGlobal('window', { location: { href }, history: { state: null, replaceState } });
 
-  it('a first sign-in (no cached account) calls loginRedirect with the scopes', async () => {
-    const msal = stub({ getActiveAccount: vi.fn(() => null), getAllAccounts: vi.fn(() => []) });
-    await mk(msal).signIn();
-    expect(msal.loginRedirect).toHaveBeenCalledWith({ scopes: ['Files.ReadWrite'] });
-    expect(msal.acquireTokenRedirect).not.toHaveBeenCalled();
-  });
-
-  it('a re-sign-in with a cached account redirects for that account, without the account picker (I6)', async () => {
-    const msal = stub();
-    await mk(msal).signIn();
-    expect(msal.acquireTokenRedirect).toHaveBeenCalledWith({ scopes: ['Files.ReadWrite'], account });
-    expect(msal.loginRedirect).not.toHaveBeenCalled();
-  });
-
-  it('handleRedirect sets the active account from the redirect result', async () => {
-    const msal = stub({
-      getActiveAccount: vi.fn(() => null),
-      getAllAccounts: vi.fn(() => []),
-      handleRedirectPromise: vi.fn(async () => ({ account })),
+    it('does nothing on a normal start, apart from dropping the old MSAL cache', async () => {
+      at('https://tasks.example/');
+      await mk().handleRedirect();
+      expect(replaceState).not.toHaveBeenCalled();
+      expect([...store.keys()]).toEqual(['taskapp:cache-migrated']);
     });
-    const auth = mk(msal);
-    await auth.handleRedirect();
-    expect(msal.setActiveAccount).toHaveBeenCalledWith(account);
-  });
 
-  it('isSignedIn reflects whether an account exists', async () => {
-    expect(mk(stub()).isSignedIn()).toBe(true);
-    expect(mk(stub({ getActiveAccount: vi.fn(() => null), getAllAccounts: vi.fn(() => []) })).isSignedIn()).toBe(false);
+    it('throws the helper’s sign-in error and removes it from the address bar', async () => {
+      at('https://tasks.example/?signin_error=cancelled&x=1#h');
+      await expect(mk().handleRedirect()).rejects.toThrow('Sign-in was cancelled');
+      expect(replaceState).toHaveBeenCalledWith(null, '', '/?x=1#h');
+    });
+
+    it('survives a localStorage that throws', async () => {
+      vi.stubGlobal('localStorage', {
+        get length(): number {
+          throw new Error('denied');
+        },
+      });
+      at('https://tasks.example/');
+      await expect(mk().handleRedirect()).resolves.toBeUndefined();
+    });
   });
 });

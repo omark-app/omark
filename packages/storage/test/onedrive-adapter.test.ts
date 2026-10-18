@@ -5,7 +5,7 @@ import { adapterContract } from './adapter-contract.ts';
 import { GraphFake } from './graph-fake.ts';
 
 const FOLDER = 'ALAI/TaskApp';
-function setup(getToken: () => Promise<string> = async () => 'tok') {
+function setup(getToken: (opts?: { fresh?: boolean }) => Promise<string> = async () => 'tok') {
   const graph = new GraphFake(FOLDER);
   const adapter = new OneDriveAdapter({ folder: FOLDER, getToken, fetch: graph.fetch as typeof fetch });
   return { graph, adapter };
@@ -94,11 +94,11 @@ describe('OneDriveAdapter (Graph specifics)', () => {
   });
 
   it('retries once with a fresh token after a 401', async () => {
-    const getToken = vi.fn<() => Promise<string>>().mockResolvedValueOnce('old').mockResolvedValue('new');
+    const getToken = vi.fn<(opts?: { fresh?: boolean }) => Promise<string>>().mockResolvedValueOnce('old').mockResolvedValue('new');
     const { graph, adapter } = setup(getToken);
     graph.unauthorized = 1;
     expect(await adapter.read('tasks.md')).toBeNull();
-    expect(getToken).toHaveBeenCalledTimes(2);
+    expect(getToken.mock.calls).toEqual([[undefined], [{ fresh: true }]]);
     expect(graph.calls[0]!.headers['authorization']).toBe('Bearer old');
     expect(graph.calls[1]!.headers['authorization']).toBe('Bearer new');
   });

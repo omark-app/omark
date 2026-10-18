@@ -9,7 +9,8 @@ const MAX_READ_ATTEMPTS = 3;
 
 export interface OneDriveAdapterOptions {
   folder: string;
-  getToken: () => Promise<string>;
+  /** `fresh`: Graph rejected the last token, so get a new one. */
+  getToken: (opts?: { fresh?: boolean }) => Promise<string>;
   fetch?: typeof fetch;
   /** Per request, body included; a request that takes longer fails with `OfflineError`. Default 20 s. */
   timeoutMs?: number;
@@ -31,7 +32,7 @@ interface DriveItem {
 
 export class OneDriveAdapter implements StorageAdapter {
   private base: string;
-  private getToken: () => Promise<string>;
+  private getToken: (opts?: { fresh?: boolean }) => Promise<string>;
   private fetchFn: typeof fetch;
   private timeoutMs: number;
 
@@ -85,8 +86,8 @@ export class OneDriveAdapter implements StorageAdapter {
   /** Authenticated Graph call: one retry with a fresh token on 401. */
   private async graph(url: string, init: RequestInit): Promise<Reply> {
     for (let attempt = 0; attempt < 2; attempt++) {
-      // MSAL can stall too (a hung token refresh), so the token gets the same time limit as a request.
-      const token = await this.withTimeout(() => this.getToken());
+      // A token refresh can stall too, so the token gets the same time limit as a request.
+      const token = await this.withTimeout(() => this.getToken(attempt > 0 ? { fresh: true } : undefined));
       const headers = { ...(init.headers as Record<string, string> | undefined), Authorization: `Bearer ${token}` };
       const res = await this.send(url, { ...init, headers });
       if (res.status !== 401) return res;

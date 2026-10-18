@@ -24,7 +24,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icons/apple-touch-icon.png'],
       // The app shell, fonts and icons are precached; there is deliberately no runtimeCaching, so Graph,
-      // login.microsoftonline.com and OneDrive download URLs always go straight to the network. A new
+      // the sign-in helper (/api/auth) and OneDrive download URLs always go straight to the network. A new
       // version installs in the background and, with skipWaiting + clientsClaim, its service worker takes
       // control of the open page at once; the page keeps running the JS it loaded and runs the new JS on
       // the next open (no reload mid-session). With one bundle that is safe; if code splitting is ever
@@ -32,8 +32,9 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,woff2,png,svg,webmanifest}'],
         navigateFallback: 'index.html',
-        // Asset and file-extension URLs are never the SPA; '/' with ?code=&state= (MSAL return) still is.
-        navigateFallbackDenylist: [/^\/assets\//, /^[^?]*\/[^/?]+\.[^/?]+(\?.*)?$/],
+        // Asset and file-extension URLs are never the SPA, nor the sign-in helper: /api/auth/login and its
+        // return must reach the server (an iOS home-screen app navigates to them inside its own scope).
+        navigateFallbackDenylist: [/^\/assets\//, /^\/api\//, /^[^?]*\/[^/?]+\.[^/?]+(\?.*)?$/],
         cleanupOutdatedCaches: true,
       },
       manifest: {
