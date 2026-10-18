@@ -1,6 +1,6 @@
 ---
 name: taskapp-factory
-description: Use when working on a TaskApp GitHub issue or PR - "work on #14", "take the next issue", "file a bug", sizing issues, writing or updating a plan, implementing, opening or handing over a PR
+description: 'Use when working on a TaskApp GitHub issue or PR: "work on #14", "take the next issue", "file a bug", sizing issues, writing or updating a plan, implementing, opening or handing over a PR'
 ---
 
 # TaskApp factory
