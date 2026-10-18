@@ -1,8 +1,19 @@
+import { execSync } from 'node:child_process';
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
 
+/** Short commit hash of the build, so we can tell which build a device runs; `dev` outside a git checkout. */
+function buildId(): string {
+  try {
+    return execSync('git rev-parse --short=7 HEAD', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return 'dev';
+  }
+}
+
 export default defineConfig({
+  define: { 'import.meta.env.VITE_BUILD_ID': JSON.stringify(buildId()) },
   plugins: [
     svelte(),
     VitePWA({
@@ -12,8 +23,10 @@ export default defineConfig({
       // login.microsoftonline.com and OneDrive download URLs always go straight to the network. A new
       // version installs in the background and, with skipWaiting + clientsClaim, its service worker takes
       // control of the open page at once; the page keeps running the JS it loaded and runs the new JS on
-      // the next open (no reload mid-session). With one bundle that is safe; if code splitting is ever
-      // added, switch to `prompt`, as cleanupOutdatedCaches would remove chunks a running page still loads.
+      // the next open (no reload mid-session). An iOS home-screen app is resumed rather than reopened, so
+      // src/lib/updates.ts checks for a new build on every return and reloads on the return after one took
+      // over. With one bundle that is safe; if code splitting is ever added, switch to `prompt`, as
+      // cleanupOutdatedCaches would remove chunks a running page still loads.
       workbox: {
         globPatterns: ['**/*.{js,css,html,woff2,png,svg,webmanifest}'],
         navigateFallback: 'index.html',

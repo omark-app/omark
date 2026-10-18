@@ -15,6 +15,7 @@ import { systemClock } from './clock.ts';
 import { installLifecycle } from './lifecycle.ts';
 import { createStore } from './store.svelte.ts';
 import type { AppStore } from './store.svelte.ts';
+import { installUpdates } from './updates.ts';
 
 declare global {
   interface Window {
@@ -95,6 +96,7 @@ async function signedIn(
 async function ready(workspace: Workspace, cache: CacheInfo, auth: Auth | null): Promise<BootResult> {
   const store = await createStore({ workspace, clock: systemClock, isPhone, ...cache });
   installLifecycle(store);
+  installUpdates(store);
   return { kind: 'ready', store, auth };
 }
 
