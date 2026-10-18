@@ -179,6 +179,17 @@ export function taskLines(t: Task): string[] {
 }
 
 /**
+ * `t` as its task line reads back: the title, 📅 date and 🔁 rule `parseTasks` takes from the line
+ * `taskLines` writes. Rule or date text typed into a title thus becomes that field, as every other device
+ * reads it (issue #8). Returns `t` itself when nothing differs.
+ */
+export function readBack(t: Task): Task {
+  const f = parseFields(OPEN_LINE.exec(taskLines(t)[0]!)![1]!, false);
+  const read = { ...t, title: f.title, date: f.date, repeat: f.repeat };
+  return taskKey(read) === taskKey(t) ? t : read;
+}
+
+/**
  * The note lines of `t`: as read while its notes are unchanged (keeping nesting, tabs and markers), or
  * canonical `    - {note}` lines once they were edited (or for a task the app created).
  */

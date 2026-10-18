@@ -100,6 +100,51 @@ test('the round check completes a task without opening the edit sheet', async ({
   await expect(sheet(page)).toHaveCount(0);
 });
 
+// Issue #8: a title saved with 🔁 text is a repeating task in the file, so it must repeat on this phone too.
+test('a task added with 🔁 text in its title repeats, and the round check reschedules it', async ({ page }) => {
+  await openApp(page, { files: { 'tasks.md': SPEC_TASKS }, now: '2026-10-18T09:00:00' });
+  await page.getByTestId('fab').tap();
+  await sheet(page).getByLabel('New task').fill('leki 🔁 every 2 days');
+  await option(page, 'Add').tap();
+  const leki = row(page, 'leki');
+  await expect(leki.locator('.title')).toHaveText('leki');
+  await expect(leki.getByTestId('task-meta')).toContainText('↻');
+  await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] leki 🔁 every 2 days 📅 2026-10-18\n');
+  await leki.getByTestId('task-check').tap();
+  await expect(page.getByTestId('toast')).toContainText('Done · next Tue 20 Oct');
+  await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] leki 🔁 every 2 days 📅 2026-10-20\n');
+  expect(await driveFile(page, 'done.md')).toBe('- [x] leki 🔁 every 2 days ✅ 2026-10-18\n');
+});
+
+test('a title edited to hold 🔁 text repeats, and the round check reschedules it', async ({ page }) => {
+  await openApp(page, { files: { 'tasks.md': SPEC_TASKS }, now: '2026-10-18T09:00:00' });
+  await row(page, 'Send the invoice').tap();
+  await sheet(page).getByLabel('Task title').fill('depresja 🔁 every week on Sunday');
+  await page.keyboard.press('Enter');
+  await expect(sheet(page)).toHaveCount(0);
+  await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] depresja 🔁 every week on Sunday 📅 2026-10-19\n');
+  const task = row(page, 'depresja');
+  await expect(task.locator('.title')).toHaveText('depresja');
+  await task.getByTestId('task-check').tap();
+  await expect(page.getByTestId('toast')).toContainText('Done · next Sun 25 Oct');
+  await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] depresja 🔁 every week on Sunday 📅 2026-10-25\n');
+});
+
+test('repeating tasks written by the Todoist import reschedule when completed on the phone', async ({ page }) => {
+  // The bytes tools/todoist-import writes for `every 2 days` and `every sunday`.
+  const tasks = '# Always\n\n# Tasks\n- [ ] leki 🔁 every 2 days 📅 2026-10-18\n' +
+    '- [ ] depresja – check in 🔁 every week on Sunday 📅 2026-10-18\n    - one line a day\n';
+  await openApp(page, { files: { 'tasks.md': tasks }, now: '2026-10-18T09:00:00' });
+  await row(page, 'leki').getByTestId('task-check').tap();
+  await expect(page.getByTestId('toast')).toContainText('Done · next Tue 20 Oct');
+  await swipe(row(page, 'depresja'), 120);
+  await expect(page.getByTestId('toast')).toContainText('Done · next Sun 25 Oct');
+  await expect.poll(() => driveFile(page, 'tasks.md')).toBe(
+    '# Always\n\n# Tasks\n- [ ] leki 🔁 every 2 days 📅 2026-10-20\n' +
+      '- [ ] depresja – check in 🔁 every week on Sunday 📅 2026-10-25\n    - one line a day\n',
+  );
+});
+
 test('the move and edit sheets open with no option picked and no field focused', async ({ page }) => {
   await start(page);
   const focused = () => page.evaluate(() => document.activeElement?.getAttribute('role') ?? document.activeElement?.tagName);
