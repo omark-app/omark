@@ -111,6 +111,11 @@ describe('planDrop', () => {
     });
   });
 
+  test('onto overdue does nothing', () => {
+    const s = make();
+    expect(planDrop(s, idOf(s, POLISH), { bucket: 'overdue', beforeId: null }, fri)).toEqual({ kind: 'none' });
+  });
+
   test('on Sunday, dropping onto week moves the task into the today bucket', () => {
     const s = make();
     const id = idOf(s, POLISH);

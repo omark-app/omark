@@ -3,6 +3,7 @@ import { dayMonth, weekdayShort } from './labels.ts';
 import type { BucketKey, ISODate, Task, TasksDoc, WeekCtx } from './model.ts';
 
 export const BUCKETS: readonly { key: BucketKey; name: string }[] = [
+  { key: 'overdue', name: 'Overdue' },
   { key: 'today', name: 'Today' },
   { key: 'week', name: 'This week' },
   { key: 'next', name: 'Next week' },
@@ -13,19 +14,25 @@ export const BUCKETS: readonly { key: BucketKey; name: string }[] = [
 export function bucketOf(t: Task, ctx: WeekCtx): BucketKey {
   const d = t.date;
   if (d === null) return 'someday';
-  if (d <= ctx.today) return 'today';
+  if (d < ctx.today) return 'overdue';
+  if (d === ctx.today) return 'today';
   if (d <= endOfWeek(ctx)) return 'week';
   if (d <= endOfNextWeek(ctx)) return 'next';
   return 'later';
 }
 
-/** A bucket a task can be moved to by a date shortcut (Later has no single date). */
-export type MovableBucket = Exclude<BucketKey, 'later'>;
+/**
+ * A bucket a task can be moved to by a date shortcut. Later has no single date, and nothing is moved into
+ * Overdue: tasks only land there as days pass.
+ */
+export type MovableBucket = Exclude<BucketKey, 'overdue' | 'later'>;
+
+const isMovable = (key: BucketKey): key is MovableBucket => key !== 'overdue' && key !== 'later';
 
 /** The move and add choices, in order. This week is left out on its last day, where it would be Today. */
 export function movableBuckets(ctx: WeekCtx): { key: MovableBucket; name: string }[] {
   return BUCKETS.filter(
-    (b): b is { key: MovableBucket; name: string } => b.key !== 'later' && (b.key !== 'week' || hasWeekLeft(ctx)),
+    (b): b is { key: MovableBucket; name: string } => isMovable(b.key) && (b.key !== 'week' || hasWeekLeft(ctx)),
   );
 }
 
