@@ -17,7 +17,7 @@ export interface Config {
   foldedOnOpen: BucketKey[];
   theme: 'system' | 'light' | 'dark';
   dateLabels: DateLabelStyle;
-  newTaskBucket: Exclude<BucketKey, 'later'>;
+  newTaskBucket: Exclude<BucketKey, 'overdue' | 'later'>;
   saveDelaySeconds: number;
 }
 
@@ -86,7 +86,8 @@ defaultView: list
 # First day of the week: monday, tuesday, wednesday, thursday, friday, saturday or sunday.
 firstDayOfWeek: monday
 
-# Buckets that start folded when the app opens: any of today, week, next, later, someday.
+# Buckets that start folded when the app opens: any of overdue, today, week, next, later, someday.
+# Empty buckets always start folded.
 foldedOnOpen: [later, someday]
 
 # Colour theme: system, light or dark.
@@ -103,7 +104,7 @@ saveDelaySeconds: 1
 `;
 
 const COMMANDS = Object.keys(DEFAULT_CONFIG.shortcuts) as Command[];
-const BUCKETS: BucketKey[] = ['today', 'week', 'next', 'later', 'someday'];
+const BUCKETS: BucketKey[] = ['overdue', 'today', 'week', 'next', 'later', 'someday'];
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
 class ConfigFailure extends Error {

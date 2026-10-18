@@ -148,17 +148,31 @@ describe('completeTask', () => {
     const edited = editTask(s0, id, { title: 'Trip', notes: ['passport'] });
     expect(serializeDone(completeTask(edited, id, TODAY).state.done)).toBe('- [x] Trip ✅ 2026-10-16\n    - passport\n');
   });
-  test('a repeating task keeps its notes in tasks.md and copies none (Ruling 44)', () => {
+  test('a repeating task keeps its notes in tasks.md and copies them to done.md', () => {
     const s0: State = {
       doc: parseTasks('# Tasks\n- [ ] Water 🔁 every week on Monday 📅 2026-10-19\n    - the ferns too\n'),
       done: parseDone(''),
     };
     const id = allTasks(s0.doc)[0]!.id;
     const r = completeTask(s0, id, '2026-10-19');
-    expect(serializeDone(r.state.done)).toBe('- [x] Water 🔁 every week on Monday ✅ 2026-10-19\n');
+    expect(serializeDone(r.state.done)).toBe('- [x] Water 🔁 every week on Monday ✅ 2026-10-19\n    - the ferns too\n');
+    expect(r.state.done.lines[0]!.entry?.notes).toEqual(['the ferns too']);
     expect(serializeTasks(r.state.doc)).toBe(
       '# Always\n\n# Tasks\n- [ ] Water 🔁 every week on Monday 📅 2026-10-26\n    - the ferns too\n',
     );
+    expect(computeStats(r.state.done, '2026-10-19').all).toBe(1);
+  });
+  test('a repeating task copies its hand-written note lines byte for byte', () => {
+    const s0: State = {
+      doc: parseTasks('# Tasks\n- [ ] Rent 🔁 every month on the 1st 📅 2026-11-01\n  * iban  \n\t\t- [ ] sub\n'),
+      done: parseDone('- [x] Old ✅ 2026-10-01\n'),
+    };
+    const id = allTasks(s0.doc)[0]!.id;
+    const r = completeTask(s0, id, '2026-11-01');
+    expect(serializeDone(r.state.done)).toBe(
+      '- [x] Old ✅ 2026-10-01\n- [x] Rent 🔁 every month on the 1st ✅ 2026-11-01\n  * iban  \n\t\t- [ ] sub\n',
+    );
+    expect(parseDone(serializeDone(r.state.done)).lines[1]!.entry?.notes).toEqual(['iban', '[ ] sub']);
   });
 });
 

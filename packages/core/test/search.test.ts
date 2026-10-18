@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { DoneEntry, Task } from '../src/index.ts';
+import type { Task } from '../src/index.ts';
 import { foldText, markedParts, parseDone, queryWords, searchDone, searchTasks } from '../src/index.ts';
 
 const mk = (title: string, notes: string[] = [], date: string | null = null): Task => ({
@@ -120,15 +120,10 @@ describe('searchDone', () => {
     expect(searchDone(done, '')).toEqual([]);
   });
 
-  test('matches done notes when the entry has them, title matches first', () => {
-    const withNotes = (title: string, doneOn: string, notes: string[]) =>
-      ({ title, repeat: null, doneOn, notes }) as DoneEntry;
-    const doc = {
-      lines: [
-        { entry: withNotes('Call the bank', '2026-10-15', ['ask about the loan']), raw: '' },
-        { entry: withNotes('Loan papers', '2026-09-01', []), raw: '' },
-      ],
-    };
+  test('matches done notes, title matches first', () => {
+    const doc = parseDone(
+      ['- [x] Loan papers ✅ 2026-09-01', '- [x] Call the bank ✅ 2026-10-15', '    - ask about the loan'].join('\n'),
+    );
     const hits = searchDone(doc, 'loan');
     expect(hits.map((h) => h.entry.title)).toEqual(['Loan papers', 'Call the bank']);
     expect(hits[1]!.note).toEqual({ text: 'ask about the loan', marks: [[14, 18]] });

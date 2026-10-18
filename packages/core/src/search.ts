@@ -29,10 +29,8 @@ export interface DoneHit extends Hit {
   index: number;
 }
 
-/**
- * A done entry's notes. `DoneEntry` carries none yet; once it has a `notes` field this becomes `e.notes`.
- */
-export const doneNotes = (e: DoneEntry): readonly string[] => (e as DoneEntry & { notes?: string[] }).notes ?? [];
+/** A done entry's notes (the indented lines under it in done.md). */
+export const doneNotes = (e: DoneEntry): readonly string[] => e.notes;
 
 /** One character, lowercased with its diacritics stripped. `ł` has no decomposition, so it is mapped by hand. */
 const foldChar = (ch: string): string =>

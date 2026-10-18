@@ -14,6 +14,7 @@ const TASKS = `# Always
 - [ ] Learn Polish sign language
 `;
 const DONE = `- [x] Old zirconia quote ✅ 2026-09-02
+    - from the Kraków clinic
 - [x] Water the plants 🔁 every week on Monday ✅ 2026-10-12
 `;
 
@@ -95,11 +96,17 @@ test.describe('desktop', () => {
     const sheet = page.getByTestId('sheet');
     await expect(sheet.getByTestId('done-title')).toHaveText('Old zirconia quote');
     await expect(sheet).toContainText('Completed Wed 2 Sep');
+    await expect(sheet).toContainText('from the Kraków clinic');
     await expect(sheet.getByRole('button', { name: 'Reopen' })).toHaveCount(0);
     await page.keyboard.press('Escape');
     await expect(sheet).toHaveCount(0);
     await expect(input(page)).toHaveValue('zirconia');
     await expect(results(page)).toHaveCount(3);
+
+    // A word only in a completed task's note finds it.
+    await input(page).fill('krakow');
+    await expect(results(page)).toHaveCount(1);
+    await expect(results(page)).toContainText('from the Kraków clinic');
   });
 
   test('works on the week board, and a click opens the result in the rail', async ({ page }) => {
