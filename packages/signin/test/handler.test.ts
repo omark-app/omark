@@ -1,0 +1,348 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { CHUNK_SIZE, MAX_CHUNKS } from '../src/cookies.ts';
+import { importCookieKey, pkceChallenge, seal, toBase64Url } from '../src/crypto.ts';
+import { handleAuth } from '../src/handler.ts';
+import type { Env } from '../src/handler.ts';
+
+const ORIGIN = 'https://tasks.example';
+const KEY = toBase64Url(new Uint8Array(32).fill(7));
+const ENV: Env = { MSAL_CLIENT_ID: 'cid', MSAL_CLIENT_SECRET: 'secret', COOKIE_KEY: KEY };
+const TOKEN_URL = 'https://login.microsoftonline.com/consumers/oauth2/v2.0/token';
+const NOW = 1_800_000_000_000;
+
+/** A browser's cookies for one origin: Set-Cookie applied, and only path-matching ones sent back. */
+class Jar {
+  readonly cookies = new Map<string, { value: string; path: string; attrs: string }>();
+
+  take(res: Response): void {
+    for (const line of res.headers.getSetCookie()) {
+      const [pair, ...attrs] = line.split('; ');
+      const eq = pair!.indexOf('=');
+      const name = pair!.slice(0, eq);
+      const path = attrs.find((a) => a.startsWith('Path='))!.slice(5);
+      if (attrs.includes('Max-Age=0')) this.cookies.delete(name);
+      else this.cookies.set(name, { value: pair!.slice(eq + 1), path, attrs: attrs.join('; ') });
+    }
+  }
+
+  header(pathname: string): string {
+    return [...this.cookies]
+      .filter(([, c]) => pathname === c.path || pathname.startsWith(c.path.endsWith('/') ? c.path : `${c.path}/`))
+      .map(([n, c]) => `${n}=${c.value}`)
+      .join('; ');
+  }
+}
+
+/** Microsoft's token endpoint: answers each call with the next queued reply. */
+function tokenEndpoint() {
+  const calls: URLSearchParams[] = [];
+  const replies: Array<() => Response> = [];
+  const fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+    expect(String(url)).toBe(TOKEN_URL);
+    calls.push(new URLSearchParams(init!.body as URLSearchParams));
+    const reply = replies.shift();
+    if (!reply) throw new Error('unexpected token call');
+    return reply();
+  });
+  const ok = (body: Record<string, unknown>) => replies.push(() => Response.json(body));
+  const fail = (status: number, error?: string) => replies.push(() => Response.json(error ? { error } : {}, { status }));
+  const down = () =>
+    replies.push(() => {
+      throw new TypeError('fetch failed');
+    });
+  return { calls, fetch, ok, fail, down };
+}
+
+const idToken = (claims: Record<string, unknown>) =>
+  `x.${toBase64Url(new TextEncoder().encode(JSON.stringify(claims)))}.sig`;
+
+let jar: Jar;
+let ms: ReturnType<typeof tokenEndpoint>;
+let now: number;
+
+beforeEach(() => {
+  jar = new Jar();
+  ms = tokenEndpoint();
+  now = NOW;
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+});
+afterEach(() => vi.restoreAllMocks());
+
+async function send(path: string, init: RequestInit & { headers?: Record<string, string> } = {}, env: Env = ENV) {
+  const url = new URL(path, ORIGIN);
+  const cookie = jar.header(url.pathname);
+  const req = new Request(url, { ...init, headers: { ...(cookie ? { Cookie: cookie } : {}), ...init.headers } });
+  const res = await handleAuth(req, env, { fetch: ms.fetch as typeof fetch, now: () => now });
+  jar.take(res);
+  return res;
+}
+
+const post = (path: string, headers: Record<string, string> = { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' }) =>
+  send(path, { method: 'POST', headers });
+
+/** Runs login and callback with Microsoft's answer to the code. */
+async function signIn(tokens: Record<string, unknown> = { access_token: 'at0', expires_in: 3600, refresh_token: 'rt1' }) {
+  const login = await send('/api/auth/login');
+  const state = new URL(login.headers.get('Location')!).searchParams.get('state')!;
+  ms.ok(tokens);
+  return send(`/api/auth/callback?code=c0de&state=${state}`);
+}
+
+describe('GET /api/auth/login', () => {
+  it('redirects to the consumers authorize endpoint with PKCE, keeping state and verifier in a short-lived HttpOnly cookie', async () => {
+    const res = await send('/api/auth/login');
+    expect(res.status).toBe(302);
+    const to = new URL(res.headers.get('Location')!);
+    expect(to.origin + to.pathname).toBe('https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize');
+    const q = to.searchParams;
+    expect(q.get('client_id')).toBe('cid');
+    expect(q.get('response_type')).toBe('code');
+    expect(q.get('redirect_uri')).toBe(`${ORIGIN}/api/auth/callback`);
+    expect(q.get('scope')!.split(' ')).toEqual(expect.arrayContaining(['Files.ReadWrite', 'offline_access']));
+    expect(q.get('code_challenge_method')).toBe('S256');
+    expect(q.get('state')).toMatch(/^[\w-]{43}$/);
+    expect(q.get('login_hint')).toBeNull();
+    const cookie = jar.cookies.get('taskapp_login')!;
+    expect(cookie.path).toBe('/api/auth/callback');
+    expect(cookie.attrs).toBe('Path=/api/auth/callback; Max-Age=600; Secure; SameSite=Lax; HttpOnly');
+    expect(cookie.value).not.toContain(q.get('state')!); // encrypted, not just signed
+  });
+
+  it('names the account from the last sign-in as login_hint', async () => {
+    await signIn({ access_token: 'at0', expires_in: 3600, refresh_token: 'rt1', id_token: idToken({ preferred_username: 'me@example.com' }) });
+    const res = await send('/api/auth/login');
+    expect(new URL(res.headers.get('Location')!).searchParams.get('login_hint')).toBe('me@example.com');
+  });
+
+  it('rejects other methods and unknown routes', async () => {
+    expect((await send('/api/auth/login', { method: 'POST' })).status).toBe(405);
+    expect((await send('/api/auth/nope')).status).toBe(404);
+  });
+
+  it('answers 500 without the secrets or with a malformed COOKIE_KEY', async () => {
+    expect((await send('/api/auth/login', {}, { ...ENV, MSAL_CLIENT_SECRET: undefined })).status).toBe(500);
+    expect((await send('/api/auth/login', {}, { ...ENV, COOKIE_KEY: 'c2hvcnQ=' })).status).toBe(500);
+  });
+});
+
+describe('GET /api/auth/callback', () => {
+  it('redeems the code with the secret and the PKCE verifier, sets the session cookie and returns to /', async () => {
+    const login = await send('/api/auth/login');
+    const q = new URL(login.headers.get('Location')!).searchParams;
+    ms.ok({ access_token: 'at0', expires_in: 3600, refresh_token: 'rt1' });
+    const res = await send(`/api/auth/callback?code=c0de&state=${q.get('state')}`);
+
+    expect(res.status).toBe(302);
+    expect(res.headers.get('Location')).toBe('/');
+    const grant = ms.calls[0]!;
+    expect(grant.get('grant_type')).toBe('authorization_code');
+    expect(grant.get('code')).toBe('c0de');
+    expect(grant.get('client_secret')).toBe('secret');
+    expect(grant.get('redirect_uri')).toBe(`${ORIGIN}/api/auth/callback`);
+    expect(await pkceChallenge(grant.get('code_verifier')!)).toBe(q.get('code_challenge'));
+
+    expect(jar.cookies.has('taskapp_login')).toBe(false);
+    const session = jar.cookies.get('taskapp_session0')!;
+    expect(session.attrs).toBe(`Path=/api/auth/token; Max-Age=${90 * 86400}; Secure; SameSite=Lax; HttpOnly`);
+    expect(session.value).not.toContain('rt1');
+    expect(jar.cookies.get('taskapp_signed_in')).toMatchObject({ value: '1', path: '/' });
+    expect(jar.cookies.get('taskapp_signed_in')!.attrs).not.toContain('HttpOnly');
+    expect(await res.text()).toBe(''); // no token in the body
+  });
+
+  it.each([
+    ['a wrong state', (state: string) => `code=c0de&state=${state}x`],
+    ['no state', () => 'code=c0de'],
+  ])('rejects %s without redeeming the code', async (_, query) => {
+    const login = await send('/api/auth/login');
+    const state = new URL(login.headers.get('Location')!).searchParams.get('state')!;
+    const res = await send(`/api/auth/callback?${query(state)}`);
+    expect(res.headers.get('Location')).toBe('/?signin_error=expired');
+    expect(ms.fetch).not.toHaveBeenCalled();
+    expect(jar.cookies.has('taskapp_session0')).toBe(false);
+  });
+
+  it('rejects a return without the login cookie (another browser, or a forged link)', async () => {
+    const res = await send('/api/auth/callback?code=c0de&state=abc');
+    expect(res.headers.get('Location')).toBe('/?signin_error=expired');
+    expect(ms.fetch).not.toHaveBeenCalled();
+  });
+
+  it('rejects a login cookie older than ten minutes', async () => {
+    const login = await send('/api/auth/login');
+    const state = new URL(login.headers.get('Location')!).searchParams.get('state')!;
+    now += 11 * 60_000;
+    const res = await send(`/api/auth/callback?code=c0de&state=${state}`);
+    expect(res.headers.get('Location')).toBe('/?signin_error=expired');
+  });
+
+  it('reports a cancelled sign-in and a failed or unreachable exchange', async () => {
+    expect((await send('/api/auth/callback?error=access_denied')).headers.get('Location')).toBe('/?signin_error=cancelled');
+    const login = async () => new URL((await send('/api/auth/login')).headers.get('Location')!).searchParams.get('state')!;
+    let state = await login();
+    ms.fail(400, 'invalid_grant');
+    expect((await send(`/api/auth/callback?code=c&state=${state}`)).headers.get('Location')).toBe('/?signin_error=failed');
+    state = await login();
+    ms.down();
+    expect((await send(`/api/auth/callback?code=c&state=${state}`)).headers.get('Location')).toBe('/?signin_error=unavailable');
+  });
+
+  it('splits a long refresh token across several cookies, each under 4 KB', async () => {
+    const rt = 'R'.repeat(5000);
+    await signIn({ access_token: 'at0', expires_in: 3600, refresh_token: rt });
+    expect(jar.cookies.has('taskapp_session1')).toBe(true);
+    for (const [name, c] of jar.cookies) expect(`${name}=${c.value}; ${c.attrs}`.length).toBeLessThan(4000);
+    ms.ok({ access_token: 'at1', expires_in: 3600, refresh_token: 'short' });
+    expect((await post('/api/auth/token')).status).toBe(200);
+    expect(ms.calls[1]!.get('refresh_token')).toBe(rt);
+    // The shorter rotated token deletes the stale second chunk.
+    expect(jar.cookies.has('taskapp_session0')).toBe(true);
+    expect(jar.cookies.has('taskapp_session1')).toBe(false);
+  });
+
+  it('fails rather than set a cookie past the chunk limit', async () => {
+    const res = await signIn({ access_token: 'at0', expires_in: 3600, refresh_token: 'R'.repeat(CHUNK_SIZE * MAX_CHUNKS) });
+    expect(res.headers.get('Location')).toBe('/?signin_error=failed');
+    expect(jar.cookies.has('taskapp_session0')).toBe(false);
+  });
+});
+
+describe('POST /api/auth/token', () => {
+  it('redeems the refresh token, rotates the cookie and returns only the access token', async () => {
+    await signIn();
+    const before = jar.cookies.get('taskapp_session0')!.value;
+    ms.ok({ access_token: 'at1', expires_in: 3600, refresh_token: 'rt2' });
+    now += 1000;
+    const res = await post('/api/auth/token');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ accessToken: 'at1', expiresAt: now + 3_600_000 });
+    expect(ms.calls[1]!.get('grant_type')).toBe('refresh_token');
+    expect(ms.calls[1]!.get('refresh_token')).toBe('rt1');
+    expect(ms.calls[1]!.get('client_secret')).toBe('secret');
+    expect(res.headers.get('Cache-Control')).toBe('no-store');
+    expect(jar.cookies.get('taskapp_session0')!.value).not.toBe(before);
+
+    ms.ok({ access_token: 'at2', expires_in: 3600, refresh_token: 'rt3' });
+    await post('/api/auth/token');
+    expect(ms.calls[2]!.get('refresh_token')).toBe('rt2');
+  });
+
+  it('keeps the old refresh token when Microsoft sends no new one', async () => {
+    await signIn();
+    ms.ok({ access_token: 'at1', expires_in: 3600 });
+    await post('/api/auth/token');
+    ms.ok({ access_token: 'at2', expires_in: 3600 });
+    await post('/api/auth/token');
+    expect(ms.calls[2]!.get('refresh_token')).toBe('rt1');
+  });
+
+  it('extends the session on use: a cookie refreshed within 90 days keeps working past the first 90', async () => {
+    await signIn();
+    for (let day = 80; day <= 240; day += 80) {
+      now = NOW + day * 86_400_000;
+      ms.ok({ access_token: 'at', expires_in: 3600, refresh_token: `rt-${day}` });
+      expect((await post('/api/auth/token')).status).toBe(200);
+    }
+  });
+
+  it('answers 401 { signin: true } without a cookie, and with a tampered one', async () => {
+    let res = await post('/api/auth/token');
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ signin: true });
+
+    await signIn();
+    const c = jar.cookies.get('taskapp_session0')!;
+    const flipped = c.value.slice(0, 20) + (c.value[20] === 'A' ? 'B' : 'A') + c.value.slice(21);
+    jar.cookies.set('taskapp_session0', { ...c, value: flipped });
+    res = await post('/api/auth/token');
+    expect(res.status).toBe(401);
+    expect(ms.calls).toHaveLength(1); // only the sign-in's exchange
+    expect(jar.cookies.has('taskapp_signed_in')).toBe(false);
+  });
+
+  it('rejects a cookie sealed under another key, or for another purpose', async () => {
+    const other = await importCookieKey(toBase64Url(new Uint8Array(32).fill(9)));
+    const session = { rt: 'rt', exp: NOW + 1e9 };
+    jar.cookies.set('taskapp_session0', { value: await seal(other, 'taskapp_session', session), path: '/api/auth/token', attrs: '' });
+    expect((await post('/api/auth/token')).status).toBe(401);
+    const key = await importCookieKey(KEY);
+    jar.cookies.set('taskapp_session0', { value: await seal(key, 'taskapp_login', session), path: '/api/auth/token', attrs: '' });
+    expect((await post('/api/auth/token')).status).toBe(401);
+    jar.cookies.set('taskapp_session0', { value: await seal(key, 'taskapp_session', session), path: '/api/auth/token', attrs: '' });
+    ms.ok({ access_token: 'at', expires_in: 3600 });
+    expect((await post('/api/auth/token')).status).toBe(200);
+  });
+
+  it('answers 401 and clears the session after 90 days unused', async () => {
+    await signIn();
+    now += 91 * 86_400_000;
+    expect((await post('/api/auth/token')).status).toBe(401);
+    expect(ms.calls).toHaveLength(1);
+  });
+
+  it.each(['invalid_grant', 'interaction_required'])('answers 401 and clears the session when Microsoft says %s', async (error) => {
+    await signIn();
+    ms.fail(400, error);
+    const res = await post('/api/auth/token');
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ signin: true });
+    expect(jar.cookies.has('taskapp_session0')).toBe(false);
+    expect(jar.cookies.has('taskapp_signed_in')).toBe(false);
+  });
+
+  it.each([
+    ['unreachable', () => ms.down()],
+    ['a 500', () => ms.fail(500)],
+    ['a 503 with an error code', () => ms.fail(503, 'temporarily_unavailable')],
+    ['invalid_client (an expired secret)', () => ms.fail(401, 'invalid_client')],
+  ])('answers 503 and keeps the session when Microsoft is %s', async (_, reply) => {
+    await signIn();
+    reply();
+    expect((await post('/api/auth/token')).status).toBe(503);
+    expect(jar.cookies.has('taskapp_session0')).toBe(true);
+    ms.ok({ access_token: 'at1', expires_in: 3600 });
+    expect((await post('/api/auth/token')).status).toBe(200);
+  });
+
+  it.each([
+    ['no custom header', { Origin: ORIGIN }],
+    ['another origin', { 'X-TaskApp-Auth': '1', Origin: 'https://evil.example' }],
+    ['no origin', { 'X-TaskApp-Auth': '1' }],
+    ['a cross-site fetch', { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'cross-site' }],
+  ])('rejects a request with %s (CSRF) before touching the session', async (_, headers) => {
+    await signIn();
+    const res = await post('/api/auth/token', headers as Record<string, string>);
+    expect(res.status).toBe(403);
+    expect(ms.calls).toHaveLength(1);
+    expect(jar.cookies.has('taskapp_session0')).toBe(true);
+  });
+
+  it('rejects GET', async () => {
+    expect((await send('/api/auth/token')).status).toBe(405);
+  });
+
+  it('never logs a token', async () => {
+    await signIn({ access_token: 'at0', expires_in: 3600, refresh_token: 'rt-secret' });
+    ms.fail(400, 'invalid_grant');
+    await post('/api/auth/token');
+    const logged = JSON.stringify([...vi.mocked(console.warn).mock.calls, ...vi.mocked(console.error).mock.calls]);
+    expect(logged).not.toContain('rt-secret');
+    expect(logged).toContain('invalid_grant');
+  });
+});
+
+describe('POST /api/auth/logout', () => {
+  it('clears the session, the signed-in hint and the account name', async () => {
+    await signIn({ access_token: 'at0', expires_in: 3600, refresh_token: 'rt1', id_token: idToken({ preferred_username: 'me@example.com' }) });
+    expect(jar.cookies.size).toBeGreaterThan(0);
+    expect((await post('/api/auth/logout')).status).toBe(200);
+    expect([...jar.cookies.keys()]).toEqual([]);
+  });
+
+  it('is CSRF-protected', async () => {
+    await signIn();
+    expect((await post('/api/auth/logout', { Origin: 'https://evil.example', 'X-TaskApp-Auth': '1' })).status).toBe(403);
+    expect(jar.cookies.has('taskapp_session0')).toBe(true);
+  });
+});

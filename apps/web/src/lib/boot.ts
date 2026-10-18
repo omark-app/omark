@@ -8,7 +8,7 @@ import {
   OneDriveAdapter,
 } from '@taskapp/storage';
 import type { Auth, FileName, LocalCache, StorageAdapter, Workspace } from '@taskapp/storage';
-import { DEFAULT_ONEDRIVE_FOLDER, MSAL_CLIENT_ID, ONEDRIVE_FOLDER, STORAGE_MODE } from '../env.ts';
+import { DEFAULT_ONEDRIVE_FOLDER, ONEDRIVE_FOLDER, STORAGE_MODE } from '../env.ts';
 import { createAuthStub, tokenGated } from './auth-stub.ts';
 import type { AuthStub, AuthStubState } from './auth-stub.ts';
 import { systemClock } from './clock.ts';
@@ -56,8 +56,8 @@ const isPhone = (): boolean => window.matchMedia(PHONE_QUERY).matches;
  * Builds the store for this build's storage mode. Fake mode (`VITE_STORAGE=fake`) runs on an in-memory
  * drive seeded from `window.__TASKAPP_SEED__` and exposes it as `window.__taskappFake`; with
  * `window.__TASKAPP_AUTH_STUB__` set it goes through the sign-in path too, with a stubbed account.
- * OneDrive mode signs in with MSAL and caches in IndexedDB, falling back to memory (with
- * `store.cacheWarning`) when IndexedDB is unusable. Rejects if the sign-in redirect or the cache fails;
+ * OneDrive mode signs in through the sign-in helper (`/api/auth`) and caches in IndexedDB, falling back to
+ * memory (with `store.cacheWarning`) when IndexedDB is unusable. Rejects if the sign-in redirect or the cache fails;
  * the UI shows the error with a way to try again.
  */
 export async function boot(): Promise<BootResult> {
@@ -75,12 +75,12 @@ export async function boot(): Promise<BootResult> {
     return signedIn(auth, tokenGated(drive, () => auth.getToken()), async () => ({ cache: new MemoryCache(), ...MEMORY }));
   }
 
-  const auth = createAuth({ clientId: MSAL_CLIENT_ID, redirectUri: `${window.location.origin}/` });
-  const adapter = new OneDriveAdapter({ folder: ONEDRIVE_FOLDER, getToken: () => auth.getToken() });
+  const auth = createAuth();
+  const adapter = new OneDriveAdapter({ folder: ONEDRIVE_FOLDER, getToken: (o) => auth.getToken(o) });
   return signedIn(auth, adapter, openCache);
 }
 
-/** Finishes a sign-in redirect if there is one; opens the store when an account is signed in. */
+/** Reports a failed sign-in redirect if there was one; opens the store when an account is signed in. */
 async function signedIn(
   auth: Auth,
   adapter: StorageAdapter,

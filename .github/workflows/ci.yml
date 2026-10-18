@@ -39,22 +39,25 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - name: Require the Entra client ID
-        run: |
-          if [ -z "$MSAL_CLIENT_ID" ]; then
-            echo "::error::Repository variable MSAL_CLIENT_ID is empty; the app would build without a sign-in client ID."
-            exit 1
-          fi
-        env:
-          MSAL_CLIENT_ID: ${{ vars.MSAL_CLIENT_ID }}
       - run: pnpm install --frozen-lockfile
+      # The client ID is no longer built in: the sign-in helper reads it from the Pages secret MSAL_CLIENT_ID.
       - run: pnpm --filter web build
-        env:
-          VITE_MSAL_CLIENT_ID: ${{ vars.MSAL_CLIENT_ID }}
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # Use the workspace's pinned wrangler; the action can't `pnpm add` it at a workspace root.
           wranglerVersion: '4.151.1'
+          # Run from the repo root, so wrangler also bundles functions/ (the sign-in helper at /api/auth/*).
           command: pages deploy apps/web/dist --project-name=taskapp --branch=main
+      - name: Check the sign-in helper is live
+        # /api/auth/login answers with a redirect to Microsoft only when the functions shipped and the
+        # MSAL_CLIENT_ID, MSAL_CLIENT_SECRET and COOKIE_KEY secrets are set.
+        run: |
+          for i in 1 2 3 4 5 6; do
+            location=$(curl -s -o /dev/null -w '%{redirect_url}' https://tasks.alipka.com/api/auth/login)
+            case "$location" in https://login.microsoftonline.com/consumers/*) echo "Sign-in helper OK"; exit 0;; esac
+            sleep 10
+          done
+          echo "::error::https://tasks.alipka.com/api/auth/login does not redirect to Microsoft; check the Pages secrets (README, Sign-in)."
+          exit 1

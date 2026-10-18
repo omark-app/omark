@@ -4,7 +4,7 @@ export { FakeOneDrive } from './fake-onedrive.ts';
 export { OneDriveAdapter } from './onedrive-adapter.ts';
 export type { OneDriveAdapterOptions } from './onedrive-adapter.ts';
 export { createAuth } from './auth.ts';
-export type { Auth } from './auth.ts';
+export type { Auth, AuthOptions } from './auth.ts';
 export { IdbCache, MemoryCache, migrateCache } from './cache.ts';
 export type { CachedFile, LocalCache } from './cache.ts';
 export { FileSync } from './file-sync.ts';
