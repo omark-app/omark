@@ -27,7 +27,7 @@ Ideas deliberately left out of v1 ([[TaskApp v1 spec]]). Grouped by theme; not o
 
 ## Features
 
-- **Search** (browser Ctrl+F covers v1).
+- **Reopen a completed task from search**: search shows completed tasks read-only; a Reopen action there would move the line back from `done.md` (like un-completing) for completions older than Undo reaches.
 - **Reminders and notifications**.
 - **Natural-language dates and repeats** in quick add (e.g. "tomorrow", "every 2nd tue").
 - **Priorities, labels, projects, checkbox subtasks.**

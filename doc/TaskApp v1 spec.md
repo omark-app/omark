@@ -202,7 +202,7 @@ Shown compactly, e.g. `Today 4 (3.2) · 7d 23 (19 ↑) · All 412`.
 | Delete / Backspace | Delete (with undo) |
 | Esc | Close the detail (deselect) |
 
-- Global: `z` or Ctrl+Z undo; `v` switch view (section 11).
+- Global: `z` or Ctrl+Z undo; `v` switch view (section 11); `f` or Ctrl+K search (9.3).
 - Clicking a task's date label opens the date picker; the picker has Today, Tomorrow, This week, Next week, Someday and a calendar field.
 - Mouse drag between and within buckets (section 4.4).
 - Every change shows a short toast with **Undo** (e.g. "Moved to Next week · Sun", "Done · next Mon 19 Oct").
@@ -216,9 +216,21 @@ Shown compactly, e.g. `Today 4 (3.2) · 7d 23 (19 ↑) · All 412`.
 - **Swipe right** → complete.
 - **Swipe left** → move sheet: Today, This week, Next week, Pick a date…, Someday, Repeat…, Delete.
 - Tapping a task's date label opens the date picker directly.
+- A 🔍 button at the top of the list, beside the save status, opens search full-screen (9.3).
 - **Long-press (~0.4 s, finger still) then drag** → move between and within buckets (section 4.4). The row lifts as a floating copy that follows the finger; the page auto-scrolls near the top and bottom edges; page scrolling is blocked only while dragging. No haptic feedback (not available to iPhone web apps). The iOS long-press text callout is disabled on task rows.
 - Swipe, tap, scroll and long-press are told apart by movement: moving before the hold time is a swipe or scroll; holding still is a drag.
 - Sheets slide up from the bottom; on desktop the same content appears as a small centred dialog.
+
+### 9.3 Search (added after v1, 2026-10-18)
+
+For finding an old task by any word in it, then opening it to read.
+
+- **Opening**: `f` or Ctrl+K (desktop, both views; not while typing in a field or with a sheet open) opens a search panel over the page, command-palette style. On the phone the 🔍 button opens the same search full-screen. Esc, ✕ or a click outside closes it and puts focus back where it was. `f` is configurable (`search`); Ctrl+K is fixed.
+- **Matching**: one free-text box; results update as you type. Every word must appear, in any order and as part of a word, in the title or a note. Case and diacritics are ignored (`zwloknienia` finds `zwłóknienia` and the other way round; `ł` counts as `l`).
+- **Results**: the title with the matched words highlighted, the task's date label as in the list (the bucket name, `Today` or `Someday`, where the row shows none; red when overdue; `↻` when repeating), and the best matching note line when a word matched outside the title. Order: every word in the title first, then words split between title and notes, then note-only matches; within each, earliest date first, undated last. ↑/↓ move through the results, Enter opens one; click or tap works too.
+- **Completed tasks**: only open tasks are searched at first. A last row, "Also search N completed", adds the matches from `done.md` (kept until search closes): struck through, with their ✅ date, newest first within the same order. At most 100 are shown; another word narrows them. Done entries' titles are matched, and their notes once `done.md` entries carry them.
+- **Opening a result**: an open task opens in the detail (desktop: the side pane or the board's rail) or the edit sheet (phone). Closing it (Esc, `esc`, Save, ✕) comes back to search with the query and results kept; selecting another task leaves search. A completed task opens a read-only sheet: title, notes, completion date and repeat rule. It can't be reopened from there (backlog).
+- Out of scope: filters, saved searches, search syntax.
 
 ## 10. Config
 
@@ -233,7 +245,7 @@ Settings in v1:
 
 | Setting | Default |
 |---|---|
-| Keyboard shortcuts | As in section 9.1 |
+| Keyboard shortcuts | As in sections 9.1 and 9.3 |
 | Default view on desktop | Task list |
 | First day of week | Monday |
 | Buckets folded on open | Later, Someday |
@@ -289,7 +301,7 @@ TypeScript monorepo (pnpm workspaces):
 
 | Package | Responsibility |
 |---|---|
-| `packages/core` | Pure TS with no UI or IO: parse/serialize `tasks.md`, `done.md` and `config.yaml`; bucket logic; recurrence; stats; three-way merge; config defaults and validation |
+| `packages/core` | Pure TS with no UI or IO: parse/serialize `tasks.md`, `done.md` and `config.yaml`; bucket logic; recurrence; stats; search matching and ranking; three-way merge; config defaults and validation |
 | `packages/storage` | Storage adapter interface, OneDrive (Graph + MSAL) implementation, in-memory fake for tests, offline cache and write queue |
 | `apps/web` | Svelte 5 + Vite PWA: UI, keyboard and touch handling, service worker |
 | `tools/todoist-import` | One-time import script |

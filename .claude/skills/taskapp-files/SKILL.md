@@ -160,4 +160,4 @@ YAML with only the settings that differ from the defaults. Keep its comments. A 
 | `dateLabels` | `short` (Thu, 12 Nov), `iso` |
 | `newTaskBucket` | `today`, `week`, `next`, `someday` |
 | `saveDelaySeconds` | number, 0 or more (default 1) |
-| `shortcuts` | map of command to a key or list of keys (`KeyboardEvent.key` names); a key binds to one command only. Commands: focusAdd, down, up, today, thisWeek, nextWeek, pickDate, someday, repeat, complete, edit, delete, deselect, undo, switchView |
+| `shortcuts` | map of command to a key or list of keys (`KeyboardEvent.key` names); a key binds to one command only. Commands: focusAdd, down, up, today, thisWeek, nextWeek, pickDate, someday, repeat, complete, edit, delete, deselect, undo, switchView, search |
