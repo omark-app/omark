@@ -35,6 +35,39 @@ describe('OneDriveAdapter (Graph specifics)', () => {
     expect(graph.calls[1]!.headers['authorization']).toBeUndefined();
   });
 
+  it('reads again when the download is older than the eTag it came with, and returns the matching pair', async () => {
+    const { graph, adapter } = setup();
+    graph.external('tasks.md', 'old');
+    graph.external('tasks.md', 'new');
+    graph.staleDownloads = 1;
+    expect(await adapter.read('tasks.md')).toEqual({ text: 'new', etag: '"{guid-tasks.md},2"' });
+    expect(graph.calls).toHaveLength(4);
+  });
+
+  it('fails the read, rather than pair old text with the new eTag, when the download stays stale', async () => {
+    const { graph, adapter } = setup();
+    graph.external('tasks.md', 'old');
+    graph.external('tasks.md', 'new');
+    graph.staleDownloads = 3;
+    await expect(adapter.read('tasks.md')).rejects.toThrow('does not match its eTag');
+    expect(graph.calls).toHaveLength(6);
+  });
+
+  it('hashes the bytes as sent, BOM and CRLF included, and takes the text without the BOM', async () => {
+    const { graph, adapter } = setup();
+    graph.external('tasks.md', String.fromCharCode(0xfeff) + '# Tasks\r\n- [ ] Zwłóknienia\r\n');
+    expect((await adapter.read('tasks.md'))?.text).toBe('# Tasks\r\n- [ ] Zwłóknienia\r\n');
+  });
+
+  it('takes the download as is when the metadata has no hash', async () => {
+    const { graph, adapter } = setup();
+    graph.hashes = false;
+    graph.external('tasks.md', 'old');
+    graph.external('tasks.md', 'new');
+    graph.staleDownloads = 1;
+    expect((await adapter.read('tasks.md'))?.text).toBe('old');
+  });
+
   it('writes with PUT :/content, If-Match, and text/plain content type', async () => {
     const { graph, adapter } = setup();
     const { etag } = await adapter.write('tasks.md', 'a', null);
