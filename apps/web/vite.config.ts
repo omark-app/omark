@@ -27,8 +27,10 @@ export default defineConfig({
       // the sign-in helper (/api/auth) and OneDrive download URLs always go straight to the network. A new
       // version installs in the background and, with skipWaiting + clientsClaim, its service worker takes
       // control of the open page at once; the page keeps running the JS it loaded and runs the new JS on
-      // the next open (no reload mid-session). With one bundle that is safe; if code splitting is ever
-      // added, switch to `prompt`, as cleanupOutdatedCaches would remove chunks a running page still loads.
+      // the next open (no reload mid-session). An iOS home-screen app is resumed rather than reopened, so
+      // src/lib/updates.ts checks for a new build on every return and reloads on the return after one took
+      // over. With one bundle that is safe; if code splitting is ever added, switch to `prompt`, as
+      // cleanupOutdatedCaches would remove chunks a running page still loads.
       workbox: {
         globPatterns: ['**/*.{js,css,html,woff2,png,svg,webmanifest}'],
         navigateFallback: 'index.html',

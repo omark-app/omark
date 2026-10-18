@@ -131,6 +131,26 @@ describe('app store', () => {
     expect(store.stats.today).toBe(1);
   });
 
+  it('a title typed or edited with 🔁 text repeats, and completing it reschedules instead of deleting (issue #8)', async () => {
+    now = new Date(2026, 9, 18, 9, 0); // Sunday
+    const { drive, store, synced } = await setup();
+    store.add('leki 🔁 every 2 days');
+    store.edit(idOf(store, 'Send the invoice'), { title: 'depresja 🔁 every week on Sunday', notes: [] });
+    await synced();
+    expect(drive.peek('tasks.md')).toContain('- [ ] leki 🔁 every 2 days 📅 2026-10-18\n');
+    expect(drive.peek('tasks.md')).toContain('- [ ] depresja 🔁 every week on Sunday 📅 2026-10-17\n');
+    store.complete(idOf(store, 'leki'));
+    expect(store.toast?.message).toBe('Done · next Tue 20 Oct');
+    store.complete(idOf(store, 'depresja'));
+    expect(store.toast?.message).toBe('Done · next Sun 25 Oct');
+    await synced();
+    expect(drive.peek('tasks.md')).toContain('- [ ] leki 🔁 every 2 days 📅 2026-10-20\n');
+    expect(drive.peek('tasks.md')).toContain('- [ ] depresja 🔁 every week on Sunday 📅 2026-10-25\n');
+    expect(drive.peek('done.md')).toBe(
+      '- [x] leki 🔁 every 2 days ✅ 2026-10-18\n- [x] depresja 🔁 every week on Sunday ✅ 2026-10-18\n',
+    );
+  });
+
   it('undo restores both files', async () => {
     const { drive, store, synced } = await setup();
     store.complete(idOf(store, 'Water the plants'));

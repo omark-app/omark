@@ -3,7 +3,7 @@ import { describe, expect, test } from 'vitest';
 import {
   addTask, allTasks, completeTask, deleteTask, editTask, findTask, moveToBucket, parseDone, parseTasks,
   computeStats, reorder, serializeDone, serializeTasks, setAlways, setDate, setRepeat, toBlocks, type State,
-  type WeekCtx,
+  type Task, type WeekCtx,
 } from '../src/index.ts';
 
 const TODAY = '2026-10-16';
@@ -16,6 +16,9 @@ function make(): State {
 }
 const idOf = (s: State, title: string) => allTasks(s.doc).find((t) => t.title === title)!.id;
 const titles = (s: State) => s.doc.items.map((i) => (i.kind === 'task' ? i.task.title : '?'));
+/** Each task's title, date and rule, as held and as the saved tasks.md reads back; the two must be equal. */
+const fieldsOf = (doc: State['doc']) => allTasks(doc).map((t) => [t.title, t.date, t.repeat]);
+const readsBack = (s: State) => expect(fieldsOf(parseTasks(serializeTasks(s.doc)))).toEqual(fieldsOf(s.doc));
 
 /** Runs op on a fresh state, asserting the input is not mutated. */
 function pure<T>(op: (s: State) => T): T {
@@ -55,6 +58,19 @@ describe('addTask', () => {
   test('someday has no date; default id generator works', () => {
     const r = pure((s) => addTask(s, 'x', 'someday', fri))!;
     expect(findTask(r.state, r.id)?.date).toBeNull();
+  });
+  test('a 🔁 rule typed in the title becomes the repeat, as the file reads it (issue #8)', () => {
+    const r = pure((s) => addTask(s, 'leki 🔁 every 2 days', 'today', fri))!;
+    expect(findTask(r.state, r.id)).toMatchObject({ title: 'leki', date: TODAY, repeat: { type: 'every', n: 2, unit: 'days' } });
+    readsBack(r.state);
+  });
+  test('a typed 📅 date wins over the bucket; text the file does not read as a field stays in the title', () => {
+    const r = pure((s) => addTask(s, 'x 📅 2026-12-01 🔁 every blue moon', 'today', fri))!;
+    expect(findTask(r.state, r.id)).toMatchObject({ title: 'x 🔁 every blue moon', date: '2026-12-01', repeat: null });
+    readsBack(r.state);
+  });
+  test('a title of field text only gives null', () => {
+    expect(pure((s) => addTask(s, '🔁 every day', 'today', fri))).toBeNull();
   });
 });
 
@@ -121,6 +137,35 @@ describe('completeTask', () => {
   test('unknown id', () => {
     const s = make();
     expect(completeTask(s, 'nope', TODAY)).toEqual({ state: s, next: null });
+  });
+  test('a task the file holds as repeating is rescheduled even if the state lost its rule (issue #8)', () => {
+    // Held as one-offs with the rule text in the title; saved, both lines read back as repeating.
+    const drifted = (id: string, title: string): Task => ({
+      id, title, notes: ['note'], date: '2026-10-18', repeat: null, raw: null, rawKey: null,
+    });
+    const s0: State = {
+      doc: {
+        preamble: [], always: [], alwaysRaw: null,
+        items: [
+          { kind: 'task', task: drifted('a', 'leki 🔁 every 2 days') },
+          { kind: 'task', task: drifted('b', 'depresja 🔁 every week on Sunday') },
+        ],
+      },
+      done: parseDone(''),
+    };
+    const sun = '2026-10-18';
+    const r1 = completeTask(s0, 'a', sun);
+    expect(r1.next).toBe('2026-10-20');
+    const r2 = completeTask(r1.state, 'b', sun);
+    expect(r2.next).toBe('2026-10-25');
+    expect(serializeTasks(r2.state.doc)).toBe(
+      '# Always\n\n# Tasks\n- [ ] leki 🔁 every 2 days 📅 2026-10-20\n    - note\n' +
+        '- [ ] depresja 🔁 every week on Sunday 📅 2026-10-25\n    - note\n',
+    );
+    expect(serializeDone(r2.state.done)).toBe(
+      '- [x] leki 🔁 every 2 days ✅ 2026-10-18\n    - note\n- [x] depresja 🔁 every week on Sunday ✅ 2026-10-18\n    - note\n',
+    );
+    readsBack(r2.state);
   });
   test('a one-off task takes its notes to done.md, uncounted (Ruling 44)', () => {
     const id = idOf(make(), DENTIST);
@@ -194,11 +239,29 @@ describe('editTask', () => {
       spec.replace('- [ ] Send the invoice 📅 2026-10-19', '- [ ] Send invoice now 📅 2026-10-19\n    - to Anna'),
     );
   });
-  test('blank title or unknown id is ignored', () => {
+  test('blank title, a title of field text only, or unknown id is ignored', () => {
     const id = idOf(make(), INVOICE);
     const s = make();
     expect(editTask(s, id, { title: '  ', notes: [] })).toEqual(s);
+    expect(editTask(s, id, { title: '🔁 every day', notes: [] })).toEqual(s);
     expect(editTask(s, 'nope', { title: 'x', notes: [] })).toEqual(s);
+  });
+  test('a 🔁 rule typed into the title becomes the repeat; completing then reschedules (issue #8)', () => {
+    const id = idOf(make(), INVOICE); // due 2026-10-19
+    const s = pure((s) => editTask(s, id, { title: 'Send the invoice 🔁 every 2 days', notes: [] }));
+    expect(findTask(s, id)).toMatchObject({ title: INVOICE, date: '2026-10-19', repeat: { type: 'every', n: 2, unit: 'days' } });
+    readsBack(s);
+    const r = completeTask(s, id, TODAY);
+    expect(r.next).toBe('2026-10-21');
+    expect(findTask(r.state, id)?.date).toBe('2026-10-21');
+  });
+  test('a typed rule replaces the one the task had, and typing it again changes nothing', () => {
+    const id = idOf(make(), WATER);
+    const s = pure((s) => editTask(s, id, { title: 'Water 🔁 every day', notes: [] }));
+    expect(findTask(s, id)).toMatchObject({ title: 'Water', date: '2026-10-19', repeat: { type: 'daily' } });
+    readsBack(s);
+    // The detail commits what is typed while the field keeps it, so the same text can come again.
+    expect(serializeTasks(editTask(s, id, { title: 'Water 🔁 every day', notes: [] }).doc)).toBe(serializeTasks(s.doc));
   });
 });
 

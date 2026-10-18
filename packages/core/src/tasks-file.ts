@@ -14,6 +14,8 @@ const NOTE_MARKER = /^[-*+][ \t]+/;
 const DUE = '📅';
 const DONE = '✅';
 const REPEAT = '🔁';
+/** Emoji presentation selector: some editors write it after a field emoji, where it changes nothing. */
+const VS16 = '\uFE0F';
 /** Where a 🔁 rule's text ends: a ` #tag`, or any Obsidian Tasks field emoji. */
 const RULE_END = /[ \t]#[^\s#]|📅|✅|🔁|⏳|🛫|➕|❌|🆔|⛔|🏁|⏫|🔼|🔽|⏬|🔺/u;
 
@@ -180,6 +182,17 @@ export function taskLines(t: Task): string[] {
 }
 
 /**
+ * `t` as its task line reads back: the title, 📅 date and 🔁 rule `parseTasks` takes from the line
+ * `taskLines` writes. Rule or date text typed into a title thus becomes that field, as every other device
+ * reads it (issue #8). Returns `t` itself when nothing differs.
+ */
+export function readBack(t: Task): Task {
+  const f = parseFields(OPEN_LINE.exec(taskLines(t)[0]!)![1]!, false);
+  const read = { ...t, title: f.title, date: f.date, repeat: f.repeat };
+  return taskKey(read) === taskKey(t) ? t : read;
+}
+
+/**
  * The note lines of `t`: as read while its notes are unchanged (keeping nesting, tabs and markers), or
  * canonical `    - {note}` lines once they were edited (or for a task the app created).
  */
@@ -209,7 +222,7 @@ export function parseFields(text: string, isDone: boolean): Fields {
   const spans: [number, number][] = [];
 
   const takeDate = (emoji: string): ISODate | null => {
-    const re = new RegExp(`${emoji}[ \\t]*(\\d{4}-\\d{2}-\\d{2})(?!\\d)`, 'gu');
+    const re = new RegExp(`${emoji}${VS16}?[ \\t]*(\\d{4}-\\d{2}-\\d{2})(?!\\d)`, 'gu');
     let found: { value: ISODate; span: [number, number] } | null = null;
     for (const m of text.matchAll(re)) {
       if (isRealDate(m[1]!)) found = { value: m[1]!, span: [m.index, m.index + m[0].length] };
@@ -224,7 +237,7 @@ export function parseFields(text: string, isDone: boolean): Fields {
 
   let rule: { value: RepeatRule; span: [number, number] } | null = null;
   for (let at = text.indexOf(REPEAT); at >= 0; at = text.indexOf(REPEAT, at + REPEAT.length)) {
-    const from = at + REPEAT.length;
+    const from = at + REPEAT.length + (text.startsWith(VS16, at + REPEAT.length) ? VS16.length : 0);
     const stop = RULE_END.exec(text.slice(from));
     const end = stop ? from + stop.index : text.length;
     const value = parseRepeat(text.slice(from, end));

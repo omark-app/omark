@@ -340,6 +340,15 @@ test('field spacing variants and an unparseable date', () => {
   expect(c).toMatchObject({ title: '', repeat: { type: 'every', n: 2, unit: 'weeks' }, date: '2026-10-18' });
 });
 
+test('an emoji presentation selector after a field emoji, or NBSP in a rule, changes nothing', () => {
+  const text = '# Tasks\n- [ ] leki 🔁\uFE0F every\u00A02 days 📅\uFE0F 2026-10-18\n- [x] dep 🔁\uFE0F every week on Sunday ✅\uFE0F 2026-10-18\n';
+  const doc = parseTasks(text);
+  const [leki] = tasksOf(doc);
+  expect(leki).toMatchObject({ title: 'leki', repeat: { type: 'every', n: 2, unit: 'days' }, date: '2026-10-18' });
+  expect(doc.items[1]).toMatchObject({ kind: 'done', entry: { title: 'dep', repeat: { type: 'weekly', days: [6] }, doneOn: '2026-10-18' } });
+  expect(serializeTasks(doc)).toBe(`# Always\n\n${text}`);
+});
+
 test('a Tasks heading without an Always heading', () => {
   const doc = parseTasks('Intro\n# Tasks\n- [ ] A\n');
   expect(doc.preamble).toEqual(['Intro']);
