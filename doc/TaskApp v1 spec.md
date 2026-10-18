@@ -36,7 +36,7 @@ A super simple personal task app replacing the parts of Todoist actually used: d
 | File | Holds |
 |---|---|
 | `tasks.md` | ALWAYS lines and all open tasks |
-| `done.md` | One line per completion (the stats source) |
+| `done.md` | One line per completion (the stats source), with the task's notes under it |
 | `config.yaml` | User settings (section 10) |
 
 ### 3.3 `tasks.md` format
@@ -66,12 +66,18 @@ Obsidian Tasks–compatible markdown. Tasks are one flat list; buckets are compu
 
 ```markdown
 - [x] Send the invoice ✅ 2026-10-16
+- [x] Call the dentist about the crown ✅ 2026-10-16
+    - ask about zirconia
+    - bring the old x-ray
 - [x] Water the plants 🔁 every week on Monday ✅ 2026-10-19
 ```
 
-- Completing a task moves its line from `tasks.md` to `done.md` with today's date.
-- Completing a recurring task appends one line to `done.md` and moves the task in `tasks.md` to its next date.
-- Un-completing moves the line back to `tasks.md` and removes it from `done.md`.
+- Nothing is deleted on completion: completing a task moves its line from `tasks.md` to `done.md` with today's date, and its notes go along as indented lines under the done line, byte for byte as they were in `tasks.md`.
+- Completing a recurring task appends its done line, with a copy of its notes, to `done.md` and moves the task in `tasks.md` (notes included) to its next date.
+- A `- [x]` line ticked outside the app (e.g. in Obsidian) moves to `done.md` on the next sync with its notes.
+- Each `- [x] … ✅ date` line counts once in the stats; the indented note lines under it never count. Older one-line entries without notes stay valid, and lines the app doesn't recognise are kept as they are.
+- A done line and its notes are one block when `done.md` is merged (section 3.5), so completions on two devices never mix up their notes.
+- Un-completing (Undo) moves the task back to `tasks.md` with its notes and removes its block from `done.md`.
 
 ### 3.5 Saving, sync, offline and conflicts
 

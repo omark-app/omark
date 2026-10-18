@@ -38,7 +38,7 @@ Three UTF-8 files, LF line endings, in `C:\Users\alipk\OneDrive\ALAI\TaskApp\`: 
 - Dates are `YYYY-MM-DD`, local time.
 - Notes: `    - {note}` (four spaces).
 - A `🔁` rule TaskApp can't parse stays in the title and the task counts as non-repeating. Use only the wording below.
-- A `- [x]` line in `tasks.md` moves to `done.md` on the next sync. One with a `✅` date moves as it is. One without gets today's `✅`; if it repeats, the app also keeps the task in place as `- [ ]` on its next date (notes stay with it). Leave such lines for the app unless asked to complete the task, and then complete it as below instead of ticking it.
+- A `- [x]` line in `tasks.md` moves to `done.md` on the next sync, with its note lines. One with a `✅` date moves as it is. One without gets today's `✅`; if it repeats, the app also keeps the task in place as `- [ ]` on its next date (notes stay with it, and `done.md` gets a copy). Leave such lines for the app unless asked to complete the task, and then complete it as below instead of ticking it.
 
 ## Repeat wording
 
@@ -60,16 +60,18 @@ N is a whole number from 1 to 999. A larger N is not a rule: the text stays in t
 
 ## Completing a task
 
-The done line is `- [x] {title} 🔁 {rule} ✅ {today}`. The `🔁 {rule}` part appears only when the task repeats. The `📅` date never goes to `done.md`.
+Nothing is lost: a completed task's notes always go to `done.md` with it.
 
-Non-repeating: delete the whole block (line and notes) from `tasks.md`, then append the done line to the end of `done.md` with the task's note lines, exactly as they were, right under it. Indented lines in `done.md` are not counted as completions.
+The done line is `- [x] {title} 🔁 {rule} ✅ {today}`. The `🔁 {rule}` part appears only when the task repeats. The `📅` date never goes to `done.md`. Under it come the task's note lines, byte for byte as they are in `tasks.md` (same indent, marker and spacing); no notes, no extra lines.
+
+Non-repeating: delete the whole block (line and notes) from `tasks.md`, then append the done line to the end of `done.md` with the task's note lines right under it.
 
 ```markdown
 - [x] Call the dentist ✅ 2026-10-19
     - ask about zirconia
 ```
 
-Repeating: keep the block, notes included, in `tasks.md` (the sample shows the whole file), set its `📅` to the next date (below), and append the done line with the rule. The notes are not copied to `done.md`.
+Repeating: keep the block, notes included, in `tasks.md` (the sample shows the whole file), set its `📅` to the next date (below), and append the done line with the rule and a copy of the note lines.
 
 ```markdown
 # Always
@@ -81,9 +83,17 @@ Repeating: keep the block, notes included, in `tasks.md` (the sample shows the w
 
 ```markdown
 - [x] Pay rent 🔁 every month on the 1st ✅ 2026-11-01
+    - transfer from savings
 ```
 
+## done.md
+
 `done.md` is an append-only log, oldest first. Never rewrite its existing lines.
+
+- An entry is a `- [x] … ✅ {date}` line plus the indented lines right under it (its notes). A blank or unindented line ends the entry.
+- Each `- [x]` line with a valid `✅` date counts as one completion. Indented lines are never counted.
+- Older entries are a single line with no notes; leave them so. Leave any other line (free text, headings, a `- [x]` without `✅`) as it is.
+- Append new entries at the end, keeping each entry's notes directly under its own line.
 
 ## Next date
 

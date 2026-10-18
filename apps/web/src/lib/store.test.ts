@@ -157,6 +157,22 @@ describe('app store', () => {
     expect(drive.peek('done.md')).toBe('');
   });
 
+  it('completing a repeating task copies its notes to done.md, and undo takes them back', async () => {
+    const tasks = '# Always\n\n# Tasks\n- [ ] Water the plants 🔁 every week on Monday 📅 2026-10-16\n    - the ferns too\n';
+    const { drive, store, synced } = await setup({ 'tasks.md': tasks });
+    store.complete(idOf(store, 'Water the plants'));
+    await synced();
+    expect(drive.peek('done.md')).toBe('- [x] Water the plants 🔁 every week on Monday ✅ 2026-10-16\n    - the ferns too\n');
+    expect(drive.peek('tasks.md')).toBe(
+      '# Always\n\n# Tasks\n- [ ] Water the plants 🔁 every week on Monday 📅 2026-10-19\n    - the ferns too\n',
+    );
+    expect(store.stats.all).toBe(1);
+    store.undo();
+    await synced();
+    expect(drive.peek('tasks.md')).toBe(tasks);
+    expect(drive.peek('done.md')).toBe('');
+  });
+
   it('add reports whether a task was added (a blank title is not)', async () => {
     const { store } = await setup();
     expect(store.add('   ')).toBe(false);
@@ -218,7 +234,7 @@ describe('app store', () => {
         '# Always\n\n# Tasks\n- [ ] Water the plants 🔁 every week on Monday 📅 2026-10-19\n    - the ferns too\n',
       ),
     );
-    expect(drive.peek('done.md')).toBe('- [x] Water the plants 🔁 every week on Monday ✅ 2026-10-16\n');
+    expect(drive.peek('done.md')).toBe('- [x] Water the plants 🔁 every week on Monday ✅ 2026-10-16\n    - the ferns too\n');
   });
 
   it('tick after midnight moves tomorrow’s task to Today', async () => {
