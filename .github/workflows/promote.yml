@@ -17,6 +17,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   promote:
+    # Only the promote.yml on main may run: from another branch the file (and its checks) could be edited.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

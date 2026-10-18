@@ -78,7 +78,7 @@ export async function ensureStaging({ token, accountId, fetch: f = fetch, log = 
   if (!existing) {
     log(`Adding the DNS record ${DOMAIN} → ${subdomain}`);
     must(
-      await call('POST', `/zones/${ZONE}/dns_records`, { type: 'CNAME', name: 'tasks-staging', content: subdomain, proxied: true }, DOMAIN_STEPS),
+      await call('POST', `/zones/${ZONE}/dns_records`, { type: 'CNAME', name: DOMAIN, content: subdomain, proxied: true }, DOMAIN_STEPS),
       'adding the DNS record',
     );
   } else if (existing.type !== 'CNAME' || existing.content !== subdomain) {

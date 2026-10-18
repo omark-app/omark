@@ -45,7 +45,7 @@ function fakeFetch(cf: FakeCf): typeof fetch {
       return ok(cf.records.filter((r) => r.name === url.searchParams.get('name')));
     }
     if (method === 'POST' && path === `/zones/${ZONE}/dns_records`) {
-      cf.records.push({ ...body, name: `${body.name}.alipka.com` });
+      cf.records.push(body);
       return ok(body);
     }
     return json(404, { success: false, errors: [{ code: 7003, message: `no route ${method} ${path}` }] });

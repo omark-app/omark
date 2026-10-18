@@ -180,23 +180,24 @@ Short and factual:
 
 ### 7.3 Hooks
 
-- `SessionStart`, in the cloud only: `pnpm install --frozen-lockfile` when `node_modules` is missing or older than the lockfile.
+- `SessionStart`, in the cloud only: `pnpm install --frozen-lockfile` when `node_modules` is missing or older than the lockfile, and the Playwright browsers when this Playwright version's are missing (so no setup script is needed).
 - `PreToolUse` guard: section 8.
 
 ### 7.4 Cloud environment
 
-Cloud environment settings can't be committed, so `doc/TaskApp cloud environment.md` records them and the setup script:
+Cloud environment settings can't be committed, so `doc/TaskApp cloud environment.md` records them:
 
 - Name `TaskApp`, repository `alipkagit/TaskApp`.
-- Network: Trusted plus the Playwright browser download hosts (Custom).
-- Setup script: enable pnpm via corepack, `pnpm install --frozen-lockfile`, then install Playwright's chromium and webkit with their system dependencies. It must finish in about 5 minutes to be cached.
+- Network: Limited (the default package-manager list) plus the Playwright browser download hosts `cdn.playwright.dev` and `playwright.download.prss.microsoft.com`.
+- No setup script: the SessionStart hook (7.3) installs packages and browsers.
 - No secrets. The cloud session never needs Cloudflare, Entra or OneDrive credentials.
 
 ## 8. Guard (instead of branch protection)
 
-- A `PreToolUse` hook on Bash blocks: any push to `main` (including `HEAD:main` and `+main`), force pushes, deleting remote branches other than the session's own, `gh pr merge`, and merge calls through `gh api`.
-- `.claude/settings.json` adds matching deny rules.
-- The hook is best-effort; the real safety net is that `main` only reaches staging, and production needs my Promote.
+- A `PreToolUse` hook on Bash and the GitHub MCP tools blocks: any push to `main` (including `HEAD:main`, `+main` and wildcard refspecs), force pushes, `--prune`, deleting remote branches other than the session's own, merging PRs (`gh pr merge`, `gh api …/merge`, the merge tools), writing to `main` through the API or the GitHub tools, and starting Promote.
+- `.claude/settings.json` adds matching deny rules. Promote also refuses to run from any branch but `main`.
+- The hook is best-effort: it reads the command line, not what scripts or aliases do.
+- **Known gap:** on GitHub Free every workflow on any branch can read the repo's secrets, and the one Cloudflare token can deploy to every Pages project in the account. So a PR whose own workflow or CI script was edited could deploy to production. What stops that today is the rules (CI changes are always `size:large`, I review every PR) and the guard. Closing it fully needs a staging-only token, e.g. staging and previews in a second, free Cloudflare account.
 - Hook tests: a small script feeds it allowed and blocked commands and runs in CI's check job.
 - If the repo later moves to GitHub Pro or goes public, branch protection on `main` (PR required, checks required) replaces most of this.
 

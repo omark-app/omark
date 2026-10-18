@@ -15,10 +15,14 @@ export function envForHost(host: string): AppEnv {
   return 'local';
 }
 
-/** The OneDrive folder for `env`; local and preview builds keep the folder they were built with. */
+/**
+ * The OneDrive folder for `env`. Local and preview builds keep the folder they were built with, except that
+ * a preview never gets the production folder: the staging build is also served on its pages.dev hosts.
+ */
 export function folderFor(env: AppEnv, buildFolder: string): string {
   if (env === 'production') return PRODUCTION_FOLDER;
   if (env === 'staging') return STAGING_FOLDER;
+  if (env === 'preview' && buildFolder === PRODUCTION_FOLDER) return STAGING_FOLDER;
   return buildFolder;
 }
 

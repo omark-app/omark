@@ -25,7 +25,7 @@ Why the two domains: Playwright downloads its Chromium and WebKit builds from th
 
 It prints one line if a step fails and never blocks the session. The browser download is in the hook rather than a setup script, so the same steps work in any environment and stay in the repo.
 
-The guard hook (`tools/claude-guard/guard.mjs`) runs before every Bash command and blocks pushes to `main`, force pushes, deleting other remote branches and merges.
+The guard hook (`tools/claude-guard/guard.mjs`) runs before every Bash command and GitHub tool call and blocks pushes to `main`, force pushes, deleting other remote branches, merges and starting Promote.
 
 ## Checks
 

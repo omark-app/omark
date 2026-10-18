@@ -48,6 +48,28 @@ const blocked: [string, RegExp][] = [
   ['true || git push origin main', /main/],
   ['echo x | git push origin main', /main/],
   ['cd /tmp\ngit push origin main', /main/],
+  ["git push origin 'refs/heads/*:refs/heads/*'", /wildcard/],
+  ['git push --prune origin', /prune/],
+  ['git push origin --delete main', /main/],
+  ['bash -c "git push origin main"', /main/],
+  ["sh -c 'git push origin main'", /main/],
+  ['eval "git push origin main"', /main/],
+  ['env git push origin main', /main/],
+  ['command git push origin main', /main/],
+  ['sudo git push origin main', /main/],
+  ['time git push origin main', /main/],
+  ['nohup git push origin main', /main/],
+  ['(git push origin main)', /main/],
+  ['{ git push origin main; }', /main/],
+  ['gh api -X PATCH repos/o/r/git/refs/heads/main -f sha=abc', /ref/],
+  ['gh api -X DELETE repos/o/r/git/refs/heads/other', /ref/],
+  ['gh api -X PUT repos/o/r/contents/README.md -f branch=main -f message=x', /main/],
+  ['gh workflow run promote.yml', /Promote/],
+  ["cat <<'EOF' > x\nhello\nEOF\ngit push origin main", /main/],
+  ["bash <<'EOF'\ngit push origin main\nEOF", /main/],
+  ["echo hi | sh <<EOF\ngit push origin main\nEOF", /main/],
+  ['gh workflow run "Promote to production" --ref x', /Promote/],
+  ['gh api -X POST repos/o/r/actions/workflows/promote.yml/dispatches -f ref=main', /Promote/],
 ];
 
 const allowed = [
@@ -65,6 +87,12 @@ const allowed = [
   'gh api repos/alipkagit/TaskApp/pulls/14',
   'gh api repos/alipkagit/TaskApp/issues/14/comments -f body="please merge later"',
   'pnpm test',
+  'gh api repos/o/r/git/refs/heads/main',
+  'gh api -X PUT repos/o/r/contents/f -f branch=issue-14-fix-thing -f message=x',
+  'gh workflow run ci.yml',
+  'bash -c "pnpm test"',
+  "python3 - <<'EOF'\ns = 'git push origin main'\nEOF\npnpm test",
+  'cat > notes.md <<EOF\ngh workflow run promote.yml\nEOF',
 ];
 
 describe('guard', () => {
@@ -80,12 +108,34 @@ describe('guard', () => {
     expect(r.code).toBe(0);
   });
 
-  it.each(['git push', 'git push origin HEAD', 'git push -u origin HEAD'])('blocks %j when on main', (command) => {
+  it.each(['git push', 'git push origin HEAD', 'git push -u origin HEAD', 'git push origin @'])('blocks %j when on main', (command) => {
     const onMain = mkdtempSync(join(tmpdir(), 'guard-main-'));
     execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: onMain });
     const r = run({ tool_name: 'Bash', tool_input: { command }, cwd: onMain });
     expect(r.code).toBe(2);
     expect(r.stderr).toMatch(/main/);
+  });
+
+  it.each([
+    ['mcp__github__merge_pull_request', { pullNumber: 15 }, /merge/],
+    ['mcp__github__enable_pr_auto_merge', { pullNumber: 15 }, /merge/],
+    ['mcp__github__actions_run_trigger', { method: 'run_workflow', workflow_id: 'promote.yml' }, /Promote/],
+    ['mcp__github__push_files', { branch: 'main', files: [] }, /main/],
+    ['mcp__github__create_or_update_file', { branch: 'main', path: 'x' }, /main/],
+    ['mcp__github__delete_file', { branch: 'main', path: 'x' }, /main/],
+  ] as const)('blocks the GitHub tool %s', (tool_name, tool_input, reason) => {
+    const r = run({ tool_name, tool_input, cwd: repo });
+    expect(r.code).toBe(2);
+    expect(r.stderr).toMatch(reason);
+  });
+
+  it.each([
+    ['mcp__github__push_files', { branch: BRANCH, files: [] }],
+    ['mcp__github__actions_run_trigger', { method: 'rerun_failed_jobs', run_id: 1 }],
+    ['mcp__github__actions_run_trigger', { method: 'run_workflow', workflow_id: 'ci.yml' }],
+    ['mcp__github__create_pull_request', { base: 'main', head: BRANCH }],
+  ] as const)('allows the GitHub tool %s', (tool_name, tool_input) => {
+    expect(run({ tool_name, tool_input, cwd: repo }).code).toBe(0);
   });
 
   it('lets other tools through', () => {

@@ -8,8 +8,9 @@ on:
     branches: [main]
     paths-ignore: ['doc/**', '**/*.md']
 concurrency:
-  group: ci-${{ github.ref }}
-  # A newer push to a PR replaces the older run; runs on main always finish, so staging gets every merge.
+  # PRs: a newer push replaces the older run. main: one group per commit, so no merge's checks are dropped.
+  # (Its deploy-staging job still queues in the `staging` group, where only the newest waiting deploy runs.)
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read

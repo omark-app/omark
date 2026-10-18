@@ -33,7 +33,11 @@ describe('folderFor', () => {
   });
   it('local and preview follow the build', () => {
     expect(folderFor('local', 'ALAI/TaskApp-e2e')).toBe('ALAI/TaskApp-e2e');
-    expect(folderFor('preview', 'ALAI/TaskApp')).toBe('ALAI/TaskApp');
+    expect(folderFor('local', 'ALAI/TaskApp')).toBe('ALAI/TaskApp');
+    expect(folderFor('preview', 'ALAI/TaskApp-e2e')).toBe('ALAI/TaskApp-e2e');
+  });
+  it('a preview never uses the production folder (the staging build on its pages.dev hosts)', () => {
+    expect(folderFor('preview', 'ALAI/TaskApp')).toBe('ALAI/TaskApp-staging');
   });
 });
 

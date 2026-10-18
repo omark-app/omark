@@ -7,7 +7,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|mcp__github__.*",
         "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR\"/tools/claude-guard/guard.mjs" }]
       }
     ]
@@ -18,7 +18,10 @@
       "Bash(git push origin HEAD:main:*)",
       "Bash(git push --force:*)",
       "Bash(git push -f:*)",
-      "Bash(gh pr merge:*)"
+      "Bash(gh pr merge:*)",
+      "Bash(gh workflow run promote:*)",
+      "mcp__github__merge_pull_request",
+      "mcp__github__enable_pr_auto_merge"
     ]
   },
   "extraKnownMarketplaces": {
