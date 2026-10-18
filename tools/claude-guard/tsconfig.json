@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "lib": ["ES2023"], "types": ["node"], "allowJs": true, "checkJs": true },
+  "include": ["guard.mjs", "test", "vitest.config.ts"]
+}

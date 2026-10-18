@@ -89,6 +89,12 @@ importers:
         specifier: ^6.2.6
         version: 6.2.6
 
+  tools/claude-guard:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+
   tools/todoist-import:
     dependencies:
       '@taskapp/core':
