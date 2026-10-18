@@ -443,6 +443,9 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     await serial(async () => adopt());
   }
 
+  // A save that met another device's change merged it in (#6): show it now, not on the next focus.
+  workspace.onRemoteChange(() => void serial(async () => adopt()).catch((e: unknown) => console.error(e)));
+
   // Lines ticked in Obsidian were swept on load: write them out.
   if (isDirty()) scheduleSave();
   // Started from the cache without the network (a hanging one must not hold up the list): pull now.

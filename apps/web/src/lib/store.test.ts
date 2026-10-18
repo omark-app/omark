@@ -694,4 +694,69 @@ describe('app store', () => {
       expect(store.wouldLoseEdits()).toBe(false);
     });
   });
+  describe('two devices on one drive', () => {
+    const TWO = `# Always
+
+# Tasks
+- [ ] A 📅 2026-10-18
+- [ ] leki 🔁 every 2 days 📅 2026-10-18
+- [ ] dep 🔁 every week on Sunday 📅 2026-10-18
+- [ ] B 📅 2026-10-19
+`;
+
+    async function devices() {
+      now = new Date(2026, 9, 18, 9, 0); // Sunday
+      const drive = new FakeOneDrive({ 'tasks.md': TWO });
+      const open = async () => {
+        const ws = createWorkspace(drive, new MemoryCache());
+        const store = await createStore({ workspace: ws, clock, isPhone: () => false });
+        return { store, ws };
+      };
+      return { drive, pc: await open(), phone: await open() };
+    }
+
+    /** Stages, then waits until the upload (and any 412 retry it runs) is over, without a refresh. */
+    const upload = async (d: { store: AppStore; ws: Workspace }): Promise<void> => {
+      await d.store.flush();
+      await vi.waitFor(() => expect(d.ws.status()).toBe('saved'));
+      await vi.advanceTimersByTimeAsync(0);
+    };
+
+    it("a save that merges another device's change shows it at once, with no refresh (#6)", async () => {
+      const { drive, pc, phone } = await devices();
+      phone.store.complete(idOf(phone.store, 'leki'));
+      await upload(phone);
+      expect(drive.peek('tasks.md')).toContain('leki 🔁 every 2 days 📅 2026-10-20');
+
+      pc.store.complete(idOf(pc.store, 'A'));
+      await upload(pc); // its write meets the phone's change (412), merges and writes again
+      expect(drive.peek('tasks.md')).toContain('leki 🔁 every 2 days 📅 2026-10-20');
+      await vi.waitFor(() => expect(titles(pc.store, 'next')).toContain('leki'));
+      expect(titles(pc.store, 'today')).not.toContain('leki');
+      expect(pc.store.stats.today).toBe(2);
+      expect(pc.store.status).toBe('saved');
+    });
+
+    it('a repeating task completed on both devices, one of them stale, stays one task (#7)', async () => {
+      const { drive, pc, phone } = await devices();
+      phone.store.complete(idOf(phone.store, 'leki'));
+      await phone.store.refresh();
+      pc.store.complete(idOf(pc.store, 'dep')); // the PC has not seen the phone's change
+      phone.store.complete(idOf(phone.store, 'dep'));
+      await pc.store.refresh();
+      for (const d of [phone, pc, phone, pc]) {
+        await d.store.flush();
+        await d.store.refresh();
+      }
+      const tasks = drive.peek('tasks.md')!;
+      expect(tasks.match(/dep 🔁/g)).toHaveLength(1);
+      expect(tasks.match(/leki 🔁/g)).toHaveLength(1);
+      expect(tasks).toContain('dep 🔁 every week on Sunday 📅 2026-10-25');
+      expect(drive.peek('done.md')!.match(/dep/g)).toHaveLength(1);
+      for (const d of [pc, phone]) {
+        expect(allTitles(d.store).filter((t) => t === 'dep')).toHaveLength(1);
+        expect(d.store.stats.today).toBe(2);
+      }
+    });
+  });
 });

@@ -581,6 +581,22 @@ describe('FileSync', () => {
     expect(await sync.pull()).toEqual({ text, changed: false });
   });
 
+  it("onRemoteChange fires once a save's 412 retry merged in a remote change, and not for a plain save (#6)", async () => {
+    const { drive, sync } = await opened();
+    const seen: string[] = [];
+    sync.onRemoteChange(() => seen.push(sync.text()));
+    await sync.save(withLocal, S);
+    expect(seen).toEqual([]);
+    drive.externalWrite(NAME, withRemote + '- [ ] Second remote\n');
+    await sync.save(`${withLocal}- [ ] Another local\n`, withLocal);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toContain('- [ ] Second remote');
+    expect(seen[0]).toContain('- [ ] Another local');
+    expect(sync.status()).toBe('saved');
+    await sync.pull();
+    expect(seen).toHaveLength(1); // nothing new arrived
+  });
+
   it('a failed cache load rejects and goes offline; the next open() retries the load', async () => {
     const drive = new FakeOneDrive({ [NAME]: S });
     const inner = new MemoryCache();

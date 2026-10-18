@@ -40,6 +40,9 @@ export class FileSync {
   private loading: Promise<boolean> | null = null;
   /** Remote content altered `local` since `open` or `pull` last returned. */
   private remoteChanged = false;
+  /** Remote content altered `local` during the running operation; reported to `onRemoteChange` after it. */
+  private absorbed = false;
+  private readonly remoteListeners = new Set<() => void>();
   private current: SyncStatus = 'syncing';
   private readonly listeners = new Set<(s: SyncStatus) => void>();
   private chain: Promise<unknown> = Promise.resolve();
@@ -67,6 +70,16 @@ export class FileSync {
   onStatus(cb: (s: SyncStatus) => void): () => void {
     this.listeners.add(cb);
     return () => this.listeners.delete(cb);
+  }
+
+  /**
+   * Calls `cb` after any operation that merged remote content into `local`: a pull, or a save whose
+   * write met a newer file (412) and merged it in before writing again. A caller that only re-reads on
+   * `pull` would otherwise go on showing the text from before that merge.
+   */
+  onRemoteChange(cb: () => void): () => void {
+    this.remoteListeners.add(cb);
+    return () => this.remoteListeners.delete(cb);
   }
 
   /** Loads the cache without touching the network: the cached working text, or null when there is none. */
@@ -192,7 +205,7 @@ export class FileSync {
       // Still dirty only if a save arrived meanwhile; its own queued operation will write it.
       if (!this.file.dirty) this.setStatus('saved');
       return true;
-    });
+    }).finally(() => this.reportAbsorbed());
     this.chain = run.catch(() => {});
     return run.catch(() => false);
   }
@@ -228,7 +241,7 @@ export class FileSync {
     }
     // `local` now builds on this remote, not on the unanswered writes.
     this.unconfirmed = [];
-    if (this.file.local !== f.local) this.remoteChanged = true;
+    if (this.file.local !== f.local) this.remoteChanged = this.absorbed = true;
     await this.persist();
   }
 
@@ -284,6 +297,18 @@ export class FileSync {
       p = this.persisting;
       await p;
     } while (p !== this.persisting);
+  }
+
+  private reportAbsorbed(): void {
+    if (!this.absorbed) return;
+    this.absorbed = false;
+    for (const cb of this.remoteListeners) {
+      try {
+        cb();
+      } catch (e) {
+        console.error('FileSync remote-change listener failed', e);
+      }
+    }
   }
 
   private setStatus(s: SyncStatus): void {
