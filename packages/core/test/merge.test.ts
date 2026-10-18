@@ -144,17 +144,15 @@ test('adjacent tasks edited one on each side gives both edits, with no duplicate
   const dune = '- [ ] Read "Dune" 🔁 every year';
   const local = md(...ALWAYS, BUY, ...DENTIST, passport, DUNE);
   const remote = md(...ALWAYS, BUY, ...DENTIST, PASSPORT, dune);
-  // Touching edits form one conflict hunk, resolved as local's blocks then remote's new ones.
-  expect(mergeTasksText(BASE, local, remote)).toBe(md(...ALWAYS, BUY, ...DENTIST, passport, dune));
-  expect(mergeTasksText(BASE, remote, local)).toBe(md(...ALWAYS, BUY, ...DENTIST, dune, passport));
+  // Touching edits form one conflict hunk; each edit stays where its task was, in both directions (#7).
+  for (const out of mergeBothWays(BASE, local, remote)) expect(out).toBe(md(...ALWAYS, BUY, ...DENTIST, passport, dune));
 
   // Three neighbours: first and third edited locally, middle remotely.
   const buy = '- [ ] Buy oat milk 📅 2026-10-17';
   const dentist = [DENTIST[0]!, '    - ask about ceramic'];
   const l3 = md(...ALWAYS, buy, ...DENTIST, passport, DUNE);
   const r3 = md(...ALWAYS, BUY, ...dentist, PASSPORT, DUNE);
-  expect(mergeTasksText(BASE, l3, r3)).toBe(md(...ALWAYS, buy, passport, ...dentist, DUNE));
-  expect(mergeTasksText(BASE, r3, l3)).toBe(md(...ALWAYS, ...dentist, buy, passport, DUNE));
+  for (const out of mergeBothWays(BASE, l3, r3)) expect(out).toBe(md(...ALWAYS, buy, ...dentist, passport, DUNE));
 });
 
 test('notes added on one side while the title changed on the other keeps both versions', () => {
@@ -270,7 +268,7 @@ test('a new copy of a task survives the other side editing the original', () => 
 
 test('two identical new blank lines on one side are both kept', () => {
   expect(merge3(['T1', 'T2'], ["T1'", 'T2'], ['T1', '', '', 'T2'])).toEqual(["T1'", '', '', 'T2']);
-  expect(merge3(['T1', 'T2'], ['T1', '', '', 'T2'], ["T1'", 'T2'])).toEqual(['', '', "T1'", 'T2']);
+  expect(merge3(['T1', 'T2'], ['T1', '', '', 'T2'], ["T1'", 'T2'])).toEqual(["T1'", '', '', 'T2']);
 });
 
 test('a task both sides moved to different places is not duplicated', () => {
@@ -281,7 +279,43 @@ test('a task both sides moved to different places is not duplicated', () => {
   expect(merge3(['A', 'B', 'C'], ['B', 'C', 'A'], ['B', 'A', 'C', 'A'])).toEqual(['B', 'A', 'C', 'A']);
 });
 
-test('randomized edits (no moves): no new or edited block is lost, no unchanged base block is duplicated', () => {
+test('a hunk where each side changed blocks in place keeps their order (#7)', () => {
+  // Local completed Y, remote completed X: neither moved a task, so the merge must not swap them.
+  expect(merge3(['A', 'X', 'Y', 'B'], ['A', 'X', "Y'", 'B'], ['A', "X'", 'Y', 'B'])).toEqual(['A', "X'", "Y'", 'B']);
+  expect(merge3(['A', 'X', 'Y', 'B'], ['A', 'X', "Y'", 'B'], ['A', "X'", "Y'", 'B'])).toEqual(['A', "X'", "Y'", 'B']);
+  expect(merge3(['A', 'X', 'Y', 'B'], ['A', "X'", "Y'", 'B'], ['A', 'X', "Y'", 'B'])).toEqual(['A', "X'", "Y'", 'B']);
+});
+
+test('a repeating task completed on two devices, one of them stale, comes out once (#7)', () => {
+  const H = md(...ALWAYS, '- [ ] A 📅 2026-10-18');
+  const T = md('- [ ] B 📅 2026-10-19');
+  const X = md('- [ ] leki 🔁 every 2 days 📅 2026-10-18');
+  const X2 = X.replace('10-18', '10-20');
+  const Y = md('- [ ] dep 🔁 every week on Sunday 📅 2026-10-18');
+  const Y2 = Y.replace('10-18', '10-25');
+  const base = H + X + Y + T;
+  const ph1 = H + X2 + Y + T; // the phone completed leki and wrote it
+  const pcMerged = mergeTasksText(base, H + X + Y2 + T, ph1); // the stale PC completed dep: its 412 retry
+  expect(pcMerged).toBe(H + X2 + Y2 + T);
+  const ph = H + X2 + Y2 + T; // the phone completed dep too, on top of ph1
+  for (const out of mergeBothWays(ph1, ph, pcMerged)) expect(out).toBe(H + X2 + Y2 + T);
+  // Even a remote that did swap them (as the old merge wrote) is not read as a second copy.
+  for (const out of mergeBothWays(ph1, ph, H + Y2 + X2 + T)) expect(out.match(/dep/g)).toHaveLength(1);
+});
+
+test('mergeDoneText: the same completion added on both sides in different places is kept once (#7)', () => {
+  const dep = '- [x] dep 🔁 every week on Sunday ✅ 2026-10-18';
+  const leki = '- [x] leki 🔁 every 2 days ✅ 2026-10-18';
+  const base = DONE_BASE + md(leki);
+  const local = DONE_BASE + md(leki, dep);
+  const remote = DONE_BASE + md(dep, leki);
+  for (const out of [mergeDoneText(base, local, remote), mergeDoneText(base, remote, local)]) {
+    expect(out.match(/dep/g)).toHaveLength(1);
+    expect(out.match(/leki/g)).toHaveLength(1);
+  }
+});
+
+test('randomized edits (no moves): no new or edited block is lost, no block has more copies than either side', () => {
   let seed = 20261016;
   const rnd = (n: number) => {
     seed = (seed * 1103515245 + 12345) & 0x7fffffff;
@@ -314,8 +348,27 @@ test('randomized edits (no moves): no new or edited block is lost, no unchanged 
       const [o, l, r, m] = [cb.get(x) ?? 0, cl.get(x) ?? 0, cr.get(x) ?? 0, out.get(x) ?? 0];
       const ctx = JSON.stringify({ x, base, local, remote });
       expect(m, `lost new copies: ${ctx}`).toBeGreaterThanOrEqual(Math.max(l - o, r - o, 0));
-      if (o > 0) expect(m, `duplicated base block: ${ctx}`).toBeLessThanOrEqual(Math.max(l, r));
+      expect(m, `duplicated block: ${ctx}`).toBeLessThanOrEqual(Math.max(l, r));
     }
+  }
+});
+
+test('randomized in-place edits on both sides keep every task where it was (#7)', () => {
+  let seed = 20261018;
+  const rnd = (n: number) => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed % n;
+  };
+  for (let it = 0; it < 500; it++) {
+    const base = Array.from({ length: 1 + rnd(8) }, (_, i) => `T${i}`);
+    const local = base.map((x) => (rnd(3) === 0 ? `${x}L` : x));
+    const remote = base.map((x) => (rnd(3) === 0 ? `${x}R` : x));
+    // Each task as edited (both edits, local's first, when both sides changed it), in base order.
+    const expected = base.flatMap((x, i) => {
+      const [l, r] = [local[i]!, remote[i]!];
+      return l !== x && r !== x ? [l, r] : [l !== x ? l : r];
+    });
+    expect(merge3(base, local, remote), JSON.stringify({ base, local, remote })).toEqual(expected);
   }
 });
 
