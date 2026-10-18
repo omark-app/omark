@@ -2,7 +2,9 @@
 
 A small task app that keeps your tasks in plain Markdown files on your own OneDrive (`tasks.md`, `done.md`, `config.yaml`). It is a Svelte 5 + TypeScript PWA with a list view and a week board, works offline, and the files stay editable in Obsidian or by Claude Code.
 
-Monorepo: `packages/core` (parsing and logic), `packages/storage` (OneDrive and the sign-in client), `packages/signin` (the sign-in helper, served from `functions/` as Cloudflare Pages Functions), `apps/web` (the app), `tools/todoist-import`.
+Monorepo: `packages/core` (parsing and logic), `packages/storage` (OneDrive and the sign-in client), `packages/signin` (the sign-in helper, served from `functions/` as Cloudflare Pages Functions), `apps/web` (the app), `tools/todoist-import`, `tools/claude-guard` (the guard hook), `tools/ci` (CI helper scripts).
+
+Work on the app runs through GitHub issues and pull requests, mostly done by Claude in cloud sessions: see `CLAUDE.md` and [the factory spec](doc/TaskApp%20factory%20spec.md).
 
 ## Setup
 
@@ -21,7 +23,7 @@ Node 22 or newer and pnpm 10, then `pnpm i`.
 ## One-time setup already done
 
 - Entra app registration "TaskApp" (client ID `1fa03c5b-4275-490e-8e71-2aa7a405e310`, also the repository variable `MSAL_CLIENT_ID`) in my own tenant, personal Microsoft accounts only. It was registered as a single-page app with redirect URIs `https://tasks.alipka.com/` and `http://localhost:5173/`; the sign-in helper needs a **Web** platform as well (see Sign-in). Scopes used: `Files.ReadWrite offline_access` (plus `openid profile` at sign-in, for the account name).
-- Cloudflare Pages project `taskapp` with the custom domain `tasks.alipka.com`. GitHub Actions deploys it using the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+- Cloudflare Pages project `taskapp` with the custom domain `tasks.alipka.com` (production), and `taskapp-staging` with `tasks-staging.alipka.com` (staging and PR previews; CI creates it if missing, `tools/ci/ensure-staging.mjs`). GitHub Actions deploys both using the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 
 ## Sign-in
 
@@ -49,9 +51,9 @@ Do these before merging to `main` (the merge deploys to production, and the app 
    # paste 1fa03c5b-4275-490e-8e71-2aa7a405e310
    pnpm exec wrangler pages secret put MSAL_CLIENT_SECRET --project-name=taskapp
    # paste the secret Value from step 2
-   openssl rand -base64 32
+   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
    pnpm exec wrangler pages secret put COOKIE_KEY --project-name=taskapp
-   # paste the 44-character output of openssl
+   # paste the 44-character line it printed
    pnpm exec wrangler pages secret list --project-name=taskapp
    ```
 
@@ -63,7 +65,8 @@ The SPA platform with `https://tasks.alipka.com/` and `http://localhost:5173/` c
 
 ### Later
 
-- **Client secret expiry.** When the secret expires, the token refresh fails with `invalid_client`: the app reads "offline" and the Pages Functions log shows `invalid_client`. Make a new secret (step 2), set it (step 3, `MSAL_CLIENT_SECRET` only) and redeploy (re-run the last `main` workflow); nobody needs to sign in again.
+- **Staging** signs in the same way, on its own origin, with its own Web redirect URI `https://tasks-staging.alipka.com/api/auth/callback`, its own client secret (`taskapp staging`) and its own three Pages secrets on `taskapp-staging` (step 3 with `--project-name=taskapp-staging`). Its CI deploy checks `https://tasks-staging.alipka.com/api/auth/login` the same way.
+- **Client secret expiry.** When the secret expires, the token refresh fails with `invalid_client`: the app reads "offline" and the Pages Functions log shows `invalid_client`. Make a new secret (step 2), set it (step 3, `MSAL_CLIENT_SECRET` only) and redeploy (run Promote to production again with the current `prod-` tag; for staging, re-run the last `main` CI run); nobody needs to sign in again.
 - **Changing `COOKIE_KEY`** signs every device out.
 - **Signing out** a device: `fetch('/api/auth/logout', { method: 'POST', headers: { 'X-TaskApp-Auth': '1' } })` in its console, or clear the site's cookies.
 - **Local sign-in:** `pnpm dev:signin` builds the app and serves it with the helper on http://localhost:5173 (`wrangler pages dev`, secrets from `.dev.vars`, and the localhost Web redirect URI from step 1). `pnpm dev` (plain Vite) has no `/api/auth`, so use it with `VITE_STORAGE=fake`.
@@ -80,7 +83,19 @@ The SPA platform with `https://tasks.alipka.com/` and `http://localhost:5173/` c
 | `pnpm e2e:real:login` | once: opens a browser, you sign in, the state is saved to `TASKAPP_E2E_STATE` |
 | `pnpm e2e:real` | smoke test on the real OneDrive, folder `ALAI/TaskApp-e2e`; by hand only, never in CI |
 
-Build and deploy: push to `main`; CI runs the checks and deploys to Cloudflare Pages.
+## Deploy
+
+| | when | where | data |
+| --- | --- | --- | --- |
+| Preview | every push to a PR | `pr-<n>.taskapp-staging…pages.dev`, linked in a PR comment | fake drive with sample tasks, "PREVIEW" in the footer |
+| Staging | every merge to `main` | https://tasks-staging.alipka.com | OneDrive `ALAI/TaskApp-staging`, "STAGING" in the footer |
+| Production | by hand: Actions → **Promote to production** → Run workflow | https://tasks.alipka.com | OneDrive `ALAI/TaskApp` |
+
+Staging and production run the same build: the app picks its OneDrive folder and look from the host name (`apps/web/src/lib/environment.ts`). Promote takes a commit (empty = what staging runs now), refuses it unless it is on `main` with a passing CI run, deploys the build staging ran (or rebuilds it once that build has expired after 30 days), and tags it `prod-YYYY-MM-DD-n` with a release listing the PRs merged since the last one.
+
+**Rollback:** run Promote with an older `prod-` tag. Cloudflare's dashboard rollback also works.
+
+**Refresh staging:** copy the files from `ALAI/TaskApp` over `ALAI/TaskApp-staging` on the PC.
 
 ## Real-OneDrive smoke
 

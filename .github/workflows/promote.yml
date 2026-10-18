@@ -1,0 +1,88 @@
+name: Promote to production
+# By hand only (GitHub app: Actions → Promote to production → Run workflow). Deploys the exact build staging
+# ran for a commit on main whose CI passed, then tags it prod-YYYY-MM-DD-n with release notes. Rollback:
+# run it with an older prod- tag. (doc/TaskApp factory spec.md, 6.2)
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: 'Commit SHA or prod- tag. Empty: what staging runs now.'
+        required: false
+        default: ''
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: production
+  cancel-in-progress: false
+jobs:
+  promote:
+    # Only the promote.yml on main may run: from another branch the file (and its checks) could be edited.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # The scripts come from main, so an older commit (a rollback) is checked the same way.
+      - name: Keep the promote scripts
+        run: cp -r tools/ci "$RUNNER_TEMP/ci"
+      - name: Check the commit
+        id: check
+        run: node "$RUNNER_TEMP/ci/promote-check.mjs" "$COMMIT"
+        env:
+          COMMIT: ${{ inputs.commit }}
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Check out the commit
+        run: git checkout --detach "$SHA"
+        env:
+          SHA: ${{ steps.check.outputs.sha }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Use the build staging ran
+        if: steps.check.outputs.artifact == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist
+          run-id: ${{ steps.check.outputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Rebuild (the stored build has expired)
+        if: steps.check.outputs.artifact != 'true'
+        run: pnpm --filter web build
+        env:
+          BUILD_SHA: ${{ steps.check.outputs.sha }}
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Use the workspace's pinned wrangler; the action can't `pnpm add` it at a workspace root.
+          wranglerVersion: '4.151.1'
+          # Run from the repo root, so wrangler also bundles functions/ (the sign-in helper at /api/auth/*).
+          command: pages deploy apps/web/dist --project-name=taskapp --branch=main --commit-hash=${{ steps.check.outputs.sha }}
+      - name: Check the sign-in helper is live
+        # /api/auth/login answers with a redirect to Microsoft only when the functions shipped and the
+        # MSAL_CLIENT_ID, MSAL_CLIENT_SECRET and COOKIE_KEY secrets are set.
+        run: |
+          for _ in 1 2 3 4 5 6; do
+            location=$(curl -s -o /dev/null -w '%{redirect_url}' https://tasks.alipka.com/api/auth/login)
+            case "$location" in https://login.microsoftonline.com/consumers/*) echo "Sign-in helper OK"; exit 0;; esac
+            sleep 10
+          done
+          echo "::error::https://tasks.alipka.com/api/auth/login does not redirect to Microsoft; check the Pages secrets (README, Sign-in)."
+          exit 1
+      - name: Release notes
+        id: notes
+        run: node "$RUNNER_TEMP/ci/release-notes.mjs" "$SHA"
+        env:
+          SHA: ${{ steps.check.outputs.sha }}
+      - name: Tag and release
+        run: gh release create "$TAG" --target "$SHA" --title "$TAG" --notes-file release-notes.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.notes.outputs.tag }}
+          SHA: ${{ steps.check.outputs.sha }}

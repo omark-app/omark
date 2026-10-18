@@ -1,7 +1,12 @@
+import { envForHost, folderFor, lookFor } from './lib/environment.ts';
+
 export const STORAGE_MODE: 'fake' | 'onedrive' =
   import.meta.env.VITE_STORAGE === 'fake' ? 'fake' : 'onedrive';
 export const DEFAULT_ONEDRIVE_FOLDER = 'ALAI/TaskApp';
-export const ONEDRIVE_FOLDER: string = import.meta.env.VITE_ONEDRIVE_FOLDER || DEFAULT_ONEDRIVE_FOLDER;
+/** Production, staging, a PR preview or local, from the host name (staging and production share one build). */
+export const APP_ENV = envForHost(typeof location === 'undefined' ? '' : location.hostname);
+export const LOOK = lookFor(APP_ENV);
+export const ONEDRIVE_FOLDER: string = folderFor(APP_ENV, import.meta.env.VITE_ONEDRIVE_FOLDER || DEFAULT_ONEDRIVE_FOLDER);
 
 declare const __BUILD_ID__: string | undefined;
 declare const __BUILD_TIME__: string | undefined;

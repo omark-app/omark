@@ -5,7 +5,9 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 /** The short commit hash shown beside the save status, so it is clear which build a device runs. */
 function buildId(): string {
-  if (process.env.GITHUB_SHA) return process.env.GITHUB_SHA.slice(0, 7);
+  // BUILD_SHA: Promote rebuilding an older commit (GITHUB_SHA is then main's tip and can't be overridden).
+  const sha = process.env.BUILD_SHA || process.env.GITHUB_SHA;
+  if (sha) return sha.slice(0, 7);
   try {
     return execFileSync('git', ['rev-parse', '--short=7', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   } catch {
@@ -18,6 +20,8 @@ export default defineConfig({
     __BUILD_ID__: JSON.stringify(buildId()),
     __BUILD_TIME__: JSON.stringify(`${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`),
   },
+  // e2e/environment.spec.ts reaches the preview server under the staging host name.
+  preview: { allowedHosts: ['tasks-staging.alipka.com'] },
   plugins: [
     svelte(),
     VitePWA({

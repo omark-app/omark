@@ -53,3 +53,15 @@ Ideas deliberately left out of v1 ([[TaskApp v1 spec]]). Grouped by theme; not o
 
 - **Nightly real-OneDrive smoke in CI**: v1 runs it by hand; nightly needs a long-lived refresh token stored as a GitHub secret for the smoke, which uses the owner's own account and the `ALAI/TaskApp-e2e` folder.
 - **tester.army e2e** agent-driven smoke tests once it reaches 1.0. Today it is pre-1.0, has no real mobile Safari or PWA support, and its natural-language assertions call a model on every run.
+
+## Factory
+
+Left out of phase 1 of [[TaskApp factory spec]] (its section 13).
+
+- **Branch protection** on `main` (PR and checks required), once the repo is on GitHub Pro or public.
+- **claude-code-action** (`@claude` in issues and PRs, automatic PR review): it uses Actions minutes. Revisit if minutes allow.
+- **"Issue opened" trigger** that starts work at once (an Action calling a routine's API trigger).
+- **Multi-reviewer panel** per PR (security, UX, UI, code) and a separate approver agent.
+- **Auto-merge** of small PRs.
+- **Mutation testing**, and proving tests fail by reverting the fix in CI.
+- **Native apps and multi-user**: need their own specs. iOS needs an Apple Developer account ($99 a year) and macOS runners (10× the Actions minutes); Android needs a Google Play account ($25 once).

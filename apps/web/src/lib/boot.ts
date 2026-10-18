@@ -8,13 +8,15 @@ import {
   OneDriveAdapter,
 } from '@taskapp/storage';
 import type { Auth, FileName, LocalCache, StorageAdapter, Workspace } from '@taskapp/storage';
-import { DEFAULT_ONEDRIVE_FOLDER, ONEDRIVE_FOLDER, STORAGE_MODE } from '../env.ts';
+import { toISODate } from '@taskapp/core';
+import { APP_ENV, DEFAULT_ONEDRIVE_FOLDER, ONEDRIVE_FOLDER, STORAGE_MODE } from '../env.ts';
 import { createAuthStub, tokenGated } from './auth-stub.ts';
 import type { AuthStub, AuthStubState } from './auth-stub.ts';
 import { systemClock } from './clock.ts';
 import { installLifecycle } from './lifecycle.ts';
 import { createStore } from './store.svelte.ts';
 import type { AppStore } from './store.svelte.ts';
+import { fakeSeed } from './sample-files.ts';
 import { installUpdates } from './updates.ts';
 
 declare global {
@@ -55,7 +57,7 @@ const isPhone = (): boolean => window.matchMedia(PHONE_QUERY).matches;
 
 /**
  * Builds the store for this build's storage mode. Fake mode (`VITE_STORAGE=fake`) runs on an in-memory
- * drive seeded from `window.__TASKAPP_SEED__` and exposes it as `window.__taskappFake`; with
+ * drive seeded from `window.__TASKAPP_SEED__` (sample files on a PR preview) and exposes it as `window.__taskappFake`; with
  * `window.__TASKAPP_AUTH_STUB__` set it goes through the sign-in path too, with a stubbed account.
  * OneDrive mode signs in through the sign-in helper (`/api/auth`) and caches in IndexedDB, falling back to
  * memory (with `store.cacheWarning`) when IndexedDB is unusable. Rejects if the sign-in redirect or the cache fails;
@@ -63,7 +65,7 @@ const isPhone = (): boolean => window.matchMedia(PHONE_QUERY).matches;
  */
 export async function boot(): Promise<BootResult> {
   if (STORAGE_MODE === 'fake') {
-    const drive = new FakeOneDrive(window.__TASKAPP_SEED__ ?? {});
+    const drive = new FakeOneDrive(fakeSeed(APP_ENV, window.__TASKAPP_SEED__, toISODate(new Date())));
     window.__taskappFake = drive;
     if (window.__TASKAPP_FAKE_DURABLE__) {
       drive.setOffline(!navigator.onLine);
