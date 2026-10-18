@@ -51,9 +51,9 @@ Do these before merging to `main` (the merge deploys to production, and the app 
    # paste 1fa03c5b-4275-490e-8e71-2aa7a405e310
    pnpm exec wrangler pages secret put MSAL_CLIENT_SECRET --project-name=taskapp
    # paste the secret Value from step 2
-   openssl rand -base64 32
+   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
    pnpm exec wrangler pages secret put COOKIE_KEY --project-name=taskapp
-   # paste the 44-character output of openssl
+   # paste the 44-character line it printed
    pnpm exec wrangler pages secret list --project-name=taskapp
    ```
 

@@ -247,9 +247,9 @@ Before merging the PR:
    # paste 1fa03c5b-4275-490e-8e71-2aa7a405e310
    pnpm exec wrangler pages secret put MSAL_CLIENT_SECRET --project-name=taskapp-staging
    # paste the Value from step 2
-   openssl rand -base64 32
+   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
    pnpm exec wrangler pages secret put COOKIE_KEY --project-name=taskapp-staging
-   # paste the openssl output
+   # paste the 44-character line it printed
    ```
 4. **OneDrive:** copy `ALAI/TaskApp` to `ALAI/TaskApp-staging` on the PC (the three files).
 5. **Cloud environment** at claude.ai: create it from `doc/TaskApp cloud environment.md`.
