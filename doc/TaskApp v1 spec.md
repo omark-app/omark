@@ -76,7 +76,9 @@ Obsidian Tasks–compatible markdown. Tasks are one flat list; buckets are compu
 ### 3.5 Saving, sync, offline and conflicts
 
 - **Save** ~1 s after typing stops (configurable), plus on leaving a field and when the app is hidden or closed.
-- **Footer status**: `saved` · `syncing` · `offline`.
+- **Footer status**: a faint `saved` · `syncing`, next to the build's short commit hash (so it is clear which build a device runs).
+- **Sync banner** (added 2026-10-18), above the list on every layout, when the files are not in step with OneDrive: `Can't reach OneDrive since 11:02 — showing your last saved copy`, or `Sign in again to reach OneDrive …` with a Sign in button. A sync still running after 4 s gets a quieter one. "Since" is the last time every file was in sync on this device.
+- **Nothing waits for ever**: every network request, token request and cache read or write has a time limit, so the status always settles on `saved`, `offline` or `sign in needed`. If the sign-in library does not start within 15 s, the cached list opens anyway.
 - **Re-read** all files whenever the app regains focus, so edits from another device, Obsidian or Claude Code show up.
 - **Optimistic concurrency**: every write uses the file's eTag (`If-Match`). If the file changed since the last read, re-read and merge.
 - **Offline**: the app keeps a cached copy and works fully offline; edits are queued and written on reconnect.

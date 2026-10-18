@@ -694,6 +694,32 @@ describe('app store', () => {
       expect(store.wouldLoseEdits()).toBe(false);
     });
   });
+  describe('a cache that stops answering (the PC stuck on "syncing")', () => {
+    /** A cache whose writes can be made to never settle, like an IndexedDB that stopped answering. */
+    class HangingCache extends MemoryCache {
+      hangPuts = false;
+      override put(name: FileName, f: CachedFile): Promise<void> {
+        return this.hangPuts ? new Promise<never>(() => {}) : super.put(name, f);
+      }
+    }
+
+    it("reopened from the cache, it still shows the other device's change and leaves syncing", async () => {
+      const drive = new FakeOneDrive({ 'tasks.md': SEED_TASKS });
+      const cache = new HangingCache();
+      await createStore({ workspace: createWorkspace(drive, cache), clock, isPhone: () => false });
+      drive.externalWrite('tasks.md', `${SEED_TASKS}- [ ] Added on the phone\n`);
+
+      // Reopen (a reload or Ctrl+F5): the list comes from the cache, then a refresh reads the drive.
+      cache.hangPuts = true;
+      const store = await createStore({ workspace: createWorkspace(drive, cache), clock, isPhone: () => false });
+      expect(allTitles(store)).not.toContain('Added on the phone');
+      expect(store.status).toBe('syncing');
+      await vi.advanceTimersByTimeAsync(10_000);
+      await vi.waitFor(() => expect(allTitles(store)).toContain('Added on the phone'));
+      expect(store.status).toBe('offline'); // the cache cannot keep it, and the banner says so
+    });
+  });
+
   describe('two devices on one drive', () => {
     const TWO = `# Always
 

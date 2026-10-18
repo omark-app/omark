@@ -63,6 +63,8 @@ export interface AppStore {
   readonly view: View;
   readonly toast: Toast | null;
   readonly status: SyncStatus;
+  /** When every file was last in step with OneDrive (status `saved`), here or in an earlier session. */
+  readonly syncedAt: Date | null;
   readonly stats: Stats;
   /** Set when the offline cache could not be used (e.g. iOS private mode); edits then live only in memory. */
   readonly cacheWarning: string | null;
@@ -116,6 +118,8 @@ export interface StoreDeps {
   cacheWarning?: string | null;
   /** True when the cache outlives the page (IndexedDB); a memory cache is lost on reload. Default false. */
   durableCache?: boolean;
+  /** Keeps `syncedAt` across sessions (the app uses localStorage). */
+  syncedAtStore?: { load(): Date | null; save(at: Date): void };
 }
 
 const TOAST_MS = 4200;
@@ -159,12 +163,18 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   let view = $state<View>(isPhone() ? 'list' : first.config.defaultView);
   let toast = $state.raw<Toast | null>(null);
   let status = $state<SyncStatus>(workspace.status());
+  // Opening without a cache pulled before this point, so a `saved` status here is a fresh sync.
+  let syncedAt = $state.raw<Date | null>(status === 'saved' ? clock.now() : (deps.syncedAtStore?.load() ?? null));
   const stats = $derived(computeStats(state.done, ctx.today));
   /** The user changed something that has not reached OneDrive since (cleared when all is saved). */
   let unsynced = false;
   workspace.onStatus((s) => {
     status = s;
     if (s === 'saved' && !isDirty()) unsynced = false;
+    if (s === 'saved') {
+      syncedAt = clock.now();
+      deps.syncedAtStore?.save(syncedAt);
+    }
   });
 
   let undoStack: State[] = [];
@@ -422,9 +432,13 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   /** Regaining focus fires both `focus` and `visibilitychange`: callers during a refresh share it. */
   let refreshing: Promise<void> | null = null;
   function refresh(): Promise<void> {
-    refreshing ??= refreshOnce().finally(() => {
-      refreshing = null;
-    });
+    // Never rejects: a refresh that failed (e.g. a pending edit that threw) leaves the status to say so,
+    // and an unhandled rejection would be all anyone saw of it.
+    refreshing ??= refreshOnce()
+      .catch((e: unknown) => console.error('TaskApp: refresh failed', e))
+      .finally(() => {
+        refreshing = null;
+      });
     return refreshing;
   }
 
@@ -461,6 +475,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     get view() { return view; },
     get toast() { return toast; },
     get status() { return status; },
+    get syncedAt() { return syncedAt; },
     get stats() { return stats; },
     cacheWarning: deps.cacheWarning ?? null,
     add,
