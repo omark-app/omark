@@ -12,7 +12,6 @@ Mockup: https://claude.ai/artifact/UxanecfHTyZ2X4W9xG8tQu (screen 1 is clickable
   | `tod`, `today` | Today |
   | `tom`, `tomorrow` | Tue 20 Oct |
   | `mon` … `sun`, `monday` … `sunday` | the next such day after today: `fri` → Fri 23 Oct, `mon` → Mon 26 Oct |
-  | `nex`, `next` | the Next week date (that Sunday) |
   | `som`, `someday` | no date |
   | `imp`, `important` | the Important flag |
 
@@ -35,7 +34,7 @@ Ordering (core):
 
 Shortcuts (core, pure):
 - [ ] All the words in the table match from 3 letters up to the full word, in any case; 1–2 letters, longer words (`tomato`) and words inside other words don't.
-- [ ] Weekday words give the next such day strictly after today (1 to 7 days ahead). `nex` follows `firstDayOfWeek`.
+- [ ] Weekday words give the next such day strictly after today (1 to 7 days ahead).
 - [ ] A dismissed word stays text through edits elsewhere and through a space after it. It counts again once the word itself changes.
 - [ ] Bold words leave the title. A title made only of shortcut words isn't added.
 
@@ -63,7 +62,7 @@ Core (Vitest), each run and seen failing before the code:
 - `ops.test.ts`: `addTask` with Tomorrow and Important; `setImportant` on and off; typed `⏫` becomes the flag; completing a repeating important task.
 - `buckets.test.ts`: important first inside a bucket, then date, then file order.
 - `drop.test.ts`: reordering across importance keeps the flag and reports it.
-- `quick-add.test.ts` (new): a table of inputs and results for today Mon 19 Oct 2026 (`tom`, `TOM`, `Tomorrow`, `to`, `tomato`, `mon` on a Monday, `fri`, `nex` with Monday and Sunday week starts, `som`, `imp`, two dates, a title made only of shortcut words), and dismissals carried through edits.
+- `quick-add.test.ts` (new): a table of inputs and results for today Mon 19 Oct 2026 (`tom`, `TOM`, `Tomorrow`, `to`, `tomato`, `mon` on a Monday, `fri`, `next` (no match), `som`, `imp`, two dates, a title made only of shortcut words), and dismissals carried through edits.
 - `config.test.ts`: the new `tomorrow` and `important` commands, their defaults, a clash with another key.
 - `skill-examples.test.ts`: the new examples in the `taskapp-files` skill parse as written.
 
@@ -77,7 +76,7 @@ E2e (Playwright, `desktop` and `iphone`):
 
 ## Risks
 
-- **Ordinary words become dates by surprise** (`next`, `sun`, `sat`, `Tom`, `important`). That's the price of "anywhere", which AL chose; the bold highlight and Backspace are the safety net.
+- **Ordinary words become dates by surprise** (`sun`, `sat`, `Tom`, `important`). That's the price of "anywhere", which AL chose; the bold highlight and Backspace are the safety net.
 - **The highlight drawn under the input** (the input's own text is transparent) has to stay lined up with the text: same font and padding, kept in step with the input's scrolling. iOS predictive text and autocorrect can replace a word without a Backspace key event, so dismissal listens to `beforeinput` (`deleteContentBackward`) as well as `keydown`. Checked on WebKit in e2e and on AL's phone in the preview.
 - **Existing `⏫` in AL's files** (from Obsidian) will show as Important. That is intended. I can't see the real files from here.
 - **An older app version on another device** (a cached PWA) reads `⏫` as title text and writes it back in place, so the flag survives. Merge is line-based, so no merge change is needed.
@@ -87,6 +86,7 @@ E2e (Playwright, `desktop` and `iphone`):
 
 - More priority levels, or `🔺 🔼 🔽 ⏬` as flags.
 - Shortcut words when editing an existing title.
+- A word for Next week (`nex`): AL dropped it, as `next` is too common in titles and weekday words cover it.
 - Other natural-language dates (`next fri`, `in 3 days`, repeats). A word for This week (e.g. `wee`) can follow in a separate issue if AL wants one.
 - Mapping Todoist's p1 to `⏫` in the import tool.
 - `tomorrow` as a `newTaskBucket` value.
