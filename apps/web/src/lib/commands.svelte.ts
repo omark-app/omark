@@ -63,9 +63,11 @@ export function createCommands(opts: {
     if (id === null) return false;
     switch (command) {
       case 'today': store.moveTo(id, 'today'); break;
+      case 'tomorrow': store.moveTo(id, 'tomorrow'); break;
       case 'thisWeek': store.moveTo(id, hasWeekLeft(store.ctx) ? 'week' : 'today'); break;
       case 'nextWeek': store.moveTo(id, 'next'); break;
       case 'someday': store.moveTo(id, 'someday'); break;
+      case 'important': store.setImportant(id, findTask(store.state, id)?.important !== true); break;
       case 'complete': store.complete(id); break;
       case 'delete': store.remove(id); break;
       case 'edit':

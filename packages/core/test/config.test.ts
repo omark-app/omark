@@ -126,3 +126,23 @@ describe('parseConfig', () => {
     expect(parseConfig('just text\n').error).not.toBeNull();
   });
 });
+
+describe('tomorrow and important shortcuts (#19)', () => {
+  it('default to m and i', () => {
+    expect(DEFAULT_CONFIG.shortcuts.tomorrow).toEqual(['m']);
+    expect(DEFAULT_CONFIG.shortcuts.important).toEqual(['i']);
+    expect(parseConfig('shortcuts:\n  tomorrow: M\n  important: I\n').config.shortcuts).toMatchObject({
+      tomorrow: ['M'], important: ['I'],
+    });
+  });
+
+  it('give up a default key that an older config already binds elsewhere', () => {
+    const r = parseConfig('shortcuts:\n  complete: m\n  edit: i\n');
+    expect(r.error).toBeNull();
+    expect(r.config.shortcuts).toMatchObject({ complete: ['m'], edit: ['i'], tomorrow: [], important: [] });
+  });
+
+  it('still reject a clash the file itself makes', () => {
+    expect(parseConfig('shortcuts:\n  tomorrow: x\n').error?.message).toContain('complete');
+  });
+});

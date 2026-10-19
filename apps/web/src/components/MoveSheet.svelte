@@ -25,6 +25,7 @@
     onmove={(bucket) => { store.moveTo(taskId, bucket); onclose(); }}
     onpickdate={() => oncommand('pickDate')}
     onrepeat={() => oncommand('repeat')}
+    onimportant={() => { store.setImportant(taskId, !task.important); onclose(); }}
   />
   <div class="actions">
     <button class="btn danger" onclick={() => { store.remove(taskId); onclose(); }}>Delete</button>

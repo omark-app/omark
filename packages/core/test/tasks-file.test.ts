@@ -68,9 +68,10 @@ test('messy file round-trips byte-for-byte', () => {
 
 test('messy file parses fields wherever they sit', () => {
   const doc = parseTasks(MESSY);
-  const fix = byTitle(doc, 'Fix bike ⏫ #home');
+  const fix = byTitle(doc, 'Fix bike #home');
   expect(fix.date).toBe('2026-10-20');
   expect(fix.repeat).toBeNull();
+  expect(fix.important).toBe(true);
   expect(byTitle(doc, 'Pay').date).toBe('2026-10-17');
   const plants = byTitle(doc, 'Plants');
   expect(plants.repeat).toEqual({ type: 'weekly', days: [0] });
@@ -267,7 +268,7 @@ test('the last valid rule wins and earlier ones stay in the title', () => {
 test('edited date and repeat read back as edited after a rewrite', () => {
   const doc = parseTasks(MESSY);
   const edits = { date: '2026-11-02', repeat: { type: 'monthly', day: 2 } } as const;
-  for (const title of ['Fix bike ⏫ #home', 'Pay', 'Plants', 'Groceries', 'Odd 🔁 every 2nd tue']) {
+  for (const title of ['Fix bike #home', 'Pay', 'Plants', 'Groceries', 'Odd 🔁 every 2nd tue']) {
     const t = byTitle(doc, title);
     const back = byTitle(parseTasks(serializeTasks(withTask(doc, t.id, { ...edits }))), title);
     expect(back.date).toBe('2026-11-02');
@@ -284,7 +285,7 @@ test('a rule ends at a tag, which stays in the title', () => {
 test('a rule ends at another Obsidian Tasks field emoji', () => {
   const doc = parseTasks('# Tasks\n- [ ] Bins 🔁 every week on Tuesday ⏫\n- [ ] Gym 🔁 every 2 days 🛫 2026-10-01\n');
   const [bins, gym] = tasksOf(doc);
-  expect(bins).toMatchObject({ title: 'Bins ⏫', repeat: { type: 'weekly', days: [1] } });
+  expect(bins).toMatchObject({ title: 'Bins', repeat: { type: 'weekly', days: [1] }, important: true });
   expect(gym).toMatchObject({ title: 'Gym 🛫 2026-10-01', repeat: { type: 'every', n: 2, unit: 'days' } });
 });
 
@@ -391,4 +392,51 @@ test('edited notes are written canonically (I5)', () => {
   const trip = byTitle(doc, 'Trip');
   const out = serializeTasks(withTask(doc, trip.id, { notes: [...trip.notes, 'passport'] }));
   expect(out).toBe('# Always\n\n# Tasks\n- [ ] Trip 📅 2026-10-19\n    - [ ] pack\n    - socks\n    - passport\n');
+});
+
+test('⏫ anywhere in a task line marks it important and leaves the title (#19)', () => {
+  const doc = parseTasks(
+    '# Tasks\n- [ ] Call the bank ⏫ 📅 2026-10-20\n- [ ] ⏫ Pay rent\n- [ ] Sign ⏫\uFE0F the mandate\n- [ ] Plain\n',
+  );
+  const [bank, rent, sign, plain] = tasksOf(doc);
+  expect(bank).toMatchObject({ title: 'Call the bank', date: '2026-10-20', important: true });
+  expect(rent).toMatchObject({ title: 'Pay rent', important: true });
+  expect(sign).toMatchObject({ title: 'Sign the mandate', important: true });
+  expect(plain!.important).toBeFalsy();
+});
+
+test('the other priority signs stay in the title (#19)', () => {
+  const doc = parseTasks('# Tasks\n- [ ] A 🔺\n- [ ] B 🔼\n- [ ] C 🔽\n- [ ] D ⏬\n');
+  for (const t of tasksOf(doc)) expect(t.important).toBeFalsy();
+  expect(tasksOf(doc).map((t) => t.title)).toEqual(['A 🔺', 'B 🔼', 'C 🔽', 'D ⏬']);
+});
+
+test('an important task is written as title, ⏫, repeat, date and reads back the same (#19)', () => {
+  const doc = parseTasks('# Always\n\n# Tasks\n- [ ] Call the bank\n', counter());
+  const out = serializeTasks(
+    withTask(doc, 'id1', { important: true, repeat: { type: 'daily' }, date: '2026-10-20' }),
+  );
+  expect(out).toBe('# Always\n\n# Tasks\n- [ ] Call the bank ⏫ 🔁 every day 📅 2026-10-20\n');
+  expect(tasksOf(parseTasks(out))[0]).toMatchObject({
+    title: 'Call the bank', important: true, repeat: { type: 'daily' }, date: '2026-10-20',
+  });
+  expect(serializeTasks(parseTasks(out))).toBe(out);
+});
+
+test('an untouched important line keeps its bytes; clearing the flag rewrites it (#19)', () => {
+  const text = '# Always\n\n# Tasks\n- [ ] 📅 2026-10-20 ⏫ Call  the bank\n';
+  const doc = parseTasks(text, counter());
+  expect(serializeTasks(doc)).toBe(text);
+  expect(serializeTasks(withTask(doc, 'id1', { important: false }))).toBe('# Always\n\n# Tasks\n- [ ] Call  the bank 📅 2026-10-20\n');
+});
+
+test('a completed line in the Tasks section keeps its ⏫ on the done item (#19)', () => {
+  const [item] = parseTasks('# Tasks\n- [x] Call the bank ⏫ ✅ 2026-10-19\n').items;
+  expect(item).toMatchObject({ kind: 'done', entry: { title: 'Call the bank', important: true } });
+});
+
+test('every ⏫ in a line is the flag, so clearing it leaves none (#19 review)', () => {
+  const doc = parseTasks('# Always\n\n# Tasks\n- [ ] A ⏫ B ⏫\n', counter());
+  expect(tasksOf(doc)[0]).toMatchObject({ title: 'A B', important: true });
+  expect(serializeTasks(withTask(doc, 'id1', { important: false }))).toBe('# Always\n\n# Tasks\n- [ ] A B\n');
 });

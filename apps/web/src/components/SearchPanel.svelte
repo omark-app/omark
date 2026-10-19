@@ -121,7 +121,7 @@
             Also search {done.length} completed
           {:else}
             {@const hit = row.hit}
-            <span class="title">{@render marked(hit.title)}</span>
+            <span class="title" class:imp={row.kind === 'task' && row.hit.task.important}>{@render marked(hit.title)}</span>
             {#if row.kind === 'task'}
               {@const w = when(row.hit.task)}
               <span class="meta" class:over={w.over}>{#if w.repeat}<span class="rep">↻</span>{' '}{/if}{w.text}</span>
@@ -155,6 +155,7 @@
   .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; width: 100%; padding: 8px 10px; border: 0; border-radius: 8px; background: none; color: var(--ink); text-align: left; cursor: pointer; }
   .row.on { background: var(--sel); }
   .title { font: 15px/1.45 var(--mono); overflow-wrap: anywhere; min-width: 0; }
+  .title.imp { color: var(--imp); font-weight: 500; }
   .meta { font: 12px/1.45 var(--mono); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; margin-top: 1px; }
   .meta.over { color: var(--danger); }
   .rep { color: var(--faint); }

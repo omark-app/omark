@@ -1,4 +1,6 @@
-import { findTask } from '@taskapp/core';
+import { untrack } from 'svelte';
+import { findTask, readQuickAdd, shortcutWords } from '@taskapp/core';
+import type { Dismissed } from '@taskapp/core';
 import type { AppStore } from './store.svelte.ts';
 
 type Field = 'title' | 'notes';
@@ -8,7 +10,8 @@ type Field = 'title' | 'notes';
  * typed in since the last save are sent, so an outside change to the other field (arriving while one is
  * being typed in) is never overwritten with stale text. The store runs `commit` before every flush (the
  * page being hidden) and refresh, and unmounting the component commits too, so typing is never lost.
- * Call during component init.
+ * Shortcut words typed in the title (issue #19) move or flag the task when it saves, and then leave the
+ * field; words the title already had when it was shown stay plain text. Call during component init.
  */
 export function createTaskEdit(
   store: AppStore,
@@ -19,6 +22,8 @@ export function createTaskEdit(
   const task = findTask(store.state, id);
   let title = $state(task?.title ?? '');
   let notes = $state(task?.notes.join('\n') ?? '');
+  /** Shortcut words that are plain text: those the shown title already had, and those Backspace turned back. */
+  let dismissed = $state<Dismissed[]>(existing(title));
   let titleDirty = false;
   let notesDirty = false;
 
@@ -28,24 +33,40 @@ export function createTaskEdit(
     if (!t) return;
     const storedTitle = t.title;
     const storedNotes = t.notes.join('\n');
-    if (!titleDirty && !holds('title')) title = storedTitle;
+    if (!titleDirty && !holds('title') && untrack(() => title) !== storedTitle) {
+      title = storedTitle;
+      dismissed = existing(title);
+    }
     if (!notesDirty && !holds('notes')) notes = storedNotes;
   });
 
   /** Saves the typed fields now. `settle` puts the stored values back in the fields. */
   function commit(settle = false): void {
     const current = findTask(store.state, id);
+    const typed = titleDirty ? readQuickAdd(title, store.ctx, dismissed) : null;
     if (current && (titleDirty || notesDirty)) {
       store.edit(id, {
-        title: titleDirty ? title : current.title,
+        title: typed ? typed.title : current.title,
         notes: notesDirty ? notes.split('\n') : current.notes,
+        when: typed?.when ?? null,
+        important: typed?.important ?? false,
       });
     }
     titleDirty = false;
     notesDirty = false;
+    // Words that did their job leave the field, even while it has focus, so a later save can't apply them again.
+    const applied = typed !== null && shortcutWords(title, dismissed).length > 0 && typed.title !== '';
+    if (applied) {
+      const t = findTask(store.state, id);
+      if (t) {
+        title = t.title;
+        dismissed = existing(title);
+      }
+    }
     if (settle) {
       const t = findTask(store.state, id);
       if (t) {
+        if (title !== t.title) dismissed = existing(t.title);
         title = t.title;
         notes = t.notes.join('\n');
       }
@@ -70,6 +91,12 @@ export function createTaskEdit(
     get notes() {
       return notes;
     },
+    get dismissed() {
+      return dismissed;
+    },
+    set dismissed(v: Dismissed[]) {
+      dismissed = v;
+    },
     set notes(v: string) {
       notes = v;
     },
@@ -80,4 +107,9 @@ export function createTaskEdit(
     },
     commit,
   };
+}
+
+/** The shortcut words a title already has, as dismissed: shown and saved as plain text. */
+function existing(title: string): Dismissed[] {
+  return shortcutWords(title).map((w) => ({ start: w.start, word: w.word }));
 }

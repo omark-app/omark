@@ -14,14 +14,18 @@ const NOTE_MARKER = /^[-*+][ \t]+/;
 const DUE = '📅';
 const DONE = '✅';
 const REPEAT = '🔁';
+/** Obsidian Tasks' high priority, which TaskApp reads as Important (issue #19). */
+const IMPORTANT = '⏫';
 /** Emoji presentation selector: some editors write it after a field emoji, where it changes nothing. */
 const VS16 = '\uFE0F';
 /** Where a 🔁 rule's text ends: a ` #tag`, or any Obsidian Tasks field emoji. */
 const RULE_END = /[ \t]#[^\s#]|📅|✅|🔁|⏳|🛫|➕|❌|🆔|⛔|🏁|⏫|🔼|🔽|⏬|🔺/u;
 
 /** Stable text of a task's semantic fields; equal keys mean nothing the file stores has changed. */
-export function taskKey(t: Pick<Task, 'title' | 'notes' | 'date' | 'repeat'>): string {
-  return JSON.stringify([t.title, t.notes, t.date, t.repeat ? formatRepeat(t.repeat) : null]);
+export function taskKey(t: Pick<Task, 'title' | 'notes' | 'date' | 'repeat' | 'important'>): string {
+  const key: unknown[] = [t.title, t.notes, t.date, t.repeat ? formatRepeat(t.repeat) : null];
+  if (t.important) key.push(true);
+  return JSON.stringify(key);
 }
 
 /** Parses `tasks.md`. Anything that isn't an Always line, a `- [ ]` task or a `- [x]` line is kept as raw lines. */
@@ -148,6 +152,7 @@ function parseItems(lines: string[], newId: () => string): Item[] {
         notes: block.slice(1).map(noteText),
         date: f.date,
         repeat: f.repeat,
+        ...(f.important && { important: true }),
         raw: block,
         rawKey: null,
       };
@@ -157,7 +162,7 @@ function parseItems(lines: string[], newId: () => string): Item[] {
       // An undated `- [x]` (ticked in Obsidian without a ✅ date) is still done; doneOn is null.
       const f = parseFields(done![1]!, true);
       const notes = block.slice(1).map(noteText);
-      const entry: DoneEntry = { title: f.title, repeat: f.repeat, doneOn: f.doneOn, notes };
+      const entry: DoneEntry = { title: f.title, repeat: f.repeat, doneOn: f.doneOn, notes, ...(f.important && { important: true }) };
       items.push({ kind: 'done', entry, date: f.date, raw: block });
     }
   }
@@ -176,19 +181,21 @@ export function noteText(line: string): string {
 export function taskLines(t: Task): string[] {
   if (t.raw && t.rawKey !== null && taskKey(t) === t.rawKey) return t.raw;
   const head = ['- [ ]', t.title];
+  if (t.important) head.push(IMPORTANT);
   if (t.repeat) head.push(`${REPEAT} ${formatRepeat(t.repeat)}`);
   if (t.date) head.push(`${DUE} ${t.date}`);
   return [head.filter((p) => p !== '').join(' '), ...noteLines(t)];
 }
 
 /**
- * `t` as its task line reads back: the title, 📅 date and 🔁 rule `parseTasks` takes from the line
+ * `t` as its task line reads back: the title, 📅 date, 🔁 rule and ⏫ flag `parseTasks` takes from the line
  * `taskLines` writes. Rule or date text typed into a title thus becomes that field, as every other device
  * reads it (issue #8). Returns `t` itself when nothing differs.
  */
 export function readBack(t: Task): Task {
   const f = parseFields(OPEN_LINE.exec(taskLines(t)[0]!)![1]!, false);
-  const read = { ...t, title: f.title, date: f.date, repeat: f.repeat };
+  const { important: _, ...rest } = t;
+  const read: Task = { ...rest, title: f.title, date: f.date, repeat: f.repeat, ...(f.important && { important: true }) };
   return taskKey(read) === taskKey(t) ? t : read;
 }
 
@@ -208,10 +215,11 @@ export interface Fields {
   date: ISODate | null;
   repeat: RepeatRule | null;
   doneOn: ISODate | null;
+  important: boolean;
 }
 
 /**
- * Pulls the 📅 date, the 🔁 rule and (on done lines) the ✅ date out of a task line's text, wherever
+ * Pulls the 📅 date, the 🔁 rule, the ⏫ flag and (on done lines) the ✅ date out of a task line's text, wherever
  * they sit. When a field appears more than once, the last valid one wins (as in Obsidian Tasks, which
  * reads fields from the end) and earlier ones stay in the title; this also means a canonical rewrite,
  * which appends the fields, always reads back as written. A 🔁 rule runs to the next ` #tag`, the next
@@ -246,12 +254,31 @@ export function parseFields(text: string, isDone: boolean): Fields {
   if (rule) spans.push(rule.span);
   const repeat = rule?.value ?? null;
 
+  // Every ⏫ is the flag (it has no value for a later one to win over), so clearing it leaves none behind.
+  let important = false;
+  for (let at = text.indexOf(IMPORTANT); at >= 0; at = text.indexOf(IMPORTANT, at + IMPORTANT.length)) {
+    important = true;
+    const end = at + IMPORTANT.length;
+    spans.push([at, text.startsWith(VS16, end) ? end + VS16.length : end]);
+  }
+
   // Remove right to left so earlier offsets stay valid; each gap becomes one space.
   let title = text;
   for (const [s, e] of spans.sort((a, b) => b[0] - a[0])) {
     title = `${title.slice(0, s).trimEnd()} ${title.slice(e).trimStart()}`;
   }
-  return { title: title.trim(), date, repeat, doneOn };
+  return { title: title.trim(), date, repeat, doneOn, important };
+}
+
+/** Where 🔁 rule text runs in `text`: from each 🔁 to the next ` #tag`, field emoji or the end. */
+export function ruleSpans(text: string): [number, number][] {
+  const spans: [number, number][] = [];
+  for (let at = text.indexOf(REPEAT); at >= 0; at = text.indexOf(REPEAT, at + REPEAT.length)) {
+    const from = at + REPEAT.length;
+    const stop = RULE_END.exec(text.slice(from));
+    spans.push([at, stop ? from + stop.index : text.length]);
+  }
+  return spans;
 }
 
 function isRealDate(iso: string): boolean {

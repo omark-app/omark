@@ -1,5 +1,5 @@
-import { dateForBucket } from './buckets.ts';
-import type { MovableBucket } from './buckets.ts';
+import { dateForChoice } from './buckets.ts';
+import type { DateChoice } from './buckets.ts';
 import { doneLines } from './done-file.ts';
 import type { ISODate, Item, RepeatRule, State, Task, WeekCtx } from './model.ts';
 import { fitDate, nextDate } from './recurrence.ts';
@@ -40,7 +40,9 @@ function updateTask(s: State, id: string, change: (t: Task) => Task): State {
  */
 function takeTyped(t: Task): Task {
   const f = parseFields(t.title, false);
-  return { ...t, title: f.title, date: f.date ?? t.date, repeat: f.repeat ?? t.repeat };
+  return {
+    ...t, title: f.title, date: f.date ?? t.date, repeat: f.repeat ?? t.repeat, ...(f.important && { important: true }),
+  };
 }
 
 /** Moves the item of `id` directly before the item of `beforeId`; no-op for equal or unknown ids. */
@@ -55,13 +57,14 @@ function placeBefore(s: State, id: string, beforeId: string | null | undefined):
 }
 
 export function addTask(
-  s: State, title: string, bucket: MovableBucket, ctx: WeekCtx, newId: () => string = defaultNewId,
+  s: State, title: string, when: DateChoice, ctx: WeekCtx, newId: () => string = defaultNewId, important = false,
 ): { state: State; id: string } | null {
   const trimmed = title.trim();
   if (trimmed === '') return null;
   const id = newId();
   const task = readBack(takeTyped({
-    id, title: trimmed, notes: [], date: dateForBucket(bucket, ctx), repeat: null, raw: null, rawKey: null,
+    id, title: trimmed, notes: [], date: dateForChoice(when, ctx), repeat: null,
+    ...(important && { important: true }), raw: null, rawKey: null,
   }));
   // A title that was only field text (e.g. `🔁 every day`) leaves no title.
   if (task.title === '') return null;
@@ -74,9 +77,9 @@ export function setDate(s: State, id: string, date: ISODate | null, beforeId?: s
 }
 
 export function moveToBucket(
-  s: State, id: string, bucket: MovableBucket, ctx: WeekCtx, beforeId?: string | null,
+  s: State, id: string, bucket: DateChoice, ctx: WeekCtx, beforeId?: string | null,
 ): State {
-  return setDate(s, id, dateForBucket(bucket, ctx), beforeId);
+  return setDate(s, id, dateForChoice(bucket, ctx), beforeId);
 }
 
 export function reorder(s: State, id: string, beforeId: string): State {
@@ -121,6 +124,13 @@ export function setRepeat(s: State, id: string, rule: RepeatRule | null, today: 
     repeat: rule,
     date: rule ? fitDate(rule, t.date, today) : t.date,
   }));
+}
+
+/** Flags or unflags a task as Important (the ⏫ field, issue #19); `s` itself when nothing changes. */
+export function setImportant(s: State, id: string, important: boolean): State {
+  const t = findTask(s, id);
+  if (!t || (t.important === true) === important) return s;
+  return updateTask(s, id, ({ important: _, ...rest }) => (important ? { ...rest, important: true } : rest));
 }
 
 export function setAlways(s: State, lines: string[]): State {

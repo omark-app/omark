@@ -16,14 +16,19 @@ export const done = (title: string): string => `Done · ${title}`;
 
 export const deleted = (title: string): string => `Deleted · ${title}`;
 
-export const reordered = (sameDate: boolean): string =>
-  sameDate ? 'Reordered' : 'Tasks sort by date first, so it stays among its own date';
+export const reordered = (sameDate: boolean, sameFlag = true): string =>
+  !sameFlag ? 'Important tasks sort first, so it stays among its own kind'
+    : sameDate ? 'Reordered' : 'Tasks sort by date first, so it stays among its own date';
 
 export const saved = (): string => 'Saved';
 
 export const repeats = (rule: RepeatRule): string => `Repeats ${describeRepeat(rule)}`;
 
 export const repeatRemoved = (): string => 'Repeat removed';
+
+export const markedImportant = (): string => 'Marked important';
+
+export const notImportant = (): string => 'No longer important';
 
 export const undone = (): string => 'Undone';
 

@@ -11,7 +11,7 @@ export interface DropTarget {
 
 export type DropOutcome =
   | { kind: 'none' }
-  | { kind: 'reorder'; state: State; sameDate: boolean }
+  | { kind: 'reorder'; state: State; sameDate: boolean; sameFlag: boolean }
   | { kind: 'move'; state: State; bucket: BucketKey }
   | { kind: 'pickDate'; suggested: ISODate; beforeId: string | null };
 
@@ -29,7 +29,10 @@ export function planDrop(s: State, id: string, target: DropTarget, ctx: WeekCtx)
     if (beforeId === null || beforeId === id) return { kind: 'none' };
     const before = findTask(s, beforeId);
     if (!before) return { kind: 'none' };
-    return { kind: 'reorder', state: reorder(s, id, beforeId), sameDate: task.date === before.date };
+    return {
+      kind: 'reorder', state: reorder(s, id, beforeId),
+      sameDate: task.date === before.date, sameFlag: (task.important === true) === (before.important === true),
+    };
   }
 
   if (target.bucket === 'overdue') return { kind: 'none' };

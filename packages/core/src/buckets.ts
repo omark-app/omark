@@ -46,6 +46,30 @@ export function dateForBucket(key: MovableBucket, ctx: WeekCtx): ISODate | null 
   }
 }
 
+/** Where a new task goes: a bucket, Tomorrow, or a given date (a typed weekday, issue #19). */
+export type DateChoice = MovableBucket | 'tomorrow' | { date: ISODate };
+
+/** The date a task gets from a `DateChoice`; null for Someday. */
+export function dateForChoice(choice: DateChoice, ctx: WeekCtx): ISODate | null {
+  if (typeof choice === 'object') return choice.date;
+  return choice === 'tomorrow' ? addDays(ctx.today, 1) : dateForBucket(choice, ctx);
+}
+
+/** A choice shown as a chip or a move option: a bucket, or Tomorrow. */
+export type ChoiceKey = MovableBucket | 'tomorrow';
+
+/** The date choices offered when adding or moving a task: `movableBuckets` with Tomorrow after Today. */
+export function dateChoices(ctx: WeekCtx): { key: ChoiceKey; name: string }[] {
+  return movableBuckets(ctx).flatMap((b) => (b.key === 'today' ? [b, { key: 'tomorrow' as const, name: 'Tomorrow' }] : [b]));
+}
+
+/** The choice that holds `t` now: Tomorrow when it is due tomorrow, else its bucket; null for Overdue and Later. */
+export function currentChoice(t: Task, ctx: WeekCtx): ChoiceKey | null {
+  if (t.date === addDays(ctx.today, 1)) return 'tomorrow';
+  const b = bucketOf(t, ctx);
+  return isMovable(b) ? b : null;
+}
+
 /** Open tasks in file order. */
 export function allTasks(doc: TasksDoc): Task[] {
   const out: Task[] = [];
@@ -53,11 +77,11 @@ export function allTasks(doc: TasksDoc): Task[] {
   return out;
 }
 
-/** Earliest date first, then file order (the sort is stable). */
+/** Important first (issue #19), then earliest date, then file order (the sort is stable). */
 export function tasksInBucket(doc: TasksDoc, key: BucketKey, ctx: WeekCtx): Task[] {
   return allTasks(doc)
     .filter((t) => bucketOf(t, ctx) === key)
-    .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
+    .sort((a, b) => Number(b.important === true) - Number(a.important === true) || (a.date ?? '').localeCompare(b.date ?? ''));
 }
 
 export function bucketRange(key: BucketKey, ctx: WeekCtx): string {
