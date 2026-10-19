@@ -927,3 +927,23 @@ describe('Tomorrow and Important (#19)', () => {
     expect(store.toast?.message).toBe('Undone');
   });
 });
+
+describe('shortcut words when editing (#19, AL in the session)', () => {
+  it('an edit can move and flag the task in one change, with one undo', async () => {
+    const { store } = await setup();
+    const id = idOf(store, 'Call the dentist');
+    store.edit(id, { title: 'Call the dentist', notes: ['bring the old x-ray'], when: 'tomorrow', important: true });
+    expect(findTask(store.state, id)).toMatchObject({ date: '2026-10-17', important: true });
+    expect(store.toast?.message).toBe('Moved to This week · Sat');
+    store.undo();
+    expect(findTask(store.state, id)).toMatchObject({ date: '2026-10-16' });
+    expect(findTask(store.state, id)?.important).toBeFalsy();
+  });
+
+  it('an edit that only flags the task says so', async () => {
+    const { store } = await setup();
+    const id = idOf(store, 'Call the dentist');
+    store.edit(id, { title: 'Call the dentist', notes: ['bring the old x-ray'], important: true });
+    expect(store.toast?.message).toBe('Marked important');
+  });
+});

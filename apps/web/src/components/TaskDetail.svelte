@@ -4,6 +4,7 @@
   import type { AppStore } from '../lib/store.svelte.ts';
   import { autogrow } from '../lib/autogrow.ts';
   import { createTaskEdit } from '../lib/task-edit.svelte.ts';
+  import ShortcutField from './ShortcutField.svelte';
 
   let {
     store,
@@ -83,15 +84,15 @@
     <span class="lab">Task · {bucketName}</span>
     <button class="xbtn" title="Close (Esc)" onclick={() => store.select(null)}>esc</button>
   </div>
-  <div>
-    <input
-      bind:this={titleEl}
+  <div class:imp={task.important}>
+    <ShortcutField
+      bind:input={titleEl}
       bind:value={edit.title}
+      bind:dismissed={edit.dismissed}
       class="d-title"
-      class:imp={task.important}
       data-testid="detail-title"
       aria-label="Task title"
-      oninput={() => typed('title')}
+      ontype={() => typed('title')}
       onkeydown={titleKey}
       onblur={blurred}
     />
@@ -145,11 +146,12 @@
   .detail { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
   .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .lab { font: 500 11px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
-  .d-title, .d-notes { box-sizing: border-box; width: 100%; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--ink); outline: 0; padding: 4px 6px; }
-  .d-title { font: 600 17px/1.4 var(--mono); }
+  /* The title input sits inside ShortcutField, out of this component's scope. */
+  :global(.d-title), .d-notes { box-sizing: border-box; width: 100%; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--ink); outline: 0; padding: 4px 6px; }
+  :global(.d-title) { font: 600 17px/1.4 var(--mono); }
   .d-notes { font: 14px/1.6 var(--mono); color: var(--muted); resize: none; overflow-y: hidden; }
-  .d-title:hover, .d-notes:hover { border-color: var(--line); }
-  .d-title:focus, .d-notes:focus { border-color: var(--accent); background: var(--surface); }
+  :global(.d-title:hover), .d-notes:hover { border-color: var(--line); }
+  :global(.d-title:focus), .d-notes:focus { border-color: var(--accent); background: var(--surface); }
   .fields { display: flex; flex-direction: column; gap: 8px; padding: 10px 6px; border-block: 1px dashed var(--line); }
   .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .row .k { width: 58px; flex: none; }
@@ -162,7 +164,7 @@
   .chipb.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
   .chipb.flag { display: inline-flex; align-items: center; gap: 6px; color: var(--imp); }
   .chipb.flag.on { background: var(--imp); border-color: var(--imp); color: var(--on-imp); }
-  .d-title.imp { color: var(--imp); }
+  .imp { --sf-ink: var(--imp); }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 6px; }
   .btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 7px 13px; font: 500 13px var(--sans); cursor: pointer; }
   .btn:hover { border-color: var(--faint); }

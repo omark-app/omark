@@ -94,8 +94,11 @@ export interface AppStore {
   drop(id: string, target: DropTarget): DropOutcome;
   complete(id: string): void;
   remove(id: string): void;
-  /** Trims the title and notes and drops blank notes; a blank title or an edit that changes nothing is ignored. */
-  edit(id: string, patch: { title: string; notes: string[] }): void;
+  /**
+   * Trims the title and notes and drops blank notes; a blank title or an edit that changes nothing is ignored.
+   * `when` and `important` come from shortcut words typed in the title (issue #19) and land in the same change.
+   */
+  edit(id: string, patch: { title: string; notes: string[]; when?: DateChoice | null; important?: boolean }): void;
   setRepeat(id: string, rule: RepeatRule | null): void;
   /** Flags or unflags a task as Important (issue #19). */
   setImportant(id: string, important: boolean): void;
@@ -405,13 +408,22 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     if (commit(deleteTask(state, id), msg.deleted(task.title))) keepVisible(id, fallback);
   }
 
-  function edit(id: string, patch: { title: string; notes: string[] }): void {
+  function edit(
+    id: string, patch: { title: string; notes: string[]; when?: DateChoice | null; important?: boolean },
+  ): void {
     const task = findTask(state, id);
     if (!task) return;
     const title = patch.title.trim();
     const notes = patch.notes.map((n) => n.trim()).filter((n) => n !== '');
-    if (title === '' || (title === task.title && sameList(notes, task.notes))) return;
-    commit(editTask(state, id, { title, notes }), msg.saved());
+    const moves = patch.when != null;
+    const flags = patch.important === true && task.important !== true;
+    if (title === '' || (title === task.title && sameList(notes, task.notes) && !moves && !flags)) return;
+    let next = title === task.title && sameList(notes, task.notes) ? state : editTask(state, id, { title, notes });
+    if (moves) next = moveToBucket(next, id, patch.when!, ctx);
+    if (flags) next = setImportantOp(next, id, true);
+    const moved = findTask(next, id)?.date !== task.date;
+    if (moved) commitMove(id, next);
+    else commit(next, flags ? msg.markedImportant() : msg.saved());
   }
 
   function setRepeat(id: string, rule: RepeatRule | null): void {

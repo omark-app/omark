@@ -122,6 +122,19 @@ test.describe('iPhone', () => {
     await expectAligned(field);
   });
 
+  test('words typed while editing a task apply on Save; words it already had stay text', async ({ page }) => {
+    await start(page, `${SPEC_TASKS}- [ ] Call Tom 📅 2026-10-16\n`);
+    await row(page, 'Call Tom').tap();
+    const title = sheet(page).getByLabel('Task title');
+    await expect(words(sheet(page))).toHaveCount(0);
+    await title.press('End');
+    await title.pressSequentially(' back imp');
+    await expect(words(sheet(page))).toHaveText(['imp']);
+    await option(page, 'Save').tap();
+    await expect(row(page, 'Call Tom back')).toHaveAttribute('data-important', 'true');
+    await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Call Tom back ⏫ 📅 2026-10-16\n');
+  });
+
   test('the move sheet has Tomorrow and Mark important', async ({ page }) => {
     await start(page);
     await swipeLeft(row(page, 'Call the dentist'));
@@ -204,6 +217,20 @@ test.describe('desktop', () => {
     await flag.click();
     await expect(flag).toHaveAttribute('aria-pressed', 'true');
     await expect(row(page, 'Call the dentist')).toHaveAttribute('data-important', 'true');
+  });
+
+  test('words typed in the detail title move the task on Enter and leave the title', async ({ page }) => {
+    await start(page);
+    await row(page, 'Call the dentist').click();
+    const title = page.getByTestId('detail-title');
+    await title.click();
+    await title.press('End');
+    await page.keyboard.type(' tom');
+    await expect(words(page.getByTestId('detail'))).toHaveText(['tom']);
+    await page.keyboard.press('Enter');
+    await expect(rowsOf(page, 'week').filter({ hasText: 'Call the dentist about the crown' })).toHaveCount(1);
+    await expect(title).toHaveValue('Call the dentist about the crown');
+    await expect(page.getByTestId('toast')).toContainText('Moved to This week');
   });
 
   test('important tasks come first in their bucket, in the list and on the board', async ({ page }) => {

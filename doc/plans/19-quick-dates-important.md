@@ -15,7 +15,7 @@ Mockup: https://claude.ai/artifact/UxanecfHTyZ2X4W9xG8tQu (screen 1 is clickable
   | `som`, `someday` | no date |
   | `imp`, `important` | the Important flag |
 
-  As in Todoist, a matched word turns bold on a tint inside the field (blue for dates, amber for `imp`). The date chip and the Important toggle follow it. Backspace right after a bold word deletes nothing: it turns the word back into plain text. A space after it doesn't bring it back; changing the word (for example deleting the `m` and typing it again) does. Bold words leave the title. With two dates, the last one wins. Tapping a chip after typing wins over the typed word. Shortcuts work only when adding a task (the phone add sheet and the desktop add input), never when editing a title.
+  As in Todoist, a matched word turns bold on a tint inside the field (blue for dates, amber for `imp`). The date chip and the Important toggle follow it. Backspace right after a bold word deletes nothing: it turns the word back into plain text. A space after it doesn't bring it back; changing the word (for example deleting the `m` and typing it again) does. Bold words leave the title. With two dates, the last one wins. Tapping a chip after typing wins over the typed word. Shortcuts work when adding a task (the phone add sheet and the desktop add input) and, added by AL after trying the preview, when editing a title (the phone edit sheet and the desktop detail): words typed during the edit move or flag the task when it saves and then leave the title; words the title already had stay plain text.
 - **Important flag**: an important task has an amber circle and an amber title (look A in the mockup), in the list, the board and search results. Inside every bucket, important tasks come first, then by date, then by file order. It is set by `imp`, the Important toggle in the add sheet, "Mark important" / "Not important" in the move sheet, the toggle in the desktop detail, and the `i` key on desktop. Undo takes it back like any other change.
 - **In the files**: `- [ ] Call the bank ⏫ 📅 2026-10-20` in `tasks.md`. `⏫` is Obsidian Tasks' high priority, so Obsidian shows it too. A completed important task keeps it: `- [x] Call the bank ⏫ ✅ 2026-10-20`. A repeating important task stays important on its next date.
 
@@ -85,7 +85,6 @@ E2e (Playwright, `desktop` and `iphone`):
 ## Out of scope
 
 - More priority levels, or `🔺 🔼 🔽 ⏬` as flags.
-- Shortcut words when editing an existing title.
 - A word for Next week (`nex`): AL dropped it, as `next` is too common in titles and weekday words cover it.
 - Other natural-language dates (`next fri`, `in 3 days`, repeats). A word for This week (e.g. `wee`) can follow in a separate issue if AL wants one.
 - Mapping Todoist's p1 to `⏫` in the import tool.

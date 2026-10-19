@@ -5,6 +5,7 @@
   import type { AppStore } from '../lib/store.svelte.ts';
   import { createTaskEdit } from '../lib/task-edit.svelte.ts';
   import MoveOptions from './MoveOptions.svelte';
+  import ShortcutField from './ShortcutField.svelte';
 
   let {
     store,
@@ -62,12 +63,13 @@
 </script>
 
 {#if task}
-  <input
+  <ShortcutField
     bind:value={edit.title}
+    bind:dismissed={edit.dismissed}
     class="fld wide"
     aria-label="Task title"
     autocomplete="off"
-    oninput={() => edit.typed('title')}
+    ontype={() => edit.typed('title')}
     onkeydown={titleKey}
   />
   <textarea

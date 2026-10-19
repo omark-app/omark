@@ -13,13 +13,16 @@
     dismissed = $bindable([]),
     input = $bindable(),
     class: cls = '',
+    ontype,
     ...rest
   }: {
     value?: string;
     dismissed?: Dismissed[];
     input?: HTMLInputElement;
     class?: string;
-  } & Omit<HTMLInputAttributes, 'value' | 'class'> = $props();
+    /** Called after each change the user types, once `value` holds it. */
+    ontype?: () => void;
+  } & Omit<HTMLInputAttributes, 'value' | 'class' | 'oninput'> = $props();
 
   let mirror: HTMLSpanElement | undefined = $state();
 
@@ -64,6 +67,7 @@
     const next = input!.value;
     dismissed = carryDismissed(dismissed, value, next);
     value = next;
+    ontype?.();
   }
 
   function onbeforeinput(e: InputEvent): void {
@@ -101,7 +105,7 @@
   .sf > input::placeholder { color: var(--faint); -webkit-text-fill-color: var(--faint); }
   .mirror {
     position: absolute; inset: 0; display: flex; align-items: center; overflow: hidden;
-    color: var(--ink); pointer-events: none; border: 0 solid transparent; box-sizing: border-box;
+    color: var(--sf-ink, var(--ink)); pointer-events: none; border: 0 solid transparent; box-sizing: border-box;
   }
   /* The 1px matches the room the input keeps for the caret after the last letter, so both scroll alike. */
   .line { flex: none; white-space: pre; padding-right: 1px; }

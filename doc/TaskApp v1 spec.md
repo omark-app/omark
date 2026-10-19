@@ -252,13 +252,13 @@ For finding an old task by any word in it, then opening it to read.
 
 ### 9.4 Shortcut words (added 2026-10-19, #19)
 
-Typed anywhere in a new task's title, on the phone's add sheet or the desktop add input. Each counts as its 3-letter form or the full word, in any case: `tod` / `today`, `tom` / `tomorrow`, `mon` … `sun` / `monday` … `sunday`, `som` / `someday`, `imp` / `important`. Other forms (`tomo`, `some`) and longer words (`tomato`) stay text.
+Typed anywhere in a task's title: when adding (the phone's add sheet, the desktop add input) or editing (the phone's edit sheet, the desktop detail). Each counts as its 3-letter form or the full word, in any case: `tod` / `today`, `tom` / `tomorrow`, `mon` … `sun` / `monday` … `sunday`, `som` / `someday`, `imp` / `important`. Other forms (`tomo`, `some`) and longer words (`tomato`) stay text.
 
 - A matched word turns bold on a tint as it is typed (blue for dates, amber for `imp`), and the date chip or the Important toggle follows it.
 - A weekday word is the next such day after today (on a Monday, `mon` is next Monday).
 - Bold words leave the title. With two date words the last one wins; a typed `📅 date` wins over both. Words inside a typed `🔁` rule are never shortcut words.
 - Backspace right after a bold word deletes nothing: it turns the word back into plain text. A space doesn't bring it back; changing the word (deleting a letter and typing it again) does.
-- Only when adding; editing a title never moves a task.
+- When editing, only words typed during the edit count: they move or flag the task when it saves (Save, Enter, leaving the field, or the save delay on desktop) and then leave the title. Words the title already had stay plain text, so opening "Call Tom" never moves it.
 
 ## 10. Config
 
