@@ -41,7 +41,7 @@
 
 <!-- Keyboard users select with j/k, so the click handler is a pointer convenience. -->
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div bind:this={el} class="task" class:sel={selected} data-testid="task-row" data-id={task.id} {draggable} onclick={onselect} {ondragstart} {ondragend}>
+<div bind:this={el} class="task" class:sel={selected} class:imp={task.important} data-testid="task-row" data-id={task.id} data-important={task.important === true} {draggable} onclick={onselect} {ondragstart} {ondragend}>
   <button class="check" data-testid="task-check" aria-label="Complete {task.title}" onclick={(e) => { e.stopPropagation(); oncomplete?.(); }}></button>
   <div class="title">
     {task.title}{#if task.notes.length > 0}<span class="ni" title="{task.notes.length} note{task.notes.length > 1 ? 's' : ''}">≡</span>{/if}
@@ -65,6 +65,9 @@
   .check { width: 16px; height: 16px; margin-top: 3px; padding: 0; border: 1.5px solid var(--faint); border-radius: 50%; background: transparent; cursor: pointer; }
   .check:hover { border-color: var(--good); background: color-mix(in srgb, var(--good) 15%, transparent); }
   .title { font: 15px/1.45 var(--mono); overflow-wrap: anywhere; min-width: 0; }
+  /* Important (issue #19): an amber circle and title. */
+  .task.imp .check { border: 2px solid var(--imp); }
+  .task.imp .title { color: var(--imp); font-weight: 500; }
   .ni { margin-left: 6px; font-size: 12px; color: var(--faint); }
   .meta { margin-top: 1px; padding: 1px 5px; border: 0; border-radius: 5px; background: none; cursor: pointer; font: 12px/1.45 var(--mono); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .meta:hover { background: var(--chip); color: var(--ink); }

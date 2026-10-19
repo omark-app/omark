@@ -22,6 +22,7 @@ import {
   serializeTasks,
   setAlways as setAlwaysOp,
   setDate as setDateOp,
+  setImportant as setImportantOp,
   setRepeat as setRepeatOp,
   sweepCompleted,
   tasksInBucket,
@@ -34,7 +35,7 @@ import type {
   DropOutcome,
   DropTarget,
   ISODate,
-  MovableBucket,
+  DateChoice,
   RepeatRule,
   State,
   Stats,
@@ -84,10 +85,10 @@ export interface AppStore {
   /** Set when the offline cache could not be used (e.g. iOS private mode); edits then live only in memory. */
   readonly cacheWarning: string | null;
   /** Adds a task (to the configured bucket by default); false when the title is blank. */
-  add(title: string, bucket?: MovableBucket): boolean;
+  add(title: string, when?: DateChoice, important?: boolean): boolean;
   select(id: string | null): void;
   selectNext(delta: 1 | -1): void;
-  moveTo(id: string, bucket: MovableBucket): void;
+  moveTo(id: string, when: DateChoice): void;
   setDate(id: string, date: ISODate | null, beforeId?: string | null): void;
   /** Applies a move or reorder; a drop on Later changes nothing and returns `pickDate` for the UI to open. */
   drop(id: string, target: DropTarget): DropOutcome;
@@ -96,6 +97,8 @@ export interface AppStore {
   /** Trims the title and notes and drops blank notes; a blank title or an edit that changes nothing is ignored. */
   edit(id: string, patch: { title: string; notes: string[] }): void;
   setRepeat(id: string, rule: RepeatRule | null): void;
+  /** Flags or unflags a task as Important (issue #19). */
+  setImportant(id: string, important: boolean): void;
   setAlways(lines: string[]): void;
   undo(): void;
   /**
@@ -358,16 +361,16 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     if (commit(next, movedMessage(next, id))) keepVisible(id, fallback);
   }
 
-  function add(title: string, bucket: MovableBucket = config.newTaskBucket): boolean {
-    const res = addTask(state, title, bucket, ctx);
+  function add(title: string, when: DateChoice = config.newTaskBucket, important = false): boolean {
+    const res = addTask(state, title, when, ctx, undefined, important);
     if (!res) return false;
     commit(res.state, msg.added(bucketName(bucketOf(findTask(res.state, res.id)!, ctx))));
     return true;
   }
 
-  function moveTo(id: string, bucket: MovableBucket): void {
+  function moveTo(id: string, when: DateChoice): void {
     if (!findTask(state, id)) return;
-    commitMove(id, moveToBucket(state, id, bucket, ctx));
+    commitMove(id, moveToBucket(state, id, when, ctx));
   }
 
   function setDate(id: string, date: ISODate | null, beforeId?: string | null): void {
@@ -417,6 +420,11 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     const fallback = neighbour(id);
     const message = rule ? msg.repeats(rule) : msg.repeatRemoved();
     if (commit(setRepeatOp(state, id, rule, ctx.today), message)) keepVisible(id, fallback);
+  }
+
+  function setImportant(id: string, important: boolean): void {
+    if (!findTask(state, id)) return;
+    commit(setImportantOp(state, id, important), important ? msg.markedImportant() : msg.notImportant());
   }
 
   function setAlways(lines: string[]): void {
@@ -549,6 +557,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     remove,
     edit,
     setRepeat,
+    setImportant,
     setAlways,
     undo,
     registerPending(fn) {

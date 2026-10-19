@@ -14,6 +14,11 @@ const ev = (key: string, over: Partial<{ ctrlKey: boolean; metaKey: boolean; alt
 });
 
 describe('commandFor', () => {
+  it('maps m to tomorrow and i to important (#19)', () => {
+    expect(commandFor(ev('m'), sc)).toBe('tomorrow');
+    expect(commandFor(ev('i'), sc)).toBe('important');
+  });
+
   it('maps j to down and ArrowUp to up', () => {
     expect(commandFor(ev('j'), sc)).toBe('down');
     expect(commandFor(ev('ArrowUp'), sc)).toBe('up');

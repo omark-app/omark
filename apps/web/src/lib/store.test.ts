@@ -888,3 +888,42 @@ ${['A', 'B', 'C', 'D', 'E'].map((t) => `- [ ] Now ${t} 📅 2026-10-16`).join('\
     });
   });
 });
+
+describe('Tomorrow and Important (#19)', () => {
+  it('adds to tomorrow as important and writes ⏫', async () => {
+    const { drive, store, synced } = await setup();
+    expect(store.add('Call the bank', 'tomorrow', true)).toBe(true);
+    expect(titles(store, 'week')[0]).toBe('Call the bank');
+    expect(store.toast?.message).toBe('Added to This week');
+    await synced();
+    expect(drive.peek('tasks.md')).toBe(`${SEED_TASKS}- [ ] Call the bank ⏫ 📅 2026-10-17\n`);
+  });
+
+  it('adds on a given date', async () => {
+    const { store } = await setup();
+    store.add('Deck', { date: '2026-10-23' });
+    expect(findTask(store.state, idOf(store, 'Deck'))?.date).toBe('2026-10-23');
+  });
+
+  it('moves a task to tomorrow', async () => {
+    const { store } = await setup();
+    const id = idOf(store, 'Learn Polish sign language');
+    store.moveTo(id, 'tomorrow');
+    expect(findTask(store.state, id)?.date).toBe('2026-10-17');
+    expect(store.toast?.message).toBe('Moved to This week · Sat');
+  });
+
+  it('setImportant toasts, sorts the task first and can be undone', async () => {
+    const { store } = await setup();
+    const id = idOf(store, 'Learn Polish sign language');
+    store.setImportant(id, true);
+    expect(store.toast?.message).toBe('Marked important');
+    expect(findTask(store.state, id)?.important).toBe(true);
+    store.setImportant(id, false);
+    expect(store.toast?.message).toBe('No longer important');
+    store.undo();
+    expect(findTask(store.state, id)?.important).toBe(true);
+    store.setImportant(id, true);
+    expect(store.toast?.message).toBe('Undone');
+  });
+});

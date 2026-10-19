@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { bucketOf, BUCKETS, describeRepeat, dueText, movableBuckets } from '@taskapp/core';
+  import { bucketOf, BUCKETS, currentChoice, dateChoices, describeRepeat, dueText } from '@taskapp/core';
   import type { Task } from '@taskapp/core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import { autogrow } from '../lib/autogrow.ts';
@@ -21,7 +21,8 @@
   const bucket = $derived(bucketOf(task, store.ctx));
   const bucketName = $derived(BUCKETS.find((b) => b.key === bucket)!.name);
   const over = $derived(task.date !== null && task.date < store.ctx.today);
-  const chips = $derived(movableBuckets(store.ctx));
+  const chips = $derived(dateChoices(store.ctx));
+  const current = $derived(currentChoice(task, store.ctx));
 
   // A focused field keeps its text even before it is typed in. Unmounting (another task, deselect, the
   // task gone) commits.
@@ -87,6 +88,7 @@
       bind:this={titleEl}
       bind:value={edit.title}
       class="d-title"
+      class:imp={task.important}
       data-testid="detail-title"
       aria-label="Task title"
       oninput={() => typed('title')}
@@ -116,13 +118,20 @@
       <span class="k"></span>
       <div class="chips">
         {#each chips as chip (chip.key)}
-          <button class="chipb" class:on={bucket === chip.key} onclick={() => store.moveTo(id, chip.key)}>{chip.name}</button>
+          <button class="chipb" class:on={current === chip.key} onclick={() => store.moveTo(id, chip.key)}>{chip.name}</button>
         {/each}
       </div>
     </div>
     <div class="row">
       <span class="lab k">Repeat</span>
       <button class="val" data-testid="detail-repeat" onclick={() => oncommand('repeat')}>{task.repeat ? '↻ ' + describeRepeat(task.repeat) : 'No repeat'}</button>
+    </div>
+    <div class="row">
+      <span class="lab k">Flag</span>
+      <button class="chipb flag" class:on={task.important} aria-pressed={task.important === true} title="Important (i)" onclick={() => store.setImportant(id, !task.important)}>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4"></path><path d="M5 4h12l-2.5 4 2.5 4H5"></path></svg>
+        Important
+      </button>
     </div>
   </div>
   <div class="actions">
@@ -151,6 +160,9 @@
   .chipb { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 5px 10px; font: 12.5px var(--mono); cursor: pointer; }
   .chipb:hover { border-color: var(--faint); }
   .chipb.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .chipb.flag { display: inline-flex; align-items: center; gap: 6px; color: var(--imp); }
+  .chipb.flag.on { background: var(--imp); border-color: var(--imp); color: var(--on-imp); }
+  .d-title.imp { color: var(--imp); }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 6px; }
   .btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 7px 13px; font: 500 13px var(--sans); cursor: pointer; }
   .btn:hover { border-color: var(--faint); }

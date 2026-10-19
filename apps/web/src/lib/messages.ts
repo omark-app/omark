@@ -26,6 +26,10 @@ export const repeats = (rule: RepeatRule): string => `Repeats ${describeRepeat(r
 
 export const repeatRemoved = (): string => 'Repeat removed';
 
+export const markedImportant = (): string => 'Marked important';
+
+export const notImportant = (): string => 'No longer important';
+
 export const undone = (): string => 'Undone';
 
 export const nothingToUndo = (): string => 'Nothing to undo';

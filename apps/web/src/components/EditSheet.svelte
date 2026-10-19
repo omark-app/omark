@@ -1,6 +1,6 @@
 <script lang="ts">
   import { describeRepeat, dueText, findTask } from '@taskapp/core';
-  import type { MovableBucket } from '@taskapp/core';
+  import type { ChoiceKey } from '@taskapp/core';
   import { autogrow } from '../lib/autogrow.ts';
   import type { AppStore } from '../lib/store.svelte.ts';
   import { createTaskEdit } from '../lib/task-edit.svelte.ts';
@@ -30,7 +30,13 @@
     onclose();
   }
 
-  function move(bucket: MovableBucket): void {
+  function important(): void {
+    edit.commit();
+    store.setImportant(taskId, !task?.important);
+    onclose();
+  }
+
+  function move(bucket: ChoiceKey): void {
     edit.commit();
     store.moveTo(taskId, bucket);
     onclose();
@@ -80,6 +86,7 @@
     onmove={move}
     onpickdate={() => open('pickDate')}
     onrepeat={() => open('repeat')}
+    onimportant={important}
   />
   <div class="actions">
     <button class="btn danger" onclick={remove}>Delete</button>

@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { Task, TasksDoc } from '../src/index.ts';
-import { BUCKETS, allTasks, bucketOf, bucketRange, dateForBucket, movableBuckets, tasksInBucket } from '../src/index.ts';
+import { BUCKETS, allTasks, bucketOf, bucketRange, currentChoice, dateChoices, dateForBucket, movableBuckets, tasksInBucket } from '../src/index.ts';
 
 const fri = { today: '2026-10-16', weekStart: 0 };
 const sun = { today: '2026-10-18', weekStart: 0 };
@@ -75,4 +75,18 @@ test('tasksInBucket puts important tasks first, then date, then file order (#19)
   expect(tasksInBucket(doc, 'week', fri).map((t) => t.id)).toEqual(['w4', 'w2', 'w1', 'w3']);
   expect(tasksInBucket(doc, 'overdue', fri).map((t) => t.id)).toEqual(['o2', 'o1']);
   expect(tasksInBucket(doc, 'someday', fri).map((t) => t.id)).toEqual(['s2', 's1']);
+});
+
+test('dateChoices puts Tomorrow right after Today (#19)', () => {
+  expect(dateChoices(fri).map((c) => c.name)).toEqual(['Today', 'Tomorrow', 'This week', 'Next week', 'Someday']);
+  expect(dateChoices(sun).map((c) => c.key)).toEqual(['today', 'tomorrow', 'next', 'someday']);
+});
+
+test('currentChoice is Tomorrow for a task due tomorrow, else its bucket (#19)', () => {
+  expect(currentChoice(mk('a', '2026-10-17'), fri)).toBe('tomorrow');
+  expect(currentChoice(mk('a', '2026-10-18'), fri)).toBe('week');
+  expect(currentChoice(mk('a', '2026-10-16'), fri)).toBe('today');
+  expect(currentChoice(mk('a', null), fri)).toBe('someday');
+  expect(currentChoice(mk('a', '2026-10-01'), fri)).toBeNull();
+  expect(currentChoice(mk('a', '2026-11-30'), fri)).toBeNull();
 });

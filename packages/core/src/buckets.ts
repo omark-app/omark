@@ -55,6 +55,21 @@ export function dateForChoice(choice: DateChoice, ctx: WeekCtx): ISODate | null 
   return choice === 'tomorrow' ? addDays(ctx.today, 1) : dateForBucket(choice, ctx);
 }
 
+/** A choice shown as a chip or a move option: a bucket, or Tomorrow. */
+export type ChoiceKey = MovableBucket | 'tomorrow';
+
+/** The date choices offered when adding or moving a task: `movableBuckets` with Tomorrow after Today. */
+export function dateChoices(ctx: WeekCtx): { key: ChoiceKey; name: string }[] {
+  return movableBuckets(ctx).flatMap((b) => (b.key === 'today' ? [b, { key: 'tomorrow' as const, name: 'Tomorrow' }] : [b]));
+}
+
+/** The choice that holds `t` now: Tomorrow when it is due tomorrow, else its bucket; null for Overdue and Later. */
+export function currentChoice(t: Task, ctx: WeekCtx): ChoiceKey | null {
+  if (t.date === addDays(ctx.today, 1)) return 'tomorrow';
+  const b = bucketOf(t, ctx);
+  return isMovable(b) ? b : null;
+}
+
 /** Open tasks in file order. */
 export function allTasks(doc: TasksDoc): Task[] {
   const out: Task[] = [];
