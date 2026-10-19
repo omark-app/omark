@@ -325,3 +325,39 @@ test('task rows disable the iOS long-press callout', async ({ page }) => {
   });
   expect(callout).toBe('none');
 });
+
+/** The font size, in px, of each field in the open sheet that brings up the keyboard. */
+async function fieldFontSizes(page: Page): Promise<Record<string, number>> {
+  return sheet(page).evaluate((el) => {
+    const out: Record<string, number> = {};
+    for (const f of el.querySelectorAll<HTMLElement>('input:not([type=radio]):not([type=checkbox]), textarea, select')) {
+      out[f.getAttribute('aria-label') ?? f.tagName] = parseFloat(getComputedStyle(f).fontSize);
+    }
+    return out;
+  });
+}
+
+// iOS Safari zooms the page in when a field under 16px takes focus, and doesn't zoom back out.
+test('every field in the phone sheets is at least 16px, so iOS does not zoom in', async ({ page }) => {
+  await start(page);
+  const sizes: Record<string, number> = {};
+  await page.getByTestId('fab').tap();
+  Object.assign(sizes, await fieldFontSizes(page));
+  await page.keyboard.press('Escape');
+
+  await row(page, 'Send the invoice').tap();
+  Object.assign(sizes, await fieldFontSizes(page));
+  await page.keyboard.press('Escape');
+
+  await swipe(row(page, 'Send the invoice'), -120);
+  await sheet(page).getByRole('button', { name: /^Pick a date…/ }).tap();
+  Object.assign(sizes, await fieldFontSizes(page));
+  await page.keyboard.press('Escape');
+
+  await swipe(row(page, 'Send the invoice'), -120);
+  await sheet(page).getByRole('button', { name: /^Repeat…/ }).tap();
+  Object.assign(sizes, await fieldFontSizes(page));
+
+  expect(Object.keys(sizes)).toEqual(expect.arrayContaining(['New task', 'Task title', 'Notes', 'Due date', 'Week interval', 'Interval unit']));
+  for (const [name, px] of Object.entries(sizes)) expect(px, name).toBeGreaterThanOrEqual(16);
+});

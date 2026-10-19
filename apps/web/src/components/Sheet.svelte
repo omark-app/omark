@@ -107,5 +107,7 @@
   }
   @media (max-width: 719.98px) {
     .panel :global(.opt) { padding: 13px 10px; font-size: 15px; }
+    /* iOS zooms the page in when a field under 16px takes focus, and doesn't zoom back out. */
+    .panel :global(.fld), .panel :global(textarea.fld) { font-size: 16px; }
   }
 </style>
