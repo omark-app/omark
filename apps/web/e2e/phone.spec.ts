@@ -361,3 +361,11 @@ test('every field in the phone sheets is at least 16px, so iOS does not zoom in'
   expect(Object.keys(sizes)).toEqual(expect.arrayContaining(['New task', 'Task title', 'Notes', 'Due date', 'Week interval', 'Interval unit']));
   for (const [name, px] of Object.entries(sizes)) expect(px, name).toBeGreaterThanOrEqual(16);
 });
+
+test('the ALWAYS lines and the search box are at least 16px, so iOS does not zoom in', async ({ page }) => {
+  await start(page);
+  const px = (l: Locator) => l.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  expect(await px(page.getByTestId('always-line').first())).toBeGreaterThanOrEqual(16);
+  await page.getByTestId('search-open').tap();
+  expect(await px(page.getByTestId('search-input'))).toBeGreaterThanOrEqual(16);
+});

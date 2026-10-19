@@ -157,6 +157,10 @@
   .aline { font: 15px/1.5 var(--mono); padding: 4px 6px; border-radius: 6px; outline: 0; overflow-wrap: anywhere; min-height: 1.5em; }
   .aline:hover { background: color-mix(in srgb, var(--sel) 60%, transparent); }
   .aline:focus { background: var(--sel); }
+  /* iOS zooms the page in when an editable line under 16px takes focus, and doesn't zoom back out. */
+  @media (max-width: 719.98px) {
+    .aline { font-size: 16px; }
+  }
   .aadd { align-self: flex-start; border: 0; background: none; padding: 4px 6px; font: 13px var(--mono); color: var(--faint); cursor: pointer; border-radius: 6px; }
   .aadd:hover { color: var(--ink); }
 </style>
