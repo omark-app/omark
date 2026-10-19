@@ -53,11 +53,11 @@ export function allTasks(doc: TasksDoc): Task[] {
   return out;
 }
 
-/** Earliest date first, then file order (the sort is stable). */
+/** Important first (issue #19), then earliest date, then file order (the sort is stable). */
 export function tasksInBucket(doc: TasksDoc, key: BucketKey, ctx: WeekCtx): Task[] {
   return allTasks(doc)
     .filter((t) => bucketOf(t, ctx) === key)
-    .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
+    .sort((a, b) => Number(b.important === true) - Number(a.important === true) || (a.date ?? '').localeCompare(b.date ?? ''));
 }
 
 export function bucketRange(key: BucketKey, ctx: WeekCtx): string {

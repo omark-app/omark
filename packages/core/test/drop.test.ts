@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import {
-  allTasks, bucketOf, parseDone, parseTasks, planDrop, type State, type WeekCtx,
+  allTasks, bucketOf, parseDone, parseTasks, planDrop, setImportant, type State, type WeekCtx,
 } from '../src/index.ts';
 
 const fri: WeekCtx = { today: '2026-10-16', weekStart: 0 };
@@ -124,5 +124,22 @@ describe('planDrop', () => {
     if (out.kind !== 'move') return;
     expect(taskOf(out.state, POLISH).date).toBe('2026-10-18');
     expect(bucketOf(taskOf(out.state, POLISH), sun)).toBe('today');
+  });
+});
+
+describe('planDrop with Important (#19)', () => {
+  test('reordering among tasks of the same flag and date reports both as same', () => {
+    const s = make();
+    const out = planDrop(s, idOf(s, INVOICE), { bucket: 'next', beforeId: idOf(s, WATER) }, fri);
+    expect(out).toMatchObject({ kind: 'reorder', sameDate: true, sameFlag: true });
+  });
+
+  test('dropping a task before one with the other flag keeps its flag and reports it', () => {
+    const s = setImportant(make(), idOf(make(), WATER), true);
+    const out = planDrop(s, idOf(s, INVOICE), { bucket: 'next', beforeId: idOf(s, WATER) }, fri);
+    expect(out).toMatchObject({ kind: 'reorder', sameDate: true, sameFlag: false });
+    if (out.kind !== 'reorder') throw new Error('not a reorder');
+    expect(taskOf(out.state, INVOICE).important).toBeFalsy();
+    expect(taskOf(out.state, WATER).important).toBe(true);
   });
 });

@@ -65,3 +65,14 @@ test('bucketRange', () => {
   expect(bucketRange('later', fri)).toBe('');
   expect(bucketRange('someday', fri)).toBe('');
 });
+
+test('tasksInBucket puts important tasks first, then date, then file order (#19)', () => {
+  const imp = (id: string, date: string | null): Task => ({ ...mk(id, date), important: true });
+  const doc = docOf([
+    mk('w1', '2026-10-17'), imp('w2', '2026-10-18'), mk('w3', '2026-10-17'), imp('w4', '2026-10-17'),
+    mk('o1', '2026-10-01'), imp('o2', '2026-10-12'), mk('s1', null), imp('s2', null),
+  ]);
+  expect(tasksInBucket(doc, 'week', fri).map((t) => t.id)).toEqual(['w4', 'w2', 'w1', 'w3']);
+  expect(tasksInBucket(doc, 'overdue', fri).map((t) => t.id)).toEqual(['o2', 'o1']);
+  expect(tasksInBucket(doc, 'someday', fri).map((t) => t.id)).toEqual(['s2', 's1']);
+});

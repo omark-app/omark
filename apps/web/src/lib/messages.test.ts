@@ -27,6 +27,8 @@ describe('toast messages', () => {
   it('reordered', () => {
     expect(msg.reordered(true)).toBe('Reordered');
     expect(msg.reordered(false)).toBe('Tasks sort by date first, so it stays among its own date');
+    expect(msg.reordered(true, false)).toBe('Important tasks sort first, so it stays among its own kind');
+    expect(msg.reordered(false, false)).toBe('Important tasks sort first, so it stays among its own kind');
   });
 
   it('repeats', () => {

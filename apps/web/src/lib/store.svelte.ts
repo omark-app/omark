@@ -377,7 +377,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
 
   function drop(id: string, target: DropTarget): DropOutcome {
     const out = planDrop(state, id, target, ctx);
-    if (out.kind === 'reorder') commit(out.state, msg.reordered(out.sameDate));
+    if (out.kind === 'reorder') commit(out.state, msg.reordered(out.sameDate, out.sameFlag));
     else if (out.kind === 'move') commitMove(id, out.state);
     return out;
   }
