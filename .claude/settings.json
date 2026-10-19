@@ -23,13 +23,5 @@
       "mcp__github__merge_pull_request",
       "mcp__github__enable_pr_auto_merge"
     ]
-  },
-  "extraKnownMarketplaces": {
-    "superpowers-marketplace": {
-      "source": { "source": "github", "repo": "obra/superpowers-marketplace" }
-    }
-  },
-  "enabledPlugins": {
-    "superpowers@superpowers-marketplace": true
   }
 }
