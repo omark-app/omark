@@ -322,3 +322,19 @@ describe('setImportant (#19)', () => {
     expect(serializeDone(state.done)).toBe(`- [x] ${WATER} ⏫ 🔁 every week on Monday ✅ ${TODAY}\n`);
   });
 });
+
+describe('addTask with Tomorrow, a date and Important (#19)', () => {
+  test('tomorrow dates it the day after today; a date choice uses that date', () => {
+    const r = pure((s) => addTask(s, 'Call the bank', 'tomorrow', fri, () => 'n1'))!;
+    expect(findTask(r.state, 'n1')).toMatchObject({ title: 'Call the bank', date: '2026-10-17' });
+    const d = pure((s) => addTask(s, 'Deck', { date: '2026-10-23' }, fri, () => 'n2'))!;
+    expect(findTask(d.state, 'n2')!.date).toBe('2026-10-23');
+  });
+
+  test('important writes ⏫ into the new line', () => {
+    const r = pure((s) => addTask(s, 'Call the bank', 'tomorrow', fri, () => 'n1', true))!;
+    expect(findTask(r.state, 'n1')!.important).toBe(true);
+    expect(serializeTasks(r.state.doc)).toContain('- [ ] Call the bank ⏫ 📅 2026-10-17\n');
+    readsBack(r.state);
+  });
+});

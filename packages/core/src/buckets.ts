@@ -46,6 +46,15 @@ export function dateForBucket(key: MovableBucket, ctx: WeekCtx): ISODate | null 
   }
 }
 
+/** Where a new task goes: a bucket, Tomorrow, or a given date (a typed weekday, issue #19). */
+export type DateChoice = MovableBucket | 'tomorrow' | { date: ISODate };
+
+/** The date a task gets from a `DateChoice`; null for Someday. */
+export function dateForChoice(choice: DateChoice, ctx: WeekCtx): ISODate | null {
+  if (typeof choice === 'object') return choice.date;
+  return choice === 'tomorrow' ? addDays(ctx.today, 1) : dateForBucket(choice, ctx);
+}
+
 /** Open tasks in file order. */
 export function allTasks(doc: TasksDoc): Task[] {
   const out: Task[] = [];

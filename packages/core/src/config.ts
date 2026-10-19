@@ -3,8 +3,8 @@ import type { DateLabelStyle } from './labels.ts';
 import type { BucketKey } from './model.ts';
 
 export type Command =
-  | 'focusAdd' | 'down' | 'up' | 'today' | 'thisWeek' | 'nextWeek' | 'pickDate' | 'someday'
-  | 'repeat' | 'complete' | 'edit' | 'delete' | 'deselect' | 'undo' | 'switchView' | 'search';
+  | 'focusAdd' | 'down' | 'up' | 'today' | 'tomorrow' | 'thisWeek' | 'nextWeek' | 'pickDate' | 'someday'
+  | 'repeat' | 'important' | 'complete' | 'edit' | 'delete' | 'deselect' | 'undo' | 'switchView' | 'search';
 
 /** Values are `KeyboardEvent.key` strings. */
 export type Shortcuts = Record<Command, string[]>;
@@ -33,11 +33,13 @@ export const DEFAULT_CONFIG: Config = {
     down: ['j', 'ArrowDown'],
     up: ['k', 'ArrowUp'],
     today: ['t'],
+    tomorrow: ['m'],
     thisWeek: ['w'],
     nextWeek: ['e'],
     pickDate: ['d'],
     someday: ['s'],
     repeat: ['r'],
+    important: ['i'],
     complete: ['x'],
     edit: ['Enter'],
     delete: ['Delete', 'Backspace'],
@@ -67,11 +69,13 @@ shortcuts:
   down: ['j', 'ArrowDown']
   up: ['k', 'ArrowUp']
   today: t
+  tomorrow: m
   thisWeek: w
   nextWeek: e
   pickDate: d
   someday: s
   repeat: r
+  important: i
   complete: x
   edit: Enter
   delete: ['Delete', 'Backspace']
@@ -104,6 +108,11 @@ saveDelaySeconds: 1
 `;
 
 const COMMANDS = Object.keys(DEFAULT_CONFIG.shortcuts) as Command[];
+/**
+ * Commands added after configs were already written (issue #19). Left unset, their default keys give way
+ * to a key the file binds to another command, so an older config never starts failing.
+ */
+const YIELDING: readonly Command[] = ['tomorrow', 'important'];
 const BUCKETS: BucketKey[] = ['overdue', 'today', 'week', 'next', 'later', 'someday'];
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
@@ -220,6 +229,11 @@ function parse(text: string): Config {
       if (e instanceof ConfigFailure) throw e;
       throw new ConfigFailure(lineOf(valueNode) ?? lineOf(pair.key), e instanceof Error ? e.message : String(e));
     }
+  }
+
+  const taken = new Set([...shortcutLines.keys()].flatMap((cmd) => config.shortcuts[cmd]));
+  for (const cmd of YIELDING) {
+    if (!shortcutLines.has(cmd)) config.shortcuts[cmd] = config.shortcuts[cmd].filter((k) => !taken.has(k));
   }
 
   const owner = new Map<string, Command>();

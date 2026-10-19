@@ -14,3 +14,4 @@ export * from './merge.ts';
 export * from './config.ts';
 export * from './board.ts';
 export * from './search.ts';
+export * from './quick-add.ts';
