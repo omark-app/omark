@@ -29,8 +29,9 @@ Ideas deliberately left out of v1 ([[TaskApp v1 spec]]). Grouped by theme; not o
 
 - **Reopen a completed task from search**: search shows completed tasks read-only; a Reopen action there would move the line back from `done.md` (like un-completing) for completions older than Undo reaches.
 - **Reminders and notifications**.
-- **Natural-language dates and repeats** in quick add (e.g. "tomorrow", "every 2nd tue").
-- **Priorities, labels, projects, checkbox subtasks.**
+- **More natural-language dates and repeats** in quick add, beyond the shortcut words of #19 (e.g. "next fri", "in 3 days", "every 2nd tue"). A word for This week or Next week was left out on purpose (`next` is too common in titles).
+- **More priority levels, labels, projects, checkbox subtasks.** One Important flag (`⏫`) came with #19.
+- **Todoist p1 as Important** in the import tool (`⏫`).
 - **Other UI languages**, starting with Polish.
 - **Export button** (zip of the files, or CSV), for users who don't open their cloud folder.
 - **Todoist completion history import**, to seed stats (skipped in v1 because it's too big).

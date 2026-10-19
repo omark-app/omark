@@ -59,6 +59,7 @@ Obsidian Tasks–compatible markdown. Tasks are one flat list; buckets are compu
 
 - `📅 YYYY-MM-DD` = due date. No date = Someday.
 - `🔁 <rule>` = repeat rule (section 6).
+- `⏫` = Important (added 2026-10-19, #19), Obsidian Tasks' high priority. It can sit anywhere in the line; the app writes it right after the title: `- [ ] Call the bank ⏫ 🔁 every day 📅 2026-10-20`. The other priority signs (`🔺 🔼 🔽 ⏬`) stay in the title as text.
 - Indented `- ` lines under a task are its notes.
 - Line order within the file is the manual order (section 4.3).
 
@@ -72,6 +73,7 @@ Obsidian Tasks–compatible markdown. Tasks are one flat list; buckets are compu
 - [x] Water the plants 🔁 every week on Monday ✅ 2026-10-19
 ```
 
+- A completed important task keeps its `⏫`: `- [x] Call the bank ⏫ ✅ 2026-10-20`. A repeating one stays important on its next date.
 - Nothing is deleted on completion: completing a task moves its line from `tasks.md` to `done.md` with today's date, and its notes go along as indented lines under the done line, byte for byte as they were in `tasks.md`.
 - Completing a recurring task appends its done line, with a copy of its notes, to `done.md` and moves the task in `tasks.md` (notes included) to its next date.
 - A `- [x]` line ticked outside the app (e.g. in Obsidian) moves to `done.md` on the next sync with its notes.
@@ -129,12 +131,12 @@ Moving a task means setting its date:
 
 ### 4.3 Ordering
 
-- Within a bucket: earliest date first, then the line order in `tasks.md`.
+- Within a bucket: important tasks first (#19), then earliest date, then the line order in `tasks.md`.
 - Overdue sits above Today.
 
 ### 4.4 Dragging (desktop mouse drag, phone long-press drag)
 
-- **Drop between tasks in the same bucket** → reorder (changes line order in `tasks.md`). Order only applies among tasks with the same date, since date sorts first; dropping among other dates keeps the date and says so.
+- **Drop between tasks in the same bucket** → reorder (changes line order in `tasks.md`). Order only applies among tasks with the same importance and date, since those sort first; dropping among other dates or the other kind keeps the task's date and flag and says so.
 - **Drop on another bucket** (its header or anywhere in it, including folded headers) → set the date as in 4.2: Today, This week (this Sunday), Next week (next Sunday), Someday (no date). Dropping between two tasks there also places it at that position.
 - **Drop on Overdue** from another bucket → not accepted (no highlight, nothing changes). Overdue tasks can still be reordered among themselves.
 - **Drop on Later** → opens the date picker, pre-filled with the day after next Sunday, because Later has no single date.
@@ -143,10 +145,12 @@ Moving a task means setting its date:
 ## 5. Tasks
 
 - A task is a **title plus optional notes** (indented lines).
-- Out of v1: priorities, labels, projects, checkbox subtasks, assignees, reminders and notifications.
+- A task can be flagged **Important** (#19): one level only.
+- Out of v1: more priority levels, labels, projects, checkbox subtasks, assignees, reminders and notifications.
 
 ### 5.1 Task row (one line, vertical space is precious)
 
+- An important task has an amber circle and an amber title, in light and dark.
 - Left: a round complete button. Middle: the title, followed by a faint `≡` when the task has notes. Notes are **not** shown in the list; they appear in the task detail (section 11) or the phone's edit sheet.
 - Right: one **meta label**, clickable to open the date picker:
   - a short date: `Thu` in This week and Next week, `12 Nov` in Later; overdue tasks show their date in red (`Wed`, or `3 Oct` if more than a week ago);
@@ -197,18 +201,20 @@ Shown compactly, e.g. `Today 4 (3.2) · 7d 23 (19 ↑) · All 412`.
 
 ### 9.1 Desktop (keyboard-first)
 
-- An always-visible input at the top. `/` or `n` focuses it; Enter adds the task to Today (configurable) and keeps the input focused for the next one.
+- An always-visible input at the top. `/` or `n` focuses it; Enter adds the task to Today (configurable), or to the date of a shortcut word typed in it (9.4), and keeps the input focused for the next one.
 - Click a task, or `j` / `k` / ↑ / ↓, to select it. Selecting shows its detail (section 11).
 - With a task selected:
 
 | Key | Action |
 |---|---|
 | `t` | Today |
+| `m` | Tomorrow |
 | `w` | This week (on a Sunday: Today) |
 | `e` | Next week |
 | `d` | Pick a date |
 | `s` | Someday |
 | `r` | Set repeat |
+| `i` | Important on or off |
 | `x` | Complete |
 | Enter (or double-click) | Edit: jumps into the detail's title. Enter saves, Shift+Enter starts a new note line, Ctrl+Enter saves from the notes, Esc leaves the field (and saves) |
 | Delete / Backspace | Delete (with undo) |
@@ -223,10 +229,10 @@ Shown compactly, e.g. `Today 4 (3.2) · 7d 23 (19 ↑) · All 412`.
 
 ### 9.2 iPhone (touch)
 
-- A large + button at the bottom opens an add sheet: text field plus bucket chips (Today selected by default, also This week, Next week, Someday).
+- A large + button at the bottom opens an add sheet: text field (with shortcut words, 9.4), date chips (Today selected by default, also Tomorrow, This week, Next week, Someday, plus the day of a typed weekday word) and an Important toggle. A chip or the toggle tapped after typing wins over the typed word.
 - **Tap** a task → edit sheet: title, notes box, due date and repeat summary, the move options below, Delete, Save.
 - **Swipe right** → complete.
-- **Swipe left** → move sheet: Today, This week, Next week, Pick a date…, Someday, Repeat…, Delete.
+- **Swipe left** → move sheet: Today, Tomorrow, This week, Next week, Pick a date…, Someday, Repeat…, Mark important (or Not important), Delete.
 - Tapping a task's date label opens the date picker directly.
 - A 🔍 button at the top of the list, beside the save status, opens search full-screen (9.3).
 - **Long-press (~0.4 s, finger still) then drag** → move between and within buckets (section 4.4). The row lifts as a floating copy that follows the finger; the page auto-scrolls near the top and bottom edges; page scrolling is blocked only while dragging. No haptic feedback (not available to iPhone web apps). The iOS long-press text callout is disabled on task rows.
@@ -243,6 +249,16 @@ For finding an old task by any word in it, then opening it to read.
 - **Completed tasks**: only open tasks are searched at first. A last row, "Also search N completed", adds the matches from `done.md` (kept until search closes): struck through, with their ✅ date, newest first within the same order. At most 100 are shown; another word narrows them. Done entries' notes are matched too.
 - **Opening a result**: an open task opens in the detail (desktop: the side pane or the board's rail) or the edit sheet (phone). Closing it (Esc, `esc`, Save, ✕) comes back to search with the query and results kept; selecting another task leaves search. A completed task opens a read-only sheet: title, notes, completion date and repeat rule. It can't be reopened from there (backlog).
 - Out of scope: filters, saved searches, search syntax.
+
+### 9.4 Shortcut words (added 2026-10-19, #19)
+
+Typed anywhere in a new task's title, on the phone's add sheet or the desktop add input. Each counts as its 3-letter form or the full word, in any case: `tod` / `today`, `tom` / `tomorrow`, `mon` … `sun` / `monday` … `sunday`, `som` / `someday`, `imp` / `important`. Other forms (`tomo`, `some`) and longer words (`tomato`) stay text.
+
+- A matched word turns bold on a tint as it is typed (blue for dates, amber for `imp`), and the date chip or the Important toggle follows it.
+- A weekday word is the next such day after today (on a Monday, `mon` is next Monday).
+- Bold words leave the title. With two date words the last one wins.
+- Backspace right after a bold word deletes nothing: it turns the word back into plain text. A space doesn't bring it back; changing the word (deleting a letter and typing it again) does.
+- Only when adding; editing a title never moves a task.
 
 ## 10. Config
 
@@ -285,7 +301,7 @@ Two views on desktop, switched with `v` (default from config). **Phones (narrow 
 - One framed sheet with two panes.
 - **Left pane "tasks"**: the add input, then the buckets stacked (section 4: Overdue when it has tasks, then the other five), one-line rows (5.1).
 - **Right pane**: when a task is selected, its **detail** on top and the **ALWAYS** lines right below it; with nothing selected, just ALWAYS. The completion **stats** (section 8) sit at the bottom of the right pane.
-- **Task detail**: bucket name, editable title, editable notes (one per line), Due (button opening the date picker, red when overdue) with quick chips Today / This week / Next week / Someday, Repeat (button opening the repeat picker), Complete and Delete buttons, and an `esc` close button.
+- **Task detail**: bucket name, editable title, editable notes (one per line), Due (button opening the date picker, red when overdue) with quick chips Today / Tomorrow / This week / Next week / Someday, Repeat (button opening the repeat picker), an Important toggle (Flag), Complete and Delete buttons, and an `esc` close button.
 - Below the sheet: the keyboard-hint strip and the save status.
 
 **Week board** (desktop only):

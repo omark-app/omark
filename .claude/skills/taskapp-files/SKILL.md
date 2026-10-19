@@ -29,12 +29,14 @@ Three UTF-8 files, LF line endings, in `C:\Users\alipk\OneDrive\ALAI\TaskApp\`: 
 - [ ] Pay rent 🔁 every month on the 1st 📅 2026-11-01
     - transfer from savings
 - [ ] Call the dentist 📅 2026-10-19
+- [ ] Call the bank ⏫ 📅 2026-10-20
 - [ ] Learn Rust
 ```
 
 - `# Always` lists reminders, one `- text` per line. They have no dates.
 - `# Tasks` holds task blocks. A block is the task line plus the indented lines under it (its notes).
-- Task line: `- [ ] {title} 🔁 {rule} 📅 {date}`. `🔁` and `📅` are each optional; no date means Someday.
+- Task line: `- [ ] {title} ⏫ 🔁 {rule} 📅 {date}`. `⏫`, `🔁` and `📅` are each optional; no date means Someday.
+- `⏫` marks the task Important (Obsidian Tasks' high priority); TaskApp shows it in amber, first in its bucket. To flag a task, add ` ⏫` right after the title; to unflag it, remove it. The other priority signs (`🔺 🔼 🔽 ⏬`) are only text to TaskApp.
 - Dates are `YYYY-MM-DD`, local time.
 - Notes: `    - {note}` (four spaces).
 - A `🔁` rule TaskApp can't parse stays in the title and the task counts as non-repeating. Use only the wording below.
@@ -62,7 +64,7 @@ N is a whole number from 1 to 999. A larger N is not a rule: the text stays in t
 
 Nothing is lost: a completed task's notes always go to `done.md` with it.
 
-The done line is `- [x] {title} 🔁 {rule} ✅ {today}`. The `🔁 {rule}` part appears only when the task repeats. The `📅` date never goes to `done.md`. Under it come the task's note lines, byte for byte as they are in `tasks.md` (same indent, marker and spacing); no notes, no extra lines.
+The done line is `- [x] {title} ⏫ 🔁 {rule} ✅ {today}`. The `⏫` part appears only when the task is important, the `🔁 {rule}` part only when it repeats. The `📅` date never goes to `done.md`. Under it come the task's note lines, byte for byte as they are in `tasks.md` (same indent, marker and spacing); no notes, no extra lines.
 
 Non-repeating: delete the whole block (line and notes) from `tasks.md`, then append the done line to the end of `done.md` with the task's note lines right under it.
 
@@ -170,4 +172,4 @@ YAML with only the settings that differ from the defaults. Keep its comments. A 
 | `dateLabels` | `short` (Thu, 12 Nov), `iso` |
 | `newTaskBucket` | `today`, `week`, `next`, `someday` |
 | `saveDelaySeconds` | number, 0 or more (default 1) |
-| `shortcuts` | map of command to a key or list of keys (`KeyboardEvent.key` names); a key binds to one command only. Commands: focusAdd, down, up, today, thisWeek, nextWeek, pickDate, someday, repeat, complete, edit, delete, deselect, undo, switchView, search |
+| `shortcuts` | map of command to a key or list of keys (`KeyboardEvent.key` names); a key binds to one command only. Commands: focusAdd, down, up, today, tomorrow, thisWeek, nextWeek, pickDate, someday, repeat, important, complete, edit, delete, deselect, undo, switchView, search |
