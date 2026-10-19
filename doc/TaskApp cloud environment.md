@@ -34,5 +34,10 @@ The guard hook (`tools/claude-guard/guard.mjs`) runs before every Bash command a
 | 2026-10-18 | Playwright browser download with the default network list | Blocked (`cdn.playwright.dev`); needs the allowed domains above |
 | 2026-10-18 | Unit tests and typecheck in a cloud session | Pass |
 | 2026-10-18 | Desktop e2e in a cloud session, on the older pre-installed Chromium | Pass |
-| pending | Full suite, WebKit included, in a fresh session on this environment | Task 15 of [[TaskApp factory build plan]] |
-| pending | Superpowers plugin loads from `.claude/settings.json` | Task 15 |
+| 2026-10-18 | Session start in a fresh session on this environment (Task 15 of [[TaskApp factory build plan]]) | The hook installed Chromium 1248 and WebKit 2370 (with apt deps). Hook 4m00s (pnpm install ~1m20s, apt ~20s, browsers ~1m30s); container start to first prompt ~4m15s. Under the 5-minute bar, so the install stays in the hook |
+| 2026-10-18 | `pnpm typecheck` | Pass, 0 errors (1m00s) |
+| 2026-10-18 | `pnpm test` | Pass, 692 tests in 41 files (39s) |
+| 2026-10-18 | `pnpm e2e`, both projects | Pass, 157 passed, 0 failed, 97 skipped (desktop 97 passed / 30 skipped, iphone 60 / 67; the skips are the other device's tests). WebKit works in the sandbox. 7m02s |
+| 2026-10-18 | `pnpm --filter web build` | Pass (29s) |
+| 2026-10-18 | Superpowers plugin loads from `.claude/settings.json` | No. No `superpowers:*` skills and nothing in `~/.claude/plugins/installed_plugins.json`, though the marketplace repo is reachable. Cloud sessions don't install project-declared plugins |
+| 2026-10-18 | Live guard check: `git push origin HEAD:main` | Blocked by the guard hook: `Blocked by the TaskApp guard: push to main.` Remote `main` unchanged |
