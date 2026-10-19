@@ -5,7 +5,7 @@ Mockup: https://claude.ai/artifact/UxanecfHTyZ2X4W9xG8tQu (screen 1 is clickable
 ## What changes for AL
 
 - **Tomorrow** sits right after Today in the add sheet, the swipe-left move sheet and the desktop detail chips. On desktop, `m` moves the selected task to tomorrow. On a Sunday, tomorrow is Monday, so the task lands in Next week.
-- **Shortcut words** in a new task's title, typed anywhere, any case, from 3 letters up to the full word:
+- **Shortcut words** in a new task's title, typed anywhere, any case, as the 3-letter form or the full word (AL, during the build: so `some` in "Buy some milk" stays text):
 
   | word | gives (today Mon 19 Oct) |
   | --- | --- |
@@ -33,7 +33,7 @@ Ordering (core):
 - [ ] Dragging a task within a bucket can only reorder it among tasks with the same importance and date. Dropping it elsewhere keeps its importance and date, and the toast says so (as it does for dates today).
 
 Shortcuts (core, pure):
-- [ ] All the words in the table match from 3 letters up to the full word, in any case; 1–2 letters, longer words (`tomato`) and words inside other words don't.
+- [ ] All the words in the table match as the 3-letter form or the full word, in any case; other forms (`tomo`, `some`), longer words (`tomato`) and words inside other words don't.
 - [ ] Weekday words give the next such day strictly after today (1 to 7 days ahead).
 - [ ] A dismissed word stays text through edits elsewhere and through a space after it. It counts again once the word itself changes.
 - [ ] Bold words leave the title. A title made only of shortcut words isn't added.
@@ -62,7 +62,7 @@ Core (Vitest), each run and seen failing before the code:
 - `ops.test.ts`: `addTask` with Tomorrow and Important; `setImportant` on and off; typed `⏫` becomes the flag; completing a repeating important task.
 - `buckets.test.ts`: important first inside a bucket, then date, then file order.
 - `drop.test.ts`: reordering across importance keeps the flag and reports it.
-- `quick-add.test.ts` (new): a table of inputs and results for today Mon 19 Oct 2026 (`tom`, `TOM`, `Tomorrow`, `to`, `tomato`, `mon` on a Monday, `fri`, `next` (no match), `som`, `imp`, two dates, a title made only of shortcut words), and dismissals carried through edits.
+- `quick-add.test.ts` (new): a table of inputs and results for today Mon 19 Oct 2026 (`tom`, `TOM`, `Tomorrow`, `to`, `tomo`, `some`, `tomato`, `mon` on a Monday, `fri`, `next` (no match), `som`, `imp`, two dates, a title made only of shortcut words), and dismissals carried through edits.
 - `config.test.ts`: the new `tomorrow` and `important` commands, their defaults, a clash with another key.
 - `skill-examples.test.ts`: the new examples in the `taskapp-files` skill parse as written.
 
