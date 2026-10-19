@@ -176,7 +176,7 @@ Short and factual:
 
 - `taskapp-factory` (new, in `.claude/skills/`): the step-by-step for picking up, sizing, planning, implementing, and handing over an issue, including the comment and label wording.
 - `taskapp-files` (existing).
-- The superpowers and mattpocock skills the flow relies on (brainstorming, writing plans, TDD, verification, code review). Personal skills don't reach cloud sessions. First try enabling the plugins in the project's `.claude/settings.json`. If a cloud session still doesn't see them, commit copies of the ones used into `.claude/skills/` with their MIT license.
+- No third-party skill plugins. Cloud sessions don't load plugins from the project's `.claude/settings.json` (checked 2026-10-18), and copying them into the repo isn't worth the clutter, so the flow is written to work without them.
 
 ### 7.3 Hooks
 
@@ -231,7 +231,7 @@ Claude does the rest: the Cloudflare project and DNS record (if the existing tok
 ## 12. Risks to check first
 
 - **WebKit in the cloud sandbox**: undocumented. If it fails, sessions run chromium only and CI stays the WebKit judge.
-- **Plugins in cloud sessions**: may not load from project settings, hence the fallback in 7.2.
+- **Plugins in cloud sessions**: they don't load from project settings (checked 2026-10-18); the flow does without them (7.2).
 - **Cloudflare token scope**: may not cover creating a Pages project and a DNS record.
 - **Setup script time**: browser installs may push it past the ~5 minute cache limit; then move browser install into the SessionStart hook.
 - **Subscription usage**: parallel cloud sessions and routines draw on the Max limits. Start with one routine and watch usage.

@@ -32,9 +32,8 @@ If anything about the expected behaviour is unclear, ask one clear question, add
 
 ## Plan (large only)
 
-1. Use superpowers:brainstorming and superpowers:writing-plans if the session has them.
-2. Write `doc/plans/<n>-<slug>.md` on the issue branch: **What changes for AL**, **Acceptance criteria** (checkboxes), **Tests I'll write first**, **Risks**, **Out of scope**. Commit and push it.
-3. Comment the summary:
+1. Write `doc/plans/<n>-<slug>.md` on the issue branch: **What changes for AL**, **Acceptance criteria** (checkboxes), **Tests I'll write first**, **Risks**, **Out of scope**. Commit and push it.
+2. Comment the summary:
    ```
    Plan for #<n>: <one-line goal>
 
@@ -43,13 +42,13 @@ If anything about the expected behaviour is unclear, ask one clear question, add
    Full plan: doc/plans/<n>-<slug>.md on branch <branch>.
    Reply "approved" or add `plan-approved`.
    ```
-4. Add `plan-review` and stop.
-5. Approval is `plan-approved`, an "approved" comment from AL, or AL saying so in the live session. Record a chat approval with the comment `Approved by AL in the session.` and the label. Remove `plan-review`.
-6. A change of direction mid-way means updating the plan, a new comment, `plan-review` again, and waiting.
+3. Add `plan-review` and stop.
+4. Approval is `plan-approved`, an "approved" comment from AL, or AL saying so in the live session. Record a chat approval with the comment `Approved by AL in the session.` and the label. Remove `plan-review`.
+5. A change of direction mid-way means updating the plan, a new comment, `plan-review` again, and waiting.
 
 ## Implement
 
-1. Use superpowers:test-driven-development if available. For each behaviour: write the test, run it, **see it fail**, save the failing line for the PR, then write the code.
+1. For each behaviour: write the test, run it, **see it fail**, save the failing line for the PR, then write the code.
 2. Small work turning out bigger: stop, relabel `size:large`, comment why, go to **Plan**.
 3. Before pushing, run `pnpm typecheck`, `pnpm test`, `pnpm e2e` and `pnpm --filter web build`. All green, or don't push.
 4. Commit in small steps with short imperative messages.

@@ -39,5 +39,5 @@ The guard hook (`tools/claude-guard/guard.mjs`) runs before every Bash command a
 | 2026-10-18 | `pnpm test` | Pass, 692 tests in 41 files (39s) |
 | 2026-10-18 | `pnpm e2e`, both projects | Pass, 157 passed, 0 failed, 97 skipped (desktop 97 passed / 30 skipped, iphone 60 / 67; the skips are the other device's tests). WebKit works in the sandbox. 7m02s |
 | 2026-10-18 | `pnpm --filter web build` | Pass (29s) |
-| 2026-10-18 | Superpowers plugin loads from `.claude/settings.json` | No. No `superpowers:*` skills and nothing in `~/.claude/plugins/installed_plugins.json`, though the marketplace repo is reachable. Cloud sessions don't install project-declared plugins |
+| 2026-10-18 | Superpowers plugin loads from `.claude/settings.json` | No. No `superpowers:*` skills and nothing in `~/.claude/plugins/installed_plugins.json`, though the marketplace repo is reachable. Cloud sessions don't install project-declared plugins. AL chose to do without them; the plugin entries were removed from the settings (2026-10-19) |
 | 2026-10-18 | Live guard check: `git push origin HEAD:main` | Blocked by the guard hook: `Blocked by the TaskApp guard: push to main.` Remote `main` unchanged |
