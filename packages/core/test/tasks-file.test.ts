@@ -434,3 +434,9 @@ test('a completed line in the Tasks section keeps its ⏫ on the done item (#19)
   const [item] = parseTasks('# Tasks\n- [x] Call the bank ⏫ ✅ 2026-10-19\n').items;
   expect(item).toMatchObject({ kind: 'done', entry: { title: 'Call the bank', important: true } });
 });
+
+test('every ⏫ in a line is the flag, so clearing it leaves none (#19 review)', () => {
+  const doc = parseTasks('# Always\n\n# Tasks\n- [ ] A ⏫ B ⏫\n', counter());
+  expect(tasksOf(doc)[0]).toMatchObject({ title: 'A B', important: true });
+  expect(serializeTasks(withTask(doc, 'id1', { important: false }))).toBe('# Always\n\n# Tasks\n- [ ] A B\n');
+});

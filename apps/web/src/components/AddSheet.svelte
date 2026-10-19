@@ -54,6 +54,12 @@
   );
   let input: HTMLInputElement | undefined = $state();
 
+  // A pick the typed words have since overruled is gone for good, so deleting the word doesn't bring it back.
+  $effect(() => {
+    if (draft.picked !== null && draft.pickedFor !== typedKey) draft.picked = null;
+    if (draft.important !== null && draft.importantFor !== typed.important) draft.important = null;
+  });
+
   function choose(key: ChoiceKey | 'day'): void {
     draft.picked = key;
     draft.pickedFor = typedKey;

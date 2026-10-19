@@ -16,6 +16,16 @@ async function start(page: Page, tasks = SPEC_TASKS) {
   await expect(page.getByTestId('bucket-today')).toBeVisible();
 }
 
+/** The copy with the bold words (just before the input) is scrolled exactly as the input is. */
+async function expectAligned(input: Locator) {
+  await expect
+    .poll(() => input.evaluate((el: HTMLInputElement) => {
+      const m = el.previousElementSibling as HTMLElement;
+      return m.scrollLeft - el.scrollLeft;
+    }))
+    .toBe(0);
+}
+
 /** A left swipe on a row, as a finger's pointer events (opens the move sheet). */
 async function swipeLeft(target: Locator) {
   await target.evaluate((el) => {
@@ -92,6 +102,26 @@ test.describe('iPhone', () => {
     await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Plan trip\n');
   });
 
+  test('a picked chip gives way to a typed word and does not come back when the word goes', async ({ page }) => {
+    await start(page);
+    await page.getByTestId('fab').tap();
+    const field = sheet(page).getByLabel('New task');
+    await field.pressSequentially('Plan');
+    await option(page, 'Someday').tap();
+    await field.pressSequentially(' tom');
+    await expect(option(page, 'Tomorrow')).toHaveAttribute('aria-pressed', 'true');
+    await field.fill('Plan');
+    await expect(option(page, 'Today')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('the bold copy stays lined up with text longer than the field', async ({ page }) => {
+    await start(page);
+    await page.getByTestId('fab').tap();
+    const field = sheet(page).getByLabel('New task');
+    await field.pressSequentially('Call the bank imp tom and also ask about the mortgage rates fri');
+    await expectAligned(field);
+  });
+
   test('the move sheet has Tomorrow and Mark important', async ({ page }) => {
     await start(page);
     await swipeLeft(row(page, 'Call the dentist'));
@@ -128,6 +158,25 @@ test.describe('desktop', () => {
     await page.keyboard.press('Backspace');
     await page.keyboard.press('Enter');
     await expect(rowsOf(page, 'today').filter({ hasText: 'Call Tom' })).toHaveCount(1);
+  });
+
+  test('Enter on a title of shortcut words only keeps the text', async ({ page }) => {
+    await start(page);
+    await page.getByTestId('add-input').click();
+    await page.keyboard.type('tom imp');
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('add-input')).toHaveValue('tom imp');
+  });
+
+  test('the bold copy in the add input stays lined up with long text, also after Home', async ({ page }) => {
+    await start(page);
+    const input = page.getByTestId('add-input');
+    await input.click();
+    await page.keyboard.type('Send the deck to Piotr and ask about the term sheet and the board call agenda for next quarter fri imp');
+    await expectAligned(input);
+    await page.keyboard.press('Home');
+    await expectAligned(input);
+    await expect.poll(() => input.evaluate((el: HTMLInputElement) => el.scrollLeft)).toBe(0);
   });
 
   test('m moves the selected task to tomorrow and i flags it', async ({ page }) => {

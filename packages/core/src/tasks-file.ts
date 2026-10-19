@@ -254,12 +254,12 @@ export function parseFields(text: string, isDone: boolean): Fields {
   if (rule) spans.push(rule.span);
   const repeat = rule?.value ?? null;
 
-  // The last ⏫ is the flag; earlier ones stay in the title, as for the other fields.
-  const flagAt = text.lastIndexOf(IMPORTANT);
-  const important = flagAt >= 0;
-  if (important) {
-    const end = flagAt + IMPORTANT.length;
-    spans.push([flagAt, text.startsWith(VS16, end) ? end + VS16.length : end]);
+  // Every ⏫ is the flag (it has no value for a later one to win over), so clearing it leaves none behind.
+  let important = false;
+  for (let at = text.indexOf(IMPORTANT); at >= 0; at = text.indexOf(IMPORTANT, at + IMPORTANT.length)) {
+    important = true;
+    const end = at + IMPORTANT.length;
+    spans.push([at, text.startsWith(VS16, end) ? end + VS16.length : end]);
   }
 
   // Remove right to left so earlier offsets stay valid; each gap becomes one space.
@@ -268,6 +268,17 @@ export function parseFields(text: string, isDone: boolean): Fields {
     title = `${title.slice(0, s).trimEnd()} ${title.slice(e).trimStart()}`;
   }
   return { title: title.trim(), date, repeat, doneOn, important };
+}
+
+/** Where 🔁 rule text runs in `text`: from each 🔁 to the next ` #tag`, field emoji or the end. */
+export function ruleSpans(text: string): [number, number][] {
+  const spans: [number, number][] = [];
+  for (let at = text.indexOf(REPEAT); at >= 0; at = text.indexOf(REPEAT, at + REPEAT.length)) {
+    const from = at + REPEAT.length;
+    const stop = RULE_END.exec(text.slice(from));
+    spans.push([at, stop ? from + stop.index : text.length]);
+  }
+  return spans;
 }
 
 function isRealDate(iso: string): boolean {

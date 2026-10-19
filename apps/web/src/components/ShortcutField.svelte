@@ -51,6 +51,15 @@
     sync();
   });
 
+  // Moving the caret by tap or with the space bar on iOS can scroll the input with no key or scroll event.
+  $effect(() => {
+    const onselection = (): void => {
+      if (document.activeElement === input) sync();
+    };
+    document.addEventListener('selectionchange', onselection);
+    return () => document.removeEventListener('selectionchange', onselection);
+  });
+
   function oninput(): void {
     const next = input!.value;
     dismissed = carryDismissed(dismissed, value, next);

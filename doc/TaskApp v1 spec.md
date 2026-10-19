@@ -59,7 +59,7 @@ Obsidian Tasks–compatible markdown. Tasks are one flat list; buckets are compu
 
 - `📅 YYYY-MM-DD` = due date. No date = Someday.
 - `🔁 <rule>` = repeat rule (section 6).
-- `⏫` = Important (added 2026-10-19, #19), Obsidian Tasks' high priority. It can sit anywhere in the line; the app writes it right after the title: `- [ ] Call the bank ⏫ 🔁 every day 📅 2026-10-20`. The other priority signs (`🔺 🔼 🔽 ⏬`) stay in the title as text.
+- `⏫` = Important (added 2026-10-19, #19), Obsidian Tasks' high priority. It can sit anywhere in the line (every `⏫` counts as the one flag); the app writes it right after the title: `- [ ] Call the bank ⏫ 🔁 every day 📅 2026-10-20`. The other priority signs (`🔺 🔼 🔽 ⏬`) stay in the title as text.
 - Indented `- ` lines under a task are its notes.
 - Line order within the file is the manual order (section 4.3).
 
@@ -256,7 +256,7 @@ Typed anywhere in a new task's title, on the phone's add sheet or the desktop ad
 
 - A matched word turns bold on a tint as it is typed (blue for dates, amber for `imp`), and the date chip or the Important toggle follows it.
 - A weekday word is the next such day after today (on a Monday, `mon` is next Monday).
-- Bold words leave the title. With two date words the last one wins.
+- Bold words leave the title. With two date words the last one wins; a typed `📅 date` wins over both. Words inside a typed `🔁` rule are never shortcut words.
 - Backspace right after a bold word deletes nothing: it turns the word back into plain text. A space doesn't bring it back; changing the word (deleting a letter and typing it again) does.
 - Only when adding; editing a title never moves a task.
 

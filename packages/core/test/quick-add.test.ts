@@ -104,3 +104,18 @@ describe('carryDismissed (#19)', () => {
     expect(carryDismissed(d, 'Buy sun', '')).toEqual([]);
   });
 });
+
+describe('review fixes (#19)', () => {
+  test('words inside a typed 🔁 rule are not shortcut words', () => {
+    expect(readQuickAdd('Gym 🔁 every week on Monday', mon)).toEqual({
+      title: 'Gym 🔁 every week on Monday', when: null, important: false,
+    });
+    expect(readQuickAdd('Bins 🔁 every week on tuesday 📅 2026-10-30 imp', mon)).toMatchObject({
+      title: 'Bins 🔁 every week on tuesday 📅 2026-10-30', important: true,
+    });
+  });
+
+  test('a typed 📅 date wins over a date word, as the saved line reads', () => {
+    expect(readQuickAdd('Pay 📅 2026-10-30 tom', mon)).toMatchObject({ when: { date: '2026-10-30' } });
+  });
+});

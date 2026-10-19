@@ -1,6 +1,7 @@
 import { dayOfWeek, addDays } from './dates.ts';
 import type { DateChoice } from './buckets.ts';
 import type { WeekCtx } from './model.ts';
+import { parseFields, ruleSpans } from './tasks-file.ts';
 
 /**
  * Shortcut words typed into a new task's title (issue #19): the 3-letter form or the full word, in any
@@ -37,10 +38,12 @@ export interface Dismissed {
   word: string;
 }
 
-/** The shortcut words of `text`, in order, leaving out the dismissed ones. */
+/** The shortcut words of `text`, in order, leaving out the dismissed ones and words in a typed 🔁 rule. */
 export function shortcutWords(text: string, dismissed: readonly Dismissed[] = []): ShortcutWord[] {
   const out: ShortcutWord[] = [];
+  const rules = ruleSpans(text);
   for (const m of text.matchAll(/\S+/g)) {
+    if (rules.some(([s, e]) => m.index >= s && m.index < e)) continue;
     const word = m[0];
     const lower = word.toLowerCase();
     const hit = WORDS.find(([short, full]) => lower === short || lower === full);
@@ -74,7 +77,10 @@ export function readQuickAdd(text: string, ctx: WeekCtx, dismissed: readonly Dis
   for (const w of [...words].reverse()) {
     title = `${title.slice(0, w.start).trimEnd()} ${title.slice(w.end).trimStart()}`;
   }
-  return { title: title.trim(), when, important };
+  title = title.trim();
+  // A 📅 date typed in the title is what the saved line keeps (issue #8), so it wins over a date word.
+  const typedDate = parseFields(title, false).date;
+  return { title, when: typedDate ? { date: typedDate } : when, important };
 }
 
 /** The next `weekday` strictly after today, 1 to 7 days on. */
