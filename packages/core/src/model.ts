@@ -35,6 +35,8 @@ export interface Task {
   notes: string[];
   date: ISODate | null;
   repeat: RepeatRule | null;
+  /** The ⏫ field (issue #19). Absent or false: not important. */
+  important?: boolean;
   raw: string[] | null;
   rawKey: string | null;
 }
@@ -48,6 +50,8 @@ export interface DoneEntry {
   repeat: RepeatRule | null;
   doneOn: ISODate | null;
   notes: string[];
+  /** The ⏫ field; absent when the line has none. */
+  important?: boolean;
 }
 
 /**

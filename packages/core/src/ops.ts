@@ -40,7 +40,9 @@ function updateTask(s: State, id: string, change: (t: Task) => Task): State {
  */
 function takeTyped(t: Task): Task {
   const f = parseFields(t.title, false);
-  return { ...t, title: f.title, date: f.date ?? t.date, repeat: f.repeat ?? t.repeat };
+  return {
+    ...t, title: f.title, date: f.date ?? t.date, repeat: f.repeat ?? t.repeat, ...(f.important && { important: true }),
+  };
 }
 
 /** Moves the item of `id` directly before the item of `beforeId`; no-op for equal or unknown ids. */
@@ -121,6 +123,13 @@ export function setRepeat(s: State, id: string, rule: RepeatRule | null, today: 
     repeat: rule,
     date: rule ? fitDate(rule, t.date, today) : t.date,
   }));
+}
+
+/** Flags or unflags a task as Important (the ⏫ field, issue #19); `s` itself when nothing changes. */
+export function setImportant(s: State, id: string, important: boolean): State {
+  const t = findTask(s, id);
+  if (!t || (t.important === true) === important) return s;
+  return updateTask(s, id, ({ important: _, ...rest }) => (important ? { ...rest, important: true } : rest));
 }
 
 export function setAlways(s: State, lines: string[]): State {

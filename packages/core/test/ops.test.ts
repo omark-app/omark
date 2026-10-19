@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 import {
   addTask, allTasks, completeTask, deleteTask, editTask, findTask, moveToBucket, parseDone, parseTasks,
-  computeStats, reorder, serializeDone, serializeTasks, setAlways, setDate, setRepeat, toBlocks, type State,
+  computeStats, reorder, serializeDone, serializeTasks, setAlways, setDate, setImportant, setRepeat, toBlocks, type State,
   type Task, type WeekCtx,
 } from '../src/index.ts';
 
@@ -289,5 +289,36 @@ describe('setAlways', () => {
     const s = pure((s) => setAlways(s, ['a', ' ', ' b ']));
     expect(s.doc.always).toEqual(['a', 'b']);
     expect(serializeTasks(s.doc)).toContain('# Always\n- a\n- b\n');
+  });
+});
+
+describe('setImportant (#19)', () => {
+  test('flags and unflags a task, writing ⏫ into its line', () => {
+    const on = pure((s) => setImportant(s, idOf(s, INVOICE), true));
+    expect(findTask(on, idOf(on, INVOICE))!.important).toBe(true);
+    expect(serializeTasks(on.doc)).toContain(`- [ ] ${INVOICE} ⏫ 📅`);
+    readsBack(on);
+    const off = setImportant(on, idOf(on, INVOICE), false);
+    expect(findTask(off, idOf(off, INVOICE))!.important).toBeFalsy();
+    expect(serializeTasks(off.doc)).toBe(serializeTasks(make().doc));
+  });
+
+  test('setting the flag it already has, or an unknown id, changes nothing', () => {
+    const s = make();
+    expect(setImportant(s, idOf(s, INVOICE), false)).toBe(s);
+    expect(setImportant(s, 'nope', true)).toBe(s);
+  });
+
+  test('⏫ typed into a title becomes the flag', () => {
+    const s = make();
+    const next = editTask(s, idOf(s, INVOICE), { title: `${INVOICE} ⏫`, notes: [] });
+    expect(findTask(next, idOf(s, INVOICE))).toMatchObject({ title: INVOICE, important: true });
+  });
+
+  test('completing an important repeating task keeps it important on its next date', () => {
+    const s = setImportant(make(), idOf(make(), WATER), true);
+    const { state } = completeTask(s, idOf(s, WATER), TODAY);
+    expect(findTask(state, idOf(s, WATER))).toMatchObject({ important: true, date: '2026-10-26' });
+    expect(serializeDone(state.done)).toBe(`- [x] ${WATER} ⏫ 🔁 every week on Monday ✅ ${TODAY}\n`);
   });
 });

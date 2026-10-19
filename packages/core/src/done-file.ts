@@ -31,7 +31,7 @@ export function serializeDone(doc: DoneDoc): string {
 
 /** The canonical line for completing `task` today: `- [x] {title} 🔁 {rule} ✅ {today}`. Its entry has the task's notes. */
 export function doneLine(task: Task, today: ISODate): DoneLine {
-  return canonical(task.title, task.repeat, today, task.notes);
+  return canonical(task.title, task.repeat, today, task.notes, task.important === true);
 }
 
 /** What completing `task` today appends to `done.md`: `doneLine`, then the note lines `serializeTasks` writes for it. */
@@ -57,7 +57,7 @@ export function sweepCompleted(state: State, today: ISODate, newId: () => string
       return [];
     }
     const notes = item.raw.slice(1);
-    appended.push(canonical(item.entry.title, item.entry.repeat, today, notes.map(noteText)));
+    appended.push(canonical(item.entry.title, item.entry.repeat, today, notes.map(noteText), item.entry.important === true));
     for (const raw of notes) appended.push({ entry: null, raw });
     if (!item.entry.repeat) return [];
     const task: Task = {
@@ -66,6 +66,7 @@ export function sweepCompleted(state: State, today: ISODate, newId: () => string
       notes: notes.map(noteText),
       date: nextDate(item.entry.repeat, item.date, today),
       repeat: item.entry.repeat,
+      ...(item.entry.important && { important: true }),
       raw: item.raw,
       rawKey: null,
     };
@@ -78,11 +79,14 @@ export function sweepCompleted(state: State, today: ISODate, newId: () => string
   };
 }
 
-function canonical(title: string, repeat: RepeatRule | null, doneOn: ISODate, notes: string[]): DoneLine {
+function canonical(
+  title: string, repeat: RepeatRule | null, doneOn: ISODate, notes: string[], important: boolean,
+): DoneLine {
   const parts = ['- [x]', title];
+  if (important) parts.push('⏫');
   if (repeat) parts.push(`🔁 ${formatRepeat(repeat)}`);
   parts.push(`✅ ${doneOn}`);
-  const entry: DoneEntry = { title, repeat, doneOn, notes: [...notes] };
+  const entry: DoneEntry = { title, repeat, doneOn, notes: [...notes], ...(important && { important: true }) };
   return { entry, raw: parts.filter((p) => p !== '').join(' ') };
 }
 
@@ -97,5 +101,5 @@ function doneEntry(raw: string, noteRaw: string[]): DoneEntry | null {
   if (!m) return null;
   const f = parseFields(m[1]!, true);
   if (f.doneOn === null) return null;
-  return { title: f.title, repeat: f.repeat, doneOn: f.doneOn, notes: noteRaw.map(noteText) };
+  return { title: f.title, repeat: f.repeat, doneOn: f.doneOn, notes: noteRaw.map(noteText), ...(f.important && { important: true }) };
 }

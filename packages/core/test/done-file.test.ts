@@ -191,3 +191,23 @@ test('a dated recurring tick (Obsidian Tasks made the next one) is only moved (I
   expect(serializeTasks(r.doc)).toBe('# Always\n\n# Tasks\n- [ ] Water 🔁 every week on Monday 📅 2026-10-26\n');
   expect(serializeDone(r.done)).toBe('- [x] Water 🔁 every week on Monday 📅 2026-10-19 ✅ 2026-10-19\n');
 });
+
+test('an important task keeps ⏫ on its done line, and parseDone reads it back (#19)', () => {
+  const t: Task = { ...task('Call the bank'), important: true };
+  expect(doneLine(t, '2026-10-20')).toEqual({
+    raw: '- [x] Call the bank ⏫ ✅ 2026-10-20',
+    entry: { title: 'Call the bank', repeat: null, doneOn: '2026-10-20', notes: [], important: true },
+  });
+  const r: Task = { ...task('Pay', { type: 'daily' }), important: true };
+  expect(doneLine(r, '2026-10-20').raw).toBe('- [x] Pay ⏫ 🔁 every day ✅ 2026-10-20');
+  expect(parseDone('- [x] Pay ⏫ 🔁 every day ✅ 2026-10-20\n').lines[0]!.entry).toEqual({
+    title: 'Pay', repeat: { type: 'daily' }, doneOn: '2026-10-20', notes: [], important: true,
+  });
+});
+
+test('sweeping an undated important repeating tick keeps the flag on both lines (#19)', () => {
+  const doc = parseTasks('# Tasks\n- [x] Pay ⏫ 🔁 every day 📅 2026-10-19\n');
+  const swept = sweepCompleted({ doc, done: parseDone('') }, '2026-10-19', () => 'n1')!;
+  expect(serializeTasks(swept.doc)).toBe('# Always\n\n# Tasks\n- [ ] Pay ⏫ 🔁 every day 📅 2026-10-20\n');
+  expect(serializeDone(swept.done)).toBe('- [x] Pay ⏫ 🔁 every day ✅ 2026-10-19\n');
+});
