@@ -17,7 +17,7 @@
 </script>
 
 <script lang="ts">
-  import { addDays, dateChoices, dayMonth, readQuickAdd, weekdayShort } from '@taskapp/core';
+  import { addDays, dateChoices, dayMonth, endOfWeek, readQuickAdd, weekdayShort } from '@taskapp/core';
   import type { DateChoice } from '@taskapp/core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import ShortcutField from './ShortcutField.svelte';
@@ -44,10 +44,11 @@
     return w;
   });
   // The picked chip while the typed words are unchanged, else the typed one, else the configured bucket
-  // for new tasks; Today when that chip is not offered (This week on its last day).
+  // for new tasks. This week is not offered at the week's end, where its date is tomorrow or today (#26).
   const chip = $derived.by(() => {
     const wanted = (draft.picked !== null && draft.pickedFor === typedKey ? draft.picked : null) ?? typedChip ?? store.config.newTaskBucket;
-    return chips.some((c) => c.key === wanted) ? wanted : 'today';
+    if (chips.some((c) => c.key === wanted)) return wanted;
+    return endOfWeek(store.ctx) === store.ctx.today ? 'today' : 'tomorrow';
   });
   const important = $derived(
     draft.important !== null && draft.importantFor === typed.important ? draft.important : typed.important,

@@ -15,7 +15,7 @@ async function start(page: Page) {
 test.describe('desktop keys', () => {
   test.skip(({ isMobile }) => isMobile, 'keyboard commands are a desktop feature');
 
-  test('d opens the date picker; Tomorrow sets the date and moves the row to This week', async ({ page }) => {
+  test('d opens the date picker; Tomorrow sets the date and moves the row to Tomorrow', async ({ page }) => {
     await start(page);
     await row(page, 'Learn Polish').click();
     await page.keyboard.press('d');
@@ -26,8 +26,8 @@ test.describe('desktop keys', () => {
     }
     await sheet(page).getByRole('button', { name: 'Tomorrow · Sat' }).click();
     await expect(sheet(page)).toHaveCount(0);
-    await expect(page.getByTestId('bucket-week').getByTestId('task-row').filter({ hasText: 'Learn Polish' })).toHaveCount(1);
-    await expect(page.getByTestId('toast')).toContainText('Moved to This week · Sat');
+    await expect(page.getByTestId('bucket-tomorrow').getByTestId('task-row').filter({ hasText: 'Learn Polish' })).toHaveCount(1);
+    await expect(page.getByTestId('toast')).toContainText('Moved to Tomorrow · Sat');
     await expect.poll(() => driveFile(page, 'tasks.md')).toContain('Learn Polish sign language 📅 2026-10-17');
   });
 

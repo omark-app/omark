@@ -25,10 +25,10 @@ describe('sampleFiles', () => {
     expect(serializeTasks(doc)).toBe(files['tasks.md']);
   });
 
-  it('fills every bucket but Overdue', () => {
+  it('fills every bucket', () => {
     const ctx = { today: WEDNESDAY, weekStart: 0 };
     const buckets = new Set(tasks.map((t) => bucketOf(t, ctx)));
-    expect([...buckets].sort()).toEqual(['later', 'next', 'someday', 'today', 'week']);
+    expect([...buckets].sort()).toEqual(['later', 'next', 'someday', 'today', 'tomorrow', 'week']);
   });
 
   it('has a repeat, notes and ALWAYS lines', () => {

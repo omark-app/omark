@@ -15,6 +15,8 @@ test('week ends and next-week ends', () => {
   const fri = { today: '2026-10-16', weekStart: 0 }, sun = { today: '2026-10-18', weekStart: 0 };
   expect(endOfWeek(fri)).toBe('2026-10-18'); expect(endOfNextWeek(fri)).toBe('2026-10-25');
   expect(endOfWeek(sun)).toBe('2026-10-18'); expect(hasWeekLeft(sun)).toBe(false); expect(hasWeekLeft(fri)).toBe(true);
+  // This week starts after tomorrow (#26): on Saturday only Sunday is left, and that is Tomorrow.
+  expect(hasWeekLeft({ today: '2026-10-17', weekStart: 0 })).toBe(false);
   expect(endOfWeek({ today: '2026-10-16', weekStart: 6 })).toBe('2026-10-17'); // Sunday-start week ends Saturday
 });
 

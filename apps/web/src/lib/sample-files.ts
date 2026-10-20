@@ -34,6 +34,7 @@ export function sampleFiles(today: ISODate): Record<FileName, string> {
     - ask about zirconia
     - bring the old x-ray
 - [ ] Send the invoice ${thisWeek}
+- [ ] Pick up the dry cleaning 📅 ${d(1)}
 - [ ] Water the plants 🔁 every week on Monday 📅 ${nextMonday}
 - [ ] Book the car service 📅 ${addDays(weekEnd, 3)}
 - [ ] Renew the passport 📅 ${d(40)}

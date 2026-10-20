@@ -60,5 +60,5 @@ export function endOfNextWeek(ctx: WeekCtx): ISODate {
 
 /** True when there are days left after today in this week. */
 export function hasWeekLeft(ctx: WeekCtx): boolean {
-  return endOfWeek(ctx) !== ctx.today;
+  return endOfWeek(ctx) > addDays(ctx.today, 1);
 }
