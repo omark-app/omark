@@ -162,6 +162,19 @@ test.describe('desktop board', () => {
     await expect(page.getByTestId('hints')).toBeInViewport();
   });
 
+  test('on a board taller than the window the rail stays in view while a low row is selected and edited', async ({ page }) => {
+    const errands = Array.from({ length: 40 }, (_, n) => `- [ ] Errand ${n + 1} 📅 2026-10-16`).join('\n');
+    await start(page, { 'tasks.md': `# Tasks\n${errands}\n`, 'config.yaml': 'defaultView: board\n' });
+    await row(page, 'Errand 40').scrollIntoViewIfNeeded();
+    await row(page, 'Errand 40').click();
+    await expect(page.getByTestId('detail-title')).toHaveValue('Errand 40');
+    await expect(page.getByTestId('detail')).toBeInViewport();
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('detail-title')).toBeFocused();
+    await expect(page.getByTestId('detail-title')).toBeInViewport();
+    await expect(row(page, 'Errand 40')).toBeInViewport();
+  });
+
   test('the rail fits its width with a task open, so it never scrolls sideways', async ({ page }) => {
     await start(page, { 'tasks.md': TASKS.replace('📅 2026-10-16', `📅 2026-10-16\n    - ${LONG_NOTE}`) });
     await page.keyboard.press('v');
