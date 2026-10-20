@@ -26,8 +26,8 @@
 
   /** Shown only in an empty bucket the user unfolded: an empty one starts folded. */
   const EMPTY: Record<BucketKey, string> = {
-    overdue: 'Nothing overdue.',
     today: 'Nothing due. Enjoy it.',
+    tomorrow: 'Nothing due tomorrow.',
     week: 'Nothing else this week.',
     next: 'Nothing planned yet.',
     later: 'Nothing scheduled.',

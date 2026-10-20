@@ -72,8 +72,7 @@ export interface AppStore {
   /**
    * The week board's columns, in bucket order (spec 11.2). Packed when the board is first shown after the
    * app opens and again on each switch to it (and once more when the first pull after a start from the
-   * cache brings changes), then kept while the user works. An Overdue that fills up meanwhile joins Today's
-   * column; one that empties keeps its place.
+   * cache brings changes), then kept while the user works: a bucket that fills up or empties keeps its column.
    */
   readonly boardColumns: BucketKey[][];
   readonly view: View;
@@ -146,7 +145,7 @@ export interface StoreDeps {
 const TOAST_MS = 4200;
 const UNDO_LIMIT = 100;
 /** On the week board the dated buckets start open whatever `foldedOnOpen` says (an empty one still folds). */
-const BOARD_OPEN: readonly BucketKey[] = ['overdue', 'today', 'week', 'next'];
+const BOARD_OPEN: readonly BucketKey[] = ['today', 'tomorrow', 'week', 'next'];
 const BOARD_COLUMNS = 4;
 
 const bucketName = (key: BucketKey): string => BUCKETS.find((b) => b.key === key)!.name;
@@ -460,10 +459,10 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
 
   // ---- view ------------------------------------------------------------------------------------------
 
-  /** Board column groups for the tasks as they are now; Overdue only when it has tasks. */
+  /** Board column groups for the tasks as they are now. */
   function pack(): BucketKey[][] {
     const folds = foldsIn('board');
-    const rows = BUCKETS.filter((b) => b.key !== 'overdue' || counts.overdue > 0).map((b) => ({
+    const rows = BUCKETS.map((b) => ({
       key: b.key,
       rows: folds[b.key] ? 1 : 1 + counts[b.key],
     }));
@@ -472,9 +471,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
 
   function boardColumns(): BucketKey[][] {
     if (packed?.packs !== packs) packed = { packs, columns: untrack(pack) };
-    const columns = packed.columns;
-    if (counts.overdue === 0 || columns.some((c) => c.includes('overdue'))) return columns;
-    return columns.map((c) => (c.includes('today') ? ['overdue', ...c] : c));
+    return packed.columns;
   }
 
   function selectNext(delta: 1 | -1): void {

@@ -57,7 +57,7 @@ test.describe('iPhone', () => {
     await expect(option(page, 'Tomorrow')).toHaveAttribute('aria-pressed', 'true');
     await expect(option(page, 'Important')).toHaveAttribute('aria-pressed', 'true');
     await option(page, 'Add').tap();
-    await expect(rowsOf(page, 'week').first()).toHaveText(/^\s*Call the bank/);
+    await expect(rowsOf(page, 'tomorrow').first()).toHaveText(/^\s*Call the bank/);
     await expect(row(page, 'Call the bank')).toHaveAttribute('data-important', 'true');
     await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Call the bank ⏫ 📅 2026-10-17\n');
   });
@@ -140,7 +140,7 @@ test.describe('iPhone', () => {
     await swipeLeft(row(page, 'Call the dentist'));
     await expect(sheet(page).getByRole('button', { name: /^Tomorrow/ })).toContainText('Sat 17 Oct');
     await sheet(page).getByRole('button', { name: /^Tomorrow/ }).tap();
-    await expect(rowsOf(page, 'week').filter({ hasText: 'Call the dentist' })).toHaveCount(1);
+    await expect(rowsOf(page, 'tomorrow').filter({ hasText: 'Call the dentist' })).toHaveCount(1);
     await swipeLeft(row(page, 'Call the dentist'));
     await sheet(page).getByRole('button', { name: /^Mark important/ }).tap();
     await expect(row(page, 'Call the dentist')).toHaveAttribute('data-important', 'true');
@@ -196,7 +196,7 @@ test.describe('desktop', () => {
     await start(page);
     await row(page, 'Call the dentist').click();
     await page.keyboard.press('m');
-    await expect(rowsOf(page, 'week').filter({ hasText: 'Call the dentist' })).toHaveCount(1);
+    await expect(rowsOf(page, 'tomorrow').filter({ hasText: 'Call the dentist' })).toHaveCount(1);
     await page.keyboard.press('i');
     await expect(row(page, 'Call the dentist')).toHaveAttribute('data-important', 'true');
     await expect(page.getByTestId('toast')).toContainText('Marked important');
@@ -228,9 +228,9 @@ test.describe('desktop', () => {
     await page.keyboard.type(' tom');
     await expect(words(page.getByTestId('detail'))).toHaveText(['tom']);
     await page.keyboard.press('Enter');
-    await expect(rowsOf(page, 'week').filter({ hasText: 'Call the dentist about the crown' })).toHaveCount(1);
+    await expect(rowsOf(page, 'tomorrow').filter({ hasText: 'Call the dentist about the crown' })).toHaveCount(1);
     await expect(title).toHaveValue('Call the dentist about the crown');
-    await expect(page.getByTestId('toast')).toContainText('Moved to This week');
+    await expect(page.getByTestId('toast')).toContainText('Moved to Tomorrow');
   });
 
   test('important tasks come first in their bucket, in the list and on the board', async ({ page }) => {

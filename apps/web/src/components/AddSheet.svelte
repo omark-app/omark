@@ -44,7 +44,7 @@
     return w;
   });
   // The picked chip while the typed words are unchanged, else the typed one, else the configured bucket
-  // for new tasks; Today when that chip is not offered (This week on its last day).
+  // for new tasks; Today when that chip is not offered (This week at the week's end).
   const chip = $derived.by(() => {
     const wanted = (draft.picked !== null && draft.pickedFor === typedKey ? draft.picked : null) ?? typedChip ?? store.config.newTaskBucket;
     return chips.some((c) => c.key === wanted) ? wanted : 'today';

@@ -122,7 +122,7 @@ test('buckets move on at local midnight without a focus change', async ({ page }
     now: '2026-10-16T23:59:45',
     fakeTimers: true,
   });
-  await expect(page.getByTestId('bucket-week').getByTestId('task-row')).toHaveCount(1);
+  await expect(page.getByTestId('bucket-tomorrow').getByTestId('task-row')).toHaveCount(1);
   // 20 s: past midnight, but short of the 30 s periodic check, so only the midnight timer can move it.
   await page.clock.fastForward(20_000);
   await expect(page.getByTestId('bucket-today').getByTestId('task-row')).toHaveCount(1);

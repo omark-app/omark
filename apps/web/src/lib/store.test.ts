@@ -257,14 +257,14 @@ describe('app store', () => {
     expect(drive.peek('done.md')).toBe('- [x] Water the plants 🔁 every week on Monday ✅ 2026-10-16\n    - the ferns too\n');
   });
 
-  it('tick after midnight moves tomorrow’s task to Today and today’s to Overdue', async () => {
+  it('tick after midnight moves tomorrow’s task to Today, below yesterday’s now overdue one (#26)', async () => {
     const { store } = await setup();
-    expect(titles(store, 'week')).toEqual(['Send the invoice']);
+    expect(titles(store, 'tomorrow')).toEqual(['Send the invoice']);
     now = new Date(2026, 9, 17, 0, 0, 5);
     store.tick();
     expect(store.ctx.today).toBe('2026-10-17');
-    expect(titles(store, 'today')).toEqual(['Send the invoice']);
-    expect(titles(store, 'overdue')).toEqual(['Call the dentist']);
+    expect(titles(store, 'today')).toEqual(['Call the dentist', 'Send the invoice']);
+    expect(titles(store, 'tomorrow')).toEqual([]);
   });
 
   it('an invalid config shows the error and uses the defaults', async () => {
@@ -376,8 +376,8 @@ describe('app store', () => {
     const seed = { 'tasks.md': SEED_TASKS, 'config.yaml': 'defaultView: board\nfoldedOnOpen: [someday]\n' };
     const desk = (await setup(seed)).store;
     expect(desk.view).toBe('board');
-    // Overdue and Later are empty, so they start folded.
-    expect(desk.folded).toEqual({ overdue: true, today: false, week: false, next: false, later: true, someday: true });
+    // This week and Later are empty, so they start folded.
+    expect(desk.folded).toEqual({ today: false, tomorrow: false, week: true, next: false, later: true, someday: true });
     desk.switchView();
     expect(desk.view).toBe('list');
 
@@ -390,44 +390,43 @@ describe('app store', () => {
   it('folds empty buckets until the user unfolds them; the board keeps the dated ones open', async () => {
     const seed = { 'tasks.md': SEED_TASKS, 'config.yaml': 'foldedOnOpen: [today, later, someday]\n' };
     const { store } = await setup(seed);
-    expect(store.counts).toEqual({ overdue: 0, today: 1, week: 1, next: 1, later: 0, someday: 1 });
-    expect(store.folded).toMatchObject({ overdue: true, today: true, week: false, later: true });
+    expect(store.counts).toEqual({ today: 1, tomorrow: 1, week: 0, next: 1, later: 0, someday: 1 });
+    expect(store.folded).toMatchObject({ today: true, tomorrow: false, week: true, later: true });
     store.switchView();
-    expect(store.folded).toMatchObject({ overdue: true, today: false, week: false, later: true });
+    expect(store.folded).toMatchObject({ today: false, tomorrow: false, week: true, later: true });
     store.toggleFold('later');
     expect(store.folded.later).toBe(false);
     store.complete(idOf(store, 'Send the invoice'));
-    expect(store.folded.week).toBe(true);
-    store.toggleFold('week');
-    expect(store.folded.week).toBe(false);
-    store.add('Pack the bag', 'week');
-    store.toggleFold('week');
-    expect(store.folded.week).toBe(true);
+    expect(store.folded.tomorrow).toBe(true);
+    store.toggleFold('tomorrow');
+    expect(store.folded.tomorrow).toBe(false);
+    store.add('Pack the bag', 'tomorrow');
+    store.toggleFold('tomorrow');
+    expect(store.folded.tomorrow).toBe(true);
   });
 
   it('packs the board when it is shown and keeps the columns while the user works', async () => {
     const tasks = `# Tasks
 ${['A', 'B', 'C', 'D', 'E', 'F'].map((t) => `- [ ] Old ${t} 📅 2026-10-10`).join('\n')}
 ${['A', 'B', 'C', 'D', 'E'].map((t) => `- [ ] Now ${t} 📅 2026-10-16`).join('\n')}
+${['A', 'B', 'C', 'D'].map((t) => `- [ ] Tom ${t} 📅 2026-10-17`).join('\n')}
 - [ ] Soon A 📅 2026-10-20
 - [ ] Soon B 📅 2026-10-21
 - [ ] Far A 📅 2026-12-01
 - [ ] Idea A
 `;
     const { store } = await setup({ 'tasks.md': tasks, 'config.yaml': 'defaultView: board\n' });
-    // This week is empty (only Saturday and Sunday left, nothing due): Overdue gets a column to itself.
-    expect(store.boardColumns).toEqual([['overdue'], ['today'], ['week', 'next'], ['later', 'someday']]);
+    // Today holds 6 overdue and 5 today (#26) and Tomorrow 4: each gets a column, the weeks stack.
+    expect(store.boardColumns).toEqual([['today'], ['tomorrow'], ['week', 'next'], ['later', 'someday']]);
     for (const t of ['A', 'B', 'C', 'D', 'E', 'F']) store.complete(idOf(store, `Old ${t}`));
+    for (const t of ['A', 'B', 'C', 'D']) store.complete(idOf(store, `Tom ${t}`));
     store.add('Later still', 'next');
     store.toggleFold('someday');
-    // Overdue is empty now but keeps its place until the board is packed again.
-    expect(store.boardColumns).toEqual([['overdue'], ['today'], ['week', 'next'], ['later', 'someday']]);
+    // Tomorrow is empty now but keeps its column until the board is packed again.
+    expect(store.boardColumns).toEqual([['today'], ['tomorrow'], ['week', 'next'], ['later', 'someday']]);
     store.switchView();
     store.switchView();
-    expect(store.boardColumns).toEqual([['today'], ['week'], ['next'], ['later', 'someday']]);
-    // A task that turns overdue meanwhile joins Today's column.
-    store.setDate(idOf(store, 'Soon A'), '2026-10-12');
-    expect(store.boardColumns).toEqual([['overdue', 'today'], ['week'], ['next'], ['later', 'someday']]);
+    expect(store.boardColumns).toEqual([['today'], ['tomorrow', 'week'], ['next'], ['later', 'someday']]);
   });
 
   it('moves the selection on when the selected task leaves the visible list', async () => {
@@ -588,21 +587,21 @@ ${['A', 'B', 'C', 'D', 'E'].map((t) => `- [ ] Now ${t} 📅 2026-10-16`).join('\
     const drive = new SlowDrive({ 'tasks.md': SEED_TASKS, 'config.yaml': 'defaultView: board\n' });
     const cache = new MemoryCache();
     await createStore({ workspace: createWorkspace(drive, cache), clock, isPhone: () => false });
-    const overdue = ['A', 'B', 'C', 'D', 'E', 'F'].map((t) => `- [ ] Old ${t} 📅 2026-10-10\n`).join('');
-    drive.externalWrite('tasks.md', `${SEED_TASKS}${overdue}`);
+    const due = ['A', 'B', 'C', 'D', 'E', 'F'].map((t) => `- [ ] Tom ${t} 📅 2026-10-17\n`).join('');
+    drive.externalWrite('tasks.md', `${SEED_TASKS}${due}`);
 
     drive.holdReads = true;
     const store = await createStore({ workspace: createWorkspace(drive, cache), clock, isPhone: () => false });
-    expect(store.boardColumns).toEqual([['today'], ['week'], ['next'], ['later', 'someday']]);
+    expect(store.boardColumns).toEqual([['today'], ['tomorrow', 'week'], ['next'], ['later', 'someday']]);
     drive.release();
     await vi.waitFor(() => expect(store.status).toBe('saved'));
-    expect(store.boardColumns).toEqual([['overdue'], ['today', 'week'], ['next'], ['later', 'someday']]);
+    expect(store.boardColumns).toEqual([['today'], ['tomorrow'], ['week', 'next'], ['later', 'someday']]);
 
     // Later pulls leave the columns alone.
     drive.externalWrite('tasks.md', SEED_TASKS);
     await store.refresh();
-    expect(store.counts.overdue).toBe(0);
-    expect(store.boardColumns).toEqual([['overdue'], ['today', 'week'], ['next'], ['later', 'someday']]);
+    expect(store.counts.tomorrow).toBe(1);
+    expect(store.boardColumns).toEqual([['today'], ['tomorrow'], ['week', 'next'], ['later', 'someday']]);
   });
 
   it('a hung refresh does not hold up a flush', async () => {
@@ -893,8 +892,8 @@ describe('Tomorrow and Important (#19)', () => {
   it('adds to tomorrow as important and writes ⏫', async () => {
     const { drive, store, synced } = await setup();
     expect(store.add('Call the bank', 'tomorrow', true)).toBe(true);
-    expect(titles(store, 'week')[0]).toBe('Call the bank');
-    expect(store.toast?.message).toBe('Added to This week');
+    expect(titles(store, 'tomorrow')[0]).toBe('Call the bank');
+    expect(store.toast?.message).toBe('Added to Tomorrow');
     await synced();
     expect(drive.peek('tasks.md')).toBe(`${SEED_TASKS}- [ ] Call the bank ⏫ 📅 2026-10-17\n`);
   });
@@ -910,7 +909,7 @@ describe('Tomorrow and Important (#19)', () => {
     const id = idOf(store, 'Learn Polish sign language');
     store.moveTo(id, 'tomorrow');
     expect(findTask(store.state, id)?.date).toBe('2026-10-17');
-    expect(store.toast?.message).toBe('Moved to This week · Sat');
+    expect(store.toast?.message).toBe('Moved to Tomorrow · Sat');
   });
 
   it('setImportant toasts, sorts the task first and can be undone', async () => {
@@ -934,7 +933,7 @@ describe('shortcut words when editing (#19, AL in the session)', () => {
     const id = idOf(store, 'Call the dentist');
     store.edit(id, { title: 'Call the dentist', notes: ['bring the old x-ray'], when: 'tomorrow', important: true });
     expect(findTask(store.state, id)).toMatchObject({ date: '2026-10-17', important: true });
-    expect(store.toast?.message).toBe('Moved to This week · Sat');
+    expect(store.toast?.message).toBe('Moved to Tomorrow · Sat');
     store.undo();
     expect(findTask(store.state, id)).toMatchObject({ date: '2026-10-16' });
     expect(findTask(store.state, id)?.important).toBeFalsy();

@@ -1,5 +1,5 @@
 import { tick } from 'svelte';
-import { findTask, hasWeekLeft } from '@taskapp/core';
+import { findTask } from '@taskapp/core';
 import type { Command, ISODate } from '@taskapp/core';
 import type { AppStore } from './store.svelte.ts';
 import { commandFor, keyInput } from './keys.ts';
@@ -64,7 +64,8 @@ export function createCommands(opts: {
     switch (command) {
       case 'today': store.moveTo(id, 'today'); break;
       case 'tomorrow': store.moveTo(id, 'tomorrow'); break;
-      case 'thisWeek': store.moveTo(id, hasWeekLeft(store.ctx) ? 'week' : 'today'); break;
+      // At the week's end this is tomorrow or today, so the task lands there.
+      case 'thisWeek': store.moveTo(id, 'week'); break;
       case 'nextWeek': store.moveTo(id, 'next'); break;
       case 'someday': store.moveTo(id, 'someday'); break;
       case 'important': store.setImportant(id, findTask(store.state, id)?.important !== true); break;

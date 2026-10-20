@@ -1,5 +1,5 @@
 import type { BucketKey, DropTarget } from '@taskapp/core';
-import { clearDropMarks, dropTarget, markDropTarget, refusesDrop, rowOf } from './drop-target.ts';
+import { clearDropMarks, dropTarget, markDropTarget, rowOf } from './drop-target.ts';
 import type { Dragged } from './drop-target.ts';
 
 /**
@@ -21,13 +21,9 @@ export function dragEnd(): void {
   clearDropMarks();
 }
 
-/** Marks the bucket (unless it is the task's own) and the row under the pointer; accepts the drop unless the bucket refuses it. */
+/** Marks the bucket (unless it is the task's own) and the row under the pointer, and accepts the drop. */
 export function dragOver(e: DragEvent, section: HTMLElement, bucket: BucketKey): void {
   if (!dragged) return;
-  if (refusesDrop(dragged, bucket)) {
-    clearDropMarks();
-    return;
-  }
   e.preventDefault();
   if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
   markDropTarget(dragged, section, bucket, rowOf(e.target));

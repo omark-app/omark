@@ -22,17 +22,12 @@ export function clearDropMarks(root: ParentNode = document): void {
   root.querySelectorAll('.drop-before, .drop-into').forEach((el) => el.classList.remove('drop-before', 'drop-into'));
 }
 
-/** Overdue takes no tasks from other buckets (a drop there does nothing); its own tasks still reorder. */
-export const refusesDrop = (dragged: Dragged, bucket: BucketKey): boolean =>
-  bucket === 'overdue' && dragged.bucket !== 'overdue';
-
 /**
  * Shows where `dragged` would land (spec 4.4): the bucket is highlighted unless it is the task's own, and a
- * line marks the row it would go before. A bucket that refuses the drop shows nothing.
+ * line marks the row it would go before.
  */
 export function markDropTarget(dragged: Dragged, section: HTMLElement, bucket: BucketKey, row: HTMLElement | null): void {
   clearDropMarks();
-  if (refusesDrop(dragged, bucket)) return;
   if (bucket !== dragged.bucket) section.classList.add('drop-into');
   if (row && row.dataset.id !== dragged.id) row.classList.add('drop-before');
 }
