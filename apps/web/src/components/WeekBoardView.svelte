@@ -82,8 +82,9 @@
 
 <style>
   .vc { max-width: 1480px; margin: 0 auto; display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 26px; align-items: start; }
-  /* The rail scrolls as one piece when a long detail pushes the hints and status below the window. */
-  .rail { position: sticky; top: calc(16px + env(safe-area-inset-top, 0px)); max-height: calc(100dvh - 32px - env(safe-area-inset-top, 0px)); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+  /* The rail stays pinned while the board scrolls. It has no scrollbar of its own: a rail taller than the
+     window shows its end when the page reaches its end. */
+  .rail { position: sticky; top: calc(16px + env(safe-area-inset-top, 0px)); display: flex; flex-direction: column; gap: 20px; min-width: 0; }
   .brand { font: 600 15px var(--mono); letter-spacing: -.01em; }
   .brand span { color: var(--faint); font-weight: 400; }
   .rblock { display: flex; flex-direction: column; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 8px; }

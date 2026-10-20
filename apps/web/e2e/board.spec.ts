@@ -148,7 +148,7 @@ test.describe('desktop board', () => {
     await expect(page.getByTestId('always-line')).toHaveCount(1);
   });
 
-  test('long notes grow the detail; the whole rail scrolls to reach the hints', async ({ page }) => {
+  test('long notes grow the detail; the page scrolls to reach the hints, not the rail', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 600 });
     const note = `\n    - ${LONG_NOTE}`;
     await start(page, { 'tasks.md': TASKS.replace('📅 2026-10-16', `📅 2026-10-16${note}${note}${note}`) });
@@ -157,10 +157,33 @@ test.describe('desktop board', () => {
     const notes = page.getByTestId('rail').getByTestId('detail-notes');
     await expect(notes).toBeVisible();
     expect(await fitsNotes(notes)).toBe(true);
-    const rail = page.getByTestId('rail');
-    expect(await rail.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
-    await rail.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    expect(await page.getByTestId('rail').evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     await expect(page.getByTestId('hints')).toBeInViewport();
+  });
+
+  test('on a board taller than the window the rail stays in view while a low row is selected and edited', async ({ page }) => {
+    const errands = Array.from({ length: 40 }, (_, n) => `- [ ] Errand ${n + 1} 📅 2026-10-16`).join('\n');
+    await start(page, { 'tasks.md': `# Tasks\n${errands}\n`, 'config.yaml': 'defaultView: board\n' });
+    await row(page, 'Errand 40').scrollIntoViewIfNeeded();
+    await row(page, 'Errand 40').click();
+    await expect(page.getByTestId('detail-title')).toHaveValue('Errand 40');
+    await expect(page.getByTestId('detail')).toBeInViewport();
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('detail-title')).toBeFocused();
+    await expect(page.getByTestId('detail-title')).toBeInViewport();
+    await expect(row(page, 'Errand 40')).toBeInViewport();
+  });
+
+  test('the rail fits its width with a task open, so it never scrolls sideways', async ({ page }) => {
+    await start(page, { 'tasks.md': TASKS.replace('📅 2026-10-16', `📅 2026-10-16\n    - ${LONG_NOTE}`) });
+    await page.keyboard.press('v');
+    await row(page, 'Call the dentist').click();
+    await expect(page.getByTestId('detail')).toBeVisible();
+    for (const id of ['rail', 'detail', 'hints', 'status']) {
+      const fits = await page.getByTestId(id).evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
+      expect(fits, `${id} is wider than the rail`).toBe(true);
+    }
   });
 
   test('j walks the rows column by column and skips folded buckets', async ({ page }) => {
