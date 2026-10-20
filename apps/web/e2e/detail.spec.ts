@@ -189,3 +189,42 @@ test('the notes box grows to fit long notes instead of scrolling inside', async 
   await page.keyboard.type(` ${LONG_NOTE}`);
   expect(await fitsNotes(notes)).toBe(true);
 });
+
+const LONG_TITLE = 'pluca zwloknienia post covid sportslab i es pulmonolog i aat call';
+
+test('a long title wraps onto more lines instead of being cut off, with the bold copy wrapped the same', async ({ page }) => {
+  await openApp(page, { files: { 'tasks.md': `${SPEC_TASKS}- [ ] ${LONG_TITLE} 📅 2026-10-16\n` } });
+  await row(page, 'pluca zwloknienia').click();
+  const title = page.getByTestId('detail-title');
+  await expect(title).toHaveValue(LONG_TITLE);
+  const box = () =>
+    title.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      const line = el.previousElementSibling!.firstElementChild!.getBoundingClientRect().height;
+      const inner = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      return { lines: Math.round(inner / parseFloat(cs.lineHeight)), wide: el.scrollWidth > el.clientWidth, tall: el.scrollHeight > el.clientHeight + 1, line, inner };
+    });
+  const before = await box();
+  expect(before.wide).toBe(false);
+  expect(before.tall).toBe(false);
+  expect(before.lines).toBeGreaterThan(1);
+  expect(Math.abs(before.line - before.inner)).toBeLessThan(1);
+  await title.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type(' tomorrow');
+  await expect(page.getByTestId('shortcut-word')).toHaveText('tomorrow');
+  const after = await box();
+  expect(after.tall).toBe(false);
+  expect(Math.abs(after.line - after.inner)).toBeLessThan(1);
+});
+
+test('a line break pasted into the title becomes a space, so the title stays one line', async ({ page }) => {
+  await start(page);
+  await row(page, 'Send the invoice').click();
+  await page.keyboard.press('Enter');
+  await page.keyboard.insertText(' to Ana\nby email');
+  await expect(page.getByTestId('detail-title')).toHaveValue('Send the invoice to Ana by email');
+  await page.keyboard.press('Enter');
+  await expect(row(page, 'Send the invoice to Ana by email')).toHaveCount(1);
+  await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Send the invoice to Ana by email 📅 2026-10-19');
+});

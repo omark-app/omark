@@ -1,25 +1,30 @@
 <script lang="ts">
   import { carryDismissed, shortcutWords } from '@taskapp/core';
   import type { Dismissed } from '@taskapp/core';
-  import type { HTMLInputAttributes } from 'svelte/elements';
+  import type { HTMLInputAttributes, HTMLTextareaAttributes } from 'svelte/elements';
+  import { autogrow } from '../lib/autogrow.ts';
 
   /**
    * A text input that shows the shortcut words of a new task's title bold as they are typed (issue #19).
    * The input's own text is transparent; a copy of it, with the words marked, is drawn underneath at the
    * same place. Backspace right after a bold word turns it back into text instead of deleting a letter.
+   * `wrap` makes it a box that grows onto more lines instead of scrolling sideways; a title is still one
+   * line, so a pasted line break becomes a space.
    */
   let {
     value = $bindable(''),
     dismissed = $bindable([]),
     input = $bindable(),
     class: cls = '',
+    wrap = false,
     ontype,
     ...rest
   }: {
     value?: string;
     dismissed?: Dismissed[];
-    input?: HTMLInputElement;
+    input?: HTMLInputElement | HTMLTextAreaElement;
     class?: string;
+    wrap?: boolean;
     /** Called after each change the user types, once `value` holds it. */
     ontype?: () => void;
   } & Omit<HTMLInputAttributes, 'value' | 'class' | 'oninput'> = $props();
@@ -47,6 +52,7 @@
       mirror.style[p] = cs[p];
     }
     mirror.scrollLeft = input.scrollLeft;
+    mirror.scrollTop = input.scrollTop;
   }
 
   $effect(() => {
@@ -64,6 +70,11 @@
   });
 
   function oninput(): void {
+    if (wrap && /[\r\n]/.test(input!.value)) {
+      const at = input!.selectionStart;
+      input!.value = input!.value.replace(/\r?\n|\r/g, ' ');
+      if (at !== null) input!.setSelectionRange(at, at);
+    }
     const next = input!.value;
     dismissed = carryDismissed(dismissed, value, next);
     value = next;
@@ -81,21 +92,39 @@
   }
 </script>
 
-<span class="sf">
+<span class="sf" class:wrap>
   <span class="mirror" aria-hidden="true" bind:this={mirror}><span class="line">{#each parts as p, i (i)}{#if p.kind}<b data-testid="shortcut-word" class:imp={p.kind === 'important'}>{p.text}</b>{:else}{p.text}{/if}{/each}</span></span>
-  <input
-    bind:this={input}
-    {...rest}
-    class={cls}
-    style="color: transparent; -webkit-text-fill-color: transparent; caret-color: var(--ink)"
-    {value}
-    {oninput}
-    {onbeforeinput}
-    onscroll={sync}
-    onselect={sync}
-    onkeyup={sync}
-    onfocus={sync}
-  />
+  {#if wrap}
+    <textarea
+      bind:this={input}
+      {...rest as HTMLTextareaAttributes}
+      class={cls}
+      style="color: transparent; -webkit-text-fill-color: transparent; caret-color: var(--ink)"
+      rows={1}
+      {value}
+      use:autogrow={value}
+      {oninput}
+      {onbeforeinput}
+      onscroll={sync}
+      onselect={sync}
+      onkeyup={sync}
+      onfocus={sync}
+    ></textarea>
+  {:else}
+    <input
+      bind:this={input}
+      {...rest}
+      class={cls}
+      style="color: transparent; -webkit-text-fill-color: transparent; caret-color: var(--ink)"
+      {value}
+      {oninput}
+      {onbeforeinput}
+      onscroll={sync}
+      onselect={sync}
+      onkeyup={sync}
+      onfocus={sync}
+    />
+  {/if}
 </span>
 
 <style>
@@ -109,6 +138,10 @@
   }
   /* The 1px matches the room the input keeps for the caret after the last letter, so both scroll alike. */
   .line { flex: none; white-space: pre; padding-right: 1px; }
+  /* Both wrap alike: same width, padding and wrapping rules, so the bold copy breaks lines where the text does. */
+  .wrap > textarea { display: block; resize: none; overflow: hidden; white-space: pre-wrap; overflow-wrap: break-word; }
+  .wrap .mirror { align-items: flex-start; }
+  .wrap .line { flex: 1 1 auto; min-width: 0; white-space: pre-wrap; overflow-wrap: break-word; padding-right: 0; }
   b { font-weight: 600; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); border-radius: 3px; }
   b.imp { color: var(--imp); background: var(--imp-soft); }
 </style>

@@ -15,7 +15,7 @@
   // `id` never changes for a mounted detail (the parent keys on it), so reading it once is intended.
   // svelte-ignore state_referenced_locally
   const id = task.id;
-  let titleEl: HTMLInputElement | undefined = $state();
+  let titleEl: HTMLInputElement | HTMLTextAreaElement | undefined = $state();
   let notesEl: HTMLTextAreaElement | undefined = $state();
   let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -90,6 +90,7 @@
       bind:value={edit.title}
       bind:dismissed={edit.dismissed}
       class="d-title"
+      wrap
       data-testid="detail-title"
       aria-label="Task title"
       ontype={() => typed('title')}
