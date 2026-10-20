@@ -103,3 +103,11 @@ test('on a Sunday w lands the task in Today', async ({ page }) => {
   await expect(page.getByTestId('toast')).toContainText('Moved to Today');
   await expect(page.getByTestId('bucket-today').getByTestId('task-row').filter({ hasText: 'Send the invoice' })).toHaveCount(1);
 });
+
+test('on a Saturday w lands the task in Tomorrow (#26)', async ({ page }) => {
+  await start(page, '2026-10-17T09:00:00');
+  await row(page, 'Send the invoice').click();
+  await page.keyboard.press('w');
+  await expect(page.getByTestId('toast')).toContainText('Moved to Tomorrow · Sun');
+  await expect(page.getByTestId('bucket-tomorrow').getByTestId('task-row').filter({ hasText: 'Send the invoice' })).toHaveCount(1);
+});

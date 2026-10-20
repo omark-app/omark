@@ -94,12 +94,12 @@ test('Today: important first, then overdue, then today (#26)', () => {
   expect(tasksInBucket(doc, 'today', fri).map((t) => t.id)).toEqual(['o3', 't2', 'o2', 'o1', 't1']);
 });
 
-test('dateChoices puts Tomorrow right after Today (#19)', () => {
+test('dateChoices: Today, Tomorrow, This week, Next week, Someday (#19, #26)', () => {
   expect(dateChoices(fri).map((c) => c.name)).toEqual(['Today', 'Tomorrow', 'This week', 'Next week', 'Someday']);
   expect(dateChoices(sun).map((c) => c.key)).toEqual(['today', 'tomorrow', 'next', 'someday']);
 });
 
-test('currentChoice is Tomorrow for a task due tomorrow, else its bucket (#19)', () => {
+test('currentChoice is the task\'s bucket; null for Later and for an overdue task (#19, #26)', () => {
   expect(currentChoice(mk('a', '2026-10-17'), fri)).toBe('tomorrow');
   expect(currentChoice(mk('a', '2026-10-18'), fri)).toBe('week');
   expect(currentChoice(mk('a', '2026-10-19'), sun)).toBe('tomorrow');
@@ -107,4 +107,16 @@ test('currentChoice is Tomorrow for a task due tomorrow, else its bucket (#19)',
   expect(currentChoice(mk('a', null), fri)).toBe('someday');
   expect(currentChoice(mk('a', '2026-10-01'), fri)).toBeNull();
   expect(currentChoice(mk('a', '2026-11-30'), fri)).toBeNull();
+});
+
+test('a week that ends on Saturday (#26)', () => {
+  // weekStart 6 = Sunday, so the week ends Saturday 17 Oct.
+  const thu = { today: '2026-10-15', weekStart: 6 };
+  const friS = { today: '2026-10-16', weekStart: 6 };
+  expect(bucketOf(mk('a', '2026-10-16'), thu)).toBe('tomorrow');
+  expect(bucketOf(mk('a', '2026-10-17'), thu)).toBe('week');
+  expect(bucketOf(mk('a', '2026-10-17'), friS)).toBe('tomorrow');
+  expect(bucketOf(mk('a', '2026-10-18'), friS)).toBe('next');
+  expect(movableBuckets(friS).map((b) => b.key)).toEqual(['today', 'tomorrow', 'next', 'someday']);
+  expect(bucketRange('week', thu)).toBe('Sat');
 });

@@ -209,7 +209,7 @@ Shown compactly, e.g. `Today 4 (3.2) · 7d 23 (19 ↑) · All 412`.
 |---|---|
 | `t` | Today |
 | `m` | Tomorrow |
-| `w` | This week (on a Sunday: Today) |
+| `w` | This week (on a Saturday: Tomorrow; on a Sunday: Today) |
 | `e` | Next week |
 | `d` | Pick a date |
 | `s` | Someday |

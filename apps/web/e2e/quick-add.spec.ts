@@ -62,6 +62,13 @@ test.describe('iPhone', () => {
     await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Call the bank ⏫ 📅 2026-10-17\n');
   });
 
+  test('with newTaskBucket: week on a Saturday the add sheet starts on Tomorrow, where This week lands (#26)', async ({ page }) => {
+    await openApp(page, { files: { 'tasks.md': SPEC_TASKS, 'config.yaml': 'newTaskBucket: week\n' }, now: '2026-10-17T09:00:00' });
+    await page.getByTestId('fab').tap();
+    await expect(option(page, 'This week')).toHaveCount(0);
+    await expect(option(page, 'Tomorrow')).toHaveAttribute('aria-pressed', 'true');
+  });
+
   test('a weekday word shows its own date chip', async ({ page }) => {
     await start(page);
     await page.getByTestId('fab').tap();
