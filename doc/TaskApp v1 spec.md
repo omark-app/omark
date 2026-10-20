@@ -301,7 +301,7 @@ Two views on desktop, switched with `v` (default from config). **Phones (narrow 
 - One framed sheet with two panes.
 - **Left pane "tasks"**: the add input, then the buckets stacked (section 4: Overdue when it has tasks, then the other five), one-line rows (5.1).
 - **Right pane**: when a task is selected, its **detail** on top and the **ALWAYS** lines right below it; with nothing selected, just ALWAYS. The completion **stats** (section 8) sit at the bottom of the right pane.
-- **Task detail**: bucket name, editable title, editable notes (one per line), Due (button opening the date picker, red when overdue) with quick chips Today / Tomorrow / This week / Next week / Someday, Repeat (button opening the repeat picker), an Important toggle (Flag), Complete and Delete buttons, and an `esc` close button.
+- **Task detail**: bucket name, editable title (wraps onto more lines when long), editable notes (one per line), Due (button opening the date picker, red when overdue) with quick chips Today / Tomorrow / This week / Next week / Someday, Repeat (button opening the repeat picker), an Important toggle (Flag), Complete and Delete buttons, and an `esc` close button.
 - Below the sheet: the keyboard-hint strip and the save status.
 
 **Week board** (desktop only):
