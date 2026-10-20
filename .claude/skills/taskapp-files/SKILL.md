@@ -149,7 +149,8 @@ Set the task's `📅` (leave the line's position alone) to:
 
 | bucket | date |
 | --- | --- |
-| Today | today |
+| Today | today (also holds overdue tasks) |
+| Tomorrow | tomorrow |
 | This week | the last day of the current week |
 | Next week | the last day of next week (7 days after that) |
 | Later | any date after the last day of next week |
@@ -157,7 +158,7 @@ Set the task's `📅` (leave the line's position alone) to:
 
 Weeks run Monday to Sunday unless `firstDayOfWeek` in `config.yaml` names another first day (the week then ends the day before it).
 
-On the last day of the week "This week" is empty (today is already that date): use Today. Overdue tasks (a `📅` before today) show in their own Overdue bucket above Today; nothing is ever moved to Overdue on purpose.
+"This week" starts the day after tomorrow, so on its last two days it is empty: use Tomorrow or Today. Overdue tasks (a `📅` before today) show in Today, above today's tasks (important ones first); there is no separate Overdue bucket.
 
 ## config.yaml
 
@@ -167,9 +168,9 @@ YAML with only the settings that differ from the defaults. Keep its comments. A 
 | --- | --- |
 | `defaultView` | `list`, `board` |
 | `firstDayOfWeek` | day name: `monday`, `tuesday`, `wednesday`, `thursday`, `friday`, `saturday`, `sunday` |
-| `foldedOnOpen` | list of `overdue`, `today`, `week`, `next`, `later`, `someday` (default `[later, someday]`); empty buckets start folded anyway |
+| `foldedOnOpen` | list of `today`, `tomorrow`, `week`, `next`, `later`, `someday` (default `[later, someday]`); empty buckets start folded anyway. `overdue` from older configs is still accepted and ignored |
 | `theme` | `system`, `light`, `dark` |
 | `dateLabels` | `short` (Thu, 12 Nov), `iso` |
-| `newTaskBucket` | `today`, `week`, `next`, `someday` |
+| `newTaskBucket` | `today`, `tomorrow`, `week`, `next`, `someday` |
 | `saveDelaySeconds` | number, 0 or more (default 1) |
 | `shortcuts` | map of command to a key or list of keys (`KeyboardEvent.key` names); a key binds to one command only. Commands: focusAdd, down, up, today, tomorrow, thisWeek, nextWeek, pickDate, someday, repeat, important, complete, edit, delete, deselect, undo, switchView, search |
