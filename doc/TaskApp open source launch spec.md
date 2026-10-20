@@ -45,7 +45,7 @@ These are not part of the launch. They can be issues or later specs.
 - Native iOS or Android apps, iCloud storage, Google Drive and Dropbox adapters, a desktop wrapper.
 - Sharing, multiple users, team features.
 - Paid tiers, sponsorship tooling, usage analytics.
-- Any second Omark tool.
+- Any second Omark tool. Notes and other apps are ideas for later versions. The naming (`notes.omark.app`), the landing page and the icon family leave room for them, but nothing is built for them now.
 
 ### 2.4 Anti-goals
 
@@ -62,7 +62,7 @@ The launch counts as a failure, even if everything else is done, if:
 | Topic | Decision |
 |---|---|
 | Model | Open source. No paid version for now. |
-| Brand | **Omark** (from "own + markdown"). The app is **Omark Tasks**. The GitHub org `omark` is a dormant personal account, so the org is one of `omarkhq`, `omark-app`, `getomark`. Domain: `omark.md` preferred, `omark.app` or `omark.io` as fallback; `omark.com`, `.dev` and `.org` are taken. A trademark check comes before announcing. |
+| Brand | **Omark** (from "own + markdown"). The app is **Omark Tasks**. The GitHub org `omark` is a dormant personal account, so the org is one of `omarkhq`, `omark-app`, `getomark`. Domain: **`omark.app`**. Each app gets a subdomain: Omark Tasks is at `tasks.omark.app`, its staging at `staging-tasks.omark.app`, and its demo at `demo-tasks.omark.app` *(demo host is my call)*. `omark.app` itself is the landing page (6.3.1). A trademark check comes before announcing. |
 | Licence | MIT |
 | History | Keep it. A full scan of all 170 commits on every branch found no secret ever committed, so nothing needs rotating. Accepted: `alipka@gmail.com` on 117 commits, and the old personal notes in history. |
 | Hosting | Public demo (sample data, no sign-in) plus an open hosted app that anyone can sign into with a personal Microsoft account. Self-hosting is documented. |
@@ -169,11 +169,38 @@ Each subsection is a workstream with its acceptance criteria. Sizes follow the f
   - `pnpm demo` runs it locally, and plain `pnpm dev` defaults to demo.
   - A `.env.example` lists every variable.
   - The README's commands work in PowerShell, cmd and bash.
-- **A demo deployment** from `main` at `demo.<domain>`: a Pages project or a host-selected mode of the same build. *(The builder decides which.)*
+- **A demo deployment** from `main` at `demo-tasks.omark.app`: a Pages project or a host-selected mode of the same build. *(The builder decides which.)*
 - **Acceptance:**
   - A fresh clone runs `pnpm i && pnpm demo` and sees sample tasks.
   - Edits survive a reload.
   - The public demo makes no network request outside its own origin. An e2e test checks this.
+
+#### 6.3.1 The omark.app landing page
+
+`omark.app` is the front door for people who just want to use the app. Getting started must be very simple: one click to the demo, two to real use (open the app, sign in or pick a folder), with no account to create beyond the Microsoft sign-in.
+
+Content, in this order:
+
+1. **One line on what it is**, a screenshot or short GIF, and two buttons: **Open Omark Tasks** (`tasks.omark.app`) and **Try the demo** (`demo-tasks.omark.app`).
+2. **How to start**, in three steps: open the app; sign in with Microsoft or pick a folder on your computer; add your first task. Then how to install it, briefly per platform: iPhone Safari → Share → Add to Home Screen; Chrome or Edge → the install icon.
+3. **Where your data lives**: three Markdown files in your OneDrive app folder or your own folder, editable in Obsidian or by an AI agent; leaving is just closing the app.
+4. **The philosophy in five short lines**, linking to PHILOSOPHY.md on GitHub.
+5. **Open source**: a link to the GitHub repo and to CONTRIBUTING, and one line on the software factory.
+6. **An apps section** with Omark Tasks as its only card. It is laid out so later apps can be added, but does not tease them.
+7. **Footer**: privacy policy, terms, `hello@omark.app`, MIT licence.
+
+How it is built:
+
+- Static HTML and CSS in the repo (e.g. `sites/omark/`), with no framework, no tracking, no cookies and no third-party requests (fonts self-hosted).
+- It works at phone width and in light and dark mode, using the app's design tokens.
+- It hosts the privacy policy and terms pages, and `/.well-known/microsoft-identity-association.json` for publisher verification.
+- It deploys to its own Pages project from `main`. *(My call; it carries no user data, so no staging step.)*
+
+Acceptance:
+
+- From `omark.app` on an iPhone and on a Windows PC, a new person reaches the demo in one click and a signed-in, empty task list in two clicks plus the Microsoft sign-in.
+- The page makes no request outside `omark.app`.
+- Lighthouse scores 95+ for performance and accessibility.
 
 ### 6.4 Local-folder mode (large: new storage adapter)
 
@@ -191,9 +218,9 @@ Each subsection is a workstream with its acceptance criteria. Sizes follow the f
 
 ### 6.5 The open hosted app (large: sign-in and storage scope)
 
-- **The hosted app lives at `app.<domain>` and is Omark's production.** It goes through today's pipeline, re-pointed:
+- **The hosted app lives at `tasks.omark.app` and is Omark's production.** It goes through today's pipeline, re-pointed:
   - A preview per PR on fake storage.
-  - Staging at `staging.<domain>` from every merge to `main`.
+  - Staging at `staging-tasks.omark.app` from every merge to `main`.
   - Production through Promote.
   - The demo (6.3) deploys from `main` with staging.
   - New Pages projects are used, so my current deployment is untouched until the cutover.
@@ -202,7 +229,7 @@ Each subsection is a workstream with its acceptance criteria. Sizes follow the f
 - **A first-run screen** offers three choices: "Try the demo", "Use my OneDrive", "Use a folder on this computer". The last one appears only where it works.
   - The choice is remembered per device and can be changed in settings.
   - Switching never copies or deletes files. Copying is a later issue.
-- **Pages for the hosted app:**
+- **Pages on `omark.app` (6.3.1), linked from the hosted app's sign-in screen and footer:**
   - A short privacy policy: what is stored where, the sign-in cookie, no analytics, no server-side data.
   - Plain terms: as is, no warranty.
 - **Microsoft publisher verification** is done for the new registration, so the consent screen shows a verified publisher.
@@ -217,17 +244,28 @@ Each subsection is a workstream with its acceptance criteria. Sizes follow the f
 I run this by hand once the hosted app is in production, before the repo goes public. The builder writes the steps as a checklist in `doc/history/` (it is mine, not a user feature). It covers:
 
 1. On every device, open `tasks.alipka.com` and wait for "saved", so no edit is left only in an offline copy.
-2. Sign in to `app.<domain>` once, so OneDrive creates `Apps/Omark Tasks` with fresh files. Close the app everywhere.
+2. Sign in to `tasks.omark.app` once, so OneDrive creates `Apps/Omark Tasks` with fresh files. Close the app everywhere.
 3. On the PC, copy `tasks.md`, `done.md` and `config.yaml` from `ALAI/TaskApp` over the fresh ones, and wait for OneDrive to sync.
 4. Open the hosted app on each device; check counts and stats against the old app; re-add the iPhone home-screen app from the new address.
-5. Make `tasks.alipka.com` redirect to `app.<domain>`, then retire the old Pages projects, my old Entra registration's secret, and the bridge values (6.1).
+5. Make `tasks.alipka.com` redirect to `tasks.omark.app`, then retire the old Pages projects, my old Entra registration's secret, and the bridge values (6.1).
 6. Keep `ALAI/TaskApp` untouched as a backup for a month, then archive it.
 7. In Obsidian, open `Apps/Omark Tasks` as its own vault (or skip it and use local-folder mode on the PC).
 
 ### 6.6 Rename to Omark Tasks (small to medium, not large)
 
 - **User-visible text:** the app name, page title, manifest, PWA name, sign-in text, footer, README and docs.
-- **A simple wordmark and a new icon set.** *(The builder makes a plain typographic one; I can replace it later.)*
+- **An Omark icon family, with Omark Tasks as its first icon:**
+  - **The brand mark.** One Omark mark for the landing page, the GitHub org avatar and the social preview.
+  - **A family rule for app icons.** All apps share a shape, a frame and a palette, and each app has its own glyph, so a later Notes icon is plainly a sibling. Omark Tasks is the first icon made with this rule.
+  - **Deliverables:**
+    - SVG sources;
+    - the PWA set: 192, 512, and a maskable 512;
+    - an apple-touch-icon at 180;
+    - a favicon as SVG plus a 32 px PNG or ICO;
+    - a 500 px org avatar and a 1280×640 social preview.
+
+    Every icon must stay readable at 16 px and on light and dark backgrounds, with colours from `tokens.css`.
+  - **Process.** The builder proposes 2–3 directions as mockups side by side, and I pick one. Then the full set is made. Sources and a short note of the family rules live in `brand/`.
 - **Package scope** `@taskapp/*` becomes `@omark/*`.
 - **The repo is named `tasks`** in the Omark org; GitHub's transfer redirect keeps old links working.
 - **Not renamed:** the file names `tasks.md`, `done.md`, `config.yaml`, and my folders.
@@ -351,11 +389,11 @@ I will also ask 5–10 developers I know to take one each before and right after
 
 **At the start (before milestone 1):**
 
-1. Trademark search for OMARK (EUIPO, USPTO, software classes 9 and 42). If it's blocked, pick another name now; the brand module (6.1) keeps a later change cheap. Buy the domain.
-2. Set up two addresses on the domain with Cloudflare Email Routing (free), forwarding to me: `hello@` for the code of conduct and the privacy policy, `security@` for SECURITY.md. No personal address appears in the repo.
+1. Trademark search for OMARK (EUIPO, USPTO, software classes 9 and 42). If it's blocked, pick another name now; the brand module (6.1) keeps a later change cheap. Buy `omark.app` and add it to Cloudflare.
+2. Set up two addresses with Cloudflare Email Routing (free), forwarding to me: `hello@omark.app` for the code of conduct and the privacy policy, `security@omark.app` for SECURITY.md. No personal address appears in the repo.
 3. Create the GitHub org. Transfer the repo (still private) and rename it `tasks`. Check that the old URLs redirect and that CI and Promote still work.
 
-**The bare domain** serves a one-page landing: what Omark is, links to the demo, the hosted app and GitHub. It also serves `/.well-known/microsoft-identity-association.json` for publisher verification. It is a static page in the repo, deployed with the demo.
+**`omark.app`** serves the landing page (6.3.1).
 
 **Before going public (after milestone 4 and the cutover in 6.5.1):**
 
@@ -400,7 +438,8 @@ Each large workstream gets a plan in `doc/plans/` and my approval, as the factor
   - create each with a Web redirect URI;
   - create the client secrets;
   - get publisher verification for the production one, including joining the Microsoft AI Cloud Partner Program and verifying the domain (not a launch blocker).
-- Cloudflare: the Pages projects for `app.`, `staging.`, `demo.` and the bare domain, DNS, the Pages secrets.
+- Cloudflare: the Pages projects for `tasks.omark.app`, `staging-tasks.omark.app`, `demo-tasks.omark.app` and `omark.app`, DNS, the Pages secrets.
+- Pick one of the icon directions (6.6).
 - GitHub: create the org, transfer the repo, give pilot developers Read or Triage, set repository variables and secrets, the Actions approval setting, Discussions; at the end, branch protection and flipping to public.
 - The cutover (6.5.1), then retiring `tasks.alipka.com`.
 - Approve the PHILOSOPHY wording and the "won't add" list.
@@ -411,7 +450,7 @@ Each large workstream gets a plan in `doc/plans/` and my approval, as the factor
 - **Demo deployment:** a separate project or a host-selected mode of one build (6.3).
 - **Local-folder eTag:** `lastModified`+size or a content hash (6.4).
 - **How a maintainer is recognised** by the factory (the API check or CODEOWNERS), as long as it can't be spoofed by a comment from a non-maintainer.
-- **Wordmark and icons** (6.6).
+- **The icon directions to propose** (6.6). I choose among them.
 - **The exact structure of AGENTS.md**, as long as it has the parts listed in 6.7.
 - **How each milestone splits into issues and PRs.**
 
@@ -422,5 +461,7 @@ A builder read this spec cold and asked five questions. I answered the first one
 1. **My own instance** (my answer): I move to the hosted app. The public repo deploys only Omark's instances (sections 3, 6.5, 6.5.1).
 2. **Name before code** (call): the trademark check and domain come first, and brand strings live in one module (6.1, 6.10).
 3. **Where the repo lives before launch** (call): it moves into the org early, still private. Pilot developers get Read or Triage and test the fork flow from private forks. Branch protection comes with going public (6.2, 6.10).
-4. **Bare domain, contact, verification** (call): a one-page landing on the bare domain that also serves the Microsoft verification file; `hello@` and `security@` forwarding addresses; publisher verification is not a launch blocker (6.5, 6.10).
+4. **Bare domain, contact, verification** (call, then shaped by my later answer): `omark.app` is the landing page described in 6.3.1, which also serves the Microsoft verification file; `hello@` and `security@` forwarding addresses; publisher verification is not a launch blocker (6.5, 6.10).
+
+Later changes from me: the domain is `omark.app`, with Omark Tasks at `tasks.omark.app` and staging at `staging-tasks.omark.app`; the landing page content (6.3.1); an Omark icon family with Omark Tasks as its first icon (6.6); notes and other apps are future ideas only (2.3).
 5. **Maintainers at launch** (call): only me, recognised by repo role and CODEOWNERS, never by comment text (6.8).
