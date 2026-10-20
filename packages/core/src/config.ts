@@ -17,7 +17,7 @@ export interface Config {
   foldedOnOpen: BucketKey[];
   theme: 'system' | 'light' | 'dark';
   dateLabels: DateLabelStyle;
-  newTaskBucket: Exclude<BucketKey, 'overdue' | 'later'>;
+  newTaskBucket: Exclude<BucketKey, 'later'>;
   saveDelaySeconds: number;
 }
 
@@ -90,7 +90,7 @@ defaultView: list
 # First day of the week: monday, tuesday, wednesday, thursday, friday, saturday or sunday.
 firstDayOfWeek: monday
 
-# Buckets that start folded when the app opens: any of overdue, today, week, next, later, someday.
+# Buckets that start folded when the app opens: any of today, tomorrow, week, next, later, someday.
 # Empty buckets always start folded.
 foldedOnOpen: [later, someday]
 
@@ -100,7 +100,7 @@ theme: system
 # How dates are shown on tasks: short (Thu, 12 Nov) or iso (2026-11-12).
 dateLabels: short
 
-# Bucket for tasks added with the add box: today, week, next or someday.
+# Bucket for tasks added with the add box: today, tomorrow, week, next or someday.
 newTaskBucket: today
 
 # Seconds to wait after you stop typing before saving (0 or more).
@@ -113,7 +113,9 @@ const COMMANDS = Object.keys(DEFAULT_CONFIG.shortcuts) as Command[];
  * to a key the file binds to another command, so an older config never starts failing.
  */
 const YIELDING: readonly Command[] = ['tomorrow', 'important'];
-const BUCKETS: BucketKey[] = ['overdue', 'today', 'week', 'next', 'later', 'someday'];
+const BUCKETS: BucketKey[] = ['today', 'tomorrow', 'week', 'next', 'later', 'someday'];
+/** Buckets an older config may still name; they read without an error and do nothing (Overdue is in Today since #26). */
+const RETIRED = ['overdue'];
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
 class ConfigFailure extends Error {
@@ -205,7 +207,7 @@ function parse(text: string): Config {
         }
         case 'foldedOnOpen':
           if (!Array.isArray(raw)) throw new Error(`foldedOnOpen must be a list of: ${BUCKETS.join(', ')}`);
-          config.foldedOnOpen = raw.map((b) => oneOf('foldedOnOpen', b, BUCKETS));
+          config.foldedOnOpen = raw.filter((b) => !RETIRED.includes(b)).map((b) => oneOf('foldedOnOpen', b, BUCKETS));
           break;
         case 'theme':
           config.theme = oneOf(name, raw, ['system', 'light', 'dark']);
@@ -214,7 +216,7 @@ function parse(text: string): Config {
           config.dateLabels = oneOf(name, raw, ['short', 'iso']);
           break;
         case 'newTaskBucket':
-          config.newTaskBucket = oneOf(name, raw, ['today', 'week', 'next', 'someday']);
+          config.newTaskBucket = oneOf(name, raw, ['today', 'tomorrow', 'week', 'next', 'someday']);
           break;
         case 'saveDelaySeconds':
           if (typeof raw !== 'number' || !Number.isFinite(raw) || raw < 0) {

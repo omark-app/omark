@@ -102,7 +102,11 @@ describe('parseConfig', () => {
   it('validates foldedOnOpen', () => {
     expect(parseConfig('foldedOnOpen: [week]\n').config.foldedOnOpen).toEqual(['week']);
     expect(parseConfig('foldedOnOpen: []\n').config.foldedOnOpen).toEqual([]);
-    expect(parseConfig('foldedOnOpen: [overdue, later]\n').config.foldedOnOpen).toEqual(['overdue', 'later']);
+    expect(parseConfig('foldedOnOpen: [tomorrow, later]\n').config.foldedOnOpen).toEqual(['tomorrow', 'later']);
+    // Overdue is part of Today now (#26): an older config that lists it still reads, and it does nothing.
+    const old = parseConfig('foldedOnOpen: [overdue, later]\n');
+    expect(old.error).toBeNull();
+    expect(old.config.foldedOnOpen).toEqual(['later']);
     expect(parseConfig('foldedOnOpen: [bogus]\n').error?.message).toContain('foldedOnOpen');
     expect(parseConfig('foldedOnOpen: later\n').error?.message).toContain('foldedOnOpen');
   });
@@ -118,6 +122,7 @@ describe('parseConfig', () => {
 
   it('validates newTaskBucket', () => {
     expect(parseConfig('newTaskBucket: week\n').config.newTaskBucket).toBe('week');
+    expect(parseConfig('newTaskBucket: tomorrow\n').config.newTaskBucket).toBe('tomorrow');
     expect(parseConfig('newTaskBucket: later\n').error?.message).toContain('newTaskBucket');
   });
 

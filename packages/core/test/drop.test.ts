@@ -111,9 +111,22 @@ describe('planDrop', () => {
     });
   });
 
-  test('onto overdue does nothing', () => {
+  test('someday onto tomorrow is dated tomorrow (#26)', () => {
     const s = make();
-    expect(planDrop(s, idOf(s, POLISH), { bucket: 'overdue', beforeId: null }, fri)).toEqual({ kind: 'none' });
+    const out = planDrop(s, idOf(s, POLISH), { bucket: 'tomorrow', beforeId: null }, fri);
+    expect(out).toMatchObject({ kind: 'move', bucket: 'tomorrow' });
+    if (out.kind !== 'move') return;
+    expect(taskOf(out.state, POLISH).date).toBe('2026-10-17');
+  });
+
+  test('an overdue task dropped within Today reorders and keeps its date (#26)', () => {
+    let n = 0;
+    const s: State = { doc: parseTasks(`${TEXT}- [ ] Pay the fine 📅 2026-10-12\n`, () => `id${++n}`), done: parseDone('') };
+    const out = planDrop(s, idOf(s, 'Pay the fine'), { bucket: 'today', beforeId: idOf(s, DENTIST) }, fri);
+    expect(out).toMatchObject({ kind: 'reorder', sameDate: false });
+    if (out.kind !== 'reorder') return;
+    expect(taskOf(out.state, 'Pay the fine').date).toBe('2026-10-12');
+    expect(titles(out.state).slice(0, 2)).toEqual(['Pay the fine', DENTIST]);
   });
 
   test('on Sunday, dropping onto week moves the task into the today bucket', () => {

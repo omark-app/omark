@@ -6,8 +6,8 @@ export interface BucketRows {
   rows: number;
 }
 
-/** The column each bucket has in the default board `[overdue, today] | [week] | [next] | [later, someday]`. */
-const DEFAULT_COLUMN: Record<BucketKey, number> = { overdue: 0, today: 0, week: 1, next: 2, later: 3, someday: 3 };
+/** The column each bucket has in the default board `[today] | [tomorrow, week] | [next] | [later, someday]`. */
+const DEFAULT_COLUMN: Record<BucketKey, number> = { today: 0, tomorrow: 1, week: 1, next: 2, later: 3, someday: 3 };
 
 /** Every way to cut `n` items into `parts` contiguous non-empty groups, as the start index of each group after the first. */
 function cuts(n: number, parts: number, from = 1): number[][] {
