@@ -228,3 +228,21 @@ test('a line break pasted into the title becomes a space, so the title stays one
   await expect(row(page, 'Send the invoice to Ana by email')).toHaveCount(1);
   await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Send the invoice to Ana by email 📅 2026-10-19');
 });
+
+test('pasting lines into the title keeps the caret after them, and Ctrl+Z takes the paste back', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await start(page);
+  await row(page, 'Send the invoice').click();
+  const title = page.getByTestId('detail-title');
+  await title.click();
+  await page.keyboard.press('Control+Home');
+  for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowRight');
+  await page.evaluate(() => navigator.clipboard.writeText('A\nB\r\nC'));
+  await page.keyboard.press('Control+V');
+  await expect(title).toHaveValue('SendA B C the invoice');
+  await page.keyboard.type('Z');
+  await expect(title).toHaveValue('SendA B CZ the invoice');
+  await page.keyboard.press('Control+Z');
+  await page.keyboard.press('Control+Z');
+  await expect(title).toHaveValue('Send the invoice');
+});

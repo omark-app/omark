@@ -69,11 +69,15 @@
     return () => document.removeEventListener('selectionchange', onselection);
   });
 
+  const oneLine = (text: string): string => text.replace(/\r?\n|\r/g, ' ');
+
   function oninput(): void {
+    // A fallback for line breaks that got past onbeforeinput (an IME, say).
     if (wrap && /[\r\n]/.test(input!.value)) {
       const at = input!.selectionStart;
-      input!.value = input!.value.replace(/\r?\n|\r/g, ' ');
-      if (at !== null) input!.setSelectionRange(at, at);
+      const before = at === null ? null : oneLine(input!.value.slice(0, at)).length;
+      input!.value = oneLine(input!.value);
+      if (before !== null) input!.setSelectionRange(before, before);
     }
     const next = input!.value;
     dismissed = carryDismissed(dismissed, value, next);
@@ -82,6 +86,7 @@
   }
 
   function onbeforeinput(e: InputEvent): void {
+    if (wrap && keepOneLine(e)) return;
     if (e.inputType !== 'deleteContentBackward' || !input) return;
     const at = input.selectionStart;
     if (at === null || at !== input.selectionEnd) return;
@@ -89,6 +94,22 @@
     if (!word) return;
     e.preventDefault();
     dismissed = [...dismissed, { start: word.start, word: word.word }];
+  }
+  /**
+   * Puts pasted, dropped or typed text in with its line breaks made spaces, as the browser's own edit so
+   * the caret lands after it and Ctrl+Z takes it back. True when it handled the event.
+   */
+  function keepOneLine(e: InputEvent): boolean {
+    if (!e.cancelable) return false;
+    if (e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph') {
+      e.preventDefault();
+      return true;
+    }
+    const text = e.data ?? e.dataTransfer?.getData('text/plain') ?? null;
+    if (!e.inputType.startsWith('insert') || text === null || !/[\r\n]/.test(text)) return false;
+    e.preventDefault();
+    document.execCommand('insertText', false, oneLine(text));
+    return true;
   }
 </script>
 
