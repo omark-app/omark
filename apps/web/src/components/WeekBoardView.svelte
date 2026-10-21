@@ -2,6 +2,7 @@
   import { BUCKETS, dayMonth, weekdayShort } from '@omark/core';
   import type { BucketKey } from '@omark/core';
   import type { AppStore } from '../lib/store.svelte.ts';
+  import { BRAND } from '../brand.ts';
   import Bucket from './Bucket.svelte';
   import AlwaysList from './AlwaysList.svelte';
   import Stats from './Stats.svelte';
@@ -44,7 +45,7 @@
 
 <div class="vc">
   <aside class="rail" data-testid="rail">
-    <div class="brand">taskapp <span>· {today}</span></div>
+    <div class="brand">{BRAND.app.toLowerCase()} <span>· {today}</span></div>
     <Stats stats={store.stats} variant="rail" />
     <div class="rblock">
       {#if selected}

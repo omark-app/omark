@@ -1,10 +1,11 @@
 <script lang="ts">
+  import { BRAND } from '../brand.ts';
   /** First run, or signed out: the only way in is a Microsoft account (the files live in its OneDrive). */
   let { onsignin, error = null }: { onsignin: () => void; error?: string | null } = $props();
 </script>
 
 <main class="signin">
-  <h1>taskapp</h1>
+  <h1>{BRAND.app.toLowerCase()}</h1>
   <p>Your tasks live in plain files in your OneDrive. Sign in to open them.</p>
   <button type="button" class="btn" onclick={onsignin}>Sign in with Microsoft</button>
   {#if error}<p class="err" role="alert">{error}</p>{/if}
