@@ -47,7 +47,10 @@ export class OneDriveAdapter implements StorageAdapter {
 
   constructor(opts: OneDriveAdapterOptions) {
     const root = opts.root ?? 'approot';
-    const folder = opts.folder.split('/').filter(Boolean).map(encodeURIComponent).join('/');
+    const parts = opts.folder.split('/').filter(Boolean);
+    // `.` and `..` would climb out of the folder (or the app folder) in the Graph path.
+    if (parts.some((p) => p === '.' || p === '..')) throw new Error('The OneDrive folder cannot contain . or .. segments');
+    const folder = parts.map(encodeURIComponent).join('/');
     if (root === 'drive' && folder === '') throw new Error('A whole-drive OneDrive adapter needs a folder');
     this.base = GRAPH[root] + (folder === '' ? '' : folder + '/');
     this.getToken = opts.getToken;

@@ -56,6 +56,12 @@ describe('OneDriveAdapter (Graph specifics)', () => {
     expect(graph.calls[0]!.url).toBe('https://graph.microsoft.com/v1.0/me/drive/root:/Prod/Tasks/tasks.md:/content');
   });
 
+  it.each(['drive', 'approot'] as const)('refuses dot segments in the folder (%s)', (root) => {
+    for (const folder of ['.', 'a/..', '../a']) {
+      expect(() => new OneDriveAdapter({ root, folder, getToken: async () => 'tok' })).toThrow(/folder/);
+    }
+  });
+
   it('refuses a whole-drive adapter without a folder', () => {
     expect(() => new OneDriveAdapter({ root: 'drive', folder: '', getToken: async () => 'tok' })).toThrow(/folder/);
   });

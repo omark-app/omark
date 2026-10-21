@@ -128,7 +128,7 @@ Each subsection is a workstream with its acceptance criteria. Sizes follow the f
   | Variable | Default |
   |---|---|
   | `VITE_PROD_HOST`, `VITE_STAGING_HOST`, `VITE_DEMO_HOST` | unset |
-  | `VITE_PREVIEW_HOST_SUFFIX` | unset |
+  | `VITE_PREVIEW_HOST_SUFFIXES` (comma-separated list) | unset |
   | `VITE_ONEDRIVE_FOLDER` | unset: the files sit at the root of the app folder |
 
   With nothing set, every host is `local`.

@@ -125,6 +125,20 @@ jobs:
       group: staging
       cancel-in-progress: false
     steps:
+      - name: Check the repository variables
+        run: |
+          if [ -z "$CF_STAGING_PROJECT" ] || [ -z "$STAGING_HOST" ] || [ -z "$STAGING_URL" ]; then
+            echo "::error::Set the repository variables CF_STAGING_PROJECT, STAGING_HOST and STAGING_URL (README, Environment variables)."
+            exit 1
+          fi
+          if [ "$STAGING_URL" != "https://$STAGING_HOST" ]; then
+            echo "::error::STAGING_URL must be https:// followed by STAGING_HOST."
+            exit 1
+          fi
+        env:
+          CF_STAGING_PROJECT: ${{ vars.CF_STAGING_PROJECT }}
+          STAGING_HOST: ${{ vars.STAGING_HOST }}
+          STAGING_URL: ${{ vars.STAGING_URL }}
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@v4

@@ -12,21 +12,43 @@ const runsOnPr = (f: string) => 'pull_request' in ((parse(text(f)) as { on: obje
 const jobsOf = (f: string): [string, Job][] => Object.entries((parse(text(f)) as { jobs: Record<string, Job> }).jobs);
 const allSteps = () => FILES.flatMap((f) => jobsOf(f).flatMap(([, j]) => j.steps ?? []));
 
+interface Workflow { on?: object; jobs: Record<string, Job> }
+const FORK_GUARD = 'github.event.pull_request.head.repo.full_name == github.repository';
+
+/** The problems that would let a fork's pull request reach a secret. Empty means none. */
+function forkProblems(wf: Workflow): string[] {
+  const problems: string[] = [];
+  const onPr = 'pull_request' in (wf.on ?? {});
+  for (const [name, job] of Object.entries(wf.jobs)) {
+    const cond = job.if ?? '';
+    const usesSecrets = JSON.stringify(job).includes('secrets.');
+    // Push-only: the condition starts with the push test and has no `||` that could widen it.
+    const pushOnly = cond.startsWith("github.event_name == 'push' &&") && !cond.includes('||');
+    if (usesSecrets && !cond.includes("vars.DEPLOY_ENABLED == 'true'")) problems.push(`${name}: secrets without DEPLOY_ENABLED`);
+    if (onPr && !pushOnly && (usesSecrets || cond !== '') && !cond.includes(FORK_GUARD)) {
+      problems.push(`${name}: no fork guard`);
+    }
+  }
+  return problems;
+}
+
 describe('workflows', () => {
   it('runs no secret-using step for forks', () => {
-    for (const f of FILES) {
-      for (const [name, job] of jobsOf(f)) {
-        const usesSecrets = (job.steps ?? []).some((s) => JSON.stringify({ with: s.with, env: s.env }).includes('secrets.'));
-        const cond = job.if ?? '';
-        if (usesSecrets) expect(cond, `${f} ${name}`).toContain("vars.DEPLOY_ENABLED == 'true'");
-        // A job that can run on pull_request must not run for a fork's PR.
-        if (runsOnPr(f) && !/github\.event_name == 'push'/.test(cond)) {
-          if (usesSecrets || cond.includes('pull_request')) {
-            expect(cond, `${f} ${name}`).toContain('github.event.pull_request.head.repo.full_name == github.repository');
-          }
-        }
-      }
-    }
+    for (const f of FILES) expect(forkProblems(parse(text(f)) as Workflow), f).toEqual([]);
+  });
+
+  it('the fork check catches an unguarded job-level secret', () => {
+    const bad: Workflow = {
+      on: { pull_request: {} },
+      jobs: { sneaky: { steps: [{ run: 'echo hi' }], ...({ env: { T: '${{ secrets.X }}' } } as object) } },
+    };
+    expect(forkProblems(bad)).toEqual(['sneaky: secrets without DEPLOY_ENABLED', 'sneaky: no fork guard']);
+  });
+
+  it('checks the host variables before a deploy', () => {
+    const first = (f: string, job: string) => JSON.stringify(jobsOf(f).find(([n]) => n === job)![1].steps![0]);
+    expect(first('promote.yml', 'promote')).toMatch(/PROD_HOST.*PROD_URL|PROD_URL.*PROD_HOST/);
+    expect(first('ci.yml', 'deploy-staging')).toMatch(/STAGING_HOST.*STAGING_URL|STAGING_URL.*STAGING_HOST/);
   });
 
   it('gives the e2e job no write permission', () => {

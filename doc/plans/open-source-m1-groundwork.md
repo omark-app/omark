@@ -34,7 +34,7 @@
   - the folder is `''`;
   - the scope is the app folder (`Files.ReadWrite.AppFolder`);
   - the tenant is `consumers`.
-- **No owner-specific value in code, tests or workflows** (`*.md` docs are rewritten in milestone 2). `grep -rniE "alipka|ALAI|alipkagit|47bed4a7|fabcb19d|00596fbc|taskapp-staging|taskapp-64g" --include=*.ts --include=*.mjs --include=*.js --include=*.svelte --include=*.yml --include=*.json --include=*.html --include=*.webmanifest --include=*.sh --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=dist-real .` prints only the one bridge test in Task 1.
+- **No owner-specific value in code, tests or workflows** (`*.md` docs are rewritten in milestone 2). `grep -rniE "alipka|ALAI|alipkagit|47bed4a7|fabcb19d|00596fbc|taskapp-staging|taskapp-64g" --include=*.ts --include=*.mjs --include=*.js --include=*.svelte --include=*.yml --include=*.json --include=*.html --include=*.webmanifest --include=*.sh --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=dist-real .` prints only the one bridge test in Task 1 and the `/alipka|ALAI/i` guard in `tools/ci/test/workflows.test.ts`.
 - **Neutral test values:**
   - hosts `tasks.example.test` and `staging-tasks.example.test`;
   - preview suffix `tasks-preview.pages.dev`;
@@ -371,7 +371,7 @@ Expected: the first command lists all six paths; the second prints nothing and e
 
 - [ ] **Step 4: Run the four commands, then the grep from Global Constraints**
 
-Expected: all pass. The grep prints nothing except `environment.test.ts`'s single bridge test (Task 1).
+Expected: all pass. The grep prints only `environment.test.ts`'s single bridge test (Task 1) and the `/alipka|ALAI/i` guard in `tools/ci/test/workflows.test.ts`.
 
 - [ ] **Step 5: Commit**: `Ignore local secrets and drop the MSAL leftovers`
 
@@ -379,7 +379,7 @@ Expected: all pass. The grep prints nothing except `environment.test.ts`'s singl
 
 No code. This is the `needs-human` list for the PR. It is done **before** the merge, because the merge deploys staging.
 
-- [ ] **Step 1: Pages secret on both of AL's projects.** Set `ONEDRIVE_SCOPE` = `full` on `taskapp-staging` and `taskapp`: `pnpm exec wrangler pages secret put ONEDRIVE_SCOPE --project-name=<project>`. `MSAL_TENANT` stays unset (`consumers`).
+- [ ] **Step 1: Pages secret on both of AL's projects.** Set `ONEDRIVE_SCOPE` = `full` on `taskapp-staging` and `taskapp`: `pnpm exec wrangler pages secret put ONEDRIVE_SCOPE --project-name=<project>`. `MSAL_TENANT` stays unset (`consumers`). Then `pnpm exec wrangler pages secret list --project-name=<project>` for both projects lists `ONEDRIVE_SCOPE` before the merge.
 
 - [ ] **Step 2: Repository variables.** Claude sets them with `gh variable set`, after AL says yes in the session:
 

@@ -136,10 +136,13 @@ describe('GET /api/auth/login', () => {
   });
 
   it('treats a malformed MSAL_TENANT as missing configuration', async () => {
-    const res = await send('/api/auth/login', {}, { ...ENV, MSAL_TENANT: 'a/b' });
+    const headers = { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' };
+    await signIn();
+    const calls = ms.calls.length;
+    const res = await send('/api/auth/token', { method: 'POST', headers }, { ...ENV, MSAL_TENANT: 'a/b' });
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ error: 'not_configured' });
-    expect(ms.fetch).not.toHaveBeenCalled();
+    expect(ms.calls.length).toBe(calls);
   });
 
   it('names the account from the last sign-in as login_hint', async () => {

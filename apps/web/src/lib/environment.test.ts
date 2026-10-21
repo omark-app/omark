@@ -61,6 +61,10 @@ describe('folderFor', () => {
   it('with nothing configured the folder is empty', () => {
     expect(folderFor('production', '', NONE)).toBe('');
     expect(folderFor('local', '', NONE)).toBe('');
+    expect(folderFor('preview', '', NONE)).toBe('');
+  });
+  it('a preview with no build folder gets the staging folder', () => {
+    expect(folderFor('preview', '', CFG)).toBe('Prod/Tasks-staging');
   });
   // The one place the owner's values may appear in a test: proof that his deployment keeps its folder.
   // Roadmap item 3.7 deletes this test.
@@ -73,6 +77,7 @@ describe('folderFor', () => {
       VITE_STAGING_FOLDER: 'ALAI/TaskApp-staging',
     });
     expect(folderFor(envForHost('tasks.alipka.com', BRIDGE), '', BRIDGE)).toBe('ALAI/TaskApp');
+    expect(folderFor(envForHost('taskapp-64g.pages.dev', BRIDGE), '', BRIDGE)).toBe('ALAI/TaskApp-staging');
   });
 });
 

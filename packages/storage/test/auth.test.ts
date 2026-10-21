@@ -127,20 +127,9 @@ describe('createAuth (sign-in helper)', () => {
   });
 
   describe('handleRedirect', () => {
-    let store: Map<string, string>;
     const replaceState = vi.fn();
 
     beforeEach(() => {
-      store = new Map([
-        ['taskapp:cache-migrated', '1'],
-      ]);
-      vi.stubGlobal('localStorage', {
-        get length() {
-          return store.size;
-        },
-        key: (i: number) => [...store.keys()][i] ?? null,
-        removeItem: (k: string) => store.delete(k),
-      });
       replaceState.mockReset();
     });
     afterEach(() => vi.unstubAllGlobals());
@@ -154,14 +143,10 @@ describe('createAuth (sign-in helper)', () => {
       expect(replaceState).toHaveBeenCalledWith(null, '', '/?x=1#h');
     });
 
-    it('survives a localStorage that throws', async () => {
-      vi.stubGlobal('localStorage', {
-        get length(): number {
-          throw new Error('denied');
-        },
-      });
+    it('does nothing on a normal start', async () => {
       at('https://tasks.example/');
       await expect(mk().handleRedirect()).resolves.toBeUndefined();
+      expect(replaceState).not.toHaveBeenCalled();
     });
   });
 });

@@ -23,12 +23,17 @@ jobs:
     steps:
       - name: Check the repository variables
         run: |
-          if [ -z "$CF_PROD_PROJECT" ] || [ -z "$PROD_URL" ]; then
-            echo "::error::Set the repository variables CF_PROD_PROJECT and PROD_URL (README, Environment variables)."
+          if [ -z "$CF_PROD_PROJECT" ] || [ -z "$PROD_HOST" ] || [ -z "$PROD_URL" ]; then
+            echo "::error::Set the repository variables CF_PROD_PROJECT, PROD_HOST and PROD_URL (README, Environment variables)."
+            exit 1
+          fi
+          if [ "$PROD_URL" != "https://$PROD_HOST" ]; then
+            echo "::error::PROD_URL must be https:// followed by PROD_HOST."
             exit 1
           fi
         env:
           CF_PROD_PROJECT: ${{ vars.CF_PROD_PROJECT }}
+          PROD_HOST: ${{ vars.PROD_HOST }}
           PROD_URL: ${{ vars.PROD_URL }}
       - uses: actions/checkout@v4
         with:
