@@ -9,7 +9,7 @@ import {
 } from '@taskapp/storage';
 import type { Auth, FileName, LocalCache, StorageAdapter, Workspace } from '@taskapp/storage';
 import { toISODate } from '@taskapp/core';
-import { APP_ENV, HOSTS, ONEDRIVE_FOLDER, STORAGE_MODE } from '../env.ts';
+import { APP_ENV, HOSTS, ONEDRIVE_FOLDER, ONEDRIVE_ROOT, STORAGE_MODE } from '../env.ts';
 import { createAuthStub, tokenGated } from './auth-stub.ts';
 import type { AuthStub, AuthStubState } from './auth-stub.ts';
 import { systemClock } from './clock.ts';
@@ -80,7 +80,7 @@ export async function boot(): Promise<BootResult> {
   }
 
   const auth = createAuth();
-  const adapter = new OneDriveAdapter({ folder: ONEDRIVE_FOLDER, getToken: (o) => auth.getToken(o) });
+  const adapter = new OneDriveAdapter({ root: ONEDRIVE_ROOT, folder: ONEDRIVE_FOLDER, getToken: (o) => auth.getToken(o) });
   return signedIn(auth, adapter, openCache);
 }
 

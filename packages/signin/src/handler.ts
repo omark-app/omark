@@ -6,6 +6,10 @@ export interface Env {
   MSAL_CLIENT_ID?: string;
   MSAL_CLIENT_SECRET?: string;
   COOKIE_KEY?: string;
+  /** `full` asks for the whole drive (`Files.ReadWrite`); anything else, the app folder. */
+  ONEDRIVE_SCOPE?: string;
+  /** Default `consumers`. */
+  MSAL_TENANT?: string;
 }
 
 export interface Deps {
@@ -14,10 +18,9 @@ export interface Deps {
   now?: () => number;
 }
 
-const AUTHORITY = 'https://login.microsoftonline.com/consumers/oauth2/v2.0';
-const SCOPE = 'Files.ReadWrite offline_access';
-/** The sign-in also asks for an ID token, only to read the account name for the next `login_hint`. */
-const SIGNIN_SCOPE = `openid profile ${SCOPE}`;
+const DEFAULT_TENANT = 'consumers';
+/** A tenant is `consumers`, `common`, `organizations`, a domain or a GUID; nothing that could change the URL's path. */
+const TENANT = /^[a-z0-9][a-z0-9.-]*$/i;
 /** What the client sends with every POST; a cross-origin page cannot set it without a CORS preflight, which is never allowed. */
 export const CSRF_HEADER = 'X-TaskApp-Auth';
 const UPSTREAM_TIMEOUT_MS = 10_000;
@@ -70,6 +73,12 @@ interface Context {
   clientId: string;
   clientSecret: string;
   key: CryptoKey;
+  /** `https://login.microsoftonline.com/<tenant>/oauth2/v2.0` */
+  authority: string;
+  /** What the refresh asks for. */
+  scope: string;
+  /** What the sign-in asks for. It also asks for an ID token, only to read the account name for the next `login_hint`. */
+  signinScope: string;
   fetch: typeof fetch;
   now: number;
 }
@@ -92,6 +101,11 @@ export async function handleAuth(request: Request, env: Env, deps: Deps = {}): P
     console.error('TaskApp sign-in: MSAL_CLIENT_ID, MSAL_CLIENT_SECRET or COOKIE_KEY is not set');
     return json(500, { error: 'not_configured' });
   }
+  const tenant = env.MSAL_TENANT || DEFAULT_TENANT;
+  if (!TENANT.test(tenant)) {
+    console.error('TaskApp sign-in: MSAL_TENANT is not a tenant name');
+    return json(500, { error: 'not_configured' });
+  }
   let key: CryptoKey;
   try {
     key = await importCookieKey(env.COOKIE_KEY);
@@ -99,6 +113,7 @@ export async function handleAuth(request: Request, env: Env, deps: Deps = {}): P
     console.error('TaskApp sign-in: COOKIE_KEY is not 32 base64-encoded bytes');
     return json(500, { error: 'not_configured' });
   }
+  const scope = `${env.ONEDRIVE_SCOPE === 'full' ? 'Files.ReadWrite' : 'Files.ReadWrite.AppFolder'} offline_access`;
   const ctx: Context = {
     request,
     url,
@@ -106,6 +121,9 @@ export async function handleAuth(request: Request, env: Env, deps: Deps = {}): P
     clientId: env.MSAL_CLIENT_ID,
     clientSecret: env.MSAL_CLIENT_SECRET,
     key,
+    authority: `https://login.microsoftonline.com/${tenant}/oauth2/v2.0`,
+    scope,
+    signinScope: `openid profile ${scope}`,
     fetch: deps.fetch ?? ((...args) => globalThis.fetch(...args)),
     now: (deps.now ?? Date.now)(),
   };
@@ -125,7 +143,7 @@ async function login(ctx: Context): Promise<Response> {
     response_type: 'code',
     response_mode: 'query',
     redirect_uri: redirectUri(ctx),
-    scope: SIGNIN_SCOPE,
+    scope: ctx.signinScope,
     state,
     code_challenge: await pkceChallenge(verifier),
     code_challenge_method: 'S256',
@@ -133,7 +151,7 @@ async function login(ctx: Context): Promise<Response> {
   const hint = await unseal<Hint>(ctx.key, HINT.name, ctx.cookies.get(HINT.name));
   if (hint?.username) params.set('login_hint', hint.username);
   const sealed = await seal(ctx.key, LOGIN.name, { state, verifier, exp: ctx.now + LOGIN_MAX_AGE * 1000 } satisfies LoginState);
-  return redirect(`${AUTHORITY}/authorize?${params}`, [
+  return redirect(`${ctx.authority}/authorize?${params}`, [
     serializeCookie(LOGIN.name, sealed, { path: LOGIN.path, maxAge: LOGIN_MAX_AGE }),
   ]);
 }
@@ -162,7 +180,7 @@ async function callback(ctx: Context): Promise<Response> {
     code,
     redirect_uri: redirectUri(ctx),
     code_verifier: login.verifier,
-    scope: SIGNIN_SCOPE,
+    scope: ctx.signinScope,
   });
   if (redeemed.kind !== 'ok') return back(redeemed.kind === 'signin' ? 'failed' : 'unavailable');
   const { refresh_token: rt, id_token } = redeemed.tokens;
@@ -188,7 +206,7 @@ async function callback(ctx: Context): Promise<Response> {
 async function token(ctx: Context): Promise<Response> {
   const session = await unseal<Session>(ctx.key, SESSION.name, readChunkedCookie(ctx.cookies, SESSION.name));
   if (!session || typeof session.rt !== 'string' || session.exp < ctx.now) return json(401, { signin: true }, clearSession());
-  const redeemed = await redeem(ctx, { grant_type: 'refresh_token', refresh_token: session.rt, scope: SCOPE });
+  const redeemed = await redeem(ctx, { grant_type: 'refresh_token', refresh_token: session.rt, scope: ctx.scope });
   if (redeemed.kind === 'signin') return json(401, { signin: true }, clearSession());
   if (redeemed.kind === 'unavailable') return json(503, { error: 'unavailable' });
   const { access_token, expires_in, refresh_token } = redeemed.tokens;
@@ -232,7 +250,7 @@ async function redeem(ctx: Context, grant: Record<string, string>): Promise<Rede
   let res: Response;
   let body: Record<string, unknown>;
   try {
-    res = await ctx.fetch(`${AUTHORITY}/token`, {
+    res = await ctx.fetch(`${ctx.authority}/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ client_id: ctx.clientId, client_secret: ctx.clientSecret, ...grant }),

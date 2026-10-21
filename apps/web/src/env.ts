@@ -1,3 +1,4 @@
+import type { DriveRoot } from '@taskapp/storage';
 import { envForHost, folderFor, hostConfig, lookFor } from './lib/environment.ts';
 
 export const STORAGE_MODE: 'fake' | 'onedrive' =
@@ -8,6 +9,8 @@ export const HOSTS = hostConfig(import.meta.env);
 export const APP_ENV = envForHost(typeof location === 'undefined' ? '' : location.hostname, HOSTS);
 export const LOOK = lookFor(APP_ENV);
 export const ONEDRIVE_FOLDER: string = folderFor(APP_ENV, import.meta.env.VITE_ONEDRIVE_FOLDER ?? '', HOSTS);
+/** `full` reaches the whole drive (the owner's deployment); anything else, the app folder. Must match the helper's `ONEDRIVE_SCOPE`. */
+export const ONEDRIVE_ROOT: DriveRoot = import.meta.env.VITE_ONEDRIVE_SCOPE === 'full' ? 'drive' : 'approot';
 
 declare const __BUILD_ID__: string | undefined;
 declare const __BUILD_TIME__: string | undefined;
