@@ -1,6 +1,6 @@
 # TaskApp open source launch spec
 
-Status: draft for approval, 2026-10-20. Agreed in the session that weighed a paid app against open source.
+Status: approved, 2026-10-21. Agreed in the session that weighed a paid app against open source. Plans: [roadmap](plans/open-source-launch-roadmap.md), [milestone 1](plans/open-source-m1-groundwork.md).
 Related: [v1 spec](TaskApp%20v1%20spec.md), [factory spec](TaskApp%20factory%20spec.md), [backlog](TaskApp%20backlog.md).
 
 ## 1. Intent
