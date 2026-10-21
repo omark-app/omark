@@ -132,8 +132,6 @@ describe('createAuth (sign-in helper)', () => {
 
     beforeEach(() => {
       store = new Map([
-        ['msal.3.account.keys', '[]'],
-        ['msal.3|acct|login.windows.net', '{}'],
         ['taskapp:cache-migrated', '1'],
       ]);
       vi.stubGlobal('localStorage', {
@@ -149,13 +147,6 @@ describe('createAuth (sign-in helper)', () => {
 
     const at = (href: string) =>
       vi.stubGlobal('window', { location: { href }, history: { state: null, replaceState } });
-
-    it('does nothing on a normal start, apart from dropping the old MSAL cache', async () => {
-      at('https://tasks.example/');
-      await mk().handleRedirect();
-      expect(replaceState).not.toHaveBeenCalled();
-      expect([...store.keys()]).toEqual(['taskapp:cache-migrated']);
-    });
 
     it('throws the helper’s sign-in error and removes it from the address bar', async () => {
       at('https://tasks.example/?signin_error=cancelled&x=1#h');

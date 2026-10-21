@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { promoteCheck, Refused } from '../promote-check.mjs';
 
-const REPO = 'alipkagit/TaskApp';
+const REPO = 'owner/repo';
 const A = 'a'.repeat(40);
 const B = 'b'.repeat(40);
 const OFF = 'c'.repeat(40);

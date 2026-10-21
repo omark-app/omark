@@ -88,7 +88,6 @@ export function createAuth(opts: AuthOptions = {}): Auth {
 
   return {
     async handleRedirect() {
-      forgetMsalCache();
       const url = new URL(window.location.href);
       const reason = url.searchParams.get('signin_error');
       if (reason === null) return;
@@ -117,17 +116,4 @@ export function createAuth(opts: AuthOptions = {}): Auth {
         .some((c) => c.trim().startsWith(`${SIGNED_IN_COOKIE}=`));
     },
   };
-}
-
-/**
- * The MSAL.js cache from before the sign-in helper (tokens and account in localStorage, `msal.`-prefixed
- * keys) is no longer read; removing it keeps its 24-hour tokens from lingering. Best effort.
- */
-function forgetMsalCache(): void {
-  try {
-    const keys = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i));
-    for (const key of keys) if (key?.startsWith('msal.')) localStorage.removeItem(key);
-  } catch {
-    // localStorage can be unavailable (private mode); nothing to remove then.
-  }
 }
