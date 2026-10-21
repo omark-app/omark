@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { ensureStaging, NeedsHuman } from '../ensure-staging.mjs';
 
 const ACCOUNT = 'acc1';
-const ZONE = '00596fbc87cfb99f68372f59fbd4e55c';
+const ZONE = 'zone1';
+const PROJECT = 'tasks-staging';
+const DOMAIN = 'staging-tasks.example.test';
 const TOKEN = 'secret-token-value';
 
 interface FakeCf {
@@ -28,16 +30,16 @@ function fakeFetch(cf: FakeCf): typeof fetch {
     }
     const body = init?.body ? JSON.parse(String(init.body)) : null;
     const projects = `/accounts/${ACCOUNT}/pages/projects`;
-    if (method === 'GET' && path === `${projects}/taskapp-staging`) {
-      return cf.project ? ok({ name: 'taskapp-staging', ...cf.project }) : json(404, { success: false, errors: [{ code: 8000007, message: 'Project not found' }] });
+    if (method === 'GET' && path === `${projects}/tasks-staging`) {
+      return cf.project ? ok({ name: 'tasks-staging', ...cf.project }) : json(404, { success: false, errors: [{ code: 8000007, message: 'Project not found' }] });
     }
     if (method === 'POST' && path === projects) {
-      expect(body).toEqual({ name: 'taskapp-staging', production_branch: 'main' });
-      cf.project = { subdomain: 'taskapp-staging-x1y.pages.dev' };
-      return ok({ name: 'taskapp-staging', ...cf.project });
+      expect(body).toEqual({ name: 'tasks-staging', production_branch: 'main' });
+      cf.project = { subdomain: 'tasks-staging-x1y.pages.dev' };
+      return ok({ name: 'tasks-staging', ...cf.project });
     }
-    if (method === 'GET' && path === `${projects}/taskapp-staging/domains`) return ok(cf.domains.map((name) => ({ name })));
-    if (method === 'POST' && path === `${projects}/taskapp-staging/domains`) {
+    if (method === 'GET' && path === `${projects}/tasks-staging/domains`) return ok(cf.domains.map((name) => ({ name })));
+    if (method === 'POST' && path === `${projects}/tasks-staging/domains`) {
       cf.domains.push(body.name);
       return ok({ name: body.name });
     }
@@ -55,7 +57,7 @@ function fakeFetch(cf: FakeCf): typeof fetch {
 function setup(cf: Partial<FakeCf> = {}) {
   const state: FakeCf = { project: null, domains: [], records: [], calls: [], ...cf };
   const lines: string[] = [];
-  const run = () => ensureStaging({ token: TOKEN, accountId: ACCOUNT, fetch: fakeFetch(state), log: (l: string) => lines.push(l) });
+  const run = () => ensureStaging({ token: TOKEN, accountId: ACCOUNT, project: PROJECT, domain: DOMAIN, zone: ZONE, fetch: fakeFetch(state), log: (l: string) => lines.push(l) });
   return { state, lines, run };
 }
 const writes = (calls: string[]) => calls.filter((c) => c.startsWith('POST'));
@@ -64,11 +66,11 @@ describe('ensureStaging', () => {
   it('creates the project, custom domain and DNS record on a fresh account', async () => {
     const { state, run } = setup();
     const result = await run();
-    expect(result).toEqual({ subdomain: 'taskapp-staging-x1y.pages.dev', warnings: [] });
+    expect(result).toEqual({ subdomain: 'tasks-staging-x1y.pages.dev', warnings: [] });
     expect(writes(state.calls)).toHaveLength(3);
-    expect(state.domains).toEqual(['tasks-staging.alipka.com']);
+    expect(state.domains).toEqual(['staging-tasks.example.test']);
     expect(state.records).toEqual([
-      { type: 'CNAME', name: 'tasks-staging.alipka.com', content: 'taskapp-staging-x1y.pages.dev', proxied: true },
+      { type: 'CNAME', name: 'staging-tasks.example.test', content: 'tasks-staging-x1y.pages.dev', proxied: true },
     ]);
   });
 
@@ -82,14 +84,14 @@ describe('ensureStaging', () => {
 
   it('leaves an existing DNS record with another target alone and warns', async () => {
     const { state, run } = setup({
-      project: { subdomain: 'taskapp-staging-x1y.pages.dev' },
-      domains: ['tasks-staging.alipka.com'],
-      records: [{ type: 'A', name: 'tasks-staging.alipka.com', content: '1.2.3.4', proxied: false }],
+      project: { subdomain: 'tasks-staging-x1y.pages.dev' },
+      domains: ['staging-tasks.example.test'],
+      records: [{ type: 'A', name: 'staging-tasks.example.test', content: '1.2.3.4', proxied: false }],
     });
     const result = await run();
     expect(writes(state.calls)).toEqual([]);
     expect(state.records[0]!.content).toBe('1.2.3.4');
-    expect(result.warnings.join('\n')).toMatch(/tasks-staging\.alipka\.com.*1\.2\.3\.4/);
+    expect(result.warnings.join('\n')).toMatch(/staging-tasks.example.test.*1\.2\.3\.4/);
   });
 
   it('stops with the dashboard steps when the token may not create the project', async () => {
@@ -97,14 +99,29 @@ describe('ensureStaging', () => {
     const err = await run().catch((e: unknown) => e);
     expect(err).toBeInstanceOf(NeedsHuman);
     expect(String((err as Error).message)).toMatch(/Workers & Pages/);
-    expect(String((err as Error).message)).toMatch(/taskapp-staging/);
+    expect(String((err as Error).message)).toMatch(/tasks-staging/);
   });
 
   it('stops with the DNS steps when the token may not add the record', async () => {
     const { run } = setup({ forbid: /^POST \/zones/ });
     const err = await run().catch((e: unknown) => e);
     expect(err).toBeInstanceOf(NeedsHuman);
-    expect(String((err as Error).message)).toMatch(/tasks-staging\.alipka\.com/);
+    expect(String((err as Error).message)).toMatch(/staging-tasks.example.test/);
+  });
+
+  it('only makes sure the project exists when no domain is given', async () => {
+    const state: FakeCf = { project: { subdomain: 'tasks-staging-x1y.pages.dev' }, domains: [], records: [], calls: [] };
+    const result = await ensureStaging({ token: TOKEN, accountId: ACCOUNT, project: PROJECT, fetch: fakeFetch(state), log: () => {} });
+    expect(result.subdomain).toBe('tasks-staging-x1y.pages.dev');
+    expect(state.calls).toEqual([`GET /accounts/${ACCOUNT}/pages/projects/tasks-staging`]);
+  });
+
+  it('rejects a domain without a zone', async () => {
+    const state: FakeCf = { project: null, domains: [], records: [], calls: [] };
+    await expect(
+      ensureStaging({ token: TOKEN, accountId: ACCOUNT, project: PROJECT, domain: DOMAIN, fetch: fakeFetch(state), log: () => {} }),
+    ).rejects.toThrow(/zone/);
+    expect(state.calls).toEqual([]);
   });
 
   it('never prints the token', async () => {

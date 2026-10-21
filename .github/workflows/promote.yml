@@ -18,9 +18,18 @@ concurrency:
 jobs:
   promote:
     # Only the promote.yml on main may run: from another branch the file (and its checks) could be edited.
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     steps:
+      - name: Check the repository variables
+        run: |
+          if [ -z "$CF_PROD_PROJECT" ] || [ -z "$PROD_URL" ]; then
+            echo "::error::Set the repository variables CF_PROD_PROJECT and PROD_URL (README, Environment variables)."
+            exit 1
+          fi
+        env:
+          CF_PROD_PROJECT: ${{ vars.CF_PROD_PROJECT }}
+          PROD_URL: ${{ vars.PROD_URL }}
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -37,7 +46,7 @@ jobs:
         run: git checkout --detach "$SHA"
         env:
           SHA: ${{ steps.check.outputs.sha }}
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -56,25 +65,28 @@ jobs:
         run: pnpm --filter web build
         env:
           BUILD_SHA: ${{ steps.check.outputs.sha }}
-      - uses: cloudflare/wrangler-action@v3
+          VITE_PROD_HOST: ${{ vars.PROD_HOST }}
+          VITE_STAGING_HOST: ${{ vars.STAGING_HOST }}
+          VITE_PREVIEW_HOST_SUFFIXES: ${{ vars.PREVIEW_HOST_SUFFIXES }}
+          VITE_PROD_FOLDER: ${{ vars.PROD_FOLDER }}
+          VITE_STAGING_FOLDER: ${{ vars.STAGING_FOLDER }}
+          VITE_ONEDRIVE_SCOPE: ${{ vars.ONEDRIVE_SCOPE }}
+      - uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # Use the workspace's pinned wrangler; the action can't `pnpm add` it at a workspace root.
           wranglerVersion: '4.151.1'
           # Run from the repo root, so wrangler also bundles functions/ (the sign-in helper at /api/auth/*).
-          command: pages deploy apps/web/dist --project-name=taskapp --branch=main --commit-hash=${{ steps.check.outputs.sha }}
+          command: pages deploy apps/web/dist --project-name=${{ vars.CF_PROD_PROJECT }} --branch=main --commit-hash=${{ steps.check.outputs.sha }}
       - name: Check the sign-in helper is live
-        # /api/auth/login answers with a redirect to Microsoft only when the functions shipped and the
-        # MSAL_CLIENT_ID, MSAL_CLIENT_SECRET and COOKIE_KEY secrets are set.
-        run: |
-          for _ in 1 2 3 4 5 6; do
-            location=$(curl -s -o /dev/null -w '%{redirect_url}' https://tasks.alipka.com/api/auth/login)
-            case "$location" in https://login.microsoftonline.com/consumers/*) echo "Sign-in helper OK"; exit 0;; esac
-            sleep 10
-          done
-          echo "::error::https://tasks.alipka.com/api/auth/login does not redirect to Microsoft; check the Pages secrets (README, Sign-in)."
-          exit 1
+        # /api/auth/login must redirect to Microsoft for MSAL_TENANT, asking for the scope the build expects.
+        # That holds only when the functions shipped and the Pages secrets (README, Sign-in) are set.
+        run: node "$RUNNER_TEMP/ci/check-signin.mjs"
+        env:
+          SIGNIN_URL: ${{ vars.PROD_URL }}
+          MSAL_TENANT: ${{ vars.MSAL_TENANT }}
+          ONEDRIVE_SCOPE: ${{ vars.ONEDRIVE_SCOPE }}
       - name: Release notes
         id: notes
         run: node "$RUNNER_TEMP/ci/release-notes.mjs" "$SHA"
