@@ -21,7 +21,7 @@ export default defineConfig({
     __BUILD_TIME__: JSON.stringify(`${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`),
   },
   // e2e/environment.spec.ts reaches the preview server under the staging host name.
-  preview: { allowedHosts: ['tasks-staging.alipka.com'] },
+  preview: { allowedHosts: ['staging-tasks.example.test'] },
   plugins: [
     svelte(),
     VitePWA({

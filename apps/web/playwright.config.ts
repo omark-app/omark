@@ -13,7 +13,7 @@ export default defineConfig({
     { name: 'iphone', use: { ...devices['iPhone 15'], colorScheme: 'light' } },
   ],
   webServer: {
-    env: { VITE_STORAGE: 'fake' },
+    env: { VITE_STORAGE: 'fake', VITE_STAGING_HOST: 'staging-tasks.example.test' },
     command: 'vite build && vite preview --port 4173',
     url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,

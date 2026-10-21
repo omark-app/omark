@@ -9,10 +9,11 @@ import {
 } from '@taskapp/storage';
 import type { Auth, FileName, LocalCache, StorageAdapter, Workspace } from '@taskapp/storage';
 import { toISODate } from '@taskapp/core';
-import { APP_ENV, DEFAULT_ONEDRIVE_FOLDER, ONEDRIVE_FOLDER, STORAGE_MODE } from '../env.ts';
+import { APP_ENV, HOSTS, ONEDRIVE_FOLDER, STORAGE_MODE } from '../env.ts';
 import { createAuthStub, tokenGated } from './auth-stub.ts';
 import type { AuthStub, AuthStubState } from './auth-stub.ts';
 import { systemClock } from './clock.ts';
+import { legacyCacheApplies } from './environment.ts';
 import { installLifecycle } from './lifecycle.ts';
 import { createStore } from './store.svelte.ts';
 import type { AppStore } from './store.svelte.ts';
@@ -183,7 +184,7 @@ async function openCache(): Promise<{ cache: LocalCache } & CacheInfo> {
  * folder's files). Failures are ignored: the old database is left as it was and tried again next time.
  */
 async function migrateLegacyCache(cache: LocalCache): Promise<void> {
-  if (ONEDRIVE_FOLDER !== DEFAULT_ONEDRIVE_FOLDER) return;
+  if (!legacyCacheApplies(ONEDRIVE_FOLDER, HOSTS)) return;
   try {
     if (localStorage.getItem(MIGRATED_KEY)) return;
     await migrateCache(new IdbCache(LEGACY_DB), cache, FILES);

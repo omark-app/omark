@@ -1,50 +1,93 @@
 import { describe, expect, it } from 'vitest';
-import { envForHost, folderFor, lookFor } from './environment.ts';
+import { envForHost, folderFor, hostConfig, legacyCacheApplies, lookFor } from './environment.ts';
+
+const CFG = hostConfig({
+  VITE_PROD_HOST: 'tasks.example.test',
+  VITE_STAGING_HOST: 'staging-tasks.example.test',
+  VITE_PREVIEW_HOST_SUFFIXES: 'tasks-preview.pages.dev, other-preview.pages.dev',
+  VITE_PROD_FOLDER: 'Prod/Tasks',
+  VITE_STAGING_FOLDER: 'Prod/Tasks-staging',
+});
+const NONE = hostConfig({});
+
+describe('hostConfig', () => {
+  it('trims values, lower-cases hosts and drops empty suffixes', () => {
+    expect(hostConfig({ VITE_PREVIEW_HOST_SUFFIXES: ' a.pages.dev,,B.pages.dev ' }).previewSuffixes).toEqual([
+      'a.pages.dev',
+      'b.pages.dev',
+    ]);
+    expect(hostConfig({ VITE_PROD_HOST: '  Tasks.Example.TEST ' }).prodHost).toBe('tasks.example.test');
+  });
+  it('treats missing and non-string values as unset', () => {
+    expect(NONE).toEqual({ prodHost: '', stagingHost: '', previewSuffixes: [], prodFolder: '', stagingFolder: '' });
+    expect(hostConfig({ VITE_PROD_HOST: true, VITE_PROD_FOLDER: 5 })).toEqual(NONE);
+  });
+});
 
 describe('envForHost', () => {
   it.each([
-    ['tasks.alipka.com', 'production'],
-    ['TASKS.Alipka.COM', 'production'],
-    ['tasks.alipka.com.', 'production'],
-    ['tasks-staging.alipka.com', 'staging'],
-    ['tasks-staging.alipka.com.', 'staging'],
-    ['pr-15.taskapp-staging.pages.dev', 'preview'],
-    ['taskapp-64g.pages.dev', 'preview'],
-    ['tasks-staging.alipka.com.pages.dev', 'preview'],
-    ['localhost', 'local'],
-    ['127.0.0.1', 'local'],
-    ['tasks.alipka.com.evil.example', 'local'],
-    ['eviltasks.alipka.com', 'local'],
-    ['staging.tasks.alipka.com', 'local'],
+    ['tasks.example.test', 'production'],
+    ['TASKS.Example.TEST', 'production'],
+    ['tasks.example.test.', 'production'],
+    ['staging-tasks.example.test', 'staging'],
+    ['tasks-preview.pages.dev', 'preview'],
+    ['pr-15.tasks-preview.pages.dev', 'preview'],
+    ['x.other-preview.pages.dev', 'preview'],
+    ['unlisted.pages.dev', 'local'],
     ['pages.dev', 'local'],
+    ['tasks.example.test.evil.example', 'local'],
+    ['eviltasks.example.test', 'local'],
+    ['staging.tasks.example.test', 'local'],
+    ['localhost', 'local'],
     ['', 'local'],
   ] as const)('%j is %s', (host, env) => {
-    expect(envForHost(host)).toBe(env);
+    expect(envForHost(host, CFG)).toBe(env);
+  });
+  it('with nothing configured every host is local', () => {
+    expect(envForHost('tasks.example.test', NONE)).toBe('local');
   });
 });
 
 describe('folderFor', () => {
-  it('staging always uses the staging folder', () => {
-    expect(folderFor('staging', 'ALAI/TaskApp')).toBe('ALAI/TaskApp-staging');
-    expect(folderFor('staging', 'ALAI/Other')).toBe('ALAI/TaskApp-staging');
+  it.each([
+    ['production', 'Other', 'Prod/Tasks'],
+    ['staging', 'Other', 'Prod/Tasks-staging'],
+    ['local', 'Dev/Tasks', 'Dev/Tasks'],
+    // a preview never gets the production folder (the staging build on its pages.dev hosts)
+    ['preview', 'Prod/Tasks', 'Prod/Tasks-staging'],
+  ] as const)('%s with build folder %j is %j', (env, build, folder) => {
+    expect(folderFor(env, build, CFG)).toBe(folder);
   });
-  it('production always uses the production folder', () => {
-    expect(folderFor('production', 'ALAI/TaskApp-e2e')).toBe('ALAI/TaskApp');
+  it('with nothing configured the folder is empty', () => {
+    expect(folderFor('production', '', NONE)).toBe('');
+    expect(folderFor('local', '', NONE)).toBe('');
   });
-  it('local and preview follow the build', () => {
-    expect(folderFor('local', 'ALAI/TaskApp-e2e')).toBe('ALAI/TaskApp-e2e');
-    expect(folderFor('local', 'ALAI/TaskApp')).toBe('ALAI/TaskApp');
-    expect(folderFor('preview', 'ALAI/TaskApp-e2e')).toBe('ALAI/TaskApp-e2e');
+  // The one place the owner's values may appear in a test: proof that his deployment keeps its folder.
+  // Roadmap item 3.7 deletes this test.
+  it('the owner deployment keeps its folder', () => {
+    const BRIDGE = hostConfig({
+      VITE_PROD_HOST: 'tasks.alipka.com',
+      VITE_STAGING_HOST: 'tasks-staging.alipka.com',
+      VITE_PREVIEW_HOST_SUFFIXES: 'taskapp-staging.pages.dev,taskapp-64g.pages.dev',
+      VITE_PROD_FOLDER: 'ALAI/TaskApp',
+      VITE_STAGING_FOLDER: 'ALAI/TaskApp-staging',
+    });
+    expect(folderFor(envForHost('tasks.alipka.com', BRIDGE), '', BRIDGE)).toBe('ALAI/TaskApp');
   });
-  it('a preview never uses the production folder (the staging build on its pages.dev hosts)', () => {
-    expect(folderFor('preview', 'ALAI/TaskApp')).toBe('ALAI/TaskApp-staging');
+});
+
+describe('legacyCacheApplies', () => {
+  it('only the production folder, and only when one is configured', () => {
+    expect(legacyCacheApplies('Prod/Tasks', CFG)).toBe(true);
+    expect(legacyCacheApplies('Prod/Tasks-staging', CFG)).toBe(false);
+    expect(legacyCacheApplies('', NONE)).toBe(false);
   });
 });
 
 describe('lookFor', () => {
   it('staging has its own name, colour, manifest and label', () => {
     expect(lookFor('staging')).toEqual({
-      title: 'TaskApp Staging',
+      title: 'Omark Tasks Staging',
       themeColor: '#F6E7C8',
       manifest: '/manifest-staging.webmanifest',
       label: 'STAGING',
