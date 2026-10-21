@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { bucketRange, tasksInBucket } from '@taskapp/core';
-  import type { BucketKey, ISODate } from '@taskapp/core';
+  import { bucketRange, tasksInBucket } from '@omark/core';
+  import type { BucketKey, ISODate } from '@omark/core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import TaskRow from './TaskRow.svelte';
   import { dragEnd, dragLeave, dragOver, dragStart, dropAt } from '../lib/drag/mouse-drag.ts';

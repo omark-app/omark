@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ConfigError } from '@taskapp/core';
+  import type { ConfigError } from '@omark/core';
 
   let { error }: { error: ConfigError } = $props();
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { BUCKETS } from '@taskapp/core';
+  import { BUCKETS } from '@omark/core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import Bucket from './Bucket.svelte';
   import AlwaysList from './AlwaysList.svelte';

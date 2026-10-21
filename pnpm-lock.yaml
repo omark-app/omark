@@ -26,10 +26,10 @@ importers:
       '@fontsource/ibm-plex-mono':
         specifier: ^5.3.0
         version: 5.3.0
-      '@taskapp/core':
+      '@omark/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@taskapp/storage':
+      '@omark/storage':
         specifier: workspace:*
         version: link:../../packages/storage
       svelte:
@@ -78,7 +78,7 @@ importers:
 
   packages/storage:
     dependencies:
-      '@taskapp/core':
+      '@omark/core':
         specifier: workspace:*
         version: link:../core
       idb-keyval:
@@ -107,7 +107,7 @@ importers:
 
   tools/todoist-import:
     dependencies:
-      '@taskapp/core':
+      '@omark/core':
         specifier: workspace:*
         version: link:../../packages/core
     devDependencies:

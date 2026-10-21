@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
+import { BRAND } from './src/brand.ts';
 
 /** The short commit hash shown beside the save status, so it is clear which build a device runs. */
 function buildId(): string {
@@ -44,8 +45,8 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
       },
       manifest: {
-        name: 'TaskApp',
-        short_name: 'TaskApp',
+        name: BRAND.app,
+        short_name: BRAND.app,
         display: 'standalone',
         start_url: '/',
         scope: '/',

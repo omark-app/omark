@@ -1,4 +1,4 @@
-import type { BucketKey, DropTarget } from '@taskapp/core';
+import type { BucketKey, DropTarget } from '@omark/core';
 import type { AppStore } from '../store.svelte.ts';
 import type { OnDropPickDate } from '../commands.svelte.ts';
 

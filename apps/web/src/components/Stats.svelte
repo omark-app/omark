@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Stats } from '@taskapp/core';
+  import type { Stats } from '@omark/core';
 
   let { stats, variant }: { stats: Stats; variant: 'box' | 'line' | 'rail' } = $props();
 

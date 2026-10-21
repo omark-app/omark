@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allTasks, bucketOf, DEFAULT_CONFIG_YAML, parseDone, parseTasks, serializeTasks } from '@taskapp/core';
+import { allTasks, bucketOf, DEFAULT_CONFIG_YAML, parseDone, parseTasks, serializeTasks } from '@omark/core';
 import { fakeSeed, sampleFiles } from './sample-files.ts';
 
 const WEDNESDAY = '2026-10-21';

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import type { DoneEntry, ISODate } from '@taskapp/core';
+  import type { DoneEntry, ISODate } from '@omark/core';
+  import { BRAND } from './brand.ts';
   import { boot } from './lib/boot.ts';
   import type { BootResult } from './lib/boot.ts';
   import TaskListView from './components/TaskListView.svelte';
@@ -138,7 +139,7 @@
 
 {#if error !== null}
   <div class="notice">
-    <p role="alert">TaskApp could not start: {error}</p>
+    <p role="alert">{BRAND.app} could not start: {error}</p>
     <!-- A fresh start re-runs sign-in from scratch (a stale redirect, a cache that failed to open). -->
     <button type="button" class="retry" onclick={() => window.location.reload()}>Try again</button>
   </div>

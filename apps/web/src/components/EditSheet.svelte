@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { describeRepeat, dueText, findTask } from '@taskapp/core';
-  import type { ChoiceKey } from '@taskapp/core';
+  import { describeRepeat, dueText, findTask } from '@omark/core';
+  import type { ChoiceKey } from '@omark/core';
   import { autogrow } from '../lib/autogrow.ts';
   import type { AppStore } from '../lib/store.svelte.ts';
   import { createTaskEdit } from '../lib/task-edit.svelte.ts';

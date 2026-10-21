@@ -1,4 +1,4 @@
-import type { DropTarget } from '@taskapp/core';
+import type { DropTarget } from '@omark/core';
 import { rowOf } from './drag/drop-target.ts';
 import { liftRow } from './drag/touch-drag.ts';
 import type { TouchDrag } from './drag/touch-drag.ts';

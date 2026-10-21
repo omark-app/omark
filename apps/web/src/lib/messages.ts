@@ -1,5 +1,5 @@
-import { dayMonth, describeRepeat, weekdayShort } from '@taskapp/core';
-import type { ISODate, RepeatRule, WeekCtx } from '@taskapp/core';
+import { dayMonth, describeRepeat, weekdayShort } from '@omark/core';
+import type { ISODate, RepeatRule, WeekCtx } from '@omark/core';
 
 /** Toast wording (spec 9.1), one function per toast. */
 

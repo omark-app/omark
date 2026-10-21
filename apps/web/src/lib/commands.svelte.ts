@@ -1,6 +1,6 @@
 import { tick } from 'svelte';
-import { findTask } from '@taskapp/core';
-import type { Command, ISODate } from '@taskapp/core';
+import { findTask } from '@omark/core';
+import type { Command, ISODate } from '@omark/core';
 import type { AppStore } from './store.svelte.ts';
 import { commandFor, keyInput } from './keys.ts';
 

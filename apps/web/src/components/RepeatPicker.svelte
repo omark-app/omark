@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { dayOfWeek, findTask, MAX_INTERVAL } from '@taskapp/core';
-  import type { RepeatRule } from '@taskapp/core';
+  import { dayOfWeek, findTask, MAX_INTERVAL } from '@omark/core';
+  import type { RepeatRule } from '@omark/core';
   import type { AppStore } from '../lib/store.svelte.ts';
 
   let { store, taskId, onclose }: { store: AppStore; taskId: string; onclose: () => void } = $props();

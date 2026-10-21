@@ -1,5 +1,5 @@
-import { dayMonth, toISODate, weekCtx, weekdayShort } from '@taskapp/core';
-import type { SyncStatus } from '@taskapp/storage';
+import { dayMonth, toISODate, weekCtx, weekdayShort } from '@omark/core';
+import type { SyncStatus } from '@omark/storage';
 
 /** `syncing` stays quiet (the faint status word) unless it lasts longer than this. */
 export const QUIET_SYNC_MS = 4000;

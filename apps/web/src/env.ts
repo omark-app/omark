@@ -1,4 +1,4 @@
-import type { DriveRoot } from '@taskapp/storage';
+import type { DriveRoot } from '@omark/storage';
 import { envForHost, folderFor, hostConfig, lookFor } from './lib/environment.ts';
 
 export const STORAGE_MODE: 'fake' | 'onedrive' =

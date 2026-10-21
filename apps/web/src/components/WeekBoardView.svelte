@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { BUCKETS, dayMonth, weekdayShort } from '@taskapp/core';
-  import type { BucketKey } from '@taskapp/core';
+  import { BUCKETS, dayMonth, weekdayShort } from '@omark/core';
+  import type { BucketKey } from '@omark/core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import Bucket from './Bucket.svelte';
   import AlwaysList from './AlwaysList.svelte';

@@ -1,5 +1,5 @@
 <script module lang="ts">
-  import type { ChoiceKey, Dismissed } from '@taskapp/core';
+  import type { ChoiceKey, Dismissed } from '@omark/core';
 
   /**
    * What was typed and chosen. It outlives a dismissed sheet and is cleared only by a successful Add. A
@@ -17,8 +17,8 @@
 </script>
 
 <script lang="ts">
-  import { addDays, dateChoices, dayMonth, endOfWeek, readQuickAdd, weekdayShort } from '@taskapp/core';
-  import type { DateChoice } from '@taskapp/core';
+  import { addDays, dateChoices, dayMonth, endOfWeek, readQuickAdd, weekdayShort } from '@omark/core';
+  import type { DateChoice } from '@omark/core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import ShortcutField from './ShortcutField.svelte';
 

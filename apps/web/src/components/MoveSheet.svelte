@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { findTask } from '@taskapp/core';
+  import { findTask } from '@omark/core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import MoveOptions from './MoveOptions.svelte';
 

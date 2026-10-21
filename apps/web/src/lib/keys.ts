@@ -1,4 +1,4 @@
-import type { Command, Shortcuts } from '@taskapp/core';
+import type { Command, Shortcuts } from '@omark/core';
 
 export interface KeyInput {
   key: string;

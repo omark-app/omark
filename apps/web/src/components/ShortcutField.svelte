@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { carryDismissed, shortcutWords } from '@taskapp/core';
-  import type { Dismissed } from '@taskapp/core';
+  import { carryDismissed, shortcutWords } from '@omark/core';
+  import type { Dismissed } from '@omark/core';
   import type { HTMLInputAttributes, HTMLTextareaAttributes } from 'svelte/elements';
   import { autogrow } from '../lib/autogrow.ts';
 

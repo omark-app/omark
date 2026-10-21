@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_CONFIG } from '@taskapp/core';
-import type { Shortcuts } from '@taskapp/core';
+import { DEFAULT_CONFIG } from '@omark/core';
+import type { Shortcuts } from '@omark/core';
 import { commandFor } from './keys.ts';
 
 const sc = DEFAULT_CONFIG.shortcuts;

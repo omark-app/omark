@@ -1,6 +1,6 @@
-import { addDays, dayOfWeek, DEFAULT_CONFIG_YAML, endOfWeek } from '@taskapp/core';
-import type { ISODate } from '@taskapp/core';
-import type { FileName } from '@taskapp/storage';
+import { addDays, dayOfWeek, DEFAULT_CONFIG_YAML, endOfWeek } from '@omark/core';
+import type { ISODate } from '@omark/core';
+import type { FileName } from '@omark/storage';
 import type { AppEnv } from './environment.ts';
 
 /**

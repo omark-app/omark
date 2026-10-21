@@ -1,5 +1,5 @@
-import { AuthRequiredError } from '@taskapp/storage';
-import type { Auth, FileName, StorageAdapter } from '@taskapp/storage';
+import { AuthRequiredError } from '@omark/storage';
+import type { Auth, FileName, StorageAdapter } from '@omark/storage';
 
 /**
  * The Microsoft account an e2e test pretends to have, set as `window.__TASKAPP_AUTH_STUB__` before the

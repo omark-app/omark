@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
 
-test('page title is TaskApp', async ({ page }) => {
+test('page title is Omark Tasks', async ({ page }) => {
   await page.goto('/');
-  await expect(page).toHaveTitle('TaskApp');
+  await expect(page).toHaveTitle('Omark Tasks');
+  await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute('content', 'Omark Tasks');
 });
 
 test('manifest is served with name and standalone display', async ({ page, request }) => {
@@ -12,7 +13,7 @@ test('manifest is served with name and standalone display', async ({ page, reque
   const res = await request.get(new URL(href!, page.url()).toString());
   expect(res.ok()).toBe(true);
   const manifest = await res.json();
-  expect(manifest.name).toBe('TaskApp');
+  expect(manifest.name).toBe('Omark Tasks');
   expect(manifest.display).toBe('standalone');
 });
 

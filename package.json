@@ -1,5 +1,5 @@
 {
-  "name": "taskapp",
+  "name": "omark-tasks",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.34.7",

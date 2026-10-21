@@ -1,4 +1,4 @@
-import type { DoneEntry } from '@taskapp/core';
+import type { DoneEntry } from '@omark/core';
 
 /** A result the user opened: an open task, or a completion from done.md. */
 export type SearchResult = { kind: 'task'; id: string } | { kind: 'done'; entry: DoneEntry };

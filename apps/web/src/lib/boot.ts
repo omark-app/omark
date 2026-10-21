@@ -6,9 +6,10 @@ import {
   MemoryCache,
   migrateCache,
   OneDriveAdapter,
-} from '@taskapp/storage';
-import type { Auth, FileName, LocalCache, StorageAdapter, Workspace } from '@taskapp/storage';
-import { toISODate } from '@taskapp/core';
+} from '@omark/storage';
+import type { Auth, FileName, LocalCache, StorageAdapter, Workspace } from '@omark/storage';
+import { toISODate } from '@omark/core';
+import { BRAND } from '../brand.ts';
 import { APP_ENV, HOSTS, ONEDRIVE_FOLDER, ONEDRIVE_ROOT, STORAGE_MODE } from '../env.ts';
 import { createAuthStub, tokenGated } from './auth-stub.ts';
 import type { AuthStub, AuthStubState } from './auth-stub.ts';
@@ -101,7 +102,7 @@ async function signedIn(
   cache: () => Promise<{ cache: LocalCache } & CacheInfo>,
 ): Promise<BootResult> {
   if (!(await settlesWithin(auth.handleRedirect(), AUTH_START_MS))) {
-    console.warn('TaskApp: sign-in did not finish starting; opening the cached copy');
+    console.warn(`${BRAND.app}: sign-in did not finish starting; opening the cached copy`);
   } else if (!auth.isSignedIn()) {
     return { kind: 'signin', auth };
   }
@@ -190,6 +191,6 @@ async function migrateLegacyCache(cache: LocalCache): Promise<void> {
     await migrateCache(new IdbCache(LEGACY_DB), cache, FILES);
     localStorage.setItem(MIGRATED_KEY, '1');
   } catch (e) {
-    console.warn('TaskApp: could not migrate the old offline cache', e);
+    console.warn(`${BRAND.app}: could not migrate the old offline cache`, e);
   }
 }

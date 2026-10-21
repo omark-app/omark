@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { addDays, describeRepeat, endOfNextWeek, endOfWeek, findTask, hasWeekLeft, weekdayShort } from '@taskapp/core';
-  import type { ISODate } from '@taskapp/core';
+  import { addDays, describeRepeat, endOfNextWeek, endOfWeek, findTask, hasWeekLeft, weekdayShort } from '@omark/core';
+  import type { ISODate } from '@omark/core';
   import { createPhone } from '../lib/commands.svelte.ts';
   import type { AppStore } from '../lib/store.svelte.ts';
 

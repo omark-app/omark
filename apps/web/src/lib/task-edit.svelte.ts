@@ -1,6 +1,6 @@
 import { untrack } from 'svelte';
-import { findTask, readQuickAdd, shortcutWords } from '@taskapp/core';
-import type { Dismissed } from '@taskapp/core';
+import { findTask, readQuickAdd, shortcutWords } from '@omark/core';
+import type { Dismissed } from '@omark/core';
 import type { AppStore } from './store.svelte.ts';
 
 type Field = 'title' | 'notes';
