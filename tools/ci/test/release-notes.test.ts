@@ -15,14 +15,14 @@ describe('nextTag', () => {
 
 describe('releaseNotes', () => {
   const merges = [
-    { subject: 'Merge pull request #16 from alipkagit/issue-16-x', body: 'Fix the toast on iPhone\n' },
-    { subject: 'Merge pull request #15 from alipkagit/factory-spec', body: '' },
+    { subject: 'Merge pull request #16 from owner/issue-16-x', body: 'Fix the toast on iPhone\n' },
+    { subject: 'Merge pull request #15 from owner/factory-spec', body: '' },
     { subject: 'Merge main into issue-16-x', body: '' },
   ];
 
   it('lists the merged PRs with their titles', () => {
     expect(releaseNotes({ merges, rollback: false, sha: 'abc1234' })).toBe(
-      '- #16 Fix the toast on iPhone\n- #15 alipkagit/factory-spec\n',
+      '- #16 Fix the toast on iPhone\n- #15 owner/factory-spec\n',
     );
   });
 

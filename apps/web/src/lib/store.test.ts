@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { allTasks, DEFAULT_CONFIG, findTask, tasksInBucket } from '@taskapp/core';
-import type { BucketKey } from '@taskapp/core';
-import { createWorkspace, FakeOneDrive, MemoryCache } from '@taskapp/storage';
-import type { CachedFile, FileName, LocalCache, Workspace } from '@taskapp/storage';
+import { allTasks, DEFAULT_CONFIG, findTask, tasksInBucket } from '@omark/core';
+import type { BucketKey } from '@omark/core';
+import { createWorkspace, FakeOneDrive, MemoryCache } from '@omark/storage';
+import type { CachedFile, FileName, LocalCache, Workspace } from '@omark/storage';
 import { createStore } from './store.svelte.ts';
 import type { AppStore } from './store.svelte.ts';
 

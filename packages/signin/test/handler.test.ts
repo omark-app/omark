@@ -99,7 +99,7 @@ describe('GET /api/auth/login', () => {
     expect(q.get('client_id')).toBe('cid');
     expect(q.get('response_type')).toBe('code');
     expect(q.get('redirect_uri')).toBe(`${ORIGIN}/api/auth/callback`);
-    expect(q.get('scope')!.split(' ')).toEqual(expect.arrayContaining(['Files.ReadWrite', 'offline_access']));
+    expect(q.get('scope')).toBe('openid profile Files.ReadWrite.AppFolder offline_access');
     expect(q.get('code_challenge_method')).toBe('S256');
     expect(q.get('state')).toMatch(/^[\w-]{43}$/);
     expect(q.get('login_hint')).toBeNull();
@@ -107,6 +107,42 @@ describe('GET /api/auth/login', () => {
     expect(cookie.path).toBe('/api/auth/callback');
     expect(cookie.attrs).toBe('Path=/api/auth/callback; Max-Age=600; Secure; SameSite=Lax; HttpOnly');
     expect(cookie.value).not.toContain(q.get('state')!); // encrypted, not just signed
+  });
+
+  it('asks for app-folder access by default', async () => {
+    const res = await send('/api/auth/login');
+    const to = new URL(res.headers.get('Location')!);
+    expect(res.headers.get('Location')!.startsWith('https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize')).toBe(true);
+    expect(to.searchParams.get('scope')).toBe('openid profile Files.ReadWrite.AppFolder offline_access');
+  });
+
+  it('asks for whole-drive access when ONEDRIVE_SCOPE is full', async () => {
+    const res = await send('/api/auth/login', {}, { ...ENV, ONEDRIVE_SCOPE: 'full' });
+    expect(new URL(res.headers.get('Location')!).searchParams.get('scope')).toBe('openid profile Files.ReadWrite offline_access');
+  });
+
+  it('uses MSAL_TENANT for the authority', async () => {
+    const env = { ...ENV, MSAL_TENANT: 'common' };
+    const res = await send('/api/auth/login', {}, env);
+    expect(res.headers.get('Location')!.startsWith('https://login.microsoftonline.com/common/oauth2/v2.0/authorize')).toBe(true);
+    const state = new URL(res.headers.get('Location')!).searchParams.get('state')!;
+    const fetched: string[] = [];
+    ms.fetch.mockImplementationOnce(async (url: string | URL | Request) => {
+      fetched.push(String(url));
+      return Response.json({ access_token: 'at', expires_in: 3600, refresh_token: 'rt' });
+    });
+    await send(`/api/auth/callback?code=c0de&state=${state}`, {}, env);
+    expect(fetched).toEqual(['https://login.microsoftonline.com/common/oauth2/v2.0/token']);
+  });
+
+  it('treats a malformed MSAL_TENANT as missing configuration', async () => {
+    const headers = { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' };
+    await signIn();
+    const calls = ms.calls.length;
+    const res = await send('/api/auth/token', { method: 'POST', headers }, { ...ENV, MSAL_TENANT: 'a/b' });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'not_configured' });
+    expect(ms.calls.length).toBe(calls);
   });
 
   it('names the account from the last sign-in as login_hint', async () => {
@@ -226,6 +262,17 @@ describe('POST /api/auth/token', () => {
     ms.ok({ access_token: 'at2', expires_in: 3600, refresh_token: 'rt3' });
     await post('/api/auth/token');
     expect(ms.calls[2]!.get('refresh_token')).toBe('rt2');
+  });
+
+  it('refreshes with the configured scope', async () => {
+    const headers = { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' };
+    await signIn();
+    ms.ok({ access_token: 'at1', expires_in: 3600, refresh_token: 'rt2' });
+    await send('/api/auth/token', { method: 'POST', headers });
+    expect(ms.calls[1]!.get('scope')).toBe('Files.ReadWrite.AppFolder offline_access');
+    ms.ok({ access_token: 'at2', expires_in: 3600, refresh_token: 'rt3' });
+    await send('/api/auth/token', { method: 'POST', headers }, { ...ENV, ONEDRIVE_SCOPE: 'full' });
+    expect(ms.calls[2]!.get('scope')).toBe('Files.ReadWrite offline_access');
   });
 
   it('keeps the old refresh token when Microsoft sends no new one', async () => {

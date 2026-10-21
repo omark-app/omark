@@ -1,15 +1,15 @@
 {
-  "name": "@taskapp/storage",
+  "name": "@omark/storage",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "exports": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --root ../.. --project @taskapp/storage"
+    "test": "vitest run --root ../.. --project @omark/storage"
   },
   "dependencies": {
-    "@taskapp/core": "workspace:*",
+    "@omark/core": "workspace:*",
     "idb-keyval": "^6.3.0"
   },
   "devDependencies": {

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { dayMonth, describeRepeat, doneNotes, weekdayShort } from '@taskapp/core';
-  import type { DoneEntry } from '@taskapp/core';
+  import { dayMonth, describeRepeat, doneNotes, weekdayShort } from '@omark/core';
+  import type { DoneEntry } from '@omark/core';
   import type { AppStore } from '../lib/store.svelte.ts';
 
   /** A completed task found by search, read-only (reopening one is in the backlog). */

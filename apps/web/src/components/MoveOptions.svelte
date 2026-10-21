@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { currentChoice, dateChoices, dateForChoice, dayMonth, describeRepeat, weekdayShort } from '@taskapp/core';
-  import type { ChoiceKey, Task, WeekCtx } from '@taskapp/core';
+  import { currentChoice, dateChoices, dateForChoice, dayMonth, describeRepeat, weekdayShort } from '@omark/core';
+  import type { ChoiceKey, Task, WeekCtx } from '@omark/core';
 
   let {
     task,

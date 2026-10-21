@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { allTasks, bucketOf, BUCKETS, dayMonth, markedParts, metaLabel, searchDone, searchTasks } from '@taskapp/core';
-  import type { DoneHit, Marked, Task, TaskHit } from '@taskapp/core';
+  import { allTasks, bucketOf, BUCKETS, dayMonth, markedParts, metaLabel, searchDone, searchTasks } from '@omark/core';
+  import type { DoneHit, Marked, Task, TaskHit } from '@omark/core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import type { SearchResult, SearchSession } from '../lib/search.svelte.ts';
 

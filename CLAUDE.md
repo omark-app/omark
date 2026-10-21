@@ -45,7 +45,7 @@ Follow the `taskapp-factory` skill: pick up, size (`size:small` / `size:large`),
 
 ## GitHub in cloud sessions
 
-`gh issue` and `gh pr` (GraphQL) are blocked by the proxy. Use the GitHub MCP tools, or `gh api` (REST), e.g. `gh api repos/alipkagit/TaskApp/issues/14/comments -f body=...`.
+`gh issue` and `gh pr` (GraphQL) are blocked by the proxy. Use the GitHub MCP tools, or `gh api` (REST), e.g. `gh api repos/omark-app/tasks/issues/14/comments -f body=...`.
 
 ## Style
 

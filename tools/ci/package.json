@@ -7,6 +7,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --root ../.. --project ci-scripts"
   },
+  "dependencies": {
+    "yaml": "^2.9.1"
+  },
   "devDependencies": {
     "@types/node": "^22.20.5"
   }

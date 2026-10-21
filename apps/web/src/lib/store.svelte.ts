@@ -1,4 +1,5 @@
 import { untrack } from 'svelte';
+import { BRAND } from '../brand.ts';
 import {
   addTask,
   bucketOf,
@@ -27,7 +28,7 @@ import {
   sweepCompleted,
   tasksInBucket,
   weekCtx,
-} from '@taskapp/core';
+} from '@omark/core';
 import type {
   BucketKey,
   Config,
@@ -41,8 +42,8 @@ import type {
   Stats,
   Task,
   WeekCtx,
-} from '@taskapp/core';
-import type { SyncStatus, Workspace } from '@taskapp/storage';
+} from '@omark/core';
+import type { SyncStatus, Workspace } from '@omark/storage';
 import type { Clock } from './clock.ts';
 import * as msg from './messages.ts';
 
@@ -500,7 +501,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     // Never rejects: a refresh that failed (e.g. a pending edit that threw) leaves the status to say so,
     // and an unhandled rejection would be all anyone saw of it.
     refreshing ??= refreshOnce()
-      .catch((e: unknown) => console.error('TaskApp: refresh failed', e))
+      .catch((e: unknown) => console.error(`${BRAND.app}: refresh failed`, e))
       .finally(() => {
         refreshing = null;
       });

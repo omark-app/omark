@@ -6,13 +6,15 @@ import {
   MemoryCache,
   migrateCache,
   OneDriveAdapter,
-} from '@taskapp/storage';
-import type { Auth, FileName, LocalCache, StorageAdapter, Workspace } from '@taskapp/storage';
-import { toISODate } from '@taskapp/core';
-import { APP_ENV, DEFAULT_ONEDRIVE_FOLDER, ONEDRIVE_FOLDER, STORAGE_MODE } from '../env.ts';
+} from '@omark/storage';
+import type { Auth, FileName, LocalCache, StorageAdapter, Workspace } from '@omark/storage';
+import { toISODate } from '@omark/core';
+import { BRAND } from '../brand.ts';
+import { APP_ENV, HOSTS, ONEDRIVE_FOLDER, ONEDRIVE_ROOT, STORAGE_MODE } from '../env.ts';
 import { createAuthStub, tokenGated } from './auth-stub.ts';
 import type { AuthStub, AuthStubState } from './auth-stub.ts';
 import { systemClock } from './clock.ts';
+import { legacyCacheApplies } from './environment.ts';
 import { installLifecycle } from './lifecycle.ts';
 import { createStore } from './store.svelte.ts';
 import type { AppStore } from './store.svelte.ts';
@@ -79,7 +81,7 @@ export async function boot(): Promise<BootResult> {
   }
 
   const auth = createAuth();
-  const adapter = new OneDriveAdapter({ folder: ONEDRIVE_FOLDER, getToken: (o) => auth.getToken(o) });
+  const adapter = new OneDriveAdapter({ root: ONEDRIVE_ROOT, folder: ONEDRIVE_FOLDER, getToken: (o) => auth.getToken(o) });
   return signedIn(auth, adapter, openCache);
 }
 
@@ -100,7 +102,7 @@ async function signedIn(
   cache: () => Promise<{ cache: LocalCache } & CacheInfo>,
 ): Promise<BootResult> {
   if (!(await settlesWithin(auth.handleRedirect(), AUTH_START_MS))) {
-    console.warn('TaskApp: sign-in did not finish starting; opening the cached copy');
+    console.warn(`${BRAND.app}: sign-in did not finish starting; opening the cached copy`);
   } else if (!auth.isSignedIn()) {
     return { kind: 'signin', auth };
   }
@@ -183,12 +185,12 @@ async function openCache(): Promise<{ cache: LocalCache } & CacheInfo> {
  * folder's files). Failures are ignored: the old database is left as it was and tried again next time.
  */
 async function migrateLegacyCache(cache: LocalCache): Promise<void> {
-  if (ONEDRIVE_FOLDER !== DEFAULT_ONEDRIVE_FOLDER) return;
+  if (!legacyCacheApplies(ONEDRIVE_FOLDER, HOSTS)) return;
   try {
     if (localStorage.getItem(MIGRATED_KEY)) return;
     await migrateCache(new IdbCache(LEGACY_DB), cache, FILES);
     localStorage.setItem(MIGRATED_KEY, '1');
   } catch (e) {
-    console.warn('TaskApp: could not migrate the old offline cache', e);
+    console.warn(`${BRAND.app}: could not migrate the old offline cache`, e);
   }
 }

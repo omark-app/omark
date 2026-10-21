@@ -22,7 +22,7 @@ function watchToken(page: Page) {
   return box;
 }
 
-const item = (name: string) => `https://graph.microsoft.com/v1.0/me/drive/root:/${E2E_FOLDER}/${name}`;
+const item = (name: string) => `https://graph.microsoft.com/v1.0/me/drive/special/approot:/${E2E_FOLDER}/${name}`;
 
 interface Read { text: string; etag: string | null }
 

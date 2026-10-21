@@ -2,13 +2,22 @@ import type { FileName, RemoteFile, StorageAdapter } from './adapter.ts';
 import { AuthRequiredError, OfflineError, PreconditionFailedError } from './errors.ts';
 import { quickXorHash } from './quick-xor-hash.ts';
 
-const GRAPH = 'https://graph.microsoft.com/v1.0/me/drive/root:/';
+const GRAPH = {
+  approot: 'https://graph.microsoft.com/v1.0/me/drive/special/approot:/',
+  drive: 'https://graph.microsoft.com/v1.0/me/drive/root:/',
+};
 const DEFAULT_TIMEOUT_MS = 20_000;
 /** Reads (metadata plus download) tried before giving up on content that does not match its hash. */
 const MAX_READ_ATTEMPTS = 3;
 
+/** `approot`: the app's own folder (`Files.ReadWrite.AppFolder`). `drive`: a path from the drive root (`Files.ReadWrite`). */
+export type DriveRoot = 'approot' | 'drive';
+
 export interface OneDriveAdapterOptions {
+  /** Where the files live, below the root. Empty means the root itself, which a whole-drive adapter refuses. */
   folder: string;
+  /** Default `approot`. */
+  root?: DriveRoot;
   /** `fresh`: Graph rejected the last token, so get a new one. */
   getToken: (opts?: { fresh?: boolean }) => Promise<string>;
   fetch?: typeof fetch;
@@ -37,8 +46,13 @@ export class OneDriveAdapter implements StorageAdapter {
   private timeoutMs: number;
 
   constructor(opts: OneDriveAdapterOptions) {
-    const folder = opts.folder.split('/').filter(Boolean).map(encodeURIComponent).join('/');
-    this.base = GRAPH + folder + '/';
+    const root = opts.root ?? 'approot';
+    const parts = opts.folder.split('/').filter(Boolean);
+    // `.` and `..` would climb out of the folder (or the app folder) in the Graph path.
+    if (parts.some((p) => p === '.' || p === '..')) throw new Error('The OneDrive folder cannot contain . or .. segments');
+    const folder = parts.map(encodeURIComponent).join('/');
+    if (root === 'drive' && folder === '') throw new Error('A whole-drive OneDrive adapter needs a folder');
+    this.base = GRAPH[root] + (folder === '' ? '' : folder + '/');
     this.getToken = opts.getToken;
     this.fetchFn = opts.fetch ?? ((...args) => globalThis.fetch(...args));
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { bucketOf, BUCKETS, currentChoice, dateChoices, describeRepeat, dueText } from '@taskapp/core';
-  import type { Task } from '@taskapp/core';
+  import { bucketOf, BUCKETS, currentChoice, dateChoices, describeRepeat, dueText } from '@omark/core';
+  import type { Task } from '@omark/core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import { autogrow } from '../lib/autogrow.ts';
   import { createTaskEdit } from '../lib/task-edit.svelte.ts';

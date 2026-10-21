@@ -1,5 +1,5 @@
-import { AuthRequiredError } from '@taskapp/storage';
-import type { Auth, FileName, StorageAdapter } from '@taskapp/storage';
+import { AuthRequiredError } from '@omark/storage';
+import type { Auth, FileName, StorageAdapter } from '@omark/storage';
 
 /**
  * The Microsoft account an e2e test pretends to have, set as `window.__TASKAPP_AUTH_STUB__` before the
@@ -7,7 +7,7 @@ import type { Auth, FileName, StorageAdapter } from '@taskapp/storage';
  * - `signed-out`: no account, so the sign-in screen shows;
  * - `expired`: signed in, but every token refresh needs a fresh sign-in;
  * - `redirect-error`: returning from the sign-in page fails, so the app cannot start;
- * - `stalled-start`: the sign-in library never finishes starting (a hung MSAL), and tokens need a sign-in.
+ * - `stalled-start`: the sign-in library never finishes starting (a hung library), and tokens need a sign-in.
  */
 export type AuthStubState = 'signed-out' | 'expired' | 'redirect-error' | 'stalled-start';
 

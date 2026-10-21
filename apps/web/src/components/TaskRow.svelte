@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { describeRepeat, metaLabel } from '@taskapp/core';
-  import type { DateLabelStyle, Task, WeekCtx } from '@taskapp/core';
+  import { describeRepeat, metaLabel } from '@omark/core';
+  import type { DateLabelStyle, Task, WeekCtx } from '@omark/core';
 
   let {
     task,

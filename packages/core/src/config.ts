@@ -57,7 +57,7 @@ export const DEFAULT_CONFIG: Config = {
   saveDelaySeconds: 1,
 };
 
-export const DEFAULT_CONFIG_YAML = `# TaskApp settings.
+export const DEFAULT_CONFIG_YAML = `# Omark Tasks settings.
 # This file only needs the settings you want to change; anything missing uses the built-in default.
 # If this file has a mistake, the app shows a banner and uses the defaults until it is fixed.
 # Obsidian hides .yaml files unless Settings > Files and links > "Detect all file extensions" is on.

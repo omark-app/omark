@@ -49,7 +49,7 @@ test.describe('desktop board', () => {
     await expect(page.getByTestId('board')).toHaveCount(0);
     await page.keyboard.press('v');
     await expect(page.getByTestId('board')).toBeVisible();
-    await expect(page.getByTestId('rail')).toContainText('taskapp · Fri 16 Oct');
+    await expect(page.getByTestId('rail')).toContainText('omark tasks · Fri 16 Oct');
     await expect(page.getByTestId('stats')).toBeVisible();
     await expect(page.getByTestId('always-line')).toHaveCount(1);
     await expect(page.getByTestId('hints')).toBeVisible();

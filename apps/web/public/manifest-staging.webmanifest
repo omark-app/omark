@@ -1,6 +1,6 @@
 {
-  "name": "TaskApp Staging",
-  "short_name": "TA Staging",
+  "name": "Omark Tasks Staging",
+  "short_name": "Omark Tasks Staging",
   "display": "standalone",
   "start_url": "/",
   "scope": "/",

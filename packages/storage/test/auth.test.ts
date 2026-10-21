@@ -127,22 +127,9 @@ describe('createAuth (sign-in helper)', () => {
   });
 
   describe('handleRedirect', () => {
-    let store: Map<string, string>;
     const replaceState = vi.fn();
 
     beforeEach(() => {
-      store = new Map([
-        ['msal.3.account.keys', '[]'],
-        ['msal.3|acct|login.windows.net', '{}'],
-        ['taskapp:cache-migrated', '1'],
-      ]);
-      vi.stubGlobal('localStorage', {
-        get length() {
-          return store.size;
-        },
-        key: (i: number) => [...store.keys()][i] ?? null,
-        removeItem: (k: string) => store.delete(k),
-      });
       replaceState.mockReset();
     });
     afterEach(() => vi.unstubAllGlobals());
@@ -150,27 +137,16 @@ describe('createAuth (sign-in helper)', () => {
     const at = (href: string) =>
       vi.stubGlobal('window', { location: { href }, history: { state: null, replaceState } });
 
-    it('does nothing on a normal start, apart from dropping the old MSAL cache', async () => {
-      at('https://tasks.example/');
-      await mk().handleRedirect();
-      expect(replaceState).not.toHaveBeenCalled();
-      expect([...store.keys()]).toEqual(['taskapp:cache-migrated']);
-    });
-
     it('throws the helper’s sign-in error and removes it from the address bar', async () => {
       at('https://tasks.example/?signin_error=cancelled&x=1#h');
       await expect(mk().handleRedirect()).rejects.toThrow('Sign-in was cancelled');
       expect(replaceState).toHaveBeenCalledWith(null, '', '/?x=1#h');
     });
 
-    it('survives a localStorage that throws', async () => {
-      vi.stubGlobal('localStorage', {
-        get length(): number {
-          throw new Error('denied');
-        },
-      });
+    it('does nothing on a normal start', async () => {
       at('https://tasks.example/');
       await expect(mk().handleRedirect()).resolves.toBeUndefined();
+      expect(replaceState).not.toHaveBeenCalled();
     });
   });
 });

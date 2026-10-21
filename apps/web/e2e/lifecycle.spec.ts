@@ -132,6 +132,7 @@ test('with no signed-in account the sign-in screen shows, and its button starts 
   await startWithAuth(page, 'signed-out');
   const button = page.getByRole('button', { name: 'Sign in with Microsoft' });
   await expect(button).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('omark tasks');
   await expect(page.getByTestId('bucket-today')).toHaveCount(0);
   await button.click();
   await expect.poll(() => signIns(page)).toBe(1);

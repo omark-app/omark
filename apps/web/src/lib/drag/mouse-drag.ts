@@ -1,4 +1,4 @@
-import type { BucketKey, DropTarget } from '@taskapp/core';
+import type { BucketKey, DropTarget } from '@omark/core';
 import { clearDropMarks, dropTarget, markDropTarget, rowOf } from './drop-target.ts';
 import type { Dragged } from './drop-target.ts';
 

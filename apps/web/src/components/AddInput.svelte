@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { BUCKETS, readQuickAdd } from '@taskapp/core';
-  import type { Dismissed } from '@taskapp/core';
+  import { BUCKETS, readQuickAdd } from '@omark/core';
+  import type { Dismissed } from '@omark/core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import ShortcutField from './ShortcutField.svelte';
 

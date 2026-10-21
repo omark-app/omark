@@ -1,4 +1,4 @@
-import type { DropTarget } from '@taskapp/core';
+import type { DropTarget } from '@omark/core';
 import { bucketAt, clearDropMarks, dropTarget, markDropTarget, rowOf } from './drop-target.ts';
 
 /** The finger this close to the top or bottom edge scrolls the page (spec 9.2). */

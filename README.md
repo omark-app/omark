@@ -15,14 +15,21 @@ Node 22 or newer and pnpm 10, then `pnpm i`.
 | name | used for |
 | --- | --- |
 | `VITE_STORAGE` | `onedrive` (default) or `fake` (in-memory drive, used by the tests) |
-| `VITE_ONEDRIVE_FOLDER` | OneDrive folder holding the files; default `ALAI/TaskApp` |
+| `VITE_ONEDRIVE_FOLDER` | OneDrive folder holding the files; default `''` (the app folder's root) |
+| `VITE_PROD_HOST`, `VITE_STAGING_HOST` | the hosts that are production and staging; with neither set every host is `local` |
+| `VITE_PREVIEW_HOST_SUFFIXES` | comma-separated host suffixes that are previews (a host matches itself or any subdomain) |
+| `VITE_PROD_FOLDER`, `VITE_STAGING_FOLDER` | the OneDrive folders production and staging read |
+| `VITE_ONEDRIVE_SCOPE` | `full` asks for the whole drive; anything else (the default) is the app folder |
+| `ONEDRIVE_SCOPE`, `MSAL_TENANT` | Pages secrets, optional. `full` makes the sign-in helper ask for `Files.ReadWrite`, else `Files.ReadWrite.AppFolder` (default `appfolder`); the Entra tenant to sign in through (default `consumers`). They must match the build: CI fails the deploy when the helper grants another scope |
+| Repository variables | read by the workflows (Settings → Secrets and variables → Actions → Variables): `DEPLOY_ENABLED` (`true` turns on every deploy job), `CF_STAGING_PROJECT`, `CF_PROD_PROJECT` (Cloudflare Pages projects), `STAGING_URL`, `PROD_URL` (sign-in checks), `STAGING_DOMAIN` with `CF_ZONE_ID` (optional: staging's custom domain and DNS), and `PROD_HOST`, `STAGING_HOST`, `PREVIEW_HOST_SUFFIXES`, `PROD_FOLDER`, `STAGING_FOLDER`, `ONEDRIVE_SCOPE`, `MSAL_TENANT`, which become the `VITE_*` build variables and the sign-in check. Forks have no secrets, so for them only the checks and e2e run |
 | `MSAL_CLIENT_ID`, `MSAL_CLIENT_SECRET`, `COOKIE_KEY` | the sign-in helper's secrets: Entra app (client) ID, its client secret, and 32 random bytes (base64) that encrypt the session cookie. Set on Cloudflare Pages with `wrangler pages secret put` (see Sign-in); for local runs put them in `.dev.vars` at the repo root (git-ignored), one `NAME=value` per line |
 | `TODOIST_TOKEN` | Todoist API token for the import; read from the environment, never written anywhere |
 | `TASKAPP_E2E_STATE` | where the real-OneDrive smoke keeps its signed-in browser state; default `C:\Users\<you>\.secrets\taskapp-e2e-state.json` (outside the repo, it holds tokens) |
+| `TASKAPP_E2E_FOLDER` | the folder the real-OneDrive smoke uses, inside the app folder; default `TaskApp-e2e` |
 
 ## One-time setup already done
 
-- Entra app registration "TaskApp" (client ID `1fa03c5b-4275-490e-8e71-2aa7a405e310`, also the repository variable `MSAL_CLIENT_ID`) in my own tenant, personal Microsoft accounts only. It was registered as a single-page app with redirect URIs `https://tasks.alipka.com/` and `http://localhost:5173/`; the sign-in helper needs a **Web** platform as well (see Sign-in). Scopes used: `Files.ReadWrite offline_access` (plus `openid profile` at sign-in, for the account name).
+- Entra app registration "TaskApp" (client ID `1fa03c5b-4275-490e-8e71-2aa7a405e310`, also the repository variable `MSAL_CLIENT_ID`) in my own tenant, personal Microsoft accounts only. It was registered as a single-page app with redirect URIs `https://tasks.alipka.com/` and `http://localhost:5173/`; the sign-in helper needs a **Web** platform as well (see Sign-in). Scopes used: `Files.ReadWrite.AppFolder offline_access` by default, `Files.ReadWrite offline_access` for the whole drive with `ONEDRIVE_SCOPE=full` (plus `openid profile` at sign-in, for the account name).
 - Cloudflare Pages project `taskapp` with the custom domain `tasks.alipka.com` (production), and `taskapp-staging` with `tasks-staging.alipka.com` (staging and PR previews; CI creates it if missing, `tools/ci/ensure-staging.mjs`). GitHub Actions deploys both using the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 
 ## Sign-in
@@ -81,15 +88,15 @@ The SPA platform with `https://tasks.alipka.com/` and `http://localhost:5173/` c
 | `pnpm typecheck` | type checks |
 | `pnpm e2e` | browser tests on a fake drive |
 | `pnpm e2e:real:login` | once: opens a browser, you sign in, the state is saved to `TASKAPP_E2E_STATE` |
-| `pnpm e2e:real` | smoke test on the real OneDrive, folder `ALAI/TaskApp-e2e`; by hand only, never in CI |
+| `pnpm e2e:real` | smoke test on the real OneDrive, folder `TaskApp-e2e` inside the app folder; by hand only, never in CI |
 
 ## Deploy
 
 | | when | where | data |
 | --- | --- | --- | --- |
-| Preview | every push to a PR | `pr-<n>.taskapp-staging…pages.dev`, linked in a PR comment | fake drive with sample tasks, "PREVIEW" in the footer |
-| Staging | every merge to `main` | https://tasks-staging.alipka.com | OneDrive `ALAI/TaskApp-staging`, "STAGING" in the footer |
-| Production | by hand: Actions → **Promote to production** → Run workflow | https://tasks.alipka.com | OneDrive `ALAI/TaskApp` |
+| Preview | every push to a PR from this repository, once `DEPLOY_ENABLED` is `true` | `pr-<n>.taskapp-staging…pages.dev`, linked in a PR comment | fake drive with sample tasks, "PREVIEW" in the footer |
+| Staging | every merge to `main`, once `DEPLOY_ENABLED` is `true` | https://tasks-staging.alipka.com | OneDrive `ALAI/TaskApp-staging`, "STAGING" in the footer |
+| Production | by hand, once `DEPLOY_ENABLED` is `true`: Actions → **Promote to production** → Run workflow | https://tasks.alipka.com | OneDrive `ALAI/TaskApp` |
 
 Staging and production run the same build: the app picks its OneDrive folder and look from the host name (`apps/web/src/lib/environment.ts`). Promote takes a commit (empty = what staging runs now), refuses it unless it is on `main` with a passing CI run, deploys the build staging ran (or rebuilds it once that build has expired after 30 days), and tags it `prod-YYYY-MM-DD-n` with a release listing the PRs merged since the last one.
 
@@ -99,7 +106,7 @@ Staging and production run the same build: the app picks its OneDrive folder and
 
 ## Real-OneDrive smoke
 
-`pnpm e2e:real` builds the app with `VITE_STORAGE=onedrive` and `VITE_ONEDRIVE_FOLDER=ALAI/TaskApp-e2e`, serves it with the sign-in helper on http://localhost:5173 (`wrangler pages dev`, secrets from `.dev.vars` at the repo root; stop `pnpm dev` first, the port must be free), adds and completes one task and adds and deletes another, and reads `tasks.md` and `done.md` back through Graph. It removes its own lines afterwards. The saved sign-in (the helper's cookies) lasts 90 days from its last use. The smoke leaves the `ALAI/TaskApp-e2e` folder and its files behind (only the task lines are removed). Without the saved state it stops with a message to run `pnpm e2e:real:login`.
+`pnpm e2e:real` builds the app with `VITE_STORAGE=onedrive` and `VITE_ONEDRIVE_FOLDER=TaskApp-e2e` (inside the app folder), serves it with the sign-in helper on http://localhost:5173 (`wrangler pages dev`, secrets from `.dev.vars` at the repo root; stop `pnpm dev` first, the port must be free), adds and completes one task and adds and deletes another, and reads `tasks.md` and `done.md` back through Graph. It removes its own lines afterwards. The saved sign-in (the helper's cookies) lasts 90 days from its last use. The smoke leaves the `TaskApp-e2e` folder and its files behind (only the task lines are removed). Without the saved state it stops with a message to run `pnpm e2e:real:login`. The first run after the move to the app folder needs `pnpm e2e:real:login` again, because the sign-in asks for new consent.
 
 Real-OneDrive smoke last passed: (not yet run)
 

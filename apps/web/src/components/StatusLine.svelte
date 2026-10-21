@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { SyncStatus } from '@taskapp/storage';
+  import type { SyncStatus } from '@omark/storage';
   import { BUILD_ID, BUILD_TIME, LOOK } from '../env.ts';
 
   /** The faint save status; `offline` and `sign in needed` are the sync banner's to say. */
