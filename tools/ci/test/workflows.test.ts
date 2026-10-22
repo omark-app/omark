@@ -14,6 +14,8 @@ const allSteps = () => FILES.flatMap((f) => jobsOf(f).flatMap(([, j]) => j.steps
 
 interface Workflow { on?: object; jobs: Record<string, Job> }
 const FORK_GUARD = 'github.event.pull_request.head.repo.full_name == github.repository';
+/** A job that runs only for a push to main or a manual run on main, never for a pull request. */
+const MAIN_ONLY = "(github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' &&";
 
 /** The problems that would let a fork's pull request reach a secret. Empty means none. */
 function forkProblems(wf: Workflow): string[] {
@@ -22,8 +24,11 @@ function forkProblems(wf: Workflow): string[] {
   for (const [name, job] of Object.entries(wf.jobs)) {
     const cond = job.if ?? '';
     const usesSecrets = JSON.stringify(job).includes('secrets.');
-    // Push-only: the condition starts with the push test and has no `||` that could widen it.
-    const pushOnly = cond.startsWith("github.event_name == 'push' &&") && !cond.includes('||');
+    // Push-only: the condition starts with the push test (or the main-only test) and has no further `||`
+    // that could widen it.
+    const pushOnly =
+      (cond.startsWith("github.event_name == 'push' &&") && !cond.includes('||')) ||
+      (cond.startsWith(MAIN_ONLY) && !cond.slice(MAIN_ONLY.length).includes('||'));
     if (usesSecrets && !cond.includes("vars.DEPLOY_ENABLED == 'true'")) problems.push(`${name}: secrets without DEPLOY_ENABLED`);
     if (onPr && !pushOnly && (usesSecrets || cond !== '') && !cond.includes(FORK_GUARD)) {
       problems.push(`${name}: no fork guard`);
@@ -35,6 +40,20 @@ function forkProblems(wf: Workflow): string[] {
 describe('workflows', () => {
   it('runs no secret-using step for forks', () => {
     for (const f of FILES) expect(forkProblems(parse(text(f)) as Workflow), f).toEqual([]);
+  });
+
+  it('lets CI be started by hand, deploying staging only from main', () => {
+    expect('workflow_dispatch' in ((parse(text('ci.yml')) as { on: object }).on ?? {})).toBe(true);
+    const deploy = jobsOf('ci.yml').find(([n]) => n === 'deploy-staging')![1];
+    expect(deploy.if!.startsWith(MAIN_ONLY)).toBe(true);
+  });
+
+  it('the fork check does not take a widened main-only condition as safe', () => {
+    const bad: Workflow = {
+      on: { pull_request: {} },
+      jobs: { wide: { if: `${MAIN_ONLY} vars.DEPLOY_ENABLED == 'true' || true`, steps: [{ env: { T: '${{ secrets.X }}' } }] } },
+    };
+    expect(forkProblems(bad)).toEqual(['wide: no fork guard']);
   });
 
   it('the fork check catches an unguarded job-level secret', () => {
