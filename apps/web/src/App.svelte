@@ -131,15 +131,17 @@
   }
 
   /**
-   * Something is in progress (a sheet, search, the desktop detail, a drag or a focused field), so a newer
-   * build found mid-use waits instead of reloading the page under the user.
+   * Something is in progress (a sheet, search, a drag, a focused field or a draft in the add field), so a
+   * newer build waits instead of reloading the page under the user. Edits in the task detail and the
+   * Always list need no rule: the store commits them before it saves.
    */
   function busy(): boolean {
     const field = document.activeElement;
+    const drafts = document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('[data-draft]');
     return (
       sheet !== null ||
       search.mode === 'open' ||
-      (result?.kind === 'ready' && result.store.selectedId !== null && !phone.value) ||
+      [...drafts].some((el) => el.value.trim() !== '') ||
       mouseDragging() ||
       touchDragging() ||
       (field instanceof HTMLElement && (field.matches('input, textarea, select') || field.isContentEditable))
@@ -151,6 +153,12 @@
     if (result?.kind !== 'ready') return;
     void result.updates.updateNow(() => window.confirm(loseEdits('Updating now')));
   }
+
+  // While the page reloads into a newer build it takes no input, so no edit can miss the reload.
+  $effect(() => {
+    const root = document.getElementById('app');
+    if (root) root.inert = result?.kind === 'ready' && result.updates.applying;
+  });
 
   // config.yaml's theme forces light or dark; `system` leaves it to the device (tokens.css).
   $effect(() => {

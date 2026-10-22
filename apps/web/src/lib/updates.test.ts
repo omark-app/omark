@@ -31,6 +31,8 @@ function fakePage(opts: { controlled?: boolean; workers?: boolean; takesOver?: b
     workers.dispatchEvent(new Event('controllerchange'));
   };
   const registration = {
+    installing: null as object | null,
+    waiting: null as object | null,
     update: vi.fn(async () => {
       if (opts.takesOver !== false) setTimeout(takeover, 500);
     }),
@@ -41,6 +43,7 @@ function fakePage(opts: { controlled?: boolean; workers?: boolean; takesOver?: b
   const reload = vi.fn();
   const deps: UpdateDeps = {
     workers: opts.workers === false ? undefined : workers,
+    loaded: workers.controller,
     fetch,
     reload,
     build: RUNNING,
@@ -52,6 +55,7 @@ function fakePage(opts: { controlled?: boolean; workers?: boolean; takesOver?: b
     pollMs: 1000,
     intervalMs: 30 * MINUTE,
     takeoverMs: 10_000,
+    takeoverCapMs: 30_000,
   };
   return {
     deps,
@@ -242,19 +246,72 @@ describe('installUpdates: a page that stays open', () => {
     expect(page.reload).toHaveBeenCalledTimes(1);
   });
 
-  it('a return loads it at once, busy or not', async () => {
+  it('a return while something is in progress (say, a draft in the add field) waits for the idle rule', async () => {
     const { page, updates } = await openPage();
-    updates.setBusy(() => true);
-    page.fire('focus');
-    await settle();
+    let busy = true;
+    updates.setBusy(() => busy);
     page.visibility('hidden');
     page.visibility('visible');
-    await settle(500);
+    await settle(5 * MINUTE);
+    expect(page.reload).not.toHaveBeenCalled();
+    expect(updates.available).toBe(true);
+    busy = false;
+    await settle(1_500);
+    expect(page.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('counts mouse moves and scrolling as input', async () => {
+    const { page } = await openPage();
+    page.fire('focus');
+    await settle(50_000);
+    page.fire('mousemove');
+    await settle(50_000);
+    expect(page.reload).not.toHaveBeenCalled();
+    page.fire('scroll');
+    await settle(50_000);
+    expect(page.reload).not.toHaveBeenCalled();
+    await settle(11_000);
     expect(page.reload).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('installUpdates: applying', () => {
+  it('saves edits made while the new worker takes control, right before reloading', async () => {
+    const page = fakePage();
+    const store = fakeStore();
+    installUpdates(store, page.deps);
+    await settle(500);
+    expect(page.reload).toHaveBeenCalledTimes(1);
+    expect(store.flush).toHaveBeenCalledTimes(2);
+    expect(store.flush.mock.invocationCallOrder[1]).toBeLessThan(page.reload.mock.invocationCallOrder[0]!);
+  });
+
+  it('an edit made during the wait that would be lost blocks the reload, which is tried again later', async () => {
+    const page = fakePage();
+    const store = fakeStore();
+    store.wouldLoseEdits.mockReturnValueOnce(false).mockReturnValueOnce(true);
+    installUpdates(store, page.deps);
+    await settle(500);
+    expect(store.flush).toHaveBeenCalledTimes(2); // the second, right before reloading, left edits behind
+    expect(page.reload).not.toHaveBeenCalled();
+    await settle(2 * MINUTE);
+    expect(page.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('an idle-time update gives up when input comes during the wait', async () => {
+    const page = fakePage();
+    page.answer.deployed = RUNNING;
+    installUpdates(fakeStore(), page.deps);
+    await settle(2 * MINUTE);
+    page.answer.deployed = NEWER;
+    page.fire('focus');
+    await settle(1_000); // the poll starts the attempt; the new worker comes 500 ms after update()
+    expect(page.registration.update).toHaveBeenCalled();
+    page.fire('pointerdown');
+    await settle(500);
+    expect(page.reload).not.toHaveBeenCalled();
+  });
+
   it('does not reload while edits would be lost, and tries again later', async () => {
     const page = fakePage();
     const store = fakeStore(true);
@@ -292,6 +349,38 @@ describe('installUpdates: applying', () => {
     expect(page.registration.update).toHaveBeenCalled();
     expect(page.reload).not.toHaveBeenCalled();
     await settle(500);
+    expect(page.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('a new worker that took control before the updater started (during boot) reloads without waiting', async () => {
+    const page = fakePage({ takesOver: false });
+    page.workers.controller = {} as ServiceWorker; // not the one the page loaded under
+    installUpdates(fakeStore(), page.deps);
+    await settle();
+    expect(page.registration.update).not.toHaveBeenCalled();
+    expect(page.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps waiting while a new worker is still installing, up to 30 s', async () => {
+    const page = fakePage({ takesOver: false });
+    page.registration.installing = {};
+    installUpdates(fakeStore(), page.deps);
+    await settle(15_000);
+    expect(page.reload).not.toHaveBeenCalled();
+    page.takeover();
+    await settle();
+    expect(page.reload).toHaveBeenCalledTimes(1);
+    expect(page.registration.unregister).not.toHaveBeenCalled();
+  });
+
+  it('removes the old worker once 30 s pass with the new one still installing', async () => {
+    const page = fakePage({ takesOver: false });
+    page.registration.installing = {};
+    installUpdates(fakeStore(), page.deps);
+    await settle(29_000);
+    expect(page.reload).not.toHaveBeenCalled();
+    await settle(1_000);
+    expect(page.registration.unregister).toHaveBeenCalled();
     expect(page.reload).toHaveBeenCalledTimes(1);
   });
 
@@ -365,6 +454,31 @@ describe('installUpdates: loop guard', () => {
   });
 });
 
+describe('installUpdates: checking again', () => {
+  it('a failed check on open or return is tried again after 2 s and 5 s (an iPhone waking its radio)', async () => {
+    const page = fakePage();
+    page.answer.fails = true;
+    installUpdates(fakeStore(), page.deps);
+    await settle();
+    expect(page.fetch).toHaveBeenCalledTimes(1);
+    await settle(2_000);
+    expect(page.fetch).toHaveBeenCalledTimes(2);
+    page.answer.fails = false;
+    await settle(3_000);
+    expect(page.fetch).toHaveBeenCalledTimes(3);
+    await settle(500);
+    expect(page.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives up after those two retries', async () => {
+    const page = fakePage();
+    page.answer.fails = true;
+    installUpdates(fakeStore(), page.deps);
+    await settle(10 * MINUTE);
+    expect(page.fetch).toHaveBeenCalledTimes(3);
+  });
+});
+
 describe('installUpdates: the footer tap', () => {
   it('updates at once, busy or not', async () => {
     const page = fakePage({ workers: false });
@@ -393,6 +507,19 @@ describe('installUpdates: the footer tap', () => {
     expect(second.reload).toHaveBeenCalledTimes(1);
   });
 
+  it('a tap while an automatic attempt is saving waits for it, then updates', async () => {
+    const page = fakePage({ workers: false });
+    const store = fakeStore(true);
+    let saved = (): void => {};
+    store.flush.mockImplementationOnce(() => new Promise<void>((resolve) => (saved = resolve)));
+    const updates = installUpdates(store, page.deps);
+    await settle(); // the check on open found NEWER and is saving
+    const tap = updates.updateNow(() => true);
+    saved();
+    await tap;
+    expect(page.reload).toHaveBeenCalledTimes(1);
+  });
+
   it('asks before losing edits, and does nothing when the answer is no', async () => {
     const page = fakePage({ workers: false });
     page.answer.deployed = RUNNING;
@@ -408,6 +535,19 @@ describe('installUpdates: the footer tap', () => {
     expect(page.reload).not.toHaveBeenCalled();
     confirmLoss.mockReturnValue(true);
     await updates.updateNow(confirmLoss);
+    expect(page.reload).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('installUpdates: without sessionStorage', () => {
+  it('never reloads by itself (there is no loop guard), only from the footer', async () => {
+    const page = fakePage({ workers: false });
+    page.deps.storage = null;
+    const updates = installUpdates(fakeStore(), page.deps);
+    await settle(5 * MINUTE);
+    expect(page.reload).not.toHaveBeenCalled();
+    expect(updates.available).toBe(true);
+    await updates.updateNow(() => true);
     expect(page.reload).toHaveBeenCalledTimes(1);
   });
 });

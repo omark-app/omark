@@ -38,6 +38,7 @@
     bind:input
     class="addfld"
     data-testid="add-input"
+    data-draft
     placeholder="Add a task to {bucketName}"
     autocomplete="off"
     aria-label="Add a task"

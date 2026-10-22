@@ -101,3 +101,33 @@ test('tapping "New version · tap to update" loads the newer build at once', asy
   await expect.poll(() => loads(page)).toBe(2);
   await expect(page.getByTestId('bucket-today')).toBeVisible();
 });
+
+test('a return with a draft in the add field keeps the draft: the newer build waits', async ({ page, isMobile }) => {
+  let deployed: string | null = null;
+  await setUp(page, () => deployed, { idleMs: 0, pollMs: 100 });
+  await openApp(page, { files: { 'tasks.md': SPEC_TASKS } });
+  await expect(page.getByTestId('bucket-today')).toBeVisible();
+  const field = isMobile ? page.getByTestId('sheet').getByLabel('New task') : page.getByTestId('add-input');
+  if (isMobile) await page.getByTestId('fab').tap();
+  await field.fill('Buy stamps');
+  if (!isMobile) await field.blur(); // the draft stays in the field without focus
+  deployed = 'newer00';
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await expect(page.getByTestId('update-available')).toBeAttached();
+  await page.waitForTimeout(1000);
+  expect(await loads(page)).toBe(1);
+  await expect(field).toHaveValue('Buy stamps');
+});
+
+test('a long-open desktop page with a task selected loads the newer build when idle', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'a tap on a phone opens the edit sheet');
+  let deployed: string | null = null;
+  await setUp(page, () => deployed, { idleMs: 0, pollMs: 100 });
+  await openApp(page, { files: { 'tasks.md': SPEC_TASKS } });
+  await page.getByTestId('task-row').filter({ hasText: 'Send the invoice' }).click();
+  await expect(page.getByTestId('task-row').filter({ hasText: 'Send the invoice' })).toHaveClass(/sel/);
+  await page.locator('body').click({ position: { x: 5, y: 5 } }); // no field focused
+  deployed = 'newer00';
+  await focusWindow(page);
+  await expect.poll(() => loads(page)).toBe(2);
+});

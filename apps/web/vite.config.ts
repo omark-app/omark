@@ -51,10 +51,11 @@ export default defineConfig({
       // network. Navigations are served from the precache, so a page opened after a deploy starts on the
       // old build. src/lib/updates.svelte.ts therefore asks version.json which build is deployed (on open,
       // on return, on focus or coming online, and every 30 minutes) and, when it is newer, saves the edits
-      // and reloads: at once on open or return, otherwise once the page is idle and nothing is in progress
-      // (the footer offers "New version · tap to update" meanwhile). Before that reload it lets the new
-      // service worker (skipWaiting + clientsClaim) take control, or, if none does within 10 s, removes
-      // the worker so the reload comes from the network. public/_headers serves sw.js `no-cache` and
+      // and reloads: at once on open or return unless something is in progress, otherwise once the page
+      // is idle and nothing is in progress (the footer offers "New version · tap to update" meanwhile).
+      // Before that reload it lets the new service worker (skipWaiting + clientsClaim) take control, or, if
+      // none does within 10 s (30 s while one is installing), removes the worker so the reload comes from
+      // the network. public/_headers serves sw.js `no-cache` and
       // version.json `no-store`. With one bundle the old page never needs files the new worker removed;
       // if code splitting is ever added, switch to `prompt`, as cleanupOutdatedCaches would remove chunks
       // a running page still loads.
