@@ -105,7 +105,10 @@ describe('workflows', () => {
 
   it('splits e2e into one job per Playwright project', () => {
     const config = readFileSync(new URL('../../../apps/web/playwright.config.ts', import.meta.url), 'utf8');
-    const projects = [...config.matchAll(/\{ name: '(\w+)'/g)].map((m) => m[1]);
+    const block = config.match(/projects: \[([\s\S]*?)\n {2}\],/)![1]!;
+    const projects = [...block.matchAll(/\{ name: '(\w+)'/g)].map((m) => m[1]);
+    // Every project in the block, however it is written, must be one the pattern above found.
+    expect(projects).toHaveLength(block.match(/\bname:/g)!.length);
     expect(projects.length).toBeGreaterThan(1);
     const e2e = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1];
     expect(e2e.strategy?.matrix?.project).toEqual(projects);

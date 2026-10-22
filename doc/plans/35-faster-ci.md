@@ -34,7 +34,7 @@ Today (run 39798228306 on `main`, 2026-10-22): e2e took 4m52s, so deploy-staging
 - [ ] Every job in `ci.yml` and `promote.yml` has the time limit above.
 - [ ] 4 workers on CI are kept only if faster and stable over 3 runs. The PR states the outcome.
 - [ ] Check through the end of e2e takes about 3 minutes or less in the branch runs.
-- [ ] The factory spec (section 6) and the README describe the new jobs.
+- [ ] The factory spec (section 6) describes the new jobs. (The README has no section on CI jobs, so it needs no change.)
 
 ## Tests I'll write first
 

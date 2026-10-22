@@ -134,11 +134,13 @@ The real-OneDrive smoke (`pnpm e2e:real`) stays manual, since its sign-in lasts 
 
 | Workflow | When | Does |
 |---|---|---|
-| `ci.yml` | PR opened or updated | check; e2e, whose last step deploys the fake build it just tested as the preview and comments the link |
-| `ci.yml` | Push to `main` | check; e2e; a small deploy job that builds once for staging and production, deploys to staging, and keeps the files as a workflow artifact |
+| `ci.yml` | PR opened or updated | check; e2e, one job per Playwright project (`e2e (desktop)`, `e2e (iphone)`) in parallel; then a preview job that deploys the fake build and comments the link |
+| `ci.yml` | Push to `main` | check; both e2e jobs; then a small deploy job that builds once for staging and production, deploys to staging, and keeps the files as a workflow artifact |
 | `promote.yml` | By hand (`workflow_dispatch`) | Production deploy (below) |
 
-- The preview reuses the e2e job's build and runs inside that job, so it costs no extra build and no extra job (each job is rounded up to a whole minute).
+- The preview and staging deploys wait for check and both e2e jobs. The preview builds the fake app again, so e2e needs nothing from the repository's settings.
+- e2e runs in Playwright's own container image (`mcr.microsoft.com/playwright`), whose version must match `@playwright/test`; `workflows.test.ts` checks it. On CI it uses 4 workers.
+- Every job has a time limit (`timeout-minutes`): check 10, e2e 20, preview, staging deploy and Promote 15.
 - The staging build is a separate build from the e2e one, because e2e tests the fake drive and staging needs the real one.
 
 **Promote to production**, one tap from the GitHub app (Actions → Promote to production → Run workflow):
@@ -157,7 +159,7 @@ Today every push to a PR branch runs CI twice (`push` and `pull_request`), about
 - CI runs on `pull_request` and on `push` to `main` only, so a PR is checked once per push.
 - `concurrency` with `cancel-in-progress`: a newer push cancels the older run on the same branch.
 - `paths-ignore` for `doc/**` and `**/*.md`: doc-only changes skip CI.
-- The Playwright browsers are cached between runs.
+- e2e runs in Playwright's image, so no browsers or Linux packages are installed in a run.
 - Claude runs the suite in its session before pushing, so CI confirms rather than debugs.
 - Rough budget: ~6 minutes per PR push and ~7 per merge. 2,000 minutes is about 250 PR pushes a month.
 
