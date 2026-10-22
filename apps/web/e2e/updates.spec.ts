@@ -37,10 +37,10 @@ async function focusWindow(page: Page) {
 
 test('the build serves version.json with its build ID, outside the precache, with cache headers', async ({ page, request }) => {
   await openApp(page, { files: { 'tasks.md': SPEC_TASKS } });
-  const build = await page.getByTestId('build').textContent();
+  const build = (await page.getByTestId('build').getAttribute('title'))?.match(/^Build (\S+),/)?.[1];
   const version = await request.get('/version.json');
   expect(version.ok()).toBe(true);
-  expect(await version.json()).toEqual({ build });
+  expect(await version.json()).toEqual({ build, number: 7 });
   const sw = await (await request.get('/sw.js')).text();
   expect(sw).toContain('index.html');
   expect(sw).not.toContain('version.json');

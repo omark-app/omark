@@ -70,6 +70,7 @@ jobs:
         run: pnpm --filter web build
         env:
           BUILD_SHA: ${{ steps.check.outputs.sha }}
+          BUILD_NUMBER: ${{ steps.check.outputs.run_number }}
           VITE_PROD_HOST: ${{ vars.PROD_HOST }}
           VITE_STAGING_HOST: ${{ vars.STAGING_HOST }}
           VITE_PREVIEW_HOST_SUFFIXES: ${{ vars.PREVIEW_HOST_SUFFIXES }}

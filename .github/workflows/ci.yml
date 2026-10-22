@@ -86,6 +86,7 @@ jobs:
       - run: pnpm --filter web build
         env:
           VITE_STORAGE: fake
+          BUILD_NUMBER: ${{ github.run_number }}
           VITE_PREVIEW_HOST_SUFFIXES: ${{ vars.PREVIEW_HOST_SUFFIXES }}
       - name: Make sure the staging project exists
         run: node tools/ci/ensure-staging.mjs
@@ -151,6 +152,8 @@ jobs:
       # One build for staging and production: the app picks its folder and look from the host name.
       - run: pnpm --filter web build
         env:
+          # The version shown in the footer; Promote ships this same build, so production shows it too.
+          BUILD_NUMBER: ${{ github.run_number }}
           VITE_PROD_HOST: ${{ vars.PROD_HOST }}
           VITE_STAGING_HOST: ${{ vars.STAGING_HOST }}
           VITE_PREVIEW_HOST_SUFFIXES: ${{ vars.PREVIEW_HOST_SUFFIXES }}

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Promote to production, step 1: resolve the commit to promote and refuse anything that isn't on main with
 // a passing CI run (doc/TaskApp factory spec.md, 6.2). Usage: promote-check.mjs [<sha | short sha | prod- tag>];
-// empty means the commit staging runs now. Needs GITHUB_TOKEN and GITHUB_REPOSITORY; writes sha, run_id and
+// empty means the commit staging runs now. Needs GITHUB_TOKEN and GITHUB_REPOSITORY; writes sha, run_id, run_number and
 // artifact (true when that run's web-dist build can still be downloaded) to $GITHUB_OUTPUT.
 import { appendFileSync } from 'node:fs';
 
@@ -10,7 +10,7 @@ export class Refused extends Error {}
 
 /**
  * @param {{ repo: string, token: string, input: string, fetch?: typeof fetch }} opts
- * @returns {Promise<{ sha: string, runId: number, artifact: boolean }>}
+ * @returns {Promise<{ sha: string, runId: number, runNumber: number, artifact: boolean }>}
  */
 export async function promoteCheck({ repo, token, input, fetch: f = fetch }) {
   /** @param {string} path */
@@ -60,7 +60,7 @@ export async function promoteCheck({ repo, token, input, fetch: f = fetch }) {
 
   const artifacts = (await get(`/actions/runs/${passed.id}/artifacts`)).data.artifacts ?? [];
   const artifact = artifacts.some((/** @type {any} */ a) => a.name === 'web-dist' && !a.expired);
-  return { sha, runId: passed.id, artifact };
+  return { sha, runId: passed.id, runNumber: passed.run_number, artifact };
 }
 
 async function main() {
@@ -71,9 +71,11 @@ async function main() {
     return 1;
   }
   try {
-    const { sha, runId, artifact } = await promoteCheck({ repo, token, input: process.argv[2] ?? '' });
-    console.log(`Promoting ${sha} (CI run ${runId}, ${artifact ? 'using its build' : 'build expired, rebuilding'})`);
-    if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `sha=${sha}\nrun_id=${runId}\nartifact=${artifact}\n`);
+    const { sha, runId, runNumber, artifact } = await promoteCheck({ repo, token, input: process.argv[2] ?? '' });
+    console.log(`Promoting ${sha} (CI run ${runId}, v${runNumber}, ${artifact ? 'using its build' : 'build expired, rebuilding'})`);
+    if (process.env.GITHUB_OUTPUT) {
+      appendFileSync(process.env.GITHUB_OUTPUT, `sha=${sha}\nrun_id=${runId}\nrun_number=${runNumber}\nartifact=${artifact}\n`);
+    }
     return 0;
   } catch (e) {
     console.log(`::error::${e instanceof Error ? e.message : String(e)}`);

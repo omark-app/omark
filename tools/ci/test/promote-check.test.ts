@@ -6,7 +6,7 @@ const A = 'a'.repeat(40);
 const B = 'b'.repeat(40);
 const OFF = 'c'.repeat(40);
 
-interface Run { id: number; head_sha: string; status: string; conclusion: string | null; event?: string }
+interface Run { id: number; run_number?: number; head_sha: string; status: string; conclusion: string | null; event?: string }
 interface FakeGh {
   commits: Record<string, string>; // ref -> sha
   onMain: Set<string>;
@@ -29,7 +29,7 @@ function fakeFetch(gh: FakeGh): typeof fetch {
     }
     if (p === '/actions/workflows/ci.yml/runs') {
       expect(url.searchParams.get('branch')).toBe('main');
-      let runs = gh.runs.map((r) => ({ event: 'push', ...r }));
+      let runs = gh.runs.map((r) => ({ event: 'push', run_number: r.id * 10, ...r }));
       const event = url.searchParams.get('event');
       if (event) runs = runs.filter((r) => r.event === event);
       const sha = url.searchParams.get('head_sha');
@@ -59,13 +59,13 @@ const check = (gh: FakeGh, input: string) => promoteCheck({ repo: REPO, token: '
 
 describe('promoteCheck', () => {
   it('defaults to the commit of the last successful staging deploy', async () => {
-    expect(await check(world(), '')).toEqual({ sha: A, runId: 2, artifact: true });
+    expect(await check(world(), '')).toEqual({ sha: A, runId: 2, runNumber: 20, artifact: true });
   });
 
   it('accepts a CI run started by hand on main', async () => {
     const gh = world();
     gh.runs = [{ id: 7, head_sha: A, status: 'completed', conclusion: 'success', event: 'workflow_dispatch' }];
-    expect(await check(gh, '')).toEqual({ sha: A, runId: 7, artifact: false });
+    expect(await check(gh, '')).toEqual({ sha: A, runId: 7, runNumber: 70, artifact: false });
     expect((await check(gh, A)).runId).toBe(7);
   });
 
@@ -82,7 +82,7 @@ describe('promoteCheck', () => {
   });
 
   it('accepts an older prod- tag (rollback), with its artifact expired', async () => {
-    expect(await check(world(), 'prod-2026-10-01-1')).toEqual({ sha: B, runId: 1, artifact: false });
+    expect(await check(world(), 'prod-2026-10-01-1')).toEqual({ sha: B, runId: 1, runNumber: 10, artifact: false });
   });
 
   it('refuses a commit not on main', async () => {

@@ -38,6 +38,17 @@ function forkProblems(wf: Workflow): string[] {
 }
 
 describe('workflows', () => {
+  it('gives every deployed build the CI run number; a Promote rebuild gets the promoted run’s', () => {
+    const builds = (f: string) =>
+      jobsOf(f).flatMap(([name, j]) => (j.steps ?? []).filter((s) => s.run === 'pnpm --filter web build').map((s) => ({ name, env: (s.env ?? {}) as Record<string, string> })));
+    const ci = builds('ci.yml');
+    expect(ci.map((b) => b.name).sort()).toEqual(['deploy-staging', 'preview']);
+    for (const b of ci) expect(b.env.BUILD_NUMBER, b.name).toBe('${{ github.run_number }}');
+    const promote = builds('promote.yml');
+    expect(promote).toHaveLength(1);
+    expect(promote[0]!.env.BUILD_NUMBER).toBe('${{ steps.check.outputs.run_number }}');
+  });
+
   it('runs no secret-using step for forks', () => {
     for (const f of FILES) expect(forkProblems(parse(text(f)) as Workflow), f).toEqual([]);
   });
