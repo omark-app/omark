@@ -19,7 +19,7 @@ import { installLifecycle } from './lifecycle.ts';
 import { createStore } from './store.svelte.ts';
 import type { AppStore } from './store.svelte.ts';
 import { fakeSeed } from './sample-files.ts';
-import { installUpdates } from './updates.ts';
+import { installUpdates } from './updates.svelte.ts';
 
 declare global {
   interface Window {
