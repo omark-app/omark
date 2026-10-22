@@ -47,6 +47,8 @@ describe('workflows', () => {
     const promote = builds('promote.yml');
     expect(promote).toHaveLength(1);
     expect(promote[0]!.env.BUILD_NUMBER).toBe('${{ steps.check.outputs.run_number }}');
+    // The date in the label is the original build's, not the rebuild's.
+    expect(promote[0]!.env.BUILD_TIME).toBe('${{ steps.check.outputs.built_at }}');
   });
 
   it('runs no secret-using step for forks', () => {

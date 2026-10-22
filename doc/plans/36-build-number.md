@@ -38,7 +38,7 @@ Issue #36. Branch `issue-36-build-number`. Agreed with AL in the session on 2026
   - `versionLabel(143, 'abc1234', '2026-10-22 14:43 UTC')` gives `v143 · 22 Oct`;
   - no number gives the id;
   - January and December.
-- `tools/ci/test/promote-check.test.mjs`: it returns `runNumber` from the passed run.
+- `tools/ci/test/promote-check.test.ts`: it returns `runNumber` and `builtAt` (the run's start) from the passed run, and Promote's rebuild passes both (`BUILD_NUMBER`, `BUILD_TIME`), so a rebuild shows the original label.
 - `e2e/lifecycle.spec.ts`: the build shown is `v7 · <d> <Mon>`. This changes the existing "build beside the status" test on purpose.
 - `e2e/updates.spec.ts`: `version.json` has `number: 7`.
 

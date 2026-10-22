@@ -44,7 +44,8 @@ export default defineConfig({
   define: {
     __BUILD_ID__: JSON.stringify(BUILD_ID),
     __BUILD_NUMBER__: JSON.stringify(BUILD_NUMBER),
-    __BUILD_TIME__: JSON.stringify(`${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`),
+    // BUILD_TIME: Promote rebuilding an older commit keeps the date of the build staging ran.
+    __BUILD_TIME__: JSON.stringify(process.env.BUILD_TIME || `${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`),
   },
   // e2e/environment.spec.ts reaches the preview server under the staging host name.
   preview: { allowedHosts: ['staging-tasks.example.test'] },
