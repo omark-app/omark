@@ -4,7 +4,7 @@ Implements [the open source launch spec](../TaskApp%20open%20source%20launch%20s
 
 Legend: **AL** = a step only AL can do (`needs-human`). **Plan** = a detailed TDD plan in `doc/plans/` is written and approved before the work starts.
 
-## Milestone 0: name and home (AL, before any code)
+## Milestone 0: name and home (AL, before any code) — done 2026-10-21
 
 | # | Step | Spec |
 |---|---|---|
@@ -12,7 +12,7 @@ Legend: **AL** = a step only AL can do (`needs-human`). **Plan** = a detailed TD
 | 0.2 | AL: buy `omark.app`, add it to Cloudflare, set up Email Routing for `hello@` and `security@`. | 6.10 |
 | 0.3 | AL: create the GitHub org (`omarkhq`, `omark-app` or `getomark`); transfer the repo (still private), rename it `tasks`; check that old URLs redirect and that CI and Promote still work. | 6.10 |
 
-## Milestone 1: groundwork (one PR, detailed plan ready)
+## Milestone 1: groundwork — done 2026-10-22 (PRs #29, #30)
 
 | # | Workstream | Spec | Depends on |
 |---|---|---|---|
@@ -31,7 +31,7 @@ Each row is one issue and one PR; rows marked Plan get a detailed plan first.
 
 | # | Workstream | Spec | Size | Depends on |
 |---|---|---|---|---|
-| 2.1 | Demo storage mode (seeded, IndexedDB-durable, "Reset demo"), `pnpm demo`, `.env.example`, demo deployment at `demo-tasks.omark.app` | 6.3 | large, Plan | M1 |
+| 2.1 | (#31) Demo storage mode (seeded, IndexedDB-durable, "Reset demo"), `pnpm demo`, `.env.example`, demo deployment at `demo-tasks.omark.app` | 6.3 | large, Plan | M1 |
 | 2.2 | Landing page at `omark.app` with privacy and terms pages | 6.3.1 | large, Plan | 2.1, 2.4 |
 | 2.3 | Docs set: README, PHILOSOPHY, AGENTS.md (+ `CLAUDE.md` import), CONTRIBUTING, GOVERNANCE, SECURITY, CODE_OF_CONDUCT, LICENSE, `doc/spec.md`, `doc/format.md`, `doc/architecture.md`, `doc/self-hosting.md`, `doc/factory.md`, `doc/history/` | 6.7 | large, Plan | M1 |
 | 2.4 | Icon family: 2–3 directions as side-by-side mockups → AL picks → full set in `brand/`, wired into the app and manifests | 6.6 | large, Plan | M1 |
