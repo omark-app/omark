@@ -122,18 +122,22 @@ describe('workflows', () => {
     }
   });
 
-  it('cancels the run when check fails, so the e2e jobs stop early', () => {
-    const check = jobsOf('ci.yml').find(([n]) => n === 'check')![1];
-    const last = check.steps!.at(-1)!;
-    expect(last.if).toBe('failure()');
-    expect(last.run).toMatch(/^gh run cancel "\$RUN_ID"/);
-    expect(last.env).toEqual({ GH_TOKEN: '${{ github.token }}', RUN_ID: '${{ github.run_id }}' });
-    expect(check.permissions).toEqual({ contents: 'read', actions: 'write' });
+  it('cancels the run once check has failed, so the e2e jobs stop early and check stays failed', () => {
+    const jobs = Object.fromEntries(jobsOf('ci.yml'));
+    // A separate job: cancelling from inside check would mark check itself cancelled instead of failed.
+    const stop = jobs['stop-on-check-failure']!;
+    expect(stop.needs).toEqual(['check']);
+    expect(stop.if).toBe(`failure() && (github.event_name != 'pull_request' || ${FORK_GUARD})`);
+    expect(stop.permissions).toEqual({ actions: 'write' });
+    expect(stop.steps).toHaveLength(1);
+    expect(stop.steps![0]!.run).toMatch(/^gh run cancel "\$RUN_ID"/);
+    expect(stop.steps![0]!.env).toEqual({ GH_TOKEN: '${{ github.token }}', RUN_ID: '${{ github.run_id }}' });
+    expect(jobs.check!.permissions).toBeUndefined();
   });
 
   it('gives every job a time limit', () => {
     const limits = Object.fromEntries(FILES.flatMap((f) => jobsOf(f).map(([n, j]) => [n, j['timeout-minutes']])));
-    expect(limits).toEqual({ check: 10, e2e: 20, preview: 15, 'deploy-staging': 15, promote: 15 });
+    expect(limits).toEqual({ check: 10, 'stop-on-check-failure': 5, e2e: 20, preview: 15, 'deploy-staging': 15, promote: 15 });
   });
 
   it('never uses pull_request_target', () => {
