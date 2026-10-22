@@ -6,7 +6,7 @@ const FILES = ['ci.yml', 'promote.yml'];
 const path = (f: string) => new URL(`../../../.github/workflows/${f}`, import.meta.url);
 const text = (f: string) => readFileSync(path(f), 'utf8');
 
-interface Step { uses?: string; with?: unknown; env?: unknown; run?: string }
+interface Step { if?: string; uses?: string; with?: unknown; env?: unknown; run?: string }
 interface Job {
   if?: string;
   needs?: string[];
@@ -120,6 +120,15 @@ describe('workflows', () => {
     for (const name of ['preview', 'deploy-staging']) {
       expect(jobsOf('ci.yml').find(([n]) => n === name)![1].needs, name).toEqual(['check', 'e2e']);
     }
+  });
+
+  it('cancels the run when check fails, so the e2e jobs stop early', () => {
+    const check = jobsOf('ci.yml').find(([n]) => n === 'check')![1];
+    const last = check.steps!.at(-1)!;
+    expect(last.if).toBe('failure()');
+    expect(last.run).toMatch(/^gh run cancel "\$RUN_ID"/);
+    expect(last.env).toEqual({ GH_TOKEN: '${{ github.token }}', RUN_ID: '${{ github.run_id }}' });
+    expect(check.permissions).toEqual({ contents: 'read', actions: 'write' });
   });
 
   it('gives every job a time limit', () => {

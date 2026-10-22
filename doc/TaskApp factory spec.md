@@ -140,6 +140,7 @@ The real-OneDrive smoke (`pnpm e2e:real`) stays manual, since its sign-in lasts 
 
 - The preview and staging deploys wait for check and both e2e jobs. The preview builds the fake app again, so e2e needs nothing from the repository's settings.
 - e2e runs in Playwright's own container image (`mcr.microsoft.com/playwright`), whose version must match `@playwright/test`; `workflows.test.ts` checks it. On CI it uses 4 workers.
+- check and e2e start together, so a green run doesn't wait for check. If check fails, its last step cancels the run, so the e2e jobs stop early.
 - Every job has a time limit (`timeout-minutes`): check 10, e2e 20, preview, staging deploy and Promote 15.
 - The staging build is a separate build from the e2e one, because e2e tests the fake drive and staging needs the real one.
 

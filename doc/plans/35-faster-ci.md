@@ -23,6 +23,7 @@ Today (run 39798228306 on `main`, 2026-10-22): e2e took 4m52s, so deploy-staging
   - There is no branch protection, so no "required checks" list needs changing.
   - Promote checks the CI run's overall result, not job names (`promote-check.mjs`), so it needs no change.
 - **Workers.** `workers: process.env.CI ? 4 : undefined` in `playwright.config.ts`. A GitHub runner has 4 vCPUs, and Playwright's default is half of them. Kept only if it is faster and 3 runs in a row have no new flakes (no test needing a retry). Otherwise reverted, and the PR says so with the times.
+- **Stop on a failed check.** check and e2e keep starting together, so a green run doesn't wait about 50 seconds for check. If check fails, its last step (`if: failure()`) cancels the whole run, so the e2e jobs stop instead of running for 2–3 minutes more. check gets `actions: write` for this, and nothing else changes in its permissions. On a fork's PR the token can't cancel, so e2e just runs on. Added after the first branch runs; AL agreed in the session on 2026-10-22.
 - **Time limits.** `timeout-minutes`: check 10, e2e 20, preview 15, deploy-staging 15. Promote gets 15 too.
 - **Measuring.** CI is started by hand on the branch (Actions → CI → Run workflow) 3 times, plus the PR runs. Starting it by hand on a branch other than `main` runs check and e2e only. The time from start to the end of the slower e2e leg is the time a `main` run would reach deploy-staging. The PR lists the times for all runs.
 
@@ -31,6 +32,7 @@ Today (run 39798228306 on `main`, 2026-10-22): e2e took 4m52s, so deploy-staging
 - [ ] e2e runs in the Playwright image matching `@playwright/test`, with no browser install steps.
 - [ ] `e2e (desktop)` and `e2e (iphone)` run in parallel, and together run the same tests as today's `e2e`.
 - [ ] `preview` and `deploy-staging` wait for both e2e legs and for check.
+- [ ] A failed check cancels the run, so the e2e jobs stop early. Shown once on a throwaway branch with a failing test.
 - [ ] Every job in `ci.yml` and `promote.yml` has the time limit above.
 - [ ] 4 workers on CI are kept only if faster and stable over 3 runs. The PR states the outcome.
 - [ ] Check through the end of e2e takes about 3 minutes or less in the branch runs.
@@ -44,6 +46,7 @@ In `tools/ci/test/workflows.test.ts`:
 - No step in `ci.yml` runs `playwright install`.
 - The e2e matrix lists exactly the projects in `playwright.config.ts`, and its run step passes `--project=${{ matrix.project }}`.
 - `preview` and `deploy-staging` both need `check` and `e2e`.
+- check's last step runs only on failure and cancels the run, and check's permissions are exactly `contents: read` and `actions: write`.
 - Every job has `timeout-minutes` with the value above.
 - The existing "e2e has no write permission" test stays as it is.
 
