@@ -5,6 +5,8 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
+  // A GitHub runner has 4 vCPUs; Playwright's default would use 2.
+  workers: process.env.CI ? 4 : undefined,
   reporter: process.env.CI ? 'github' : 'list',
   // Service workers are blocked except in offline.spec.ts, so no other spec sees precaching or a mid-test takeover.
   use: { baseURL: 'http://localhost:4173', serviceWorkers: 'block' },
