@@ -86,6 +86,7 @@ jobs:
       - run: pnpm --filter web build
         env:
           VITE_STORAGE: fake
+          BUILD_NUMBER: ${{ github.run_number }}
           VITE_PREVIEW_HOST_SUFFIXES: ${{ vars.PREVIEW_HOST_SUFFIXES }}
       - name: Make sure the staging project exists
         run: node tools/ci/ensure-staging.mjs
@@ -112,7 +113,7 @@ jobs:
           script: |
             const marker = '<!-- taskapp-preview -->';
             const sha = context.payload.pull_request.head.sha.slice(0, 7);
-            const body = `${marker}\n**Preview:** ${process.env.PREVIEW_URL}\n\nFake drive with sample tasks, build \`${sha}\`. Sign-in is stubbed.`;
+            const body = `${marker}\n**Preview:** ${process.env.PREVIEW_URL}\n\nFake drive with sample tasks, build v${context.runNumber} (\`${sha}\`). Sign-in is stubbed.`;
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
             const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
@@ -151,6 +152,9 @@ jobs:
       # One build for staging and production: the app picks its folder and look from the host name.
       - run: pnpm --filter web build
         env:
+          # The version shown in the footer; Promote ships this same build, so production shows it too.
+          # run_number counts per workflow file: renaming ci.yml would restart it at 1.
+          BUILD_NUMBER: ${{ github.run_number }}
           VITE_PROD_HOST: ${{ vars.PROD_HOST }}
           VITE_STAGING_HOST: ${{ vars.STAGING_HOST }}
           VITE_PREVIEW_HOST_SUFFIXES: ${{ vars.PREVIEW_HOST_SUFFIXES }}

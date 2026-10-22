@@ -17,32 +17,41 @@ function buildId(): string {
   }
 }
 
+/** The CI run number that made this build (`BUILD_NUMBER`), shown as the version; null outside CI. */
+function buildNumber(): number | null {
+  const n = (process.env.BUILD_NUMBER ?? '').trim();
+  return /^\d+$/.test(n) ? Number(n) : null;
+}
+
 /**
- * Emits `version.json` (`{"build":"<id>"}`), which src/lib/updates.svelte.ts asks for to learn which build
+ * Emits `version.json` (`{"build":"<id>","number":<n>}`), which src/lib/updates.svelte.ts asks for to learn which build
  * is deployed. It is never precached (`globPatterns` has no json) and public/_headers serves it `no-store`.
  */
-function versionFile(build: string): Plugin {
+function versionFile(build: string, number: number | null): Plugin {
   return {
     name: 'taskapp-version-file',
     apply: 'build',
     generateBundle() {
-      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ build }) });
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ build, number }) });
     },
   };
 }
 
 const BUILD_ID = buildId();
+const BUILD_NUMBER = buildNumber();
 
 export default defineConfig({
   define: {
     __BUILD_ID__: JSON.stringify(BUILD_ID),
-    __BUILD_TIME__: JSON.stringify(`${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`),
+    __BUILD_NUMBER__: JSON.stringify(BUILD_NUMBER),
+    // BUILD_TIME: Promote rebuilding an older commit keeps the date of the build staging ran.
+    __BUILD_TIME__: JSON.stringify(process.env.BUILD_TIME || `${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`),
   },
   // e2e/environment.spec.ts reaches the preview server under the staging host name.
   preview: { allowedHosts: ['staging-tasks.example.test'] },
   plugins: [
     svelte(),
-    versionFile(BUILD_ID),
+    versionFile(BUILD_ID, BUILD_NUMBER),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icons/apple-touch-icon.png'],

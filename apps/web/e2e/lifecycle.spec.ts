@@ -112,7 +112,7 @@ test("a save that meets another device's change shows that change without a focu
 
 test('the build this device runs is shown beside the status', async ({ page }) => {
   await start(page);
-  await expect(page.getByTestId('build')).toHaveText(/^[0-9a-f]{7}$|^dev$/);
+  await expect(page.getByTestId('build')).toHaveText(/^v7 · \d{1,2} [A-Z][a-z]{2}$/);
   await expect(page.getByTestId('build')).toHaveAttribute('title', /^Build /);
 });
 

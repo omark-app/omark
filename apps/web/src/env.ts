@@ -14,6 +14,9 @@ export const ONEDRIVE_ROOT: DriveRoot = import.meta.env.VITE_ONEDRIVE_SCOPE === 
 
 declare const __BUILD_ID__: string | undefined;
 declare const __BUILD_TIME__: string | undefined;
+declare const __BUILD_NUMBER__: number | null | undefined;
 /** Short commit hash of this build (`dev` when unknown), and when it was built (UTC). */
 export const BUILD_ID: string = typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev';
 export const BUILD_TIME: string = typeof __BUILD_TIME__ === 'string' ? __BUILD_TIME__ : 'unknown time';
+/** The CI run number that made this build (the version shown in the footer), or null outside CI. */
+export const BUILD_NUMBER: number | null = typeof __BUILD_NUMBER__ === 'number' ? __BUILD_NUMBER__ : null;

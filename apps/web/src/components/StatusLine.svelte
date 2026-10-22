@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { SyncStatus } from '@omark/storage';
-  import { BUILD_ID, BUILD_TIME, LOOK } from '../env.ts';
+  import { BUILD_ID, BUILD_NUMBER, BUILD_TIME, LOOK } from '../env.ts';
   import type { Updates } from '../lib/updates.svelte.ts';
+  import { versionLabel } from '../lib/version.ts';
 
   /**
    * The faint save status; `offline` and `sign in needed` are the sync banner's to say. A newer build
@@ -22,7 +23,7 @@
   {/if}
   <!-- Which build this device runs (a home-screen app can keep an old one for a while). -->
   {#if LOOK.label}<span class="env" data-testid="env-label">{LOOK.label}</span>{/if}
-  <span class="build" data-testid="build" title={`Build ${BUILD_ID}, ${BUILD_TIME}`}>{BUILD_ID}</span>
+  <span class="build" data-testid="build" title={`Build ${BUILD_ID}, ${BUILD_TIME}`}>{versionLabel(BUILD_NUMBER, BUILD_ID, BUILD_TIME)}</span>
 </span>
 
 <style>
