@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { defineConfig } from 'vite';
+import type { Plugin } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
 import { BRAND } from './src/brand.ts';
@@ -16,26 +17,47 @@ function buildId(): string {
   }
 }
 
+/**
+ * Emits `version.json` (`{"build":"<id>"}`), which src/lib/updates.svelte.ts asks for to learn which build
+ * is deployed. It is never precached (`globPatterns` has no json) and public/_headers serves it `no-store`.
+ */
+function versionFile(build: string): Plugin {
+  return {
+    name: 'taskapp-version-file',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ build }) });
+    },
+  };
+}
+
+const BUILD_ID = buildId();
+
 export default defineConfig({
   define: {
-    __BUILD_ID__: JSON.stringify(buildId()),
+    __BUILD_ID__: JSON.stringify(BUILD_ID),
     __BUILD_TIME__: JSON.stringify(`${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`),
   },
   // e2e/environment.spec.ts reaches the preview server under the staging host name.
   preview: { allowedHosts: ['staging-tasks.example.test'] },
   plugins: [
     svelte(),
+    versionFile(BUILD_ID),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icons/apple-touch-icon.png'],
       // The app shell, fonts and icons are precached; there is deliberately no runtimeCaching, so Graph,
-      // the sign-in helper (/api/auth) and OneDrive download URLs always go straight to the network. A new
-      // version installs in the background and, with skipWaiting + clientsClaim, its service worker takes
-      // control of the open page at once; the page keeps running the JS it loaded and runs the new JS on
-      // the next open (no reload mid-session). An iOS home-screen app is resumed rather than reopened, so
-      // src/lib/updates.ts checks for a new build on every return and reloads on the return after one took
-      // over. With one bundle that is safe; if code splitting is ever added, switch to `prompt`, as
-      // cleanupOutdatedCaches would remove chunks a running page still loads.
+      // the sign-in helper (/api/auth), OneDrive download URLs and version.json always go straight to the
+      // network. Navigations are served from the precache, so a page opened after a deploy starts on the
+      // old build. src/lib/updates.svelte.ts therefore asks version.json which build is deployed (on open,
+      // on return, on focus or coming online, and every 30 minutes) and, when it is newer, saves the edits
+      // and reloads: at once on open or return, otherwise once the page is idle and nothing is in progress
+      // (the footer offers "New version · tap to update" meanwhile). Before that reload it lets the new
+      // service worker (skipWaiting + clientsClaim) take control, or, if none does within 10 s, removes
+      // the worker so the reload comes from the network. public/_headers serves sw.js `no-cache` and
+      // version.json `no-store`. With one bundle the old page never needs files the new worker removed;
+      // if code splitting is ever added, switch to `prompt`, as cleanupOutdatedCaches would remove chunks
+      // a running page still loads.
       workbox: {
         globPatterns: ['**/*.{js,css,html,woff2,png,svg,webmanifest}'],
         navigateFallback: 'index.html',

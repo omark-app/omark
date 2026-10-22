@@ -20,6 +20,7 @@ import { createStore } from './store.svelte.ts';
 import type { AppStore } from './store.svelte.ts';
 import { fakeSeed } from './sample-files.ts';
 import { installUpdates } from './updates.svelte.ts';
+import type { UpdateDeps, Updates } from './updates.svelte.ts';
 
 declare global {
   interface Window {
@@ -33,14 +34,18 @@ declare global {
     __TASKAPP_FAKE_DURABLE__?: boolean;
     /** The stubbed account, so e2e tests can see sign-in attempts. */
     __taskappAuth?: AuthStub;
+    /** Fake builds only: shorter update timings, so e2e tests need not wait a minute for an idle page. */
+    __TASKAPP_UPDATE_TIMING__?: Partial<Pick<UpdateDeps, 'idleMs' | 'pollMs'>>;
   }
 }
 
 /**
  * `ready`: the store is open; `auth` (null in fake mode) lets the UI sign in again when the status reads
- * `sign in needed`. `signin`: no signed-in account; the UI calls `auth.signIn()`.
+ * `sign in needed`; `updates` loads newer builds. `signin`: no signed-in account; the UI calls `auth.signIn()`.
  */
-export type BootResult = { kind: 'ready'; store: AppStore; auth: Auth | null } | { kind: 'signin'; auth: Auth };
+export type BootResult =
+  | { kind: 'ready'; store: AppStore; auth: Auth | null; updates: Updates }
+  | { kind: 'signin'; auth: Auth };
 
 const PHONE_QUERY = '(max-width: 719.98px)';
 
@@ -151,8 +156,9 @@ const syncedAtStore = {
 async function ready(workspace: Workspace, cache: CacheInfo, auth: Auth | null): Promise<BootResult> {
   const store = await createStore({ workspace, clock: systemClock, isPhone, syncedAtStore, ...cache });
   installLifecycle(store);
-  installUpdates(store);
-  return { kind: 'ready', store, auth };
+  const timing = STORAGE_MODE === 'fake' ? window.__TASKAPP_UPDATE_TIMING__ : undefined;
+  const updates = installUpdates(store, { ...timing });
+  return { kind: 'ready', store, auth, updates };
 }
 
 /** The cache's IndexedDB database before it was keyed by folder (it only ever held the default folder's files on the deployed origin). */

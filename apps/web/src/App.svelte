@@ -20,6 +20,8 @@
   import { createSearch } from './lib/search.svelte.ts';
   import type { SearchResult } from './lib/search.svelte.ts';
   import { commandFor, keyInput } from './lib/keys.ts';
+  import { mouseDragging } from './lib/drag/mouse-drag.ts';
+  import { touchDragging } from './lib/drag/touch-drag.ts';
 
   /**
    * The open sheet. A drop on Later sets `suggested` and `beforeId`. Add, edit and move are phone sheets;
@@ -46,6 +48,7 @@
   boot().then(
     (r) => {
       result = r;
+      if (r.kind === 'ready') r.updates.setBusy(busy);
     },
     (e: unknown) => {
       error = message(e);
@@ -101,8 +104,8 @@
     else if (selectedId !== search.viewing) search.close(false);
   });
 
-  const LOSE_EDITS =
-    "You have changes that aren't saved to OneDrive yet. Signing in again will lose them. Continue?";
+  const loseEdits = (doing: string): string =>
+    `You have changes that aren't saved to OneDrive yet. ${doing} will lose them. Continue?`;
 
   /**
    * Signs in by redirect, which leaves the page. Pending edits go to the cache first; if some would
@@ -118,13 +121,35 @@
         signInError = `Could not save your changes before signing in: ${message(e)}`;
         return;
       }
-      if (result.store.wouldLoseEdits() && !window.confirm(LOSE_EDITS)) return;
+      if (result.store.wouldLoseEdits() && !window.confirm(loseEdits('Signing in again'))) return;
     }
     try {
       await result.auth.signIn();
     } catch (e) {
       signInError = `Sign-in failed: ${message(e)}`;
     }
+  }
+
+  /**
+   * Something is in progress (a sheet, search, the desktop detail, a drag or a focused field), so a newer
+   * build found mid-use waits instead of reloading the page under the user.
+   */
+  function busy(): boolean {
+    const field = document.activeElement;
+    return (
+      sheet !== null ||
+      search.mode === 'open' ||
+      (result?.kind === 'ready' && result.store.selectedId !== null && !phone.value) ||
+      mouseDragging() ||
+      touchDragging() ||
+      (field instanceof HTMLElement && (field.matches('input, textarea, select') || field.isContentEditable))
+    );
+  }
+
+  /** The footer's "New version · tap to update": edits are saved first, or the user agrees to lose them. */
+  function update(): void {
+    if (result?.kind !== 'ready') return;
+    void result.updates.updateNow(() => window.confirm(loseEdits('Updating now')));
   }
 
   // config.yaml's theme forces light or dark; `system` leaves it to the device (tokens.css).
@@ -150,11 +175,20 @@
 {:else}
   {@const store = result.store}
   {@const onSignIn = result.auth ? signIn : undefined}
+  {@const updates = result.updates}
   {#if signInError}<p class="signin-error" role="alert">{signInError}</p>{/if}
   {#if store.view === 'board' && !phone.value}
-    <WeekBoardView {store} onCommand={openSheet} onDropPickDate={openDropDate} {onSignIn} />
+    <WeekBoardView {store} onCommand={openSheet} onDropPickDate={openDropDate} {onSignIn} {updates} onUpdate={update} />
   {:else}
-    <TaskListView {store} onCommand={openSheet} onDropPickDate={openDropDate} {onSignIn} onSearch={() => search.open()} />
+    <TaskListView
+      {store}
+      onCommand={openSheet}
+      onDropPickDate={openDropDate}
+      {onSignIn}
+      onSearch={() => search.open()}
+      {updates}
+      onUpdate={update}
+    />
   {/if}
   {#if phone.value}<Fab onclick={() => (sheet = { kind: 'add' })} />{/if}
   {#if search.mode === 'open'}<SearchPanel {store} {search} onopen={openResult} />{/if}

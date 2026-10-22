@@ -2,6 +2,7 @@
   import { BUCKETS, dayMonth, weekdayShort } from '@omark/core';
   import type { BucketKey } from '@omark/core';
   import type { AppStore } from '../lib/store.svelte.ts';
+  import type { Updates } from '../lib/updates.svelte.ts';
   import { BRAND } from '../brand.ts';
   import Bucket from './Bucket.svelte';
   import AlwaysList from './AlwaysList.svelte';
@@ -21,7 +22,16 @@
     onCommand = () => {},
     onDropPickDate = () => {},
     onSignIn,
-  }: { store: AppStore; onCommand?: OnCommand; onDropPickDate?: OnDropPickDate; onSignIn?: () => void } = $props();
+    updates,
+    onUpdate,
+  }: {
+    store: AppStore;
+    onCommand?: OnCommand;
+    onDropPickDate?: OnDropPickDate;
+    onSignIn?: () => void;
+    updates?: Updates;
+    onUpdate?: () => void;
+  } = $props();
 
   let addInput: AddInput | undefined = $state();
   let detail: TaskDetail | undefined = $state();
@@ -58,7 +68,7 @@
       {/if}
     </div>
     <Hints />
-    <StatusLine status={store.status} />
+    <StatusLine status={store.status} {updates} onupdate={onUpdate} />
   </aside>
   <div class="main">
     <SyncBanner {store} onsignin={onSignIn} />
