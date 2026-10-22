@@ -8,6 +8,9 @@ import type { Dragged } from './drop-target.ts';
  */
 let dragged: Dragged | null = null;
 
+/** True while a task is being dragged with the mouse. */
+export const mouseDragging = (): boolean => dragged !== null;
+
 export function dragStart(e: DragEvent, id: string, bucket: BucketKey): void {
   dragged = { id, bucket };
   if (e.dataTransfer) {

@@ -89,6 +89,7 @@
     bind:input
     class="fld wide"
     data-autofocus
+    data-draft
     placeholder="What needs doing?"
     autocomplete="off"
     aria-label="New task"

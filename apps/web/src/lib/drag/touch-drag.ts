@@ -17,6 +17,9 @@ export interface TouchDrag {
   cancel(): void;
 }
 
+/** True while a lifted row follows a finger. */
+export const touchDragging = (): boolean => document.querySelector('.drag-ghost') !== null;
+
 /**
  * Lifts `row` under a finger at (x, y): the row is dimmed (`.lifted`) and a floating copy (`.drag-ghost`)
  * follows the finger up and down. The bucket and row under the finger are marked as for a mouse drag, and the

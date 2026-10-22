@@ -1,6 +1,7 @@
 <script lang="ts">
   import { BUCKETS } from '@omark/core';
   import type { AppStore } from '../lib/store.svelte.ts';
+  import type { Updates } from '../lib/updates.svelte.ts';
   import Bucket from './Bucket.svelte';
   import AlwaysList from './AlwaysList.svelte';
   import Stats from './Stats.svelte';
@@ -22,12 +23,16 @@
     onDropPickDate = () => {},
     onSignIn,
     onSearch,
+    updates,
+    onUpdate,
   }: {
     store: AppStore;
     onCommand?: OnCommand;
     onDropPickDate?: OnDropPickDate;
     onSignIn?: () => void;
     onSearch?: () => void;
+    updates?: Updates;
+    onUpdate?: () => void;
   } = $props();
 
   let addInput: AddInput | undefined = $state();
@@ -59,7 +64,7 @@
     <div class="top">
       <Stats stats={store.stats} variant="line" />
       <span class="topr">
-        <StatusLine status={store.status} />
+        <StatusLine status={store.status} {updates} onupdate={onUpdate} />
         {#if onSearch}<button class="find" data-testid="search-open" aria-label="Search" onclick={onSearch}>🔍</button>{/if}
       </span>
     </div>
@@ -111,7 +116,7 @@
   {#if !phone.value}
     <footer class="foot">
       <Hints />
-      <StatusLine status={store.status} />
+      <StatusLine status={store.status} {updates} onupdate={onUpdate} />
     </footer>
   {/if}
 </div>
