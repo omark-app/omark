@@ -20,14 +20,21 @@ export async function promoteCheck({ repo, token, input, fetch: f = fetch }) {
     });
     return { status: res.status, ok: res.ok, data: /** @type {any} */ (await res.json().catch(() => ({}))) };
   };
-  const runsOnMain = '/actions/workflows/ci.yml/runs?event=push&branch=main';
+  const runsOnMain = '/actions/workflows/ci.yml/runs?branch=main&per_page=50';
+  /**
+   * Only runs of main itself count: a push, or CI started by hand. A fork's pull request from a branch it
+   * named `main` also matches `branch=main`, so the event is checked here.
+   * @param {any} res
+   * @returns {any[]}
+   */
+  const ofMain = (res) =>
+    (res.data.workflow_runs ?? []).filter((/** @type {any} */ r) => r.event === 'push' || r.event === 'workflow_dispatch');
 
   const ref = input.trim();
   /** @type {string} */
   let sha;
   if (ref === '') {
-    const last = await get(`${runsOnMain}&status=success&per_page=1`);
-    const run = last.data.workflow_runs?.[0];
+    const run = ofMain(await get(`${runsOnMain}&status=success`))[0];
     if (!run) throw new Refused('No successful CI run on main yet, so there is nothing on staging to promote.');
     sha = run.head_sha;
   } else {
@@ -42,7 +49,7 @@ export async function promoteCheck({ repo, token, input, fetch: f = fetch }) {
     throw new Refused(`${short} is not on main; only commits merged to main can go to production.`);
   }
 
-  const runs = (await get(`${runsOnMain}&head_sha=${sha}`)).data.workflow_runs ?? [];
+  const runs = ofMain(await get(`${runsOnMain}&head_sha=${sha}`));
   const passed = runs.find((/** @type {any} */ r) => r.conclusion === 'success');
   if (!passed) {
     const latest = runs[0];

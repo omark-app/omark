@@ -6,7 +6,7 @@ const A = 'a'.repeat(40);
 const B = 'b'.repeat(40);
 const OFF = 'c'.repeat(40);
 
-interface Run { id: number; head_sha: string; status: string; conclusion: string | null }
+interface Run { id: number; head_sha: string; status: string; conclusion: string | null; event?: string }
 interface FakeGh {
   commits: Record<string, string>; // ref -> sha
   onMain: Set<string>;
@@ -28,9 +28,10 @@ function fakeFetch(gh: FakeGh): typeof fetch {
       return json(200, { status: gh.onMain.has(m[1]!) ? 'ahead' : 'diverged' });
     }
     if (p === '/actions/workflows/ci.yml/runs') {
-      expect(url.searchParams.get('event')).toBe('push');
       expect(url.searchParams.get('branch')).toBe('main');
-      let runs = gh.runs;
+      let runs = gh.runs.map((r) => ({ event: 'push', ...r }));
+      const event = url.searchParams.get('event');
+      if (event) runs = runs.filter((r) => r.event === event);
       const sha = url.searchParams.get('head_sha');
       if (sha) runs = runs.filter((r) => r.head_sha === sha);
       if (url.searchParams.get('status') === 'success') runs = runs.filter((r) => r.conclusion === 'success');
@@ -59,6 +60,21 @@ const check = (gh: FakeGh, input: string) => promoteCheck({ repo: REPO, token: '
 describe('promoteCheck', () => {
   it('defaults to the commit of the last successful staging deploy', async () => {
     expect(await check(world(), '')).toEqual({ sha: A, runId: 2, artifact: true });
+  });
+
+  it('accepts a CI run started by hand on main', async () => {
+    const gh = world();
+    gh.runs = [{ id: 7, head_sha: A, status: 'completed', conclusion: 'success', event: 'workflow_dispatch' }];
+    expect(await check(gh, '')).toEqual({ sha: A, runId: 7, artifact: false });
+    expect((await check(gh, A)).runId).toBe(7);
+  });
+
+  it('ignores a pull request run from a branch called main', async () => {
+    const gh = world();
+    gh.onMain.add(OFF);
+    gh.runs.unshift({ id: 9, head_sha: OFF, status: 'completed', conclusion: 'success', event: 'pull_request' });
+    expect((await check(gh, '')).sha).toBe(A);
+    await expect(check(gh, OFF)).rejects.toThrow(/no CI run on main/);
   });
 
   it('accepts a short SHA', async () => {
