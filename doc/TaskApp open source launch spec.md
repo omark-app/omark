@@ -1,7 +1,7 @@
 # TaskApp open source launch spec
 
 Status: approved, 2026-10-21. Agreed in the session that weighed a paid app against open source. Plans: [roadmap](plans/open-source-launch-roadmap.md), [milestone 1](plans/open-source-m1-groundwork.md).
-Updated 2026-10-22 (draft for approval) for the suite: a second app, [Omark Time](Omark%20Time%20spec.md), launches with Omark Tasks from one monorepo; Google Drive storage joins the launch; PHILOSOPHY.md holds principles instead of a "won't add" list.
+Updated and approved 2026-10-22 for the suite: a second app, [Omark Time](Omark%20Time%20spec.md), launches with Omark Tasks from one monorepo; Google Drive storage joins the launch; PHILOSOPHY.md holds principles instead of a "won't add" list.
 Related: [v1 spec](TaskApp%20v1%20spec.md), [Omark Time spec](Omark%20Time%20spec.md), [factory spec](TaskApp%20factory%20spec.md), [backlog](TaskApp%20backlog.md).
 
 ## 1. Intent
