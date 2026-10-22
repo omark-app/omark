@@ -60,7 +60,7 @@ The launch counts as a failure for Omark Time if:
 | Background | None on the hosted app. Colours and files lag until the next open; that is accepted. A self-hosted Cloudflare cron on the user's own account is a post-launch option. |
 | Calendar | Google Calendar only at launch. |
 | Separator | A **semicolon**, fixed. Spaces around it are optional. |
-| Project codes | UPPERCASE letters, digits and `_`, starting with a letter. |
+| Project codes | Letters, digits and `_`, starting with a letter. **Case-insensitive in titles** (no Shift needed when creating an event), stored in upper case. *(Changed 2026-10-22 after approval: codes were uppercase-only.)* |
 | Colours | The tracker's rules overwrite any colour on structured events: green = known code, red = unknown code. Events without structure are left alone. |
 | Store | CSV files in the user's storage: **Google Drive or OneDrive** (and a local folder on desktop Chrome or Edge). |
 | Event file | One row per tracked event, one file per year (`events-2026.csv`). |
@@ -91,7 +91,10 @@ The launch counts as a failure for Omark Time if:
 CODE; Category; description
 ```
 
-- **CODE** is required: 2–20 characters, `A–Z`, `0–9` and `_`, starting with a letter. *(Length limits: my call.)*
+- **CODE** is required: 2–20 characters, letters `A–Z`, digits `0–9` and `_`, starting with a letter. *(Length limits: my call.)*
+- **The code is case-insensitive in titles.** `acme`, `Acme` and `ACME` are the same project, so nobody needs Shift or Caps Lock while creating an event. The semicolon keeps accidental matches rare.
+  - Codes are stored in upper case: in `projects.csv`, in the event files' `project` column, and in reports.
+  - The projects page turns what you type into upper case. *(My call.)*
 - **Category** is optional free text, for example `Coding`, `CS`, `Meetings`.
 - **description** is optional free text.
 - **Spaces around `;` are optional** and are trimmed.
@@ -105,13 +108,15 @@ How a title is read:
 | `ACME;Coding` | ACME / Coding / (none) |
 | `ACME; ; quick call` | ACME / (none) / quick call |
 | `ACME; CS; ticket 12; then 13` | ACME / CS / ticket 12; then 13 |
-| `ACME` (alone, ACME is a project) | ACME / (none) / (none), green |
-| `OOO` (alone, not a project) | not structured, untouched |
+| `acme; coding; new featureX` | ACME / coding / new featureX, green |
+| `ACME` or `acme` (alone, ACME is a project) | ACME / (none) / (none), green |
+| `OOO` or `Lunch` (alone, not a project) | not structured, untouched |
 | `OOO; away` (not a project) | unknown code OOO, red |
-| `acme; coding` | not structured, untouched (lower case), but listed as a near miss in the fix list when ACME exists |
-| `Lunch; with Tom`, `John-Mary call` | not structured, untouched |
+| `Lunch; with Tom` (not a project) | unknown code LUNCH, red; the accepted cost of case-insensitive codes |
+| `John-Mary call`, `Call: John` | not structured, untouched (no semicolon) |
+| `Q&A; prep` | not structured, untouched (`&` is not allowed in a code) |
 
-So an event is **structured** when its first segment matches the code pattern and either the title contains a `;` or the whole title is a known code. *(The "code alone" rule: my call.)*
+So an event is **structured** when its first segment matches the code pattern, ignoring case, and either the title contains a `;` or the whole title is a known code. *(The "code alone" rule: my call.)*
 
 Category is stored as typed. Summaries and charts group categories ignoring case and show the spelling used most. *(My call.)*
 
@@ -246,7 +251,7 @@ The same design language as Omark Tasks: one calm page per view, the shared desi
   - totals;
   - a status line with the last sync, "Sync now" and the fix count.
 - **Charts**: hours per week per project, and per category for one project, over a chosen range. They are drawn in the app with no third-party requests. *(The chart library or hand-drawn SVG is the builder's call.)*
-- **Fix list**: red events, near misses (section 5) and overlapping days. Each line has the date, the title and actions: "Add CODE as a project" (opens the project form filled in) and "Open in Google Calendar".
+- **Fix list**: red events and overlapping days. Each line has the date, the title and actions: "Add CODE as a project" (opens the project form filled in) and "Open in Google Calendar".
 - **Projects**:
   - a list with add, edit, archive and delete;
   - codes can't be renamed, because that would turn past events red, so the user archives the old project and adds a new one *(my call)*;
@@ -397,7 +402,7 @@ To become issues:
 9. Only calendars the user owns at launch.
 10. Separate Google Cloud projects for production and staging; staging published unverified.
 11. The demo shows colours on an in-app calendar strip.
-12. Near misses (`acme; coding`) are listed in the fix list.
+12. Codes are stored in upper case everywhere, whatever case the title used.
 13. OneDrive storage uses its own Entra registrations ("Omark Time", "Omark Time Staging").
 14. On Google Drive, a lost write race on the event files is accepted, because the next sync repairs it.
 
