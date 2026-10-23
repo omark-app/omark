@@ -20,6 +20,7 @@ jobs:
     # Only the promote.yml on main may run: from another branch the file (and its checks) could be edited.
     if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check the repository variables
         run: |

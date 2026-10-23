@@ -21,6 +21,7 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
@@ -35,8 +36,35 @@ jobs:
           args: -color
       - run: pnpm typecheck
       - run: pnpm test
-  e2e:
+  stop-on-check-failure:
+    # check and e2e start together, so a green run doesn't wait for check. A failed check fails the run anyway,
+    # so this stops the e2e jobs early. It is its own job so check shows as failed, not cancelled. A fork's
+    # PR token can't cancel, so for forks e2e just runs on.
+    needs: [check]
+    if: failure() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - run: gh run cancel "$RUN_ID" --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+  e2e:
+    # One job per Playwright project, in parallel. Playwright's image has the browsers and their Linux packages,
+    # so nothing is installed. Its version must match @playwright/test (workflows.test.ts checks it).
+    name: e2e (${{ matrix.project }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:7852dc5a7d72f5fe458a597d690f6c42fbc8e9e26ddfa95f8e6ef552558d9bbf
+      # The runner's user, so the browsers don't run as root and the files written belong to the runner.
+      options: --user 1001
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [desktop, iphone]
     permissions:
       contents: read
     steps:
@@ -47,30 +75,13 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Playwright version
-        id: pw
-        working-directory: apps/web
-        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-      - name: Cache Playwright browsers
-        id: pw-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
-      - name: Install Playwright browsers
-        if: steps.pw-cache.outputs.cache-hit != 'true'
-        working-directory: apps/web
-        run: pnpm exec playwright install --with-deps chromium webkit
-      - name: Install Playwright system packages
-        if: steps.pw-cache.outputs.cache-hit == 'true'
-        working-directory: apps/web
-        run: pnpm exec playwright install-deps chromium webkit
-      - run: pnpm e2e
+      - run: pnpm --filter web e2e --project=${{ matrix.project }}
   preview:
     # Same-repo PRs only: a fork's PR has no secrets, and its code must never meet ours.
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && vars.DEPLOY_ENABLED == 'true'
     needs: [check, e2e]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       pull-requests: write
@@ -124,6 +135,7 @@ jobs:
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
     needs: [check, e2e]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     concurrency:
       group: staging
       cancel-in-progress: false

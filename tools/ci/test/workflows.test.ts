@@ -6,8 +6,16 @@ const FILES = ['ci.yml', 'promote.yml'];
 const path = (f: string) => new URL(`../../../.github/workflows/${f}`, import.meta.url);
 const text = (f: string) => readFileSync(path(f), 'utf8');
 
-interface Step { uses?: string; with?: unknown; env?: unknown; run?: string }
-interface Job { if?: string; permissions?: Record<string, string>; steps?: Step[] }
+interface Step { if?: string; uses?: string; with?: unknown; env?: unknown; run?: string }
+interface Job {
+  if?: string;
+  needs?: string[];
+  permissions?: Record<string, string>;
+  container?: { image?: string };
+  strategy?: { matrix?: Record<string, unknown>; 'fail-fast'?: boolean };
+  'timeout-minutes'?: number;
+  steps?: Step[];
+}
 const runsOnPr = (f: string) => 'pull_request' in ((parse(text(f)) as { on: object }).on ?? {});
 const jobsOf = (f: string): [string, Job][] => Object.entries((parse(text(f)) as { jobs: Record<string, Job> }).jobs);
 const allSteps = () => FILES.flatMap((f) => jobsOf(f).flatMap(([, j]) => j.steps ?? []));
@@ -86,6 +94,50 @@ describe('workflows', () => {
   it('gives the e2e job no write permission', () => {
     const e2e = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1];
     expect(e2e.permissions).toEqual({ contents: 'read' });
+  });
+
+  it('runs e2e in the Playwright image that matches @playwright/test, installing no browsers', () => {
+    const installed = JSON.parse(readFileSync(new URL('../../../apps/web/node_modules/@playwright/test/package.json', import.meta.url), 'utf8')).version;
+    const e2e = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1];
+    expect(e2e.container?.image).toMatch(new RegExp(`^mcr\\.microsoft\\.com/playwright:v${installed.replaceAll('.', '\\.')}-noble@sha256:[0-9a-f]{64}$`));
+    expect(text('ci.yml')).not.toMatch(/playwright install/);
+  });
+
+  it('splits e2e into one job per Playwright project', () => {
+    const config = readFileSync(new URL('../../../apps/web/playwright.config.ts', import.meta.url), 'utf8');
+    const block = config.match(/projects: \[([\s\S]*?)\n {2}\],/)![1]!;
+    const projects = [...block.matchAll(/\{ name: '(\w+)'/g)].map((m) => m[1]);
+    // Every project in the block, however it is written, must be one the pattern above found.
+    expect(projects).toHaveLength(block.match(/\bname:/g)!.length);
+    expect(projects.length).toBeGreaterThan(1);
+    const e2e = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1];
+    expect(e2e.strategy?.matrix?.project).toEqual(projects);
+    expect(e2e.strategy?.['fail-fast']).toBe(false);
+    expect(e2e.steps!.map((s) => s.run)).toContain('pnpm --filter web e2e --project=${{ matrix.project }}');
+  });
+
+  it('deploys only after check and every e2e job', () => {
+    for (const name of ['preview', 'deploy-staging']) {
+      expect(jobsOf('ci.yml').find(([n]) => n === name)![1].needs, name).toEqual(['check', 'e2e']);
+    }
+  });
+
+  it('cancels the run once check has failed, so the e2e jobs stop early and check stays failed', () => {
+    const jobs = Object.fromEntries(jobsOf('ci.yml'));
+    // A separate job: cancelling from inside check would mark check itself cancelled instead of failed.
+    const stop = jobs['stop-on-check-failure']!;
+    expect(stop.needs).toEqual(['check']);
+    expect(stop.if).toBe(`failure() && (github.event_name != 'pull_request' || ${FORK_GUARD})`);
+    expect(stop.permissions).toEqual({ actions: 'write' });
+    expect(stop.steps).toHaveLength(1);
+    expect(stop.steps![0]!.run).toMatch(/^gh run cancel "\$RUN_ID"/);
+    expect(stop.steps![0]!.env).toEqual({ GH_TOKEN: '${{ github.token }}', RUN_ID: '${{ github.run_id }}' });
+    expect(jobs.check!.permissions).toBeUndefined();
+  });
+
+  it('gives every job a time limit', () => {
+    const limits = Object.fromEntries(FILES.flatMap((f) => jobsOf(f).map(([n, j]) => [n, j['timeout-minutes']])));
+    expect(limits).toEqual({ check: 10, 'stop-on-check-failure': 5, e2e: 20, preview: 15, 'deploy-staging': 15, promote: 15 });
   });
 
   it('never uses pull_request_target', () => {
