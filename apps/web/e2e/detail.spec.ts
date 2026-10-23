@@ -13,7 +13,7 @@ async function start(page: Page) {
   await expect(page.getByTestId('bucket-today')).toBeVisible();
 }
 
-test('clicking a row shows its detail above ALWAYS', async ({ page }) => {
+test('clicking a row shows its detail above Important, not urgent', async ({ page }) => {
   await start(page);
   await expect(page.getByTestId('detail')).toHaveCount(0);
   await row(page, 'Call the dentist').click();
@@ -31,8 +31,8 @@ test('clicking a row shows its detail above ALWAYS', async ({ page }) => {
   await expect(d.getByRole('button', { name: 'Delete' })).toBeVisible();
   await expect(d.getByRole('button', { name: 'esc' })).toBeVisible();
   const detailBox = (await d.boundingBox())!;
-  const always = (await page.getByTestId('always-line').first().boundingBox())!;
-  expect(always.y).toBeGreaterThan(detailBox.y + detailBox.height - 1);
+  const group = (await page.getByTestId('bucket-important').boundingBox())!;
+  expect(group.y).toBeGreaterThan(detailBox.y + detailBox.height - 1);
 });
 
 test('Enter edits the title; Enter saves with a Saved toast', async ({ page }) => {
@@ -73,7 +73,7 @@ test('Esc in a field saves and leaves it; Esc again deselects', async ({ page })
   await expect(legend(page)).toHaveText('task');
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('detail')).toHaveCount(0);
-  await expect(legend(page)).toHaveText('always');
+  await expect(legend(page)).toHaveText('not urgent');
 });
 
 test('double-clicking a row focuses the title', async ({ page }) => {

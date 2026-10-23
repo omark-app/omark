@@ -4,7 +4,7 @@ Decided with AL in the session (2026-10-23): moving a group task to Someday drop
 
 ## What changes for AL
 
-- The ALWAYS box is now **Important, not urgent**: every open task with `⏫` and no `📅`. Same place as before (desktop list: right pane; board: its own rail box, visible next to an open task; phone: below the buckets).
+- The ALWAYS box is now **Important, not urgent**: every open task with `⏫` and no `📅`. Same place as before (desktop list: right pane, under the detail when a task is open; board: the rail box, which the open task's detail takes over as it did for ALWAYS; phone: below the buckets).
 - Its rows are normal task rows: amber, with a checkbox, selectable, editable, keyboard commands, swipes and long-press drag on the phone.
 - Order is the line order in `tasks.md` (new ones last). Drag a row within the group to reorder it.
 - Important Someday tasks now show here, not in Someday.
@@ -31,7 +31,7 @@ Group (core):
 Web:
 - [ ] The group shows in the three places with its name, count and an empty message; never folds.
 - [ ] Rows complete, select, open the edit sheet on the phone, and drag to reorder (mouse and touch).
-- [ ] j/k reach group rows after the buckets.
+- [ ] j/k reach group rows after the buckets in the list; on the board they stay on the board.
 - [ ] Toasts name the group ("Moved to Important, not urgent").
 - [ ] No ALWAYS left in the UI; the hint `esc always` becomes `esc close`.
 - [ ] Preview sample files have a few group tasks instead of Always lines.
@@ -50,6 +50,7 @@ Docs:
 
 ## Risks
 
+- Board rail: on `main` the rail is already about as tall as a 800 px window with a task open, so showing the group under the detail there scrolled the page when editing a low row (`board.spec` "rail stays in view"). The board keeps ALWAYS's behaviour instead: the detail takes the group's place while a task is open.
 - Another device still on the old build writes `# Always` (empty) back into the file. The new build drops an empty section on its next save. Harmless churn until all devices update.
 - An Always line edited on an old device while the new one migrates can come out as two tasks (the merge keeps both). Nothing is lost.
 - An Always line with field text (`📅 2026-…`) becomes a dated task. Unlikely; the line's text decides as everywhere else.

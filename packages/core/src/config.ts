@@ -1,5 +1,6 @@
 import { isMap, isNode, LineCounter, parseDocument } from 'yaml';
 import type { DateLabelStyle } from './labels.ts';
+import type { MovableBucket } from './buckets.ts';
 import type { BucketKey } from './model.ts';
 
 export type Command =
@@ -17,7 +18,7 @@ export interface Config {
   foldedOnOpen: BucketKey[];
   theme: 'system' | 'light' | 'dark';
   dateLabels: DateLabelStyle;
-  newTaskBucket: Exclude<BucketKey, 'later'>;
+  newTaskBucket: MovableBucket;
   saveDelaySeconds: number;
 }
 

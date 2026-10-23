@@ -124,6 +124,6 @@ export function buildTasksMd(tasks: TodoistTask[]): { text: string; warnings: st
   for (const t of roots) build(t);
   // Members of a parent cycle have no root above them; keep them as top-level tasks.
   for (const t of tasks) if (!seen.has(t.id)) build(t);
-  const doc: TasksDoc = { preamble: [], always: [], items, alwaysRaw: null };
+  const doc: TasksDoc = { preamble: [], items };
   return { text: serializeTasks(doc), warnings };
 }

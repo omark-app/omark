@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 it('an $effect sees stats and the toast change after add and complete', async () => {
-  const drive = new FakeOneDrive({ 'tasks.md': '# Always\n\n# Tasks\n' });
+  const drive = new FakeOneDrive({ 'tasks.md': '# Tasks\n' });
   const store = await createStore({
     workspace: createWorkspace(drive, new MemoryCache()),
     clock: { now: () => new Date(2026, 9, 16, 9, 0) },
@@ -40,7 +40,7 @@ it('an $effect sees stats and the toast change after add and complete', async ()
 });
 
 it('flush runs registered pending callbacks before staging, until unregistered', async () => {
-  const drive = new FakeOneDrive({ 'tasks.md': '# Always\n\n# Tasks\n- [ ] Buy milk\n' });
+  const drive = new FakeOneDrive({ 'tasks.md': '# Tasks\n- [ ] Buy milk\n' });
   const store = await createStore({
     workspace: createWorkspace(drive, new MemoryCache()),
     clock: { now: () => new Date(2026, 9, 16, 9, 0) },

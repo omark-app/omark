@@ -17,7 +17,7 @@ export function fakeSeed(
 
 /**
  * Files a PR preview's fake drive starts with, so a preview is worth opening on the phone: every bucket,
- * a repeat, notes, ALWAYS lines and a few completions. Dates are relative to `today`.
+ * Important, not urgent, a repeat, notes and a few completions. Dates are relative to `today`.
  */
 export function sampleFiles(today: ISODate): Record<FileName, string> {
   const ctx = { today, weekStart: 0 };
@@ -25,11 +25,10 @@ export function sampleFiles(today: ISODate): Record<FileName, string> {
   const nextMonday = addDays(today, 7 - dayOfWeek(today));
   const d = (n: number) => addDays(today, n);
   const thisWeek = weekEnd > today ? `📅 ${weekEnd}` : `📅 ${today}`;
-  const tasks = `# Always
-- Walk before the first coffee
-- One tab at a time
-
-# Tasks
+  const tasks = `# Tasks
+- [ ] Walk before the first coffee ⏫
+- [ ] One tab at a time ⏫
+- [ ] Notice when I interrupt people ⏫
 - [ ] Call the dentist about the crown 📅 ${today}
     - ask about zirconia
     - bring the old x-ray

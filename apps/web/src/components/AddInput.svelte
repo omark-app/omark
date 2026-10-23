@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { BUCKETS, readQuickAdd } from '@omark/core';
+  import { bucketName as nameOf, readQuickAdd } from '@omark/core';
   import type { Dismissed } from '@omark/core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import ShortcutField from './ShortcutField.svelte';
@@ -9,7 +9,7 @@
   let input: HTMLInputElement | undefined = $state();
   let value = $state('');
   let dismissed = $state<Dismissed[]>([]);
-  const bucketName = $derived(BUCKETS.find((b) => b.key === store.config.newTaskBucket)!.name);
+  const bucketName = $derived(nameOf(store.config.newTaskBucket));
 
   export function focus(): void {
     input?.focus();

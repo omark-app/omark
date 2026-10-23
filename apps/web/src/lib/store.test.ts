@@ -6,10 +6,7 @@ import type { CachedFile, FileName, LocalCache, Workspace } from '@omark/storage
 import { createStore } from './store.svelte.ts';
 import type { AppStore } from './store.svelte.ts';
 
-const SEED_TASKS = `# Always
-- Walk before the first coffee
-
-# Tasks
+const SEED_TASKS = `# Tasks
 - [ ] Call the dentist 📅 2026-10-16
     - bring the old x-ray
 - [ ] Water the plants 🔁 every week on Monday 📅 2026-10-19
@@ -178,13 +175,13 @@ describe('app store', () => {
   });
 
   it('completing a repeating task copies its notes to done.md, and undo takes them back', async () => {
-    const tasks = '# Always\n\n# Tasks\n- [ ] Water the plants 🔁 every week on Monday 📅 2026-10-16\n    - the ferns too\n';
+    const tasks = '# Tasks\n- [ ] Water the plants 🔁 every week on Monday 📅 2026-10-16\n    - the ferns too\n';
     const { drive, store, synced } = await setup({ 'tasks.md': tasks });
     store.complete(idOf(store, 'Water the plants'));
     await synced();
     expect(drive.peek('done.md')).toBe('- [x] Water the plants 🔁 every week on Monday ✅ 2026-10-16\n    - the ferns too\n');
     expect(drive.peek('tasks.md')).toBe(
-      '# Always\n\n# Tasks\n- [ ] Water the plants 🔁 every week on Monday 📅 2026-10-19\n    - the ferns too\n',
+      '# Tasks\n- [ ] Water the plants 🔁 every week on Monday 📅 2026-10-19\n    - the ferns too\n',
     );
     expect(store.stats.all).toBe(1);
     store.undo();
@@ -236,7 +233,7 @@ describe('app store', () => {
     expect(store.stats.all).toBe(2);
 
     await vi.advanceTimersByTimeAsync(1000);
-    await vi.waitFor(() => expect(drive.peek('tasks.md')).toBe('# Always\n\n# Tasks\n- [ ] Open one\n'));
+    await vi.waitFor(() => expect(drive.peek('tasks.md')).toBe('# Tasks\n- [ ] Open one\n'));
     expect(drive.peek('done.md')).toBe(
       '- [x] Ticked in Obsidian ✅ 2026-10-16\n- [x] Done last week ✅ 2026-10-09\n',
     );
@@ -251,7 +248,7 @@ describe('app store', () => {
     await vi.advanceTimersByTimeAsync(1000);
     await vi.waitFor(() =>
       expect(drive.peek('tasks.md')).toBe(
-        '# Always\n\n# Tasks\n- [ ] Water the plants 🔁 every week on Monday 📅 2026-10-19\n    - the ferns too\n',
+        '# Tasks\n- [ ] Water the plants 🔁 every week on Monday 📅 2026-10-19\n    - the ferns too\n',
       ),
     );
     expect(drive.peek('done.md')).toBe('- [x] Water the plants 🔁 every week on Monday ✅ 2026-10-16\n    - the ferns too\n');
@@ -377,7 +374,7 @@ describe('app store', () => {
     const desk = (await setup(seed)).store;
     expect(desk.view).toBe('board');
     // This week and Later are empty, so they start folded.
-    expect(desk.folded).toEqual({ today: false, tomorrow: false, week: true, next: false, later: true, someday: true });
+    expect(desk.folded).toEqual({ today: false, tomorrow: false, week: true, next: false, later: true, someday: true, important: false });
     desk.switchView();
     expect(desk.view).toBe('list');
 
@@ -390,7 +387,7 @@ describe('app store', () => {
   it('folds empty buckets until the user unfolds them; the board keeps the dated ones open', async () => {
     const seed = { 'tasks.md': SEED_TASKS, 'config.yaml': 'foldedOnOpen: [today, later, someday]\n' };
     const { store } = await setup(seed);
-    expect(store.counts).toEqual({ today: 1, tomorrow: 1, week: 0, next: 1, later: 0, someday: 1 });
+    expect(store.counts).toEqual({ today: 1, tomorrow: 1, week: 0, next: 1, later: 0, someday: 1, important: 0 });
     expect(store.folded).toMatchObject({ today: true, tomorrow: false, week: true, later: true });
     store.switchView();
     expect(store.folded).toMatchObject({ today: false, tomorrow: false, week: true, later: true });
@@ -459,7 +456,7 @@ ${['A', 'B', 'C', 'D'].map((t) => `- [ ] Tom ${t} 📅 2026-10-17`).join('\n')}
     expect(store.selectedId).toBe(idOf(store, 'Send the invoice'));
   });
 
-  it('setRepeat and setAlways toast and can be undone', async () => {
+  it('setRepeat toasts and can be undone', async () => {
     const { store } = await setup();
     const id = idOf(store, 'Learn Polish sign language');
     store.setRepeat(id, { type: 'weekly', days: [0, 3] });
@@ -467,10 +464,33 @@ ${['A', 'B', 'C', 'D'].map((t) => `- [ ] Tom ${t} 📅 2026-10-17`).join('\n')}
     expect(findTask(store.state, id)?.date).toBe('2026-10-19');
     store.setRepeat(id, null);
     expect(store.toast?.message).toBe('Repeat removed');
-    store.setAlways(['One tab at a time', '  ']);
-    expect(store.state.doc.always).toEqual(['One tab at a time']);
     store.undo();
-    expect(store.state.doc.always).toEqual(['Walk before the first coffee']);
+    expect(findTask(store.state, id)?.repeat).toEqual({ type: 'weekly', days: [0, 3] });
+  });
+
+  it('a file with an old # Always section is saved with its lines as Important, not urgent tasks (#38)', async () => {
+    const { store, drive } = await setup({ 'tasks.md': '# Always\n- Walk\n- One tab at a time\n\n# Tasks\n- [ ] Learn Polish\n' });
+    expect(tasksInBucket(store.state.doc, 'important', store.ctx).map((t) => t.title)).toEqual(['Walk', 'One tab at a time']);
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.waitFor(() =>
+      expect(drive.peek('tasks.md')).toBe('# Tasks\n- [ ] Walk ⏫\n- [ ] One tab at a time ⏫\n- [ ] Learn Polish\n'),
+    );
+  });
+
+  it('the group: its toasts name it, Someday takes a task out of it, and j/k reach it last (#38)', async () => {
+    const { store } = await setup({ 'tasks.md': `${SEED_TASKS}- [ ] Walk before the first coffee ⏫\n` });
+    const walk = idOf(store, 'Walk before the first coffee');
+    const polish = idOf(store, 'Learn Polish sign language');
+    store.drop(polish, { bucket: 'important', beforeId: walk });
+    expect(store.toast?.message).toContain('Important, not urgent');
+    expect(tasksInBucket(store.state.doc, 'important', store.ctx).map((t) => t.id)).toEqual([polish, walk]);
+    store.moveTo(polish, 'someday');
+    expect(findTask(store.state, polish)?.important).toBeUndefined();
+    expect(store.counts.important).toBe(1);
+    expect(store.folded.important).toBe(false);
+    store.select(null);
+    store.selectNext(-1);
+    expect(store.selectedId).toBe(walk);
   });
 
   it('the toast goes away after 4.2 s', async () => {
@@ -637,7 +657,7 @@ ${['A', 'B', 'C', 'D'].map((t) => `- [ ] Tom ${t} 📅 2026-10-17`).join('\n')}
   });
 
   describe('a flush while a refresh is reading', () => {
-    const RACE_SEED = '# Always\n\n# Tasks\n- [ ] One\n- [ ] Weekly 🔁 every week on Monday 📅 2026-10-19\n';
+    const RACE_SEED = '# Tasks\n- [ ] One\n- [ ] Weekly 🔁 every week on Monday 📅 2026-10-19\n';
 
     async function racing(hold: boolean | ((name: FileName) => boolean) = true) {
       const drive = new SlowDrive({ 'tasks.md': RACE_SEED });
@@ -822,9 +842,7 @@ ${['A', 'B', 'C', 'D'].map((t) => `- [ ] Tom ${t} 📅 2026-10-17`).join('\n')}
   });
 
   describe('two devices on one drive', () => {
-    const TWO = `# Always
-
-# Tasks
+    const TWO = `# Tasks
 - [ ] A 📅 2026-10-18
 - [ ] leki 🔁 every 2 days 📅 2026-10-18
 - [ ] dep 🔁 every week on Sunday 📅 2026-10-18

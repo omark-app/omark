@@ -26,7 +26,8 @@ test('later and someday are folded on open, and unfold on click', async ({ page 
 });
 
 test('the buckets are Today, Tomorrow, This week, Next week, Later, Someday; no Overdue (#26)', async ({ page }) => {
-  const heads = page.locator('[data-testid^="bucket-head-"]');
+  // The date buckets in the tasks pane; Important, not urgent is in the side pane (#38).
+  const heads = page.locator('.tasks [data-testid^="bucket-head-"]');
   await expect(heads).toHaveCount(6);
   const keys = ['today', 'tomorrow', 'week', 'next', 'later', 'someday'];
   for (const [i, k] of keys.entries()) await expect(heads.nth(i)).toHaveAttribute('data-testid', `bucket-head-${k}`);
@@ -59,14 +60,15 @@ test('an empty bucket shows its header folded, until the user unfolds it', async
   await expect(page.getByTestId('bucket-week')).toContainText('Nothing else this week.');
 });
 
-test('always lines, stats, status, legends, hints', async ({ page }) => {
-  await expect(page.getByTestId('always-line')).toHaveCount(2);
+test('Important, not urgent, stats, status, legends, hints', async ({ page }) => {
+  await expect(page.getByTestId('bucket-important').getByTestId('task-row')).toHaveText([/Walk before the first coffee/, /One tab at a time/]);
+  await expect(page.getByTestId('bucket-count-important')).toHaveText('2');
   const stats = page.getByTestId('stats');
   await expect(stats).toContainText('Today 0 (–)');
   await expect(stats).toContainText('7d 0 (–)');
   await expect(stats).toContainText('All 0');
   await expect(page.getByTestId('status')).toHaveText('saved');
-  await expect(page.locator('.legend')).toHaveText(['tasks', 'always']);
+  await expect(page.locator('.legend')).toHaveText(['tasks', 'not urgent']);
   await expect(page.getByTestId('hints')).toBeVisible();
 });
 
