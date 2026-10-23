@@ -1,7 +1,7 @@
 import { bucketOf } from './buckets.ts';
 import { addDays, endOfNextWeek } from './dates.ts';
 import type { BucketKey, ISODate, State, WeekCtx } from './model.ts';
-import { findTask, moveToBucket, reorder } from './ops.ts';
+import { findTask, moveToBucket, moveToGroup, reorder } from './ops.ts';
 
 export interface DropTarget {
   bucket: BucketKey;
@@ -17,8 +17,9 @@ export type DropOutcome =
 
 /**
  * What a drop of task `id` on `target` does (spec 4.4). Same bucket: reorder before `beforeId`.
- * Later has no single date, so it asks for one. Any other bucket: set the date and place it. Today also
- * holds overdue tasks (#26), so they reorder there like any other.
+ * Later has no single date, so it asks for one. Important, not urgent: no date and ⏫ (#38). Any other
+ * bucket: set the date and place it. Today also holds overdue tasks (#26), so they reorder there like
+ * any other.
  */
 export function planDrop(s: State, id: string, target: DropTarget, ctx: WeekCtx): DropOutcome {
   const task = findTask(s, id);
@@ -37,6 +38,10 @@ export function planDrop(s: State, id: string, target: DropTarget, ctx: WeekCtx)
 
   if (target.bucket === 'later') {
     return { kind: 'pickDate', suggested: addDays(endOfNextWeek(ctx), 1), beforeId: target.beforeId };
+  }
+
+  if (target.bucket === 'important') {
+    return { kind: 'move', state: moveToGroup(s, id, target.beforeId), bucket: 'important' };
   }
 
   const bucket = target.bucket;

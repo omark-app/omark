@@ -7,8 +7,11 @@ export interface WeekCtx {
   weekStart: number;
 }
 
-/** Today also holds overdue tasks (#26). */
-export type BucketKey = 'today' | 'tomorrow' | 'week' | 'next' | 'later' | 'someday';
+/**
+ * Today also holds overdue tasks (#26). `important` is the Important, not urgent group (#38): open tasks
+ * with ⏫ and no date, which Someday then leaves out.
+ */
+export type BucketKey = 'today' | 'tomorrow' | 'week' | 'next' | 'later' | 'someday' | 'important';
 
 /**
  * A repeat rule from the 🔁 field of a task. Weekly `days`: 0 = Monday … 6 = Sunday, sorted, non-empty.
@@ -65,16 +68,12 @@ export type Item =
   | { kind: 'raw'; lines: string[] };
 
 /**
- * A parsed `tasks.md`. `preamble` is anything before `# Always`; `items` is everything after `# Tasks`.
- * `alwaysRaw` is the Always section as read (from its heading through the `# Tasks` heading) plus the
- * `always` it parsed to; the section is written back from it while `always` is unchanged. It is null
- * when the file had no Always section; a doc built from scratch should use null too.
+ * A parsed `tasks.md`. `preamble` is anything before `# Tasks`; `items` is everything after it. The old
+ * `# Always` section is read into the items when parsed (#38) and never written back.
  */
 export interface TasksDoc {
   preamble: string[];
-  always: string[];
   items: Item[];
-  alwaysRaw: { lines: string[]; key: string } | null;
 }
 
 /**

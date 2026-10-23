@@ -6,8 +6,11 @@ export interface BucketRows {
   rows: number;
 }
 
-/** The column each bucket has in the default board `[today] | [tomorrow, week] | [next] | [later, someday]`. */
-const DEFAULT_COLUMN: Record<BucketKey, number> = { today: 0, tomorrow: 1, week: 1, next: 2, later: 3, someday: 3 };
+/**
+ * The column each bucket has in the default board `[today] | [tomorrow, week] | [next] | [later, someday]`.
+ * Important, not urgent is in the rail, not on the board (#38).
+ */
+const DEFAULT_COLUMN: Partial<Record<BucketKey, number>> = { today: 0, tomorrow: 1, week: 1, next: 2, later: 3, someday: 3 };
 
 /** Every way to cut `n` items into `parts` contiguous non-empty groups, as the start index of each group after the first. */
 function cuts(n: number, parts: number, from = 1): number[][] {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import {
-  allTasks, bucketOf, parseDone, parseTasks, planDrop, setImportant, type State, type WeekCtx,
+  allTasks, bucketOf, parseDone, parseTasks, planDrop, setImportant, tasksInBucket, type State, type WeekCtx,
 } from '../src/index.ts';
 
 const fri: WeekCtx = { today: '2026-10-16', weekStart: 0 };
@@ -154,5 +154,65 @@ describe('planDrop with Important (#19)', () => {
     if (out.kind !== 'reorder') throw new Error('not a reorder');
     expect(taskOf(out.state, INVOICE).important).toBeFalsy();
     expect(taskOf(out.state, WATER).important).toBe(true);
+  });
+});
+
+describe('Important, not urgent (#38)', () => {
+  const GROUP_TEXT = `# Tasks
+- [ ] Call the dentist 📅 2026-10-16
+- [ ] Walk before the first coffee ⏫
+- [ ] Learn Polish
+- [ ] One tab at a time ⏫
+- [ ] Notice the small wins ⏫
+`;
+  function group(): State {
+    let n = 0;
+    return { doc: parseTasks(GROUP_TEXT, () => `id${++n}`), done: parseDone('') };
+  }
+  const WALK = 'Walk before the first coffee';
+  const TAB = 'One tab at a time';
+  const WINS = 'Notice the small wins';
+
+  test('important undated tasks are in the group, in file order', () => {
+    const s = group();
+    expect(bucketOf(taskOf(s, WALK), fri)).toBe('important');
+    expect(bucketOf(taskOf(s, POLISH), fri)).toBe('someday');
+    expect(tasksInBucket(s.doc, 'important', fri).map((t) => t.title)).toEqual([WALK, TAB, WINS]);
+    expect(tasksInBucket(s.doc, 'someday', fri).map((t) => t.title)).toEqual([POLISH]);
+  });
+
+  test('dropping within the group reorders', () => {
+    const s = group();
+    const out = planDrop(s, idOf(s, WINS), { bucket: 'important', beforeId: idOf(s, WALK) }, fri);
+    expect(out).toMatchObject({ kind: 'reorder', sameDate: true, sameFlag: true });
+    if (out.kind !== 'reorder') return;
+    expect(tasksInBucket(out.state.doc, 'important', fri).map((t) => t.title)).toEqual([WINS, WALK, TAB]);
+  });
+
+  test('dropping a dated task on the group clears its date and flags it, before the row given', () => {
+    const s = group();
+    const out = planDrop(s, idOf(s, DENTIST), { bucket: 'important', beforeId: idOf(s, TAB) }, fri);
+    expect(out).toMatchObject({ kind: 'move', bucket: 'important' });
+    if (out.kind !== 'move') return;
+    expect(taskOf(out.state, DENTIST)).toMatchObject({ date: null, important: true });
+    expect(tasksInBucket(out.state.doc, 'important', fri).map((t) => t.title)).toEqual([WALK, DENTIST, TAB, WINS]);
+  });
+
+  test('a group task dropped on Someday loses ⏫; one dropped on Today keeps it', () => {
+    const s = group();
+    const someday = planDrop(s, idOf(s, TAB), { bucket: 'someday', beforeId: null }, fri);
+    if (someday.kind !== 'move') throw new Error(someday.kind);
+    expect(taskOf(someday.state, TAB).important).toBeUndefined();
+    expect(bucketOf(taskOf(someday.state, TAB), fri)).toBe('someday');
+    const today = planDrop(s, idOf(s, TAB), { bucket: 'today', beforeId: null }, fri);
+    if (today.kind !== 'move') throw new Error(today.kind);
+    expect(taskOf(today.state, TAB)).toMatchObject({ date: '2026-10-16', important: true });
+  });
+
+  test('an important dated task moved to Someday keeps ⏫ and lands in the group', () => {
+    const s = setImportant(group(), idOf(group(), DENTIST), true);
+    const out = planDrop(s, idOf(s, DENTIST), { bucket: 'someday', beforeId: null }, fri);
+    if (out.kind !== 'move') throw new Error(out.kind);
+    expect(bucketOf(taskOf(out.state, DENTIST), fri)).toBe('important');
   });
 });

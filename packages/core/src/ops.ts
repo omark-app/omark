@@ -76,10 +76,21 @@ export function setDate(s: State, id: string, date: ISODate | null, beforeId?: s
   return placeBefore(updateTask(s, id, (t) => ({ ...t, date })), id, beforeId);
 }
 
+/**
+ * Gives the task the bucket's date. A task in Important, not urgent (⏫, no date) moved to Someday also
+ * loses ⏫, or it would stay in the group (#38); any other important task keeps it.
+ */
 export function moveToBucket(
   s: State, id: string, bucket: DateChoice, ctx: WeekCtx, beforeId?: string | null,
 ): State {
-  return setDate(s, id, dateForChoice(bucket, ctx), beforeId);
+  const t = findTask(s, id);
+  const next = setDate(s, id, dateForChoice(bucket, ctx), beforeId);
+  return bucket === 'someday' && t?.important && t.date === null ? setImportant(next, id, false) : next;
+}
+
+/** Moves a task into Important, not urgent (#38): no date and ⏫, placed before `beforeId` when given. */
+export function moveToGroup(s: State, id: string, beforeId?: string | null): State {
+  return setImportant(setDate(s, id, null, beforeId), id, true);
 }
 
 export function reorder(s: State, id: string, beforeId: string): State {
@@ -131,9 +142,4 @@ export function setImportant(s: State, id: string, important: boolean): State {
   const t = findTask(s, id);
   if (!t || (t.important === true) === important) return s;
   return updateTask(s, id, ({ important: _, ...rest }) => (important ? { ...rest, important: true } : rest));
-}
-
-export function setAlways(s: State, lines: string[]): State {
-  const always = lines.map((l) => l.trim()).filter((l) => l !== '');
-  return { ...s, doc: { ...s.doc, always } };
 }

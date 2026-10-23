@@ -28,50 +28,32 @@ export function taskKey(t: Pick<Task, 'title' | 'notes' | 'date' | 'repeat' | 'i
   return JSON.stringify(key);
 }
 
-/** Parses `tasks.md`. Anything that isn't an Always line, a `- [ ]` task or a `- [x]` line is kept as raw lines. */
+/**
+ * Parses `tasks.md`. Anything that isn't a `- [ ]` task or a `- [x]` line is kept as raw lines. A file
+ * from before #38 may have a `# Always` section above `# Tasks`: each of its `- ` lines becomes an
+ * important task with no date (Important, not urgent), at the top of the items in the same order. Its
+ * other non-blank lines join the preamble; the heading and blank lines go.
+ */
 export function parseTasks(text: string, newId: () => string = defaultNewId): TasksDoc {
   const lines = toLines(text);
   const { alwaysAt, tasksAt } = sections(lines);
+  const items = tasksAt < 0 && alwaysAt >= 0 ? [] : parseItems(lines.slice(tasksAt + 1), newId);
+  if (alwaysAt < 0) return { preamble: tasksAt < 0 ? [] : lines.slice(0, tasksAt), items };
 
-  if (alwaysAt < 0) {
-    // No Always section. With no `# Tasks` either, the whole file is the Tasks section.
-    return {
-      preamble: tasksAt < 0 ? [] : lines.slice(0, tasksAt),
-      always: [],
-      items: parseItems(lines.slice(tasksAt + 1), newId),
-      alwaysRaw: null,
-    };
-  }
-
-  const sectionEnd = tasksAt < 0 ? lines.length : tasksAt;
-  const always = lines.slice(alwaysAt + 1, sectionEnd).flatMap((l) => {
+  const section = lines.slice(alwaysAt + 1, tasksAt < 0 ? lines.length : tasksAt);
+  const kept = section.filter((l) => l.trim() !== '' && alwaysEntry(l) === null);
+  const migrated = section.flatMap((l): Item[] => {
     const entry = alwaysEntry(l);
-    return entry === null ? [] : [entry];
+    if (entry === null) return [];
+    const task = readBack({ id: newId(), title: entry, notes: [], date: null, repeat: null, important: true, raw: null, rawKey: null });
+    return task.title === '' ? [] : [{ kind: 'task', task }];
   });
-  return {
-    preamble: lines.slice(0, alwaysAt),
-    always,
-    items: tasksAt < 0 ? [] : parseItems(lines.slice(tasksAt + 1), newId),
-    alwaysRaw: {
-      lines: [...lines.slice(alwaysAt, sectionEnd), tasksAt < 0 ? '# Tasks' : lines[tasksAt]!],
-      key: JSON.stringify(always),
-    },
-  };
+  return { preamble: [...lines.slice(0, alwaysAt), ...kept], items: [...migrated, ...items] };
 }
 
 /** Writes `tasks.md` with LF line endings. Unchanged tasks and unknown lines are written exactly as read. */
 export function serializeTasks(doc: TasksDoc): string {
-  const out = [...doc.preamble];
-  const raw = doc.alwaysRaw;
-  if (raw && raw.key === JSON.stringify(doc.always)) {
-    out.push(...raw.lines);
-  } else {
-    // Lines of the old section that weren't Always entries (free text, other bullets) are kept.
-    const unknown = raw
-      ? raw.lines.slice(1, -1).filter((l) => l.trim() !== '' && alwaysEntry(l) === null)
-      : [];
-    out.push('# Always', ...doc.always.map((a) => `- ${a}`), ...unknown, '', '# Tasks');
-  }
+  const out = [...doc.preamble, '# Tasks'];
   for (const item of doc.items) {
     if (item.kind === 'raw') out.push(...item.lines);
     else if (item.kind === 'done') out.push(...item.raw);
@@ -80,7 +62,7 @@ export function serializeTasks(doc: TasksDoc): string {
   return out.map((l) => `${l}\n`).join('');
 }
 
-/** Indexes of the `# Always` and `# Tasks` headings as `parseTasks` reads them; -1 when absent. */
+/** Indexes of the old `# Always` heading and the `# Tasks` heading as `parseTasks` reads them; -1 when absent. */
 function sections(lines: string[]): { alwaysAt: number; tasksAt: number } {
   const tasksAt = lines.findIndex((l) => TASKS_HEADING.test(l));
   const firstAlways = lines.findIndex((l) => ALWAYS_HEADING.test(l));
@@ -116,6 +98,7 @@ export function toLines(text: string): string[] {
   return lines;
 }
 
+/** The text of a `- ` line in an old `# Always` section; null for any other line. */
 function alwaysEntry(line: string): string | null {
   if (!line.startsWith('- ')) return null;
   const text = line.slice(2).trim();

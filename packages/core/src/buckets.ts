@@ -11,9 +11,20 @@ export const BUCKETS: readonly { key: BucketKey; name: string }[] = [
   { key: 'someday', name: 'Someday' },
 ];
 
+/**
+ * Important, not urgent (#38): open tasks with ⏫ and no date. Not a date bucket: it is shown apart from
+ * them (where ALWAYS used to be), never folds, and is not a move or add choice.
+ */
+export const IMPORTANT_GROUP = { key: 'important', name: 'Important, not urgent' } as const;
+
+/** The name a bucket, or the Important, not urgent group, is shown by. */
+export function bucketName(key: BucketKey): string {
+  return key === IMPORTANT_GROUP.key ? IMPORTANT_GROUP.name : BUCKETS.find((b) => b.key === key)!.name;
+}
+
 export function bucketOf(t: Task, ctx: WeekCtx): BucketKey {
   const d = t.date;
-  if (d === null) return 'someday';
+  if (d === null) return t.important ? 'important' : 'someday';
   if (d <= ctx.today) return 'today';
   if (d === addDays(ctx.today, 1)) return 'tomorrow';
   if (d <= endOfWeek(ctx)) return 'week';
@@ -21,10 +32,10 @@ export function bucketOf(t: Task, ctx: WeekCtx): BucketKey {
   return 'later';
 }
 
-/** A bucket a task can be moved to by a date shortcut. Later has no single date. */
-export type MovableBucket = Exclude<BucketKey, 'later'>;
+/** A bucket a task can be moved to by a date shortcut. Later has no single date; the group is no date. */
+export type MovableBucket = Exclude<BucketKey, 'later' | 'important'>;
 
-const isMovable = (key: BucketKey): key is MovableBucket => key !== 'later';
+const isMovable = (key: BucketKey): key is MovableBucket => key !== 'later' && key !== 'important';
 
 /**
  * The move and add choices, in order. This week is left out when no day after tomorrow is left in it,
@@ -82,7 +93,7 @@ export function allTasks(doc: TasksDoc): Task[] {
 
 /**
  * Important first (issue #19), then earliest date, then file order (the sort is stable). In Today that
- * puts overdue tasks above today's (#26).
+ * puts overdue tasks above today's (#26). The Important, not urgent group is thus in file order (#38).
  */
 export function tasksInBucket(doc: TasksDoc, key: BucketKey, ctx: WeekCtx): Task[] {
   return allTasks(doc)

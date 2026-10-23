@@ -3,11 +3,6 @@ tags: [tasks]
 ---
 Kept above the lists.
 
-# Always
--   Stretch   at noon
-* not a dash bullet
-
-- Drink water
 # Tasks
 Free text the app does not understand.
 

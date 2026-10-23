@@ -170,7 +170,8 @@ test('notes added on one side while the title changed on the other keeps both ve
   );
   // Both versions parse back as two tasks.
   const titles = tasksOf(parseTasks(out)).map((t) => t.title);
-  expect(titles).toEqual(['Buy oat milk', 'Call the dentist about the bridge', 'Call the dentist about the crown', 'Renew passport', 'Read "Dune"']);
+  // The old Always lines read as Important, not urgent tasks first (#38).
+  expect(titles).toEqual(['Walk before the first coffee', 'One tab at a time', 'Buy oat milk', 'Call the dentist about the bridge', 'Call the dentist about the crown', 'Renew passport', 'Read "Dune"']);
 });
 
 test('an identical edit on both sides gives one copy', () => {
@@ -436,10 +437,10 @@ test('carryIds: unchanged tasks keep their old ids, and a changed task gets a ne
   expect(idOf(out, 'Renew passport')).not.toBe(idOf(prev, 'Renew passport'));
   expect(idOf(out, 'Book flights')).toBe(idOf(next, 'Book flights'));
 
-  // Only ids change: the rest of the doc (alwaysRaw included) is next's, and next is not mutated.
+  // Only ids change: the rest of the doc is next's, and next is not mutated.
   const strip = (d: TasksDoc) => ({ ...d, items: d.items.map((it): Item => (it.kind === 'task' ? { ...it, task: { ...it.task, id: '' } } : it)) });
   expect(strip(out)).toEqual(strip(next));
-  expect(out.alwaysRaw).toBe(next.alwaysRaw);
+  expect(out.preamble).toBe(next.preamble);
   expect(idOf(next, 'Buy oat milk')).toBe('n1');
 });
 
