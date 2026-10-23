@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { Task, TasksDoc } from '../src/index.ts';
-import { BUCKETS, allTasks, bucketOf, bucketRange, currentChoice, dateChoices, dateForBucket, movableBuckets, tasksInBucket } from '../src/index.ts';
+import { BUCKETS, IMPORTANT_GROUP, allTasks, bucketName, bucketOf, bucketRange, currentChoice, dateChoices, dateForBucket, movableBuckets, tasksInBucket } from '../src/index.ts';
 
 const tue = { today: '2026-10-13', weekStart: 0 };
 const fri = { today: '2026-10-16', weekStart: 0 };
@@ -8,7 +8,7 @@ const sat = { today: '2026-10-17', weekStart: 0 };
 const sun = { today: '2026-10-18', weekStart: 0 };
 const mk = (id: string, date: string | null): Task => ({ id, title: id, notes: [], date, repeat: null, raw: null, rawKey: null });
 const docOf = (tasks: Task[]): TasksDoc => ({
-  preamble: [], always: [], alwaysRaw: null,
+  preamble: [],
   items: tasks.map((task) => ({ kind: 'task' as const, task })),
 });
 
@@ -85,7 +85,9 @@ test('tasksInBucket puts important tasks first, then date, then file order (#19)
   ]);
   expect(tasksInBucket(doc, 'week', tue).map((t) => t.id)).toEqual(['w4', 'w2', 'w1', 'w3']);
   expect(tasksInBucket(doc, 'today', tue).map((t) => t.id)).toEqual(['o2', 'o1']);
-  expect(tasksInBucket(doc, 'someday', fri).map((t) => t.id)).toEqual(['s2', 's1']);
+  // An important undated task is in Important, not urgent, not Someday (#38).
+  expect(tasksInBucket(doc, 'someday', fri).map((t) => t.id)).toEqual(['s1']);
+  expect(tasksInBucket(doc, 'important', fri).map((t) => t.id)).toEqual(['s2']);
 });
 
 test('Today: important first, then overdue, then today (#26)', () => {
@@ -119,4 +121,15 @@ test('a week that ends on Saturday (#26)', () => {
   expect(bucketOf(mk('a', '2026-10-18'), friS)).toBe('next');
   expect(movableBuckets(friS).map((b) => b.key)).toEqual(['today', 'tomorrow', 'next', 'someday']);
   expect(bucketRange('week', thu)).toBe('Sat');
+});
+
+test('bucketName names every bucket and the Important, not urgent group (#38)', () => {
+  expect(bucketName('important')).toBe('Important, not urgent');
+  expect(bucketName('someday')).toBe('Someday');
+  expect(IMPORTANT_GROUP).toEqual({ key: 'important', name: 'Important, not urgent' });
+  expect(BUCKETS.map((b) => b.key)).not.toContain('important');
+  expect(dateChoices(fri).map((c) => c.key)).not.toContain('important');
+  const t = { ...mk('a', null), important: true };
+  expect(bucketOf(t, fri)).toBe('important');
+  expect(currentChoice(t, fri)).toBeNull();
 });

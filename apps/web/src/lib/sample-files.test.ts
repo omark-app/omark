@@ -25,16 +25,15 @@ describe('sampleFiles', () => {
     expect(serializeTasks(doc)).toBe(files['tasks.md']);
   });
 
-  it('fills every bucket', () => {
+  it('fills every bucket and Important, not urgent', () => {
     const ctx = { today: WEDNESDAY, weekStart: 0 };
     const buckets = new Set(tasks.map((t) => bucketOf(t, ctx)));
-    expect([...buckets].sort()).toEqual(['later', 'next', 'someday', 'today', 'tomorrow', 'week']);
+    expect([...buckets].sort()).toEqual(['important', 'later', 'next', 'someday', 'today', 'tomorrow', 'week']);
   });
 
-  it('has a repeat, notes and ALWAYS lines', () => {
+  it('has a repeat and notes', () => {
     expect(tasks.some((t) => t.repeat !== null)).toBe(true);
     expect(tasks.some((t) => t.notes.length > 0)).toBe(true);
-    expect(doc.always.length).toBeGreaterThanOrEqual(2);
   });
 
   it('done.md has recent completions, so stats are not zero', () => {

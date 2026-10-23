@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 import {
   addTask, allTasks, completeTask, deleteTask, editTask, findTask, moveToBucket, parseDone, parseTasks,
-  computeStats, reorder, serializeDone, serializeTasks, setAlways, setDate, setImportant, setRepeat, toBlocks, type State,
+  computeStats, reorder, serializeDone, serializeTasks, setDate, setImportant, setRepeat, toBlocks, type State,
   type Task, type WeekCtx,
 } from '../src/index.ts';
 
@@ -87,7 +87,7 @@ describe('moveToBucket / setDate / reorder', () => {
     const id = idOf(base, POLISH);
     const before = idOf(base, WATER);
     const s = pure((s) => moveToBucket(s, id, 'next', fri, before));
-    expect(titles(s)).toEqual([DENTIST, POLISH, WATER, INVOICE]);
+    expect(titles(s)).toEqual([DENTIST, POLISH, WATER, INVOICE, 'One tab at a time']);
     const s2 = pure((s) => setDate(s, id, '2026-11-01', before));
     expect(titles(s2)[1]).toBe(POLISH);
     expect(findTask(s2, id)!.date).toBe('2026-11-01');
@@ -145,7 +145,7 @@ describe('completeTask', () => {
     });
     const s0: State = {
       doc: {
-        preamble: [], always: [], alwaysRaw: null,
+        preamble: [],
         items: [
           { kind: 'task', task: drifted('a', 'leki 🔁 every 2 days') },
           { kind: 'task', task: drifted('b', 'depresja 🔁 every week on Sunday') },
@@ -159,7 +159,7 @@ describe('completeTask', () => {
     const r2 = completeTask(r1.state, 'b', sun);
     expect(r2.next).toBe('2026-10-25');
     expect(serializeTasks(r2.state.doc)).toBe(
-      '# Always\n\n# Tasks\n- [ ] leki 🔁 every 2 days 📅 2026-10-20\n    - note\n' +
+      '# Tasks\n- [ ] leki 🔁 every 2 days 📅 2026-10-20\n    - note\n' +
         '- [ ] depresja 🔁 every week on Sunday 📅 2026-10-25\n    - note\n',
     );
     expect(serializeDone(r2.state.done)).toBe(
@@ -203,7 +203,7 @@ describe('completeTask', () => {
     expect(serializeDone(r.state.done)).toBe('- [x] Water 🔁 every week on Monday ✅ 2026-10-19\n    - the ferns too\n');
     expect(r.state.done.lines[0]!.entry?.notes).toEqual(['the ferns too']);
     expect(serializeTasks(r.state.doc)).toBe(
-      '# Always\n\n# Tasks\n- [ ] Water 🔁 every week on Monday 📅 2026-10-26\n    - the ferns too\n',
+      '# Tasks\n- [ ] Water 🔁 every week on Monday 📅 2026-10-26\n    - the ferns too\n',
     );
     expect(computeStats(r.state.done, '2026-10-19').all).toBe(1);
   });
@@ -281,14 +281,6 @@ describe('setRepeat', () => {
     const s = pure((s) => setRepeat(s, id, null, TODAY));
     expect(findTask(s, id)).toMatchObject({ date: '2026-10-19', repeat: null });
     expect(setRepeat(s, 'nope', null, TODAY)).toEqual(s);
-  });
-});
-
-describe('setAlways', () => {
-  test('trims and drops blanks', () => {
-    const s = pure((s) => setAlways(s, ['a', ' ', ' b ']));
-    expect(s.doc.always).toEqual(['a', 'b']);
-    expect(serializeTasks(s.doc)).toContain('# Always\n- a\n- b\n');
   });
 });
 

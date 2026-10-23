@@ -38,10 +38,10 @@ test('spec example round-trips byte-for-byte', () => {
   expect(serializeTasks(parseTasks(SPEC))).toBe(SPEC);
 });
 
-test('spec example parses to the expected tasks and always lines', () => {
+test('spec example parses to the expected tasks', () => {
   const doc = parseTasks(SPEC);
   const tasks = tasksOf(doc);
-  expect(tasks).toHaveLength(4);
+  expect(tasks).toHaveLength(5);
   expect(tasks[0]!.title).toBe('Call the dentist about the crown');
   expect(tasks[0]!.notes).toEqual(['ask about zirconia', 'bring the old x-ray']);
   expect(tasks[0]!.date).toBe('2026-10-16');
@@ -51,7 +51,7 @@ test('spec example parses to the expected tasks and always lines', () => {
   expect(tasks[3]!.title).toBe('Learn Polish sign language');
   expect(tasks[3]!.date).toBeNull();
   expect(tasks[3]!.repeat).toBeNull();
-  expect(doc.always).toEqual(['Walk before the first coffee', 'One tab at a time']);
+  expect(tasks[4]).toMatchObject({ title: 'One tab at a time', date: null, important: true });
   expect(doc.preamble).toEqual([]);
 });
 
@@ -83,10 +83,9 @@ test('messy file parses fields wherever they sit', () => {
   expect(tasksOf(doc)).toHaveLength(5);
 });
 
-test('messy file keeps preamble, always lines and unknown lines', () => {
+test('messy file keeps preamble and unknown lines', () => {
   const doc = parseTasks(MESSY);
   expect(doc.preamble).toEqual(['---', 'tags: [tasks]', '---', 'Kept above the lists.', '']);
-  expect(doc.always).toEqual(['Stretch   at noon', 'Drink water']);
   const raw = doc.items.flatMap((it) => (it.kind === 'raw' ? it.lines : []));
   expect(raw).toContain('## Errands');
   expect(raw).toContain('Free text the app does not understand.');
@@ -119,7 +118,7 @@ test('a changed task is written as title, repeat, date, then notes', () => {
 });
 
 test('N-interval rules are written canonically and read back', () => {
-  const doc = parseTasks('# Always\n\n# Tasks\n');
+  const doc = parseTasks('# Tasks\n');
   const mk = (id: string, title: string, repeat: Task['repeat'], date: string): Item => ({
     kind: 'task',
     task: { id, title, notes: [], date, repeat, raw: null, rawKey: null },
@@ -133,7 +132,7 @@ test('N-interval rules are written canonically and read back', () => {
     ],
   });
   expect(text).toBe(
-    '# Always\n\n# Tasks\n' +
+    '# Tasks\n' +
       '- [ ] Bins 🔁 every 2 weeks on Friday 📅 2026-10-23\n' +
       '- [ ] Filter 🔁 every 3 months 📅 2026-11-02\n' +
       '- [ ] Review 🔁 every 3 months on the 18th 📅 2026-10-18\n',
@@ -157,7 +156,7 @@ test('every existing rule wording still round-trips byte-for-byte, as read and w
     '- [ ] G 🔁 every 2 weeks 📅 2026-10-30',
     '- [ ] H 🔁 every 3 days when done 📅 2026-10-19',
   ];
-  const text = `# Always\n\n# Tasks\n${lines.join('\n')}\n`;
+  const text = `# Tasks\n${lines.join('\n')}\n`;
   const doc = parseTasks(text);
   expect(serializeTasks(doc)).toBe(text);
   // Dropping raw forces the canonical writer; the lines must not change.
@@ -174,7 +173,7 @@ test('an out-of-range interval stays in the title and round-trips byte-for-byte'
     '- [ ] Filter 🔁 every 1000000000 months 📅 2026-11-02',
     '- [ ] Odd 🔁 every 5000 days',
   ];
-  const text = `# Always\n\n# Tasks\n${lines.join('\n')}\n`;
+  const text = `# Tasks\n${lines.join('\n')}\n`;
   const doc = parseTasks(text);
   expect(tasksOf(doc).map((t) => [t.title, t.repeat, t.date])).toEqual([
     ['Bins 🔁 every 1000000000 weeks on Friday', null, '2026-10-23'],
@@ -185,27 +184,26 @@ test('an out-of-range interval stays in the title and round-trips byte-for-byte'
 });
 
 test('a new task without raw is written canonically', () => {
-  const doc = parseTasks('# Always\n\n# Tasks\n');
+  const doc = parseTasks('# Tasks\n');
   const task: Task = { id: 'n', title: 'New', notes: [], date: null, repeat: null, raw: null, rawKey: null };
   expect(serializeTasks({ ...doc, items: [...doc.items, { kind: 'task', task }] })).toBe(
-    '# Always\n\n# Tasks\n- [ ] New\n',
+    '# Tasks\n- [ ] New\n',
   );
 });
 
 test('a file with no headings gives items only and gains canonical headings', () => {
   const doc = parseTasks('- [ ] A\n- [ ] B\n');
   expect(tasksOf(doc).map((t) => t.title)).toEqual(['A', 'B']);
-  expect(doc.always).toEqual([]);
   expect(doc.preamble).toEqual([]);
-  expect(serializeTasks(doc)).toBe('# Always\n\n# Tasks\n- [ ] A\n- [ ] B\n');
+  expect(serializeTasks(doc)).toBe('# Tasks\n- [ ] A\n- [ ] B\n');
 });
 
 test('an empty file serializes to the first-run skeleton', () => {
-  expect(serializeTasks(parseTasks(''))).toBe('# Always\n\n# Tasks\n');
+  expect(serializeTasks(parseTasks(''))).toBe('# Tasks\n');
 });
 
 test('a completed line in the Tasks section becomes a done item', () => {
-  const doc = parseTasks('# Always\n\n# Tasks\n- [x] Done thing ✅ 2026-10-15\n');
+  const doc = parseTasks('# Tasks\n- [x] Done thing ✅ 2026-10-15\n');
   expect(doc.items).toEqual([
     {
       kind: 'done',
@@ -234,7 +232,7 @@ test('a done item keeps its due date', () => {
 });
 
 test('a completed line with no done date is a done item with doneOn null', () => {
-  const text = '# Always\n\n# Tasks\n- [x] No date\n- [X] Weekly 🔁 every week on Monday\n';
+  const text = '# Tasks\n- [x] No date\n- [X] Weekly 🔁 every week on Monday\n';
   const doc = parseTasks(text);
   expect(doc.items).toEqual([
     { kind: 'done', entry: { title: 'No date', repeat: null, doneOn: null, notes: [] }, date: null, raw: ['- [x] No date'] },
@@ -289,10 +287,9 @@ test('a rule ends at another Obsidian Tasks field emoji', () => {
   expect(gym).toMatchObject({ title: 'Gym 🛫 2026-10-01', repeat: { type: 'every', n: 2, unit: 'days' } });
 });
 
-test('a doc built from scratch with alwaysRaw null serializes canonically', () => {
-  const doc: TasksDoc = { preamble: [], always: ['Breathe'], items: [], alwaysRaw: null };
-  expect(serializeTasks(doc)).toBe('# Always\n- Breathe\n\n# Tasks\n');
-  expect(parseTasks('- [ ] A\n').alwaysRaw).toBeNull();
+test('a doc built from scratch serializes canonically', () => {
+  const doc: TasksDoc = { preamble: [], items: [] };
+  expect(serializeTasks(doc)).toBe('# Tasks\n');
 });
 
 test('ids come from the injected newId and are unique', () => {
@@ -301,7 +298,7 @@ test('ids come from the injected newId and are unique', () => {
   expect(ids).toEqual(['id1', 'id2', 'id3', 'id4', 'id5']);
   const a = tasksOf(parseTasks(SPEC)).map((t) => t.id);
   const b = tasksOf(parseTasks(SPEC)).map((t) => t.id);
-  expect(new Set([...a, ...b]).size).toBe(8);
+  expect(new Set([...a, ...b]).size).toBe(10);
 });
 
 test('rawKey is taskKey of the parsed task, and raw is its original lines', () => {
@@ -322,15 +319,6 @@ test('taskKey ignores repeat key order', () => {
   );
 });
 
-test('editing always lines rewrites the section canonically and keeps unknown lines', () => {
-  const doc = parseTasks(MESSY);
-  const out = serializeTasks({ ...doc, always: ['Drink water', 'Sleep'] });
-  expect(out).toContain(
-    'Kept above the lists.\n\n# Always\n- Drink water\n- Sleep\n* not a dash bullet\n\n# Tasks\nFree text',
-  );
-  expect(out.endsWith('trailing words\n\n')).toBe(true);
-});
-
 test('field spacing variants and an unparseable date', () => {
   const doc = parseTasks(
     '# Tasks\n- [ ] A 🔁 every day 📅 2026-10-16 tail\n- [ ] B 📅 2026-13-40\n- [ ] 🔁every 2 weeks📅2026-10-18\n',
@@ -347,14 +335,13 @@ test('an emoji presentation selector after a field emoji, or NBSP in a rule, cha
   const [leki] = tasksOf(doc);
   expect(leki).toMatchObject({ title: 'leki', repeat: { type: 'every', n: 2, unit: 'days' }, date: '2026-10-18' });
   expect(doc.items[1]).toMatchObject({ kind: 'done', entry: { title: 'dep', repeat: { type: 'weekly', days: [6] }, doneOn: '2026-10-18' } });
-  expect(serializeTasks(doc)).toBe(`# Always\n\n${text}`);
+  expect(serializeTasks(doc)).toBe(text);
 });
 
-test('a Tasks heading without an Always heading', () => {
+test('a Tasks heading with a preamble', () => {
   const doc = parseTasks('Intro\n# Tasks\n- [ ] A\n');
   expect(doc.preamble).toEqual(['Intro']);
-  expect(doc.always).toEqual([]);
-  expect(serializeTasks(doc)).toBe('Intro\n# Always\n\n# Tasks\n- [ ] A\n');
+  expect(serializeTasks(doc)).toBe('Intro\n# Tasks\n- [ ] A\n');
 });
 
 test('a valid rule after an unparseable 🔁 in the title survives a rewrite', () => {
@@ -367,7 +354,7 @@ test('a valid rule after an unparseable 🔁 in the title survives a rewrite', (
 
 test('a rewrite that leaves the notes alone keeps the note lines verbatim (I5)', () => {
   const notes = ['    - [ ] pack', '        - socks', '\t- tab note', '    * star', '    + plus', '    1. step one'];
-  const text = ['# Always', '', '# Tasks', '- [ ] Trip 📅 2026-10-19', ...notes, '- [ ] Other', ''].join('\n');
+  const text = ['# Tasks', '- [ ] Trip 📅 2026-10-19', ...notes, '- [ ] Other', ''].join('\n');
   const doc = parseTasks(text);
   const trip = byTitle(doc, 'Trip');
   // Moved, retitled and given a repeat: only the head line changes.
@@ -378,7 +365,7 @@ test('a rewrite that leaves the notes alone keeps the note lines verbatim (I5)',
   });
   const out = serializeTasks(changed);
   expect(out).toBe(
-    ['# Always', '', '# Tasks', '- [ ] Trip north 🔁 every week on Monday 📅 2026-10-26', ...notes, '- [ ] Other', ''].join('\n'),
+    ['# Tasks', '- [ ] Trip north 🔁 every week on Monday 📅 2026-10-26', ...notes, '- [ ] Other', ''].join('\n'),
   );
   // It reads back to the same task, and a second rewrite is stable.
   const back = byTitle(parseTasks(out), 'Trip north');
@@ -387,11 +374,11 @@ test('a rewrite that leaves the notes alone keeps the note lines verbatim (I5)',
 });
 
 test('edited notes are written canonically (I5)', () => {
-  const text = '# Always\n\n# Tasks\n- [ ] Trip 📅 2026-10-19\n    - [ ] pack\n        - socks\n';
+  const text = '# Tasks\n- [ ] Trip 📅 2026-10-19\n    - [ ] pack\n        - socks\n';
   const doc = parseTasks(text);
   const trip = byTitle(doc, 'Trip');
   const out = serializeTasks(withTask(doc, trip.id, { notes: [...trip.notes, 'passport'] }));
-  expect(out).toBe('# Always\n\n# Tasks\n- [ ] Trip 📅 2026-10-19\n    - [ ] pack\n    - socks\n    - passport\n');
+  expect(out).toBe('# Tasks\n- [ ] Trip 📅 2026-10-19\n    - [ ] pack\n    - socks\n    - passport\n');
 });
 
 test('⏫ anywhere in a task line marks it important and leaves the title (#19)', () => {
@@ -412,11 +399,11 @@ test('the other priority signs stay in the title (#19)', () => {
 });
 
 test('an important task is written as title, ⏫, repeat, date and reads back the same (#19)', () => {
-  const doc = parseTasks('# Always\n\n# Tasks\n- [ ] Call the bank\n', counter());
+  const doc = parseTasks('# Tasks\n- [ ] Call the bank\n', counter());
   const out = serializeTasks(
     withTask(doc, 'id1', { important: true, repeat: { type: 'daily' }, date: '2026-10-20' }),
   );
-  expect(out).toBe('# Always\n\n# Tasks\n- [ ] Call the bank ⏫ 🔁 every day 📅 2026-10-20\n');
+  expect(out).toBe('# Tasks\n- [ ] Call the bank ⏫ 🔁 every day 📅 2026-10-20\n');
   expect(tasksOf(parseTasks(out))[0]).toMatchObject({
     title: 'Call the bank', important: true, repeat: { type: 'daily' }, date: '2026-10-20',
   });
@@ -424,10 +411,10 @@ test('an important task is written as title, ⏫, repeat, date and reads back th
 });
 
 test('an untouched important line keeps its bytes; clearing the flag rewrites it (#19)', () => {
-  const text = '# Always\n\n# Tasks\n- [ ] 📅 2026-10-20 ⏫ Call  the bank\n';
+  const text = '# Tasks\n- [ ] 📅 2026-10-20 ⏫ Call  the bank\n';
   const doc = parseTasks(text, counter());
   expect(serializeTasks(doc)).toBe(text);
-  expect(serializeTasks(withTask(doc, 'id1', { important: false }))).toBe('# Always\n\n# Tasks\n- [ ] Call  the bank 📅 2026-10-20\n');
+  expect(serializeTasks(withTask(doc, 'id1', { important: false }))).toBe('# Tasks\n- [ ] Call  the bank 📅 2026-10-20\n');
 });
 
 test('a completed line in the Tasks section keeps its ⏫ on the done item (#19)', () => {
@@ -436,7 +423,43 @@ test('a completed line in the Tasks section keeps its ⏫ on the done item (#19)
 });
 
 test('every ⏫ in a line is the flag, so clearing it leaves none (#19 review)', () => {
-  const doc = parseTasks('# Always\n\n# Tasks\n- [ ] A ⏫ B ⏫\n', counter());
+  const doc = parseTasks('# Tasks\n- [ ] A ⏫ B ⏫\n', counter());
   expect(tasksOf(doc)[0]).toMatchObject({ title: 'A B', important: true });
-  expect(serializeTasks(withTask(doc, 'id1', { important: false }))).toBe('# Always\n\n# Tasks\n- [ ] A B\n');
+  expect(serializeTasks(withTask(doc, 'id1', { important: false }))).toBe('# Tasks\n- [ ] A B\n');
+});
+
+test('a legacy # Always section becomes important undated tasks at the top of # Tasks (#38)', () => {
+  const legacy = [
+    'Kept above the lists.', '', '# Always', '- Walk before the first coffee', 'free text', '', '- One tab at a time', '',
+    '# Tasks', '- [ ] Learn Polish', '',
+  ].join('\n');
+  const doc = parseTasks(legacy);
+  const tasks = tasksOf(doc);
+  expect(tasks.map((t) => [t.title, t.important, t.date])).toEqual([
+    ['Walk before the first coffee', true, null], ['One tab at a time', true, null], ['Learn Polish', undefined, null],
+  ]);
+  expect(serializeTasks(doc)).toBe(
+    'Kept above the lists.\n\nfree text\n# Tasks\n- [ ] Walk before the first coffee ⏫\n- [ ] One tab at a time ⏫\n- [ ] Learn Polish\n',
+  );
+  expect('always' in doc).toBe(false);
+});
+
+test('an empty legacy # Always section just goes (#38)', () => {
+  expect(serializeTasks(parseTasks('# Tasks\n- [ ] A\n'))).toBe('# Tasks\n- [ ] A\n');
+  expect(serializeTasks(parseTasks('# Always\n- Walk\n'))).toBe('# Tasks\n- [ ] Walk ⏫\n');
+});
+
+test('a new file is just # Tasks, and # Always after it stays a raw line (#38)', () => {
+  expect(serializeTasks(parseTasks(''))).toBe('# Tasks\n');
+  const text = '# Tasks\n- [ ] A\n# Always\n- Walk\n';
+  expect(serializeTasks(parseTasks(text))).toBe(text);
+});
+
+test('task lines in a legacy # Always section stay tasks, and notes under a line go with it (#38 review)', () => {
+  const legacy = '# Always\n- Walk\n    - slowly\n- [ ] Buy milk\n- [x] Old done ✅ 2026-10-01\n- ⏫\n';
+  const doc = parseTasks(legacy);
+  expect(doc.items.map((i) => i.kind)).toEqual(['task', 'task', 'done']);
+  expect(tasksOf(doc).map((t) => [t.title, t.important, t.notes])).toEqual([['Walk', true, ['slowly']], ['Buy milk', undefined, []]]);
+  // A line that is only field text has no title: it stays as text above # Tasks.
+  expect(serializeTasks(doc)).toBe('- ⏫\n# Tasks\n- [ ] Walk ⏫\n    - slowly\n- [ ] Buy milk\n- [x] Old done ✅ 2026-10-01\n');
 });

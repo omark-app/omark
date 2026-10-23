@@ -64,7 +64,7 @@ const mergeConfig = (_base: string, _local: string, remote: string): string => r
 export function createWorkspace(adapter: StorageAdapter, cache: LocalCache): Workspace {
   const make = (name: FileName, merge: (b: string, l: string, r: string) => string, initial: string) =>
     new FileSync({ name, adapter, cache, merge, initial });
-  const tasks = make('tasks.md', mergeTasksText, '# Always\n\n# Tasks\n');
+  const tasks = make('tasks.md', mergeTasksText, '# Tasks\n');
   const done = make('done.md', mergeDoneText, '');
   const config = make('config.yaml', mergeConfig, DEFAULT_CONFIG_YAML);
   const all = [tasks, done, config];

@@ -19,13 +19,9 @@ Three UTF-8 files, LF line endings, in `C:\Users\alipk\OneDrive\ALAI\TaskApp\`: 
 ## tasks.md
 
 ```markdown
-# Always
-
-- Inbox zero by Friday
-- Drink water
-
 # Tasks
-
+- [ ] Inbox zero by Friday ⏫
+- [ ] Notice when I interrupt people ⏫
 - [ ] Pay rent 🔁 every month on the 1st 📅 2026-11-01
     - transfer from savings
 - [ ] Call the dentist 📅 2026-10-19
@@ -33,10 +29,11 @@ Three UTF-8 files, LF line endings, in `C:\Users\alipk\OneDrive\ALAI\TaskApp\`: 
 - [ ] Learn Rust
 ```
 
-- `# Always` lists reminders, one `- text` per line. They have no dates.
-- `# Tasks` holds task blocks. A block is the task line plus the indented lines under it (its notes).
-- Task line: `- [ ] {title} ⏫ 🔁 {rule} 📅 {date}`. `⏫`, `🔁` and `📅` are each optional; no date means Someday.
+- `# Tasks` holds task blocks. Anything above it is kept as it is. A block is the task line plus the indented lines under it (its notes).
+- Task line: `- [ ] {title} ⏫ 🔁 {rule} 📅 {date}`. `⏫`, `🔁` and `📅` are each optional; no date means Someday, or **Important, not urgent** when the task has `⏫`.
 - `⏫` marks the task Important (Obsidian Tasks' high priority); TaskApp shows it in amber, first in its bucket. To flag a task, add ` ⏫` right after the title; to unflag it, remove it. The other priority signs (`🔺 🔼 🔽 ⏬`) are only text to TaskApp.
+- **Important, not urgent** (Eisenhower's important-but-not-urgent box) is every open task with `⏫` and no `📅`: things that matter but nothing forces, and reminders of how to act or what to notice. Their order is the line order; to reorder them, move the lines. To add one, append `- [ ] {title} ⏫`.
+- Older files have a `# Always` section above `# Tasks` (one `- text` per line). Don't add one. TaskApp turns each of its lines into `- [ ] text ⏫` at the top of `# Tasks` on its next sync and removes the section.
 - Dates are `YYYY-MM-DD`, local time.
 - Notes: `    - {note}` (four spaces).
 - A `🔁` rule TaskApp can't parse stays in the title and the task counts as non-repeating. Use only the wording below.
@@ -76,8 +73,6 @@ Non-repeating: delete the whole block (line and notes) from `tasks.md`, then app
 Repeating: keep the block, notes included, in `tasks.md` (the sample shows the whole file), set its `📅` to the next date (below), and append the done line with the rule and a copy of the note lines.
 
 ```markdown
-# Always
-
 # Tasks
 - [ ] Pay rent 🔁 every month on the 1st 📅 2026-12-01
     - transfer from savings
@@ -154,7 +149,8 @@ Set the task's `📅` (leave the line's position alone) to:
 | This week | the last day of the current week |
 | Next week | the last day of next week (7 days after that) |
 | Later | any date after the last day of next week |
-| Someday | no `📅` at all |
+| Someday | no `📅` at all, and no `⏫` |
+| Important, not urgent | no `📅`, with `⏫` |
 
 Weeks run Monday to Sunday unless `firstDayOfWeek` in `config.yaml` names another first day (the week then ends the day before it).
 

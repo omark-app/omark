@@ -85,7 +85,7 @@ const state = (tasks: string, done: DoneDoc = { lines: [] }): State => ({ doc: p
 
 test('sweeping a ticked line with an out-of-range interval does not throw; it is a one-off', () => {
   const s: State = {
-    doc: parseTasks('# Always\n\n# Tasks\n- [x] Bins 🔁 every 1000000000 weeks on Friday 📅 2026-10-23\n'),
+    doc: parseTasks('# Tasks\n- [x] Bins 🔁 every 1000000000 weeks on Friday 📅 2026-10-23\n'),
     done: parseDone(''),
   };
   const r = sweepCompleted(s, '2026-10-16')!;
@@ -96,7 +96,7 @@ test('sweeping a ticked line with an out-of-range interval does not throw; it is
 test('sweepCompleted moves done items and leaves open tasks', () => {
   const s = state('# Tasks\n- [ ] Keep\n- [x] Finished ✅ 2026-10-15\n    - a note\n');
   const r = sweepCompleted(s, '2026-10-16')!;
-  expect(serializeTasks(r.doc)).toBe('# Always\n\n# Tasks\n- [ ] Keep\n');
+  expect(serializeTasks(r.doc)).toBe('# Tasks\n- [ ] Keep\n');
   expect(r.done.lines.map((l) => l.raw)).toEqual(['- [x] Finished ✅ 2026-10-15', '    - a note']);
   expect(r.done.lines.map((l) => l.entry?.notes ?? null)).toEqual([['a note'], null]);
   expect(sweepCompleted(state('# Tasks\n- [ ] Keep\n'), '2026-10-16')).toBeNull();
@@ -145,8 +145,6 @@ test('several done items among open tasks are swept in file order; repeats handl
 
 test('an undated recurring tick is logged and stays in place as its next occurrence (I1)', () => {
   const src = [
-    '# Always',
-    '',
     '# Tasks',
     '- [ ] Before',
     '- [x] Water the plants 🔁 every week on Monday 📅 2026-10-19',
@@ -158,8 +156,6 @@ test('an undated recurring tick is logged and stays in place as its next occurre
   const r = sweepCompleted(state(src), '2026-10-19')!;
   expect(serializeTasks(r.doc)).toBe(
     [
-      '# Always',
-      '',
       '# Tasks',
       '- [ ] Before',
       '- [ ] Water the plants 🔁 every week on Monday 📅 2026-10-26',
@@ -180,7 +176,7 @@ test('an undated recurring tick is logged and stays in place as its next occurre
 
 test('an undated recurring tick without a due date steps from today (I1)', () => {
   const r = sweepCompleted(state('# Tasks\n- [x] Rent 🔁 every month on the 1st\n'), '2026-10-16')!;
-  expect(serializeTasks(r.doc)).toBe('# Always\n\n# Tasks\n- [ ] Rent 🔁 every month on the 1st 📅 2026-11-01\n');
+  expect(serializeTasks(r.doc)).toBe('# Tasks\n- [ ] Rent 🔁 every month on the 1st 📅 2026-11-01\n');
   expect(serializeDone(r.done)).toBe('- [x] Rent 🔁 every month on the 1st ✅ 2026-10-16\n');
 });
 
@@ -188,7 +184,7 @@ test('a dated recurring tick (Obsidian Tasks made the next one) is only moved (I
   const src =
     '# Tasks\n- [ ] Water 🔁 every week on Monday 📅 2026-10-26\n- [x] Water 🔁 every week on Monday 📅 2026-10-19 ✅ 2026-10-19\n';
   const r = sweepCompleted(state(src), '2026-10-19')!;
-  expect(serializeTasks(r.doc)).toBe('# Always\n\n# Tasks\n- [ ] Water 🔁 every week on Monday 📅 2026-10-26\n');
+  expect(serializeTasks(r.doc)).toBe('# Tasks\n- [ ] Water 🔁 every week on Monday 📅 2026-10-26\n');
   expect(serializeDone(r.done)).toBe('- [x] Water 🔁 every week on Monday 📅 2026-10-19 ✅ 2026-10-19\n');
 });
 
@@ -208,6 +204,6 @@ test('an important task keeps ⏫ on its done line, and parseDone reads it back 
 test('sweeping an undated important repeating tick keeps the flag on both lines (#19)', () => {
   const doc = parseTasks('# Tasks\n- [x] Pay ⏫ 🔁 every day 📅 2026-10-19\n');
   const swept = sweepCompleted({ doc, done: parseDone('') }, '2026-10-19', () => 'n1')!;
-  expect(serializeTasks(swept.doc)).toBe('# Always\n\n# Tasks\n- [ ] Pay ⏫ 🔁 every day 📅 2026-10-20\n');
+  expect(serializeTasks(swept.doc)).toBe('# Tasks\n- [ ] Pay ⏫ 🔁 every day 📅 2026-10-20\n');
   expect(serializeDone(swept.done)).toBe('- [x] Pay ⏫ 🔁 every day ✅ 2026-10-19\n');
 });

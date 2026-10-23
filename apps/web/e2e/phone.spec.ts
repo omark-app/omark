@@ -33,19 +33,19 @@ async function swipe(target: Locator, dx: number, { thenClick = false } = {}) {
   }, [dx, thenClick] as const);
 }
 
-test('stats on top, ALWAYS at the bottom; no add input, detail or hints', async ({ page }) => {
+test('stats on top, Important, not urgent at the bottom; no add input, detail or hints', async ({ page }) => {
   await start(page);
   const stats = await page.getByTestId('stats').boundingBox();
   const today = await page.getByTestId('bucket-today').boundingBox();
   const someday = await page.getByTestId('bucket-someday').boundingBox();
-  const always = await page.getByTestId('always-line').first().boundingBox();
+  const group = await page.getByTestId('bucket-important').boundingBox();
   expect(stats!.y).toBeGreaterThanOrEqual(16);
   expect(stats!.y + stats!.height).toBeLessThanOrEqual(today!.y);
-  expect(always!.y).toBeGreaterThan(someday!.y + someday!.height);
+  expect(group!.y).toBeGreaterThan(someday!.y + someday!.height);
   await expect(page.getByTestId('add-input')).toHaveCount(0);
   await expect(page.getByTestId('detail')).toHaveCount(0);
   await expect(page.getByTestId('hints')).toHaveCount(0);
-  // The ALWAYS pane is set off by a straight rule, not a rounded box edge.
+  // The Important, not urgent pane is set off by a straight rule, not a rounded box edge.
   await expect(page.locator('aside')).toHaveCSS('border-top-left-radius', '0px');
 });
 
@@ -88,7 +88,7 @@ test('the + button never covers the end of the list', async ({ page }) => {
   await start(page);
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   const fab = await page.getByTestId('fab').boundingBox();
-  const last = await page.getByTestId('always-add').boundingBox();
+  const last = await page.getByTestId('bucket-important').getByTestId('task-row').last().boundingBox();
   expect(last!.y + last!.height).toBeLessThanOrEqual(fab!.y);
 });
 
@@ -132,7 +132,7 @@ test('a title edited to hold 🔁 text repeats, and the round check reschedules 
 
 test('repeating tasks written by the Todoist import reschedule when completed on the phone', async ({ page }) => {
   // The bytes tools/todoist-import writes for `every 2 days` and `every sunday`.
-  const tasks = '# Always\n\n# Tasks\n- [ ] leki 🔁 every 2 days 📅 2026-10-18\n' +
+  const tasks = '# Tasks\n- [ ] leki 🔁 every 2 days 📅 2026-10-18\n' +
     '- [ ] depresja – check in 🔁 every week on Sunday 📅 2026-10-18\n    - one line a day\n';
   await openApp(page, { files: { 'tasks.md': tasks }, now: '2026-10-18T09:00:00' });
   await row(page, 'leki').getByTestId('task-check').tap();
@@ -140,7 +140,7 @@ test('repeating tasks written by the Todoist import reschedule when completed on
   await swipe(row(page, 'depresja'), 120);
   await expect(page.getByTestId('toast')).toContainText('Done · next Sun 25 Oct');
   await expect.poll(() => driveFile(page, 'tasks.md')).toBe(
-    '# Always\n\n# Tasks\n- [ ] leki 🔁 every 2 days 📅 2026-10-20\n' +
+    '# Tasks\n- [ ] leki 🔁 every 2 days 📅 2026-10-20\n' +
       '- [ ] depresja – check in 🔁 every week on Sunday 📅 2026-10-25\n    - one line a day\n',
   );
 });
@@ -362,10 +362,21 @@ test('every field in the phone sheets is at least 16px, so iOS does not zoom in'
   for (const [name, px] of Object.entries(sizes)) expect(px, name).toBeGreaterThanOrEqual(16);
 });
 
-test('the ALWAYS lines and the search box are at least 16px, so iOS does not zoom in', async ({ page }) => {
+test('the search box is at least 16px, so iOS does not zoom in', async ({ page }) => {
   await start(page);
   const px = (l: Locator) => l.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-  expect(await px(page.getByTestId('always-line').first())).toBeGreaterThanOrEqual(16);
   await page.getByTestId('search-open').tap();
   expect(await px(page.getByTestId('search-input'))).toBeGreaterThanOrEqual(16);
+});
+
+test('rows in Important, not urgent take swipes too: right completes, left opens the move sheet (#38)', async ({ page }) => {
+  await start(page);
+  await row(page, 'One tab at a time').scrollIntoViewIfNeeded();
+  await swipe(row(page, 'One tab at a time'), 120);
+  await expect(page.getByTestId('toast')).toContainText('Done · One tab at a time');
+  await swipe(row(page, 'Walk before the first coffee'), -120);
+  await expect(sheet(page)).toBeVisible();
+  await sheet(page).getByRole('button', { name: /^Someday/ }).tap();
+  await expect(page.getByTestId('toast')).toContainText('Moved to Someday');
+  await expect(page.getByTestId('bucket-count-important')).toHaveText('0');
 });

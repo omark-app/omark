@@ -8,7 +8,7 @@ import { FakeOneDrive } from '../src/fake-onedrive.ts';
 import type { SyncStatus } from '../src/file-sync.ts';
 import { createWorkspace } from '../src/workspace.ts';
 
-const TASKS0 = '# Always\n\n# Tasks\n';
+const TASKS0 = '# Tasks\n';
 const S = '# Always\n\n# Tasks\n- [ ] Buy milk\n- [ ] Call mom\n';
 
 /** Delegates to a drive but can take single files offline. */

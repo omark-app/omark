@@ -76,10 +76,37 @@ export function setDate(s: State, id: string, date: ISODate | null, beforeId?: s
   return placeBefore(updateTask(s, id, (t) => ({ ...t, date })), id, beforeId);
 }
 
+/**
+ * Gives the task the bucket's date. A task in Important, not urgent (⏫, no date) moved to Someday also
+ * loses ⏫, or it would stay in the group (#38); any other important task keeps it.
+ */
 export function moveToBucket(
   s: State, id: string, bucket: DateChoice, ctx: WeekCtx, beforeId?: string | null,
 ): State {
-  return setDate(s, id, dateForChoice(bucket, ctx), beforeId);
+  const t = findTask(s, id);
+  const next = setDate(s, id, dateForChoice(bucket, ctx), beforeId);
+  return bucket === 'someday' && t?.important && t.date === null ? setImportant(next, id, false) : next;
+}
+
+/**
+ * Moves a task into Important, not urgent (#38): no date and ⏫, placed before `beforeId`, or last in the
+ * group when none is given (the group is in the order tasks joined it).
+ */
+export function moveToGroup(s: State, id: string, beforeId?: string | null): State {
+  const placed = setImportant(setDate(s, id, null, beforeId), id, true);
+  return beforeId == null ? moveToGroupEnd(placed, id) : placed;
+}
+
+/** Moves task `id` to just after the last other Important, not urgent task; `s` when it is already after it. */
+export function moveToGroupEnd(s: State, id: string): State {
+  const items = s.doc.items;
+  const last = items.findLastIndex((i) => i.kind === 'task' && i.task.id !== id && i.task.important === true && i.task.date === null);
+  const from = indexOf(s, id);
+  if (last < 0 || from < 0 || from > last) return s;
+  const next = items.slice();
+  const [moved] = next.splice(from, 1);
+  next.splice(last, 0, moved!);
+  return withItems(s, next);
 }
 
 export function reorder(s: State, id: string, beforeId: string): State {
@@ -131,9 +158,4 @@ export function setImportant(s: State, id: string, important: boolean): State {
   const t = findTask(s, id);
   if (!t || (t.important === true) === important) return s;
   return updateTask(s, id, ({ important: _, ...rest }) => (important ? { ...rest, important: true } : rest));
-}
-
-export function setAlways(s: State, lines: string[]): State {
-  const always = lines.map((l) => l.trim()).filter((l) => l !== '');
-  return { ...s, doc: { ...s.doc, always } };
 }

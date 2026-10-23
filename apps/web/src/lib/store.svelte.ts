@@ -2,6 +2,7 @@ import { untrack } from 'svelte';
 import { BRAND } from '../brand.ts';
 import {
   addTask,
+  bucketName,
   bucketOf,
   BUCKETS,
   carryIds,
@@ -10,6 +11,7 @@ import {
   deleteTask,
   editTask,
   findTask,
+  IMPORTANT_GROUP,
   mergeDoneText,
   mergeTasksText,
   metaLabel,
@@ -21,7 +23,6 @@ import {
   planDrop,
   serializeDone,
   serializeTasks,
-  setAlways as setAlwaysOp,
   setDate as setDateOp,
   setImportant as setImportantOp,
   setRepeat as setRepeatOp,
@@ -68,6 +69,7 @@ export interface AppStore {
   /**
    * Whether each bucket is folded in the current view: the user's own fold or unfold wins; otherwise an
    * empty bucket is folded, and so is one in `foldedOnOpen` (but not the dated ones on the board).
+   * Important, not urgent never folds (#38).
    */
   readonly folded: Record<BucketKey, boolean>;
   /**
@@ -102,7 +104,6 @@ export interface AppStore {
   setRepeat(id: string, rule: RepeatRule | null): void;
   /** Flags or unflags a task as Important (issue #19). */
   setImportant(id: string, important: boolean): void;
-  setAlways(lines: string[]): void;
   undo(): void;
   /**
    * Registers a callback that commits input still waiting in the UI (e.g. debounced typing). `flush()` and
@@ -149,10 +150,11 @@ const UNDO_LIMIT = 100;
 const BOARD_OPEN: readonly BucketKey[] = ['today', 'tomorrow', 'week', 'next'];
 const BOARD_COLUMNS = 4;
 
-const bucketName = (key: BucketKey): string => BUCKETS.find((b) => b.key === key)!.name;
+/** The date buckets and the Important, not urgent group (#38). */
+const ALL_KEYS: readonly BucketKey[] = [...BUCKETS.map((b) => b.key), IMPORTANT_GROUP.key];
 
 const byBucket = <T>(value: (key: BucketKey) => T): Record<BucketKey, T> =>
-  Object.fromEntries(BUCKETS.map((b) => [b.key, value(b.key)])) as Record<BucketKey, T>;
+  Object.fromEntries(ALL_KEYS.map((key) => [key, value(key)])) as Record<BucketKey, T>;
 
 const sameList = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((x, i) => x === b[i]);
@@ -186,8 +188,10 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   const foldsIn = (v: View): Record<BucketKey, boolean> =>
     byBucket(
       (key) =>
-        toggled[key] ??
-        (counts[key] === 0 || (foldedOnOpen.includes(key) && !(v === 'board' && BOARD_OPEN.includes(key)))),
+        // Important, not urgent never folds: it is there to be seen (#38).
+        key !== IMPORTANT_GROUP.key &&
+        (toggled[key] ??
+          (counts[key] === 0 || (foldedOnOpen.includes(key) && !(v === 'board' && BOARD_OPEN.includes(key))))),
     );
   const folded = $derived(foldsIn(view));
   /** Bumped to pack the board again; the packing itself reads nothing reactively, so work never moves it. */
@@ -314,14 +318,20 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
 
   const isOpen = (key: BucketKey): boolean => !folded[key];
 
+  /**
+   * The open buckets' tasks, then Important, not urgent in the list (after the buckets). The board's rail
+   * shows the group only while no task is open, so j/k there stay on the board.
+   */
   const visibleTasks = (): Task[] =>
-    BUCKETS.filter((b) => isOpen(b.key)).flatMap((b) => tasksInBucket(state.doc, b.key, ctx));
+    ALL_KEYS.filter((key) => isOpen(key) && !(view === 'board' && key === IMPORTANT_GROUP.key))
+      .flatMap((key) => tasksInBucket(state.doc, key, ctx));
 
   /** The task to select when `id` leaves the visible list: the next one, else the previous one. */
   function neighbour(id: string): string | null {
     const vis = visibleTasks();
     const i = vis.findIndex((t) => t.id === id);
-    return (vis[i + 1] ?? vis[i - 1])?.id ?? null;
+    // Not in the list (a group task on the board): nothing to move on to.
+    return i < 0 ? null : ((vis[i + 1] ?? vis[i - 1])?.id ?? null);
   }
 
   /** After a change to `id`: if it was selected and is now gone or folded away, select `fallback`. */
@@ -378,7 +388,8 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
 
   function setDate(id: string, date: ISODate | null, beforeId?: string | null): void {
     if (!findTask(state, id)) return;
-    commitMove(id, setDateOp(state, id, date, beforeId));
+    // No date is Someday, which also takes a task out of Important, not urgent (#38).
+    commitMove(id, date === null ? moveToBucket(state, id, 'someday', ctx, beforeId) : setDateOp(state, id, date, beforeId));
   }
 
   function drop(id: string, target: DropTarget): DropOutcome {
@@ -421,7 +432,9 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     let next = title === task.title && sameList(notes, task.notes) ? state : editTask(state, id, { title, notes });
     if (moves) next = moveToBucket(next, id, patch.when!, ctx);
     if (flags) next = setImportantOp(next, id, true);
-    const moved = findTask(next, id)?.date !== task.date;
+    // A typed `som` takes a task out of Important, not urgent without changing its date (#38).
+    const after = findTask(next, id);
+    const moved = after?.date !== task.date || (after !== null && bucketOf(after, ctx) !== bucketOf(task, ctx));
     if (moved) commitMove(id, next);
     else commit(next, flags ? msg.markedImportant() : msg.saved());
   }
@@ -436,13 +449,9 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
 
   function setImportant(id: string, important: boolean): void {
     if (!findTask(state, id)) return;
-    commit(setImportantOp(state, id, important), important ? msg.markedImportant() : msg.notImportant());
-  }
-
-  function setAlways(lines: string[]): void {
-    const next = setAlwaysOp(state, lines);
-    if (sameList(next.doc.always, state.doc.always)) return;
-    commit(next, msg.saved());
+    // The flag moves an undated task between Important, not urgent and Someday (#38).
+    const fallback = neighbour(id);
+    if (commit(setImportantOp(state, id, important), important ? msg.markedImportant() : msg.notImportant())) keepVisible(id, fallback);
   }
 
   function undo(): void {
@@ -568,7 +577,6 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     edit,
     setRepeat,
     setImportant,
-    setAlways,
     undo,
     registerPending(fn) {
       pending.add(fn);

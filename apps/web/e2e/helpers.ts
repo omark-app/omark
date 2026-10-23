@@ -3,11 +3,9 @@ import type { Locator, Page } from '@playwright/test';
 export type FileName = 'tasks.md' | 'done.md' | 'config.yaml';
 
 /** The tasks.md example from spec section 3.3. */
-export const SPEC_TASKS = `# Always
-- Walk before the first coffee
-- One tab at a time
-
-# Tasks
+export const SPEC_TASKS = `# Tasks
+- [ ] Walk before the first coffee ⏫
+- [ ] One tab at a time ⏫
 - [ ] Call the dentist about the crown 📅 2026-10-16
     - ask about zirconia
     - bring the old x-ray

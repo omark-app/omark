@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { bucketOf, BUCKETS, currentChoice, dateChoices, describeRepeat, dueText } from '@omark/core';
+  import { bucketName as nameOf, bucketOf, currentChoice, dateChoices, describeRepeat, dueText } from '@omark/core';
   import type { Task } from '@omark/core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import { autogrow } from '../lib/autogrow.ts';
@@ -20,7 +20,7 @@
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const bucket = $derived(bucketOf(task, store.ctx));
-  const bucketName = $derived(BUCKETS.find((b) => b.key === bucket)!.name);
+  const bucketName = $derived(nameOf(bucket));
   const over = $derived(task.date !== null && task.date < store.ctx.today);
   const chips = $derived(dateChoices(store.ctx));
   const current = $derived(currentChoice(task, store.ctx));

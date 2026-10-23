@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { BUCKETS } from '@omark/core';
+  import { BUCKETS, IMPORTANT_GROUP } from '@omark/core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import type { Updates } from '../lib/updates.svelte.ts';
   import Bucket from './Bucket.svelte';
-  import AlwaysList from './AlwaysList.svelte';
   import Stats from './Stats.svelte';
   import Hints from './Hints.svelte';
   import StatusLine from './StatusLine.svelte';
@@ -39,7 +38,7 @@
   let detail: TaskDetail | undefined = $state();
   const selected = $derived(selectedTask(store));
 
-  // Under 720 px is "phone" (spec 11.2): a compact stats line on top, ALWAYS below the buckets, no add
+  // Under 720 px is "phone" (spec 11.2): a compact stats line on top, Important, not urgent below the buckets, no add
   // input, detail or hints; a tap opens the edit sheet and rows take swipes.
   const phone = createPhone();
   const open = (id: string): void => onCommand('edit', id);
@@ -69,21 +68,22 @@
       </span>
     </div>
   {/if}
-  <div class="frame">
+  <!-- Phone gestures cover both panes: Important, not urgent sits in the side pane (#38). -->
+  <div
+    class="frame"
+    use:rowGestures={{
+      enabled: phone.value,
+      onswiperight: (id) => store.complete(id),
+      onswipeleft: (id) => onCommand('move', id),
+      ondrop: (id, target) => applyDrop(store, id, target, onDropPickDate),
+    }}
+  >
     <!-- Double-click is a pointer convenience; the keyboard edits with Enter. -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <section class="pane tasks" {ondblclick}>
       <span class="legend">tasks</span>
       {#if !phone.value}<AddInput bind:this={addInput} {store} />{/if}
-      <div
-        class="buckets"
-        use:rowGestures={{
-          enabled: phone.value,
-          onswiperight: (id) => store.complete(id),
-          onswipeleft: (id) => onCommand('move', id),
-          ondrop: (id, target) => applyDrop(store, id, target, onDropPickDate),
-        }}
-      >
+      <div class="buckets">
         {#each BUCKETS as b (b.key)}
           <Bucket
             {store}
@@ -96,20 +96,25 @@
         {/each}
       </div>
     </section>
-    <aside class="pane side">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <aside class="pane side" {ondblclick}>
       {#if selected && !phone.value}
         <span class="legend">task</span>
         {#key selected.id}
           <TaskDetail bind:this={detail} {store} task={selected} oncommand={(c) => onCommand(c, selected.id)} />
         {/key}
       {:else}
-        <span class="legend">always</span>
+        <span class="legend">not urgent</span>
       {/if}
-      <!-- One AlwaysList outside the branches: selecting or deselecting a task must not remount a line being edited. -->
-      <div class:under={selected && !phone.value}>
-        {#if selected && !phone.value}<span class="lab">Always</span>{/if}
-        <AlwaysList {store} />
-      </div>
+      <!-- Important, not urgent: below the detail when a task is open, on its own otherwise (#38). -->
+      <Bucket
+        {store}
+        key={IMPORTANT_GROUP.key}
+        name={IMPORTANT_GROUP.name}
+        onpickdate={(id) => onCommand('pickDate', id)}
+        ondroppickdate={onDropPickDate}
+        onopen={phone.value ? open : undefined}
+      />
       {#if !phone.value}<Stats stats={store.stats} variant="box" />{/if}
     </aside>
   </div>
@@ -128,8 +133,6 @@
   .frame { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; background: var(--surface); border-radius: 14px; padding: 24px 22px 20px; box-shadow: var(--shadow); }
   .pane { position: relative; display: flex; flex-direction: column; gap: 14px; min-width: 0; min-height: 600px; border: 1px solid var(--line); border-radius: 10px; padding: 24px 12px 14px; }
   .legend { position: absolute; top: -9px; left: 14px; padding: 0 8px; background: var(--surface); font: 12px var(--mono); color: var(--faint); }
-  .under { display: flex; flex-direction: column; gap: 8px; }
-  .lab { font: 500 11px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
   .buckets { display: flex; flex-direction: column; gap: 12px; }
   .foot { display: flex; justify-content: space-between; align-items: center; gap: 10px 16px; flex-wrap: wrap; padding: 2px 8px; }
   @media (max-width: 719.98px) {
@@ -138,7 +141,7 @@
     .legend { position: static; padding: 0 8px; background: none; }
     .side { border-top: 1px solid var(--line); border-radius: 0; padding-top: 16px; }
     /* A swiped row slides past the edge without widening the page. */
-    .buckets { overflow-x: clip; }
+    .frame { overflow-x: clip; }
   }
   .top { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 14px; flex-wrap: wrap; }
   .topr { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; }

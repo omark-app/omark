@@ -2,10 +2,8 @@ import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { openApp } from './helpers';
 
-const TASKS = `# Always
-- One tab at a time
-
-# Tasks
+const TASKS = `# Tasks
+- [ ] One tab at a time ⏫
 - [ ] Badanie zwłóknienia wątroby 📅 2026-10-20
     - wyniki u dr Nowak
 - [ ] Call the dentist 📅 2026-10-14

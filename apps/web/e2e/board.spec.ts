@@ -2,10 +2,8 @@ import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { driveFile, fitsNotes, LONG_NOTE, openApp } from './helpers';
 
-const TASKS = `# Always
-- Walk before the first coffee
-
-# Tasks
+const TASKS = `# Tasks
+- [ ] Walk before the first coffee ⏫
 - [ ] Call the dentist 📅 2026-10-16
 - [ ] Send the invoice 📅 2026-10-17
 - [ ] Plan the trip 📅 2026-10-21
@@ -51,7 +49,7 @@ test.describe('desktop board', () => {
     await expect(page.getByTestId('board')).toBeVisible();
     await expect(page.getByTestId('rail')).toContainText('omark tasks · Fri 16 Oct');
     await expect(page.getByTestId('stats')).toBeVisible();
-    await expect(page.getByTestId('always-line')).toHaveCount(1);
+    await expect(page.getByTestId('rail').getByTestId('bucket-important').getByTestId('task-row')).toHaveText([/Walk before the first coffee/]);
     await expect(page.getByTestId('hints')).toBeVisible();
     await expect(page.getByTestId('status')).toBeVisible();
     await page.keyboard.press('v');
@@ -141,17 +139,18 @@ test.describe('desktop board', () => {
     await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Plan the trip 📅 2026-10-19');
   });
 
-  test('selecting a task replaces Always with the detail; Esc brings it back', async ({ page }) => {
+  test('selecting a task replaces Important, not urgent with the detail; Esc brings it back (#38)', async ({ page }) => {
     await start(page);
     await page.keyboard.press('v');
     await expect(page.getByTestId('detail')).toHaveCount(0);
     await row(page, 'Call the dentist').click();
     await expect(page.getByTestId('detail')).toBeVisible();
     await expect(page.getByTestId('rail').getByTestId('detail-title')).toHaveValue('Call the dentist');
-    await expect(page.getByTestId('always-line')).toHaveCount(0);
+    const group = page.getByTestId('rail').getByTestId('bucket-important');
+    await expect(group).toHaveCount(0);
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('detail')).toHaveCount(0);
-    await expect(page.getByTestId('always-line')).toHaveCount(1);
+    await expect(group.getByTestId('task-row')).toHaveCount(1);
   });
 
   test('long notes grow the detail; the page scrolls to reach the hints, not the rail', async ({ page }) => {

@@ -1,11 +1,9 @@
 <script lang="ts">
-  import { BUCKETS, dayMonth, weekdayShort } from '@omark/core';
-  import type { BucketKey } from '@omark/core';
+  import { bucketName, dayMonth, IMPORTANT_GROUP, weekdayShort } from '@omark/core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import type { Updates } from '../lib/updates.svelte.ts';
   import { BRAND } from '../brand.ts';
   import Bucket from './Bucket.svelte';
-  import AlwaysList from './AlwaysList.svelte';
   import Stats from './Stats.svelte';
   import Hints from './Hints.svelte';
   import StatusLine from './StatusLine.svelte';
@@ -48,7 +46,6 @@
     onCommand: (command, id) => onCommand(command, id),
   });
   const pick = (id: string): void => onCommand('pickDate', id);
-  const nameOf = (key: BucketKey): string => BUCKETS.find((b) => b.key === key)!.name;
 </script>
 
 <svelte:window {onkeydown} />
@@ -57,16 +54,20 @@
   <aside class="rail" data-testid="rail">
     <div class="brand">{BRAND.app.toLowerCase()} <span>· {today}</span></div>
     <Stats stats={store.stats} variant="rail" />
-    <div class="rblock">
-      {#if selected}
+    <!-- The open task's detail, or Important, not urgent (#38) in its place: both at once would make the
+         rail taller than the window, and editing a low row would scroll the board away. -->
+    {#if selected}
+      <div class="rblock">
         {#key selected.id}
           <TaskDetail bind:this={detail} {store} task={selected} oncommand={(c) => onCommand(c, selected.id)} />
         {/key}
-      {:else}
-        <span class="lab">Always</span>
-        <AlwaysList {store} />
-      {/if}
-    </div>
+      </div>
+    {:else}
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="rblock group" {ondblclick}>
+        <Bucket {store} key={IMPORTANT_GROUP.key} name={IMPORTANT_GROUP.name} onpickdate={pick} ondroppickdate={onDropPickDate} />
+      </div>
+    {/if}
     <Hints />
     <StatusLine status={store.status} {updates} onupdate={onUpdate} />
   </aside>
@@ -82,7 +83,7 @@
       {#each store.boardColumns as col, i (i)}
         <div class="col" data-testid="board-col">
           {#each col as key (key)}
-            <Bucket {store} {key} name={nameOf(key)} onpickdate={pick} ondroppickdate={onDropPickDate} />
+            <Bucket {store} {key} name={bucketName(key)} onpickdate={pick} ondroppickdate={onDropPickDate} />
           {/each}
         </div>
       {/each}
@@ -99,7 +100,10 @@
   .brand { font: 600 15px var(--mono); letter-spacing: -.01em; }
   .brand span { color: var(--faint); font-weight: 400; }
   .rblock { display: flex; flex-direction: column; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 8px; }
-  .lab { padding: 0 6px; font: 500 11px var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+  .group { padding: 8px 4px 10px; }
+  .group :global(.task) { grid-template-columns: 16px minmax(0, 1fr) auto; gap: 8px; padding: 6px 4px 6px 8px; }
+  .group :global(.task .title) { font-size: 14px; }
+  .group :global(.bhead .name) { font-size: 15px; }
   .main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
   .warn { margin: 0; font: 12px var(--mono); color: var(--danger); }
   .board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; align-items: stretch; }

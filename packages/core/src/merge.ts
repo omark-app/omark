@@ -1,6 +1,6 @@
 import { diff3Merge, diffComm } from 'node-diff3';
 import type { Item, TasksDoc } from './model.ts';
-import { blockEnd, itemsStart, taskLines, toLines } from './tasks-file.ts';
+import { blockEnd, hasAlwaysSection, itemsStart, parseTasks, serializeTasks, taskLines, toLines } from './tasks-file.ts';
 
 /**
  * Splits a file into merge blocks, grouped as `parseTasks` reads them: in the Tasks section a `- [ ]` or
@@ -127,9 +127,14 @@ function counts(xs: string[]): Map<string, number> {
   return m;
 }
 
-/** Merges three versions of `tasks.md`; the result is LF with one final newline ('' when empty). */
+/**
+ * Merges three versions of `tasks.md`; the result is LF with one final newline ('' when empty). A version
+ * that still has the old `# Always` section (a device on a build before #38) is migrated first, so its
+ * reminders meet the other side's Important, not urgent tasks as the same blocks.
+ */
 export function mergeTasksText(base: string, local: string, remote: string): string {
-  return mergeText(base, local, remote, toBlocks);
+  const migrate = (text: string): string => (hasAlwaysSection(text) ? serializeTasks(parseTasks(text)) : text);
+  return mergeText(migrate(base), migrate(local), migrate(remote), toBlocks);
 }
 
 /**

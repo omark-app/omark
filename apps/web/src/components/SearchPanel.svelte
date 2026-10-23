@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { allTasks, bucketOf, BUCKETS, dayMonth, markedParts, metaLabel, searchDone, searchTasks } from '@omark/core';
+  import { allTasks, bucketName, bucketOf, dayMonth, markedParts, metaLabel, searchDone, searchTasks } from '@omark/core';
   import type { DoneHit, Marked, Task, TaskHit } from '@omark/core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import type { SearchResult, SearchSession } from '../lib/search.svelte.ts';
@@ -33,7 +33,7 @@
   /** The row's date or bucket label, as the task list shows it (the bucket name where a row shows none). */
   function when(t: Task): { text: string; over: boolean; repeat: boolean } {
     const label = metaLabel(t, store.ctx, store.config.dateLabels);
-    const text = label.text ?? BUCKETS.find((b) => b.key === bucketOf(t, store.ctx))!.name;
+    const text = label.text ?? bucketName(bucketOf(t, store.ctx));
     return { text, over: label.overdue, repeat: label.repeat };
   }
 

@@ -132,8 +132,8 @@
 
   /**
    * Something is in progress (a sheet, search, a drag, a focused field or a draft in the add field), so a
-   * newer build waits instead of reloading the page under the user. Edits in the task detail and the
-   * Always list need no rule: the store commits them before it saves.
+   * newer build waits instead of reloading the page under the user. Edits in the task detail need no
+   * rule: the store commits them before it saves.
    */
   function busy(): boolean {
     const field = document.activeElement;

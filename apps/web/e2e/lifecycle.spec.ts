@@ -118,7 +118,7 @@ test('the build this device runs is shown beside the status', async ({ page }) =
 
 test('buckets move on at local midnight without a focus change', async ({ page }) => {
   await openApp(page, {
-    files: { 'tasks.md': '# Always\n\n# Tasks\n- [ ] Saturday chores 📅 2026-10-17\n' },
+    files: { 'tasks.md': '# Tasks\n- [ ] Saturday chores 📅 2026-10-17\n' },
     now: '2026-10-16T23:59:45',
     fakeTimers: true,
   });

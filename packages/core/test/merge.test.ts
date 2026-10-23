@@ -12,7 +12,8 @@ const BOM = String.fromCharCode(0xfeff);
 /** A file as the serializers write it: LF line endings and one final newline. */
 const md = (...lines: string[]) => lines.map((l) => `${l}\n`).join('');
 
-const ALWAYS = ['# Always', '- Walk before the first coffee', '- One tab at a time', '', '# Tasks'];
+/** The head of the file, with two Important, not urgent tasks (once the Always lines, #38). */
+const ALWAYS = ['# Tasks', '- [ ] Walk before the first coffee ⏫', '- [ ] One tab at a time ⏫'];
 const BUY = '- [ ] Buy oat milk 📅 2026-10-16';
 const DENTIST = ['- [ ] Call the dentist about the crown 📅 2026-10-16', '    - ask about zirconia'];
 const PASSPORT = '- [ ] Renew passport 📅 2026-11-02';
@@ -170,7 +171,8 @@ test('notes added on one side while the title changed on the other keeps both ve
   );
   // Both versions parse back as two tasks.
   const titles = tasksOf(parseTasks(out)).map((t) => t.title);
-  expect(titles).toEqual(['Buy oat milk', 'Call the dentist about the bridge', 'Call the dentist about the crown', 'Renew passport', 'Read "Dune"']);
+  // The old Always lines read as Important, not urgent tasks first (#38).
+  expect(titles).toEqual(['Walk before the first coffee', 'One tab at a time', 'Buy oat milk', 'Call the dentist about the bridge', 'Call the dentist about the crown', 'Renew passport', 'Read "Dune"']);
 });
 
 test('an identical edit on both sides gives one copy', () => {
@@ -187,11 +189,11 @@ test('a reorder on one side with an edit to a different task on the other gives 
   for (const out of mergeBothWays(BASE, reordered, edited)) expect(out).toBe(want);
 });
 
-test('an Always line edited on one side and a task added on the other gives both', () => {
-  const always = md('# Always', '- Walk before the first coffee', '- One tab at a time, really', '', '# Tasks', BUY, ...DENTIST, PASSPORT, DUNE);
+test('an Important, not urgent task edited on one side and a task added on the other gives both', () => {
+  const edited = md('# Tasks', '- [ ] Walk before the first coffee ⏫', '- [ ] One tab at a time, really ⏫', BUY, ...DENTIST, PASSPORT, DUNE);
   const added = md(...ALWAYS, '- [ ] Book flights', BUY, ...DENTIST, PASSPORT, DUNE);
-  const want = md('# Always', '- Walk before the first coffee', '- One tab at a time, really', '', '# Tasks', '- [ ] Book flights', BUY, ...DENTIST, PASSPORT, DUNE);
-  for (const out of mergeBothWays(BASE, always, added)) expect(out).toBe(want);
+  const want = md('# Tasks', '- [ ] Walk before the first coffee ⏫', '- [ ] One tab at a time, really ⏫', '- [ ] Book flights', BUY, ...DENTIST, PASSPORT, DUNE);
+  for (const out of mergeBothWays(BASE, edited, added)) expect(out).toBe(want);
 });
 
 test('CRLF remote vs LF local of the same content merges without spurious duplicates', () => {
@@ -436,11 +438,11 @@ test('carryIds: unchanged tasks keep their old ids, and a changed task gets a ne
   expect(idOf(out, 'Renew passport')).not.toBe(idOf(prev, 'Renew passport'));
   expect(idOf(out, 'Book flights')).toBe(idOf(next, 'Book flights'));
 
-  // Only ids change: the rest of the doc (alwaysRaw included) is next's, and next is not mutated.
+  // Only ids change: the rest of the doc is next's, and next is not mutated.
   const strip = (d: TasksDoc) => ({ ...d, items: d.items.map((it): Item => (it.kind === 'task' ? { ...it, task: { ...it.task, id: '' } } : it)) });
   expect(strip(out)).toEqual(strip(next));
-  expect(out.alwaysRaw).toBe(next.alwaysRaw);
-  expect(idOf(next, 'Buy oat milk')).toBe('n1');
+  expect(out.preamble).toBe(next.preamble);
+  expect(idOf(next, 'Buy oat milk')).toBe('n3'); // after the two group tasks
 });
 
 test('carryIds: matches on the block the app would write, not on raw text, and uses each old id once', () => {
@@ -457,4 +459,15 @@ test('carryIds: matches on the block the app would write, not on raw text, and u
   const next = parseTasks(saved + md(DUNE), counter('n'));
   const out = carryIds(prev, next);
   expect(tasksOf(out).map((t) => t.id)).toEqual(['p1', 'p2', 'p3', 'n4']);
+});
+
+test('an Always line added on an old device while this one migrated becomes a group task (#38 review)', () => {
+  const base = md('# Always', '- A', '- B', '', '# Tasks', '- [ ] T');
+  const migrated = md('# Tasks', '- [ ] A ⏫', '- [ ] B ⏫', '- [ ] T');
+  const added = md('# Always', '- A', '- B', '- C', '', '# Tasks', '- [ ] T');
+  const deleted = md('# Always', '- A', '', '# Tasks', '- [ ] T');
+  for (const out of mergeBothWays(base, migrated, added)) {
+    expect(out).toBe(md('# Tasks', '- [ ] A ⏫', '- [ ] B ⏫', '- [ ] C ⏫', '- [ ] T'));
+  }
+  for (const out of mergeBothWays(base, migrated, deleted)) expect(out).toBe(md('# Tasks', '- [ ] A ⏫', '- [ ] T'));
 });
