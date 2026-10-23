@@ -44,7 +44,7 @@ Each row is one issue and one PR; rows marked Plan get a detailed plan first.
 | 2.2 | Landing page at `omark.app` with a card per app (Tasks, Time), privacy policy covering Google data (Limited Use) and terms; live early for Google's review | 6.3.1 | large, Plan | 2.8, 2.4 |
 | 2.3 | Docs set, suite-wide: README, PHILOSOPHY (principles), AGENTS.md (+ `CLAUDE.md` import), CONTRIBUTING, GOVERNANCE, SECURITY, CODE_OF_CONDUCT, LICENSE, `doc/tasks/spec.md`, `doc/format.md`, `doc/architecture.md`, `doc/self-hosting.md`, `doc/factory.md`, `doc/history/` (Omark Time's own docs come in T.8) | 6.7 | large, Plan | 2.8 |
 | 2.4 | Icon family: 2–3 directions shown with both the Tasks and Time glyphs → AL picks → full set for both apps in `brand/`, wired into the apps and manifests | 6.6 | large, Plan | 2.8 |
-| 2.5 | Factory generalised: roles, maintainer check by repo role, role-neutral skills (`omark-factory`), guard and templates, labels script (with `app:` labels), issue and PR templates; one factory for both apps | 6.8 | large, Plan | 2.3 |
+| 2.5 | Factory generalised: roles, maintainer check by repo role, role-neutral skills (`omark-factory`), guard and templates, labels script (with `app:`, `task`, `needs-info`, `in-progress`), issue forms (Bug, Feature, Task), the Ideas Discussion form, security and Q&A contact links, the skill's "missing required field → `needs-info`" rule, PR template; one factory for both apps | 6.8 | large, Plan | 2.3 |
 | 2.6 | AL: give 2–3 pilot developers Read or Triage; one runs the contributor dry run from a private fork | 6.2, 6.8 | — | 2.5 |
 | 2.7 | AL: approve the PHILOSOPHY principles and wording | 6.7.1 | — | 2.3 |
 

@@ -400,15 +400,28 @@ Roles:
   | `size:small`, `size:large` | Sizing |
   | `plan-review`, `plan-approved` | Large-work plan gate |
   | `needs-human` | Infrastructure steps only a maintainer can do |
+  | `needs-info` | The agent or a maintainer asked a question; waiting for an answer |
+  | `in-progress` | Someone is working on it; their comment names the branch |
   | `format` | Changes to an open file format (either app) |
-  | `enhancement`, `bug` | Kind of issue |
+  | `bug`, `enhancement`, `task` | Kind of issue, one per template |
   | `app:tasks`, `app:time`, `app:suite` | Which app an issue is about; `app:suite` for shared packages, CI, docs and the landing page |
 
   A labels file plus a script (or a one-off `gh api` call) creates them.
-- **Ideas live in GitHub Discussions** (an "Ideas" category with voting). Issues are for accepted work and bugs.
-- **Templates:**
-  - The bug template asks for OS, browser, installed or tab, and storage mode.
-  - The feature template asks for the problem, who has it, and the link to the Discussions idea.
+- **Ideas live in GitHub Discussions** (an "Ideas" category with voting). Issues are for accepted work and bugs. The split is "has a maintainer said yes", not "how detailed is it": an idea can be vague; a feature issue must be clear enough to size. *(Added 2026-10-23.)*
+- **Templates** (issue forms in `.github/ISSUE_TEMPLATE/`, a Discussion form in `.github/DISCUSSION_TEMPLATE/`). Fields marked * are required.
+
+  | Template | Kind | Fields |
+  |---|---|---|
+  | Bug (issue) | `bug` | App*, what happened*, what I expected*, build number* (shown in the app), OS and browser*, installed or tab*, storage mode*, steps |
+  | Feature (issue) | `enhancement` | App*, the problem*, who has it*, link to the Ideas discussion (optional for maintainers), how I'll know it works* |
+  | Task (issue) | `task` | App*, what and why*, done when*. For work users don't see: CI, dependencies, refactors, docs, roadmap items |
+  | Idea (Discussion, "Ideas" category) | — | The problem*, how you handle it today, which app |
+
+  - `config.yml` sets `blank_issues_enabled: false` and adds two contact links: **Report a security problem** (GitHub private vulnerability reporting, never a public issue) and **Ask a question** (Discussions, "Q&A" category).
+  - Each issue form adds its kind label. The app dropdown doesn't set a label (forms can't do that per option); the agent adds the matching `app:` label when it sizes the issue.
+  - No template per app and no template for format changes: a format change is a feature with the `format` label.
+  - Forms only bind people using GitHub's web or mobile UI; issues created through the API skip them. So the factory skill carries the rule: when sizing, if a required field of the issue's template is missing, add `needs-info`, ask for it, and stop. Agents filing issues use the template's headings.
+  - "Take the next issue" order: `bug`, then `enhancement`, then `task`, oldest first.
   - The PR template has "What changes for users", "How to try it" and an AI-use line.
 - **Factory documentation for contributors:**
   - What their agent needs: Node, pnpm, the four commands.
@@ -468,7 +481,7 @@ I will also ask 5–10 developers I know to take one each before and right after
 5. Repository settings:
    - branch protection;
    - fork workflow approval;
-   - Discussions on, with an Ideas category;
+   - Discussions on, with an Ideas category (voting) and a Q&A category;
    - private vulnerability reporting on;
    - topics (`markdown`, `todo`, `obsidian`, `local-first`, `gtd`, `pwa`, `ai-agents`, `time-tracking`, `google-calendar`, `csv`);
    - a social preview image.
