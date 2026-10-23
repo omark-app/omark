@@ -330,7 +330,8 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   function neighbour(id: string): string | null {
     const vis = visibleTasks();
     const i = vis.findIndex((t) => t.id === id);
-    return (vis[i + 1] ?? vis[i - 1])?.id ?? null;
+    // Not in the list (a group task on the board): nothing to move on to.
+    return i < 0 ? null : ((vis[i + 1] ?? vis[i - 1])?.id ?? null);
   }
 
   /** After a change to `id`: if it was selected and is now gone or folded away, select `fallback`. */
@@ -387,7 +388,8 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
 
   function setDate(id: string, date: ISODate | null, beforeId?: string | null): void {
     if (!findTask(state, id)) return;
-    commitMove(id, setDateOp(state, id, date, beforeId));
+    // No date is Someday, which also takes a task out of Important, not urgent (#38).
+    commitMove(id, date === null ? moveToBucket(state, id, 'someday', ctx, beforeId) : setDateOp(state, id, date, beforeId));
   }
 
   function drop(id: string, target: DropTarget): DropOutcome {
@@ -430,7 +432,9 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     let next = title === task.title && sameList(notes, task.notes) ? state : editTask(state, id, { title, notes });
     if (moves) next = moveToBucket(next, id, patch.when!, ctx);
     if (flags) next = setImportantOp(next, id, true);
-    const moved = findTask(next, id)?.date !== task.date;
+    // A typed `som` takes a task out of Important, not urgent without changing its date (#38).
+    const after = findTask(next, id);
+    const moved = after?.date !== task.date || (after !== null && bucketOf(after, ctx) !== bucketOf(task, ctx));
     if (moved) commitMove(id, next);
     else commit(next, flags ? msg.markedImportant() : msg.saved());
   }
@@ -445,7 +449,9 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
 
   function setImportant(id: string, important: boolean): void {
     if (!findTask(state, id)) return;
-    commit(setImportantOp(state, id, important), important ? msg.markedImportant() : msg.notImportant());
+    // The flag moves an undated task between Important, not urgent and Someday (#38).
+    const fallback = neighbour(id);
+    if (commit(setImportantOp(state, id, important), important ? msg.markedImportant() : msg.notImportant())) keepVisible(id, fallback);
   }
 
   function undo(): void {

@@ -30,9 +30,11 @@ export function taskKey(t: Pick<Task, 'title' | 'notes' | 'date' | 'repeat' | 'i
 
 /**
  * Parses `tasks.md`. Anything that isn't a `- [ ]` task or a `- [x]` line is kept as raw lines. A file
- * from before #38 may have a `# Always` section above `# Tasks`: each of its `- ` lines becomes an
- * important task with no date (Important, not urgent), at the top of the items in the same order. Its
- * other non-blank lines join the preamble; the heading and blank lines go.
+ * from before #38 may have a `# Always` section above `# Tasks`: each of its `- ` lines (with any indented
+ * lines under it as notes) becomes an important task with no date (Important, not urgent), at the top of
+ * the items in the same order. `- [ ]` and `- [x]` lines there are read as they are anywhere else. Other
+ * non-blank lines, and `- ` lines that are only field text, join the preamble; the heading and blank
+ * lines go.
  */
 export function parseTasks(text: string, newId: () => string = defaultNewId): TasksDoc {
   const lines = toLines(text);
@@ -41,13 +43,29 @@ export function parseTasks(text: string, newId: () => string = defaultNewId): Ta
   if (alwaysAt < 0) return { preamble: tasksAt < 0 ? [] : lines.slice(0, tasksAt), items };
 
   const section = lines.slice(alwaysAt + 1, tasksAt < 0 ? lines.length : tasksAt);
-  const kept = section.filter((l) => l.trim() !== '' && alwaysEntry(l) === null);
-  const migrated = section.flatMap((l): Item[] => {
-    const entry = alwaysEntry(l);
-    if (entry === null) return [];
-    const task = readBack({ id: newId(), title: entry, notes: [], date: null, repeat: null, important: true, raw: null, rawKey: null });
-    return task.title === '' ? [] : [{ kind: 'task', task }];
-  });
+  const kept: string[] = [];
+  const migrated: Item[] = [];
+  for (let i = 0; i < section.length; ) {
+    if (OPEN_LINE.test(section[i]!) || DONE_LINE.test(section[i]!)) {
+      const end = blockEnd(section, i);
+      migrated.push(...parseItems(section.slice(i, end), newId));
+      i = end;
+      continue;
+    }
+    const entry = alwaysEntry(section[i]!);
+    if (entry === null) {
+      if (section[i]!.trim() !== '') kept.push(section[i]!);
+      i++;
+      continue;
+    }
+    let notesEnd = i + 1;
+    while (notesEnd < section.length && INDENTED.test(section[notesEnd]!)) notesEnd++;
+    const notes = section.slice(i + 1, notesEnd).map(noteText);
+    const task = readBack({ id: newId(), title: entry, notes, date: null, repeat: null, important: true, raw: null, rawKey: null });
+    if (task.title === '') kept.push(...section.slice(i, notesEnd));
+    else migrated.push({ kind: 'task', task });
+    i = notesEnd;
+  }
   return { preamble: [...lines.slice(0, alwaysAt), ...kept], items: [...migrated, ...items] };
 }
 
@@ -60,6 +78,11 @@ export function serializeTasks(doc: TasksDoc): string {
     else out.push(...taskLines(item.task));
   }
   return out.map((l) => `${l}\n`).join('');
+}
+
+/** True when `text` still has the old `# Always` section above `# Tasks` (before #38). */
+export function hasAlwaysSection(text: string): boolean {
+  return sections(toLines(text)).alwaysAt >= 0;
 }
 
 /** Indexes of the old `# Always` heading and the `# Tasks` heading as `parseTasks` reads them; -1 when absent. */

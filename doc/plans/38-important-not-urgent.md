@@ -52,7 +52,7 @@ Docs:
 
 - Board rail: on `main` the rail is already about as tall as a 800 px window with a task open, so showing the group under the detail there scrolled the page when editing a low row (`board.spec` "rail stays in view"). The board keeps ALWAYS's behaviour instead: the detail takes the group's place while a task is open.
 - Another device still on the old build writes `# Always` (empty) back into the file. The new build drops an empty section on its next save. Harmless churn until all devices update.
-- An Always line edited on an old device while the new one migrates can come out as two tasks (the merge keeps both). Nothing is lost.
+- An Always line added, edited or deleted on an old device while the new one migrates: the merge migrates every version that still has `# Always` before merging, so the change meets the migrated tasks as the same blocks (review finding).
 - An Always line with field text (`📅 2026-…`) becomes a dated task. Unlikely; the line's text decides as everywhere else.
 
 ## Out of scope

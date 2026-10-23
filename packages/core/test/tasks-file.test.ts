@@ -454,3 +454,12 @@ test('a new file is just # Tasks, and # Always after it stays a raw line (#38)',
   const text = '# Tasks\n- [ ] A\n# Always\n- Walk\n';
   expect(serializeTasks(parseTasks(text))).toBe(text);
 });
+
+test('task lines in a legacy # Always section stay tasks, and notes under a line go with it (#38 review)', () => {
+  const legacy = '# Always\n- Walk\n    - slowly\n- [ ] Buy milk\n- [x] Old done ✅ 2026-10-01\n- ⏫\n';
+  const doc = parseTasks(legacy);
+  expect(doc.items.map((i) => i.kind)).toEqual(['task', 'task', 'done']);
+  expect(tasksOf(doc).map((t) => [t.title, t.important, t.notes])).toEqual([['Walk', true, ['slowly']], ['Buy milk', undefined, []]]);
+  // A line that is only field text has no title: it stays as text above # Tasks.
+  expect(serializeTasks(doc)).toBe('- ⏫\n# Tasks\n- [ ] Walk ⏫\n    - slowly\n- [ ] Buy milk\n- [x] Old done ✅ 2026-10-01\n');
+});

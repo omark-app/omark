@@ -1,7 +1,7 @@
 import { bucketOf } from './buckets.ts';
 import { addDays, endOfNextWeek } from './dates.ts';
 import type { BucketKey, ISODate, State, WeekCtx } from './model.ts';
-import { findTask, moveToBucket, moveToGroup, reorder } from './ops.ts';
+import { findTask, moveToBucket, moveToGroup, moveToGroupEnd, reorder } from './ops.ts';
 
 export interface DropTarget {
   bucket: BucketKey;
@@ -27,6 +27,11 @@ export function planDrop(s: State, id: string, target: DropTarget, ctx: WeekCtx)
 
   if (bucketOf(task, ctx) === target.bucket) {
     const { beforeId } = target;
+    if (beforeId === null && target.bucket === 'important') {
+      // Below the group's last row: the group is in file order alone, so this moves it to last place (#38).
+      const state = moveToGroupEnd(s, id);
+      return state === s ? { kind: 'none' } : { kind: 'reorder', state, sameDate: true, sameFlag: true };
+    }
     if (beforeId === null || beforeId === id) return { kind: 'none' };
     const before = findTask(s, beforeId);
     if (!before) return { kind: 'none' };

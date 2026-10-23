@@ -493,6 +493,31 @@ ${['A', 'B', 'C', 'D'].map((t) => `- [ ] Tom ${t} 📅 2026-10-17`).join('\n')}
     expect(store.selectedId).toBe(walk);
   });
 
+  it('every way out of the group to Someday drops ⏫ and lets go of a now hidden task (#38 review)', async () => {
+    const { store } = await setup({ 'tasks.md': `${SEED_TASKS}- [ ] Walk ⏫\n- [ ] Tab ⏫\n- [ ] Notice ⏫\n` });
+    const id = (t: string) => idOf(store, t);
+    const group = () => tasksInBucket(store.state.doc, 'important', store.ctx).map((t) => t.title);
+    // `i` unflags: Someday is folded, so the selection moves on.
+    store.select(id('Walk'));
+    store.setImportant(id('Walk'), false);
+    expect(store.selectedId).toBe(id('Tab'));
+    // A typed `som` in the edit is a move to Someday.
+    store.edit(id('Tab'), { title: 'Tab', notes: [], when: 'someday' });
+    expect(store.toast?.message).toBe('Moved to Someday');
+    expect(store.selectedId).toBe(id('Notice'));
+    // The date picker's Someday is a move to Someday too.
+    store.setDate(id('Notice'), null);
+    expect(group()).toEqual([]);
+    expect(store.toast?.message).toBe('Moved to Someday');
+  });
+
+  it('on the board, finishing a selected group task selects nothing rather than a board task (#38 review)', async () => {
+    const { store } = await setup({ 'tasks.md': `${SEED_TASKS}- [ ] Walk ⏫\n`, 'config.yaml': 'defaultView: board\n' });
+    store.select(idOf(store, 'Walk'));
+    store.complete(idOf(store, 'Walk'));
+    expect(store.selectedId).toBeNull();
+  });
+
   it('the toast goes away after 4.2 s', async () => {
     const { store } = await setup();
     store.add('Buy milk');

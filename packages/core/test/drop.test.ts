@@ -216,3 +216,28 @@ describe('Important, not urgent (#38)', () => {
     expect(bucketOf(taskOf(out.state, DENTIST), fri)).toBe('important');
   });
 });
+
+describe('dropping on the group without a row puts the task last (#38 review)', () => {
+  const TEXT2 = '# Tasks\n- [ ] Call the dentist 📅 2026-10-16\n- [ ] A ⏫\n- [ ] B ⏫\n- [ ] Tail\n';
+  const make2 = (): State => {
+    let n = 0;
+    return { doc: parseTasks(TEXT2, () => `id${++n}`), done: parseDone('') };
+  };
+  const group = (s: State) => tasksInBucket(s.doc, 'important', fri).map((t) => t.title);
+
+  test('a task from another bucket goes after the last group task', () => {
+    const s = make2();
+    const out = planDrop(s, idOf(s, DENTIST), { bucket: 'important', beforeId: null }, fri);
+    if (out.kind !== 'move') throw new Error(out.kind);
+    expect(group(out.state)).toEqual(['A', 'B', DENTIST]);
+  });
+
+  test('a group task dropped on the group itself moves to last place', () => {
+    const s = make2();
+    const out = planDrop(s, idOf(s, 'A'), { bucket: 'important', beforeId: null }, fri);
+    expect(out).toMatchObject({ kind: 'reorder', sameDate: true, sameFlag: true });
+    if (out.kind !== 'reorder') return;
+    expect(group(out.state)).toEqual(['B', 'A']);
+    expect(planDrop(out.state, idOf(out.state, 'A'), { bucket: 'important', beforeId: null }, fri)).toEqual({ kind: 'none' });
+  });
+});

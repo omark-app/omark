@@ -88,9 +88,25 @@ export function moveToBucket(
   return bucket === 'someday' && t?.important && t.date === null ? setImportant(next, id, false) : next;
 }
 
-/** Moves a task into Important, not urgent (#38): no date and ⏫, placed before `beforeId` when given. */
+/**
+ * Moves a task into Important, not urgent (#38): no date and ⏫, placed before `beforeId`, or last in the
+ * group when none is given (the group is in the order tasks joined it).
+ */
 export function moveToGroup(s: State, id: string, beforeId?: string | null): State {
-  return setImportant(setDate(s, id, null, beforeId), id, true);
+  const placed = setImportant(setDate(s, id, null, beforeId), id, true);
+  return beforeId == null ? moveToGroupEnd(placed, id) : placed;
+}
+
+/** Moves task `id` to just after the last other Important, not urgent task; `s` when it is already after it. */
+export function moveToGroupEnd(s: State, id: string): State {
+  const items = s.doc.items;
+  const last = items.findLastIndex((i) => i.kind === 'task' && i.task.id !== id && i.task.important === true && i.task.date === null);
+  const from = indexOf(s, id);
+  if (last < 0 || from < 0 || from > last) return s;
+  const next = items.slice();
+  const [moved] = next.splice(from, 1);
+  next.splice(last, 0, moved!);
+  return withItems(s, next);
 }
 
 export function reorder(s: State, id: string, beforeId: string): State {

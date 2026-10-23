@@ -368,3 +368,15 @@ test('the search box is at least 16px, so iOS does not zoom in', async ({ page }
   await page.getByTestId('search-open').tap();
   expect(await px(page.getByTestId('search-input'))).toBeGreaterThanOrEqual(16);
 });
+
+test('rows in Important, not urgent take swipes too: right completes, left opens the move sheet (#38)', async ({ page }) => {
+  await start(page);
+  await row(page, 'One tab at a time').scrollIntoViewIfNeeded();
+  await swipe(row(page, 'One tab at a time'), 120);
+  await expect(page.getByTestId('toast')).toContainText('Done · One tab at a time');
+  await swipe(row(page, 'Walk before the first coffee'), -120);
+  await expect(sheet(page)).toBeVisible();
+  await sheet(page).getByRole('button', { name: /^Someday/ }).tap();
+  await expect(page.getByTestId('toast')).toContainText('Moved to Someday');
+  await expect(page.getByTestId('bucket-count-important')).toHaveText('0');
+});

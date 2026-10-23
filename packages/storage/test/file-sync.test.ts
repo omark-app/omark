@@ -190,10 +190,10 @@ describe('FileSync', () => {
     drive.setOffline(true);
     const sync = makeSync(drive);
     await sync.open();
-    drive.externalWrite(NAME, '# Always\n- Water\n\n# Tasks\n- [ ] Remote task\n');
+    drive.externalWrite(NAME, 'Notes above\n# Tasks\n- [ ] Remote task\n');
     drive.setOffline(false);
     const { text } = await sync.pull();
-    expect(text).toBe('# Always\n- Water\n\n# Tasks\n- [ ] Remote task\n');
+    expect(text).toBe('Notes above\n# Tasks\n- [ ] Remote task\n');
     expect(drive.peek(NAME)).toBe(text);
   });
 
