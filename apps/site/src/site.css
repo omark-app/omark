@@ -24,6 +24,7 @@ p { margin: 0; }
 code {
   font-family: var(--mono);
   font-size: .88em;
+  color: var(--ink);
   background: var(--chip);
   border: 1px solid var(--line);
   border-radius: 6px;

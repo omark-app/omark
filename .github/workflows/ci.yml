@@ -330,7 +330,7 @@ jobs:
         # domain can take a moment to serve the new deploy, so try a few times.
         run: |
           for try in 1 2 3 4 5; do
-            if curl -fsSL --max-time 20 "$SITE_URL/privacy/" | grep -q "Limited Use" \r
+            if curl -fsSL --max-time 20 "$SITE_URL/privacy/" | grep -q "Limited Use" \
               && curl -sSI --max-time 20 "$SITE_URL/" | grep -qi '^content-security-policy:'; then
               echo "The site is live."
               exit 0
@@ -338,7 +338,7 @@ jobs:
             echo "Not live yet (try $try of 5)."
             sleep 10
           done
-          echo "::error::$SITE_URL/privacy/ does not show the expected text after the deploy."
+          echo "::error::$SITE_URL/privacy/ is missing the policy text or the content-security-policy header after the deploy."
           exit 1
         env:
           SITE_URL: ${{ vars.SITE_URL }}
