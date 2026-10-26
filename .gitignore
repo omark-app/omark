@@ -11,8 +11,7 @@ dist-demo
 .env
 .env.*
 !.env.example
+!apps/tasks/.env.development
 .secrets/
 .superpowers/
 *e2e-state*.json
-
-!apps/tasks/.env.development

@@ -29,9 +29,16 @@ const isSource = (name: string) => /\.(ts|svelte|mjs)$/.test(name) && !/\.(test|
 
 /** Where the variables are read, and the pattern that finds them. */
 const sources: Record<string, { files: string[]; re: RegExp }> = {
-  'build (VITE_*)': { files: [...files('apps/tasks/src', isSource), 'apps/tasks/vite.config.ts'], re: /\b(VITE_[A-Z0-9_]+)\b/g },
+  'build (VITE_*)': { files: [...files('apps/tasks/src', isSource), 'apps/tasks/vite.config.ts', 'apps/tasks/playwright.config.ts'], re: /\b(VITE_[A-Z0-9_]+)\b/g },
   'build (BUILD_*)': { files: ['apps/tasks/vite.config.ts'], re: /process\.env\.(BUILD_[A-Z0-9_]+)/g },
   'sign-in helper': { files: [...files('functions', isSource), ...files('packages/signin/src', isSource)], re: /\benv\.([A-Z][A-Z0-9_]+)/g },
+  'e2e-real and Todoist import': {
+    files: [...files('apps/tasks/e2e-real', isSource), ...files('tools/todoist-import', isSource)],
+    re: /process\.env\.(TASKAPP_E2E_[A-Z]+|TODOIST_[A-Z_]+)/g,
+  },
+  // Only vars.* and secrets.* are listed. Names that just pass a value between CI steps (PREVIEW_URL, SIGNIN_URL,
+  // CF_STAGING_PROJECT, STAGING_DOMAIN, CF_ZONE_ID and so on, set in a step's `env:` from vars or secrets) stay out.
+  'workflows (secrets.*)': { files: files('.github/workflows', (n) => /\.ya?ml$/.test(n)), re: /\bsecrets\.((?!GITHUB_TOKEN\b)[A-Z][A-Z0-9_]+)/g },
   'workflows (vars.*)': { files: files('.github/workflows', (n) => /\.ya?ml$/.test(n)), re: /\bvars\.([A-Z][A-Z0-9_]+)/g },
 };
 
