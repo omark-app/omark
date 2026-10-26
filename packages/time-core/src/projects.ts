@@ -11,7 +11,8 @@ export interface Project {
   description: string;
   client: string;
   rate: number | null; // per hour
-  rateText?: string; // an invalid rate as typed; `rate` is null
+  /** The rate as typed: an invalid one (`rate` is null), or a valid one spelled unlike String(rate), such as `120.50`. */
+  rateText?: string;
   currency: string; // upper case
   archived: string; // '' or YYYY-MM-DD
   extra: Record<string, string>; // unknown columns, keyed by header
@@ -51,7 +52,7 @@ function problemsOf(p: Project, others: Project[]): string[] {
   const out: string[] = [];
   if (!isValidCode(p.code)) out.push(CODE_MESSAGE);
   else if (others.some((o) => o.code === p.code)) out.push(`${p.code} already exists`);
-  if (p.rateText || (p.rate !== null && (!Number.isFinite(p.rate) || p.rate < 0))) out.push(RATE_NUMBER_MESSAGE);
+  if (p.rate === null ? !!p.rateText : !Number.isFinite(p.rate) || p.rate < 0) out.push(RATE_NUMBER_MESSAGE);
   else if (p.rate !== null && p.currency === '') out.push(RATE_CURRENCY_MESSAGE);
   if (p.currency !== '' && !/^[A-Z]{3}$/.test(p.currency)) out.push(CURRENCY_MESSAGE);
   if (p.archived !== '' && !isRealDate(p.archived)) out.push(ARCHIVED_MESSAGE);
@@ -98,7 +99,7 @@ export function parseProjects(text: string): ProjectsFile {
       description: std.description ?? '',
       client: std.client ?? '',
       rate: rateBad ? null : rate,
-      ...(rateBad ? { rateText } : {}),
+      ...(rateBad || (rate !== null && rateText !== String(rate)) ? { rateText } : {}),
       currency: (std.currency ?? '').toUpperCase(),
       archived: std.archived ?? '',
       extra,
@@ -110,13 +111,23 @@ export function parseProjects(text: string): ProjectsFile {
   return { projects, columns, problems };
 }
 
+/** The rate as written: as typed while its value is unchanged, else String(rate). */
+function rateCell(p: Project): string {
+  if (p.rate === null) return p.rateText ?? '';
+  return sameRate(p.rateText, p.rate) ? p.rateText! : String(p.rate);
+}
+
+function sameRate(text: string | undefined, rate: number | null): boolean {
+  return text !== undefined && text.trim() !== '' && rate !== null && Number(text) === rate;
+}
+
 function flat(p: Project): Record<string, string> {
   return {
     ...p.extra,
     code: p.code,
     description: p.description,
     client: p.client,
-    rate: p.rateText ?? (p.rate === null ? '' : String(p.rate)),
+    rate: rateCell(p),
     currency: p.currency,
     archived: p.archived,
   };
@@ -175,8 +186,12 @@ export function updateProject(
   const i = file.projects.findIndex((p) => p.code === key);
   if (i < 0) throw new Error(`${key} not found`);
   const old = file.projects[i]!;
-  const { rateText, ...rest } = normalise({ ...old, ...changes, code: key });
-  const project: Project = 'rate' in changes || changes.rateText !== undefined ? { ...rest, ...(changes.rateText ? { rateText: changes.rateText } : {}) } : { ...rest, ...(rateText ? { rateText } : {}) };
+  const { rateText: _, ...rest } = normalise({ ...old, ...changes, code: key });
+  // Setting a rate drops the old spelling, unless the value is the same.
+  let rateText: string | undefined;
+  if (changes.rateText !== undefined) rateText = changes.rateText;
+  else if (!('rate' in changes) || sameRate(old.rateText, rest.rate)) rateText = old.rateText;
+  const project: Project = { ...rest, ...(rateText ? { rateText } : {}) };
   const others = file.projects.filter((_, j) => j !== i);
   const before = problemsOf(old, others);
   const added = problemsOf(project, others).find((m) => !before.includes(m));
