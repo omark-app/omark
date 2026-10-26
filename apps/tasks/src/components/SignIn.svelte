@@ -4,8 +4,8 @@
   import type { StorageProvider } from '../lib/environment.ts';
   /**
    * First run, or signed out: the only way in is an account with one of `providers` (the files live in its
-   * storage: OneDrive for Microsoft, Google Drive for Google). With one provider the sign-in names none,
-   * so its request stays `/api/auth/login` as before.
+   * storage: OneDrive for Microsoft, Google Drive for Google). Each button names its provider, even when it
+   * is the only one; `auth.signIn` keeps the plain `/api/auth/login` for the default.
    */
   let {
     providers,
@@ -21,7 +21,7 @@
   <p>Your tasks live in plain files in your {storages}. Sign in to open them.</p>
   <div class="buttons">
     {#each providers as provider (provider)}
-      <button type="button" class="btn" onclick={() => onsignin(providers.length > 1 ? provider : undefined)}>
+      <button type="button" class="btn" onclick={() => onsignin(provider)}>
         Sign in with {SIGN_IN_NAMES[provider as StorageProvider] ?? provider}
       </button>
     {/each}

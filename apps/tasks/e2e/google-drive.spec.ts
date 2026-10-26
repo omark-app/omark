@@ -40,9 +40,16 @@ test('without Google set up, the sign-in screen has only Microsoft', async ({ pa
   await expect(page.getByText('Your tasks live in plain files in your OneDrive. Sign in to open them.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Sign in with Microsoft' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Sign in with Google' })).toHaveCount(0);
-  // with one provider the sign-in asks for none, so the request stays `/api/auth/login` as before
+  // the button names its provider; auth.signIn keeps the plain `/api/auth/login` for the default
   await page.getByRole('button', { name: 'Sign in with Microsoft' }).click();
-  await expect.poll(() => signInWith(page)).toEqual([null]);
+  await expect.poll(() => signInWith(page)).toEqual(['microsoft']);
+});
+
+test('with only Google set up, its button signs in with Google', async ({ page }) => {
+  await openApp(page, { auth: 'signed-out', providers: ['google'] });
+  await expect(page.getByText('Your tasks live in plain files in your Google Drive. Sign in to open them.')).toBeVisible();
+  await page.getByRole('button', { name: 'Sign in with Google' }).click();
+  await expect.poll(() => signInWith(page)).toEqual(['google']);
 });
 
 test('a Google session that needs signing in again signs in with Google, not the default', async ({ page }) => {
