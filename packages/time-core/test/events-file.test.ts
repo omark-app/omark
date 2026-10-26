@@ -6,7 +6,9 @@ import {
   parseEventsFile,
   serializeEventsFile,
 } from '../src/events-file.ts';
+import { buildFixList } from '../src/fix-list.ts';
 import type { EventRow } from '../src/rows.ts';
+import { summarise } from '../src/summary.ts';
 
 const SAMPLE = `date,start,end,hours,project,category,description,all_day,known,calendar,event_id
 2026-10-22,2026-10-22T09:00+02:00,2026-10-22T10:30+02:00,1.5,ACME,Coding,new featureX,false,true,primary,abc123
@@ -57,7 +59,7 @@ test('an extra column is kept on every row and written after the fixed ones', ()
 });
 
 test('columns are mapped by header name', () => {
-  const text = 'event_id,hours,start,date\nx1,2,2026-10-22T09:00+02:00,2026-10-22\n';
+  const text = 'event_id,hours,end,start,date\nx1,2,2026-10-22T11:00+02:00,2026-10-22T09:00+02:00,2026-10-22\n';
   const { rows } = parseEventsFile(text);
   expect(rows[0]).toMatchObject({ eventId: 'x1', hours: 2, date: '2026-10-22', project: '' });
 });
@@ -117,4 +119,20 @@ test('an unclosed quote is a bad line', () => {
   const early = parseEventsFile(SAMPLE.replace(',new featureX,', ',"new featureX,'));
   expect(early.rows).toEqual([]);
   expect(early.badLines).toEqual([2]);
+});
+
+test('a bad end or a date that is not a real YYYY-MM-DD is a bad line', () => {
+  const text = SAMPLE.replace('2026-10-22T10:30+02:00', 'oops').replace(
+    '2026-10-22,2026-10-22T11:00',
+    '22.10.2026,2026-10-22T11:00',
+  );
+  const { rows, badLines } = parseEventsFile(text);
+  expect(rows).toEqual([]);
+  expect(badLines).toEqual([2, 3]);
+  expect(parseEventsFile(SAMPLE.replace('2026-10-22,2026-10-22T11:00', '2026-02-30,2026-10-22T11:00')).badLines).toEqual([3]);
+
+  const one = parseEventsFile(SAMPLE.replace('2026-10-22T10:30+02:00', 'oops'));
+  expect(one.rows).toHaveLength(1);
+  expect(() => summarise(one.rows, { from: '2026-10-01', to: '2026-10-31' }, Date.parse('2026-11-01T00:00:00Z'))).not.toThrow();
+  expect(() => buildFixList(one.rows)).not.toThrow();
 });

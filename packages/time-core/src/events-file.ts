@@ -2,7 +2,7 @@
 import { parseCsv, toCsv } from './csv.ts';
 import { formatHours } from './hours.ts';
 import type { EventRow } from './rows.ts';
-import { parseInstant } from './zone.ts';
+import { isRealDate, parseInstant } from './zone.ts';
 
 /** The fixed columns, in file order. */
 export const EVENT_COLUMNS: readonly string[] = [
@@ -45,6 +45,15 @@ function parseBool(text: string): boolean | null {
   return t === 'true' ? true : t === 'false' ? false : null;
 }
 
+function isInstant(text: string): boolean {
+  try {
+    parseInstant(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Read a year file. Rows that cannot be read are left out; `badLines` holds their 1-based lines. */
 export function parseEventsFile(text: string): { rows: EventRow[]; badLines: number[] } {
   const { rows: cells, lines, unterminated } = parseCsv(text);
@@ -71,13 +80,14 @@ export function parseEventsFile(text: string): { rows: EventRow[]; badLines: num
     const hours = hoursText === '' ? NaN : Number(hoursText);
     const allDay = present('all_day') ? parseBool(get('all_day')) : false;
     const known = present('known') ? parseBool(get('known')) : false;
-    let startOk = true;
-    try {
-      parseInstant(get('start'));
-    } catch {
-      startOk = false;
-    }
-    if (!Number.isFinite(hours) || !startOk || allDay === null || known === null) {
+    if (
+      !Number.isFinite(hours) ||
+      !isInstant(get('start')) ||
+      !isInstant(get('end')) ||
+      !isRealDate(get('date')) ||
+      allDay === null ||
+      known === null
+    ) {
       badLines.push(lines[i]!);
       continue;
     }
