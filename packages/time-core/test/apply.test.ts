@@ -146,3 +146,40 @@ test('newlyInWindow', () => {
   expect(newlyInWindow('2026-10-27', '2026-10-26')).toBeNull();
   expect(newlyInWindow('2026-10-26', '2026-10-29')).toEqual({ from: '2027-01-24', to: '2027-01-27' });
 });
+
+test('extra columns of a re-applied event are kept and the year is not reported changed', () => {
+  const base = applyChanges(empty(), [ev({})], ctx).files;
+  const withExtra: YearFiles = new Map([
+    ['2026', base.get('2026')!.map((r) => ({ ...r, extra: { billed: 'yes' } }))],
+  ]);
+  const again = applyChanges(withExtra, [ev({})], ctx);
+  expect(again.files.get('2026')![0]!.extra).toEqual({ billed: 'yes' });
+  expect(again.changedYears.size).toBe(0);
+});
+
+test('the same event twice in one call gives one set of rows (the last wins)', () => {
+  const first = ev({ title: 'ACME; Coding; first' });
+  const last = ev({ title: 'ACME; Coding; last' });
+  const { files } = applyChanges(empty(), [first, last], ctx);
+  expect(files.get('2026')!.map((r) => r.description)).toEqual(['last']);
+});
+
+test('replace and removal leave the input untouched', () => {
+  const other = ev({
+    id: 'e2',
+    start: { dateTime: '2026-10-23T09:00:00+02:00' },
+    end: { dateTime: '2026-10-23T10:00:00+02:00' },
+  });
+  const input = applyChanges(empty(), [ev({}), other], ctx).files;
+  const copy = structuredClone(input);
+  const arrays = [...input.values()];
+  const rowObjects = arrays.flat();
+  const edited = ev({ title: 'ACME; Coding; changed' });
+  const gone = ev({ id: 'e2', status: 'cancelled', title: '', start: null, end: null });
+  applyChanges(input, [edited, gone], ctx);
+  recheckKnown(input, new Set());
+  expect(input).toEqual(copy);
+  expect([...input.values()]).toEqual(arrays);
+  arrays.forEach((a, i) => expect(a).toBe([...input.values()][i]));
+  expect(input.get('2026')!.every((r, i) => r === rowObjects[i])).toBe(true);
+});

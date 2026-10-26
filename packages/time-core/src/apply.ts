@@ -3,8 +3,6 @@ import { compareRows, serializeEventsFile, type YearFiles } from './events-file.
 import { eventToRows, windowEnd, type EventRow, type RowContext } from './rows.ts';
 import type { CalendarEvent } from './source.ts';
 
-export type { YearFiles } from './events-file.ts';
-
 interface Result {
   files: YearFiles;
   changedYears: Set<string>;
@@ -31,14 +29,28 @@ function finish(files: YearFiles, next: Map<string, EventRow[]>): Result {
  * every year) with the rows it now gives. The input is not changed.
  */
 export function applyChanges(files: YearFiles, events: CalendarEvent[], ctx: RowContext): Result {
-  const keys = new Set(events.map((e) => `${e.calendarId}\n${e.id}`));
+  // The last occurrence of an event wins.
+  const latest = new Map<string, CalendarEvent>();
+  for (const e of events) latest.set(`${e.calendarId}
+${e.id}`, e);
+
   const next = new Map<string, EventRow[]>();
+  const oldExtra = new Map<string, Record<string, string>>();
   for (const [year, rows] of files) {
-    if (rows.some((r) => keys.has(`${r.calendar}\n${r.eventId}`))) {
-      next.set(year, rows.filter((r) => !keys.has(`${r.calendar}\n${r.eventId}`)));
+    if (rows.some((r) => latest.has(`${r.calendar}
+${r.eventId}`))) {
+      const kept: EventRow[] = [];
+      for (const r of rows) {
+        const key = `${r.calendar}
+${r.eventId}`;
+        if (latest.has(key)) oldExtra.set(`${key}
+${r.date}`, r.extra);
+        else kept.push(r);
+      }
+      next.set(year, kept);
     }
   }
-  for (const event of events) {
+  for (const [key, event] of latest) {
     for (const row of eventToRows(event, ctx)) {
       const year = row.date.slice(0, 4);
       let list = next.get(year);
@@ -46,7 +58,8 @@ export function applyChanges(files: YearFiles, events: CalendarEvent[], ctx: Row
         list = [...(files.get(year) ?? [])];
         next.set(year, list);
       }
-      list.push(row);
+      list.push({ ...row, extra: { ...(oldExtra.get(`${key}
+${row.date}`) ?? {}) } });
     }
   }
   return finish(files, next);
