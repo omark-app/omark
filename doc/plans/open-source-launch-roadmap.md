@@ -1,6 +1,6 @@
 # Open source launch roadmap
 
-Implements [the open source launch spec](../TaskApp%20open%20source%20launch%20spec.md). The spec covers about ten independent workstreams, so this file orders them, and each becomes one GitHub issue with its own detailed plan, written when its turn comes (the factory's large-work rule). Milestone 1 is planned in detail in [open-source-m1-groundwork.md](open-source-m1-groundwork.md).
+Implements [the open source launch spec](../TaskApp%20open%20source%20launch%20spec.md). The spec covers about ten independent workstreams, so this file orders them, and each becomes one GitHub issue with its own detailed plan, written when its turn comes (the factory's large-work rule). Milestone 1 is planned in detail in [open-source-m1-groundwork.md](../history/open-source-m1-groundwork.md).
 
 Updated 2026-10-22 for the suite:
 - the monorepo move (2.8);
@@ -40,7 +40,7 @@ Each row is one issue and one PR; rows marked Plan get a detailed plan first.
 | # | Workstream | Spec | Size | Depends on |
 |---|---|---|---|---|
 | 2.1 | Demo storage mode (seeded, IndexedDB-durable, "Reset demo"), `pnpm demo`, `.env.example`, demo deployment at `demo-tasks.omark.app` | 6.3 | large, Plan | M1 |
-| 2.8 | **Monorepo move** (right after 2.1 merges): `apps/web` → `apps/tasks`, `packages/core` → `packages/tasks-core`, storage and sign-in made app-neutral, CI and Promote per app, paths, hooks and docs re-pointed; no behaviour change. AL: rename the repo to `omark` and the repository variables | 6.12 | large, Plan | 2.1 |
+| 2.8 | *Built 2026-10-26 (#47); after-merge steps pending.* **Monorepo move** (right after 2.1 merges): `apps/web` → `apps/tasks`, `packages/core` → `packages/tasks-core`, storage and sign-in made app-neutral, CI and Promote per app, paths, hooks and docs re-pointed; no behaviour change. AL: rename the repo to `omark` | 6.12 | large, Plan | 2.1 |
 | 2.2 | Landing page at `omark.app` with a card per app (Tasks, Time), privacy policy covering Google data (Limited Use) and terms; live early for Google's review | 6.3.1 | large, Plan | 2.8, 2.4 |
 | 2.3 | Docs set, suite-wide: README, PHILOSOPHY (principles), AGENTS.md (+ `CLAUDE.md` import), CONTRIBUTING, GOVERNANCE, SECURITY, CODE_OF_CONDUCT, LICENSE, `doc/tasks/spec.md`, `doc/format.md`, `doc/architecture.md`, `doc/self-hosting.md`, `doc/factory.md`, `doc/history/` (Omark Time's own docs come in T.8) | 6.7 | large, Plan | 2.8 |
 | 2.4 | Icon family: 2–3 directions shown with both the Tasks and Time glyphs → AL picks → full set for both apps in `brand/`, wired into the apps and manifests | 6.6 | large, Plan | 2.8 |
@@ -48,7 +48,7 @@ Each row is one issue and one PR; rows marked Plan get a detailed plan first.
 | 2.6 | AL: give 2–3 pilot developers Read or Triage; one runs the contributor dry run from a private fork | 6.2, 6.8 | — | 2.5 |
 | 2.7 | AL: approve the PHILOSOPHY principles and wording | 6.7.1 | — | 2.3 |
 
-Order: 2.1, then 2.8, then 2.2–2.5. 2.8 waits for 2.1 so the move doesn't collide with the demo work.
+Order: 2.1, then 2.8, then 2.2–2.5. 2.8 went before 2.1 by AL's choice, so #31 (demo mode) rebases onto the new paths.
 
 Build-in-public posts on LinkedIn can start here.
 
@@ -62,7 +62,7 @@ Build-in-public posts on LinkedIn can start here.
 | 3.4 | CI re-pointed to the Omark projects; the bridge kept for my old instance until 3.6 | 6.5 | small | 3.3 |
 | 3.5 | AL: publisher verification (not a blocker) | 6.5 | — | 2.2 |
 | 3.6 | AL: cutover to `tasks.omark.app` (spec 6.5.1, checklist in `doc/history/`) | 6.5.1 | — | 3.4 |
-| 3.7 | Remove the bridge: drive-root scope option, the old hosts and folders, the legacy-cache migration, old tests; the spec's `grep` is clean | 6.1 | large, Plan | 3.6 |
+| 3.7 | Remove the bridge: drive-root scope option, the old hosts and folders, the legacy-cache migration, old tests; rename the Tasks cookies, header, IndexedDB names and tags; the spec's `grep` is clean | 6.1 | large, Plan | 3.6 |
 | 3.8 | Google provider in `@omark/signin` and a shared `GoogleDriveAdapter` (`drive.file`), after checking conditional writes and desktop-edit file ids; Tasks can use Google Drive | 6.4.1 | large, Plan | 2.8, 3.9 |
 | 3.9 | AL: verify `omark.app` in Google Search Console; Google Cloud projects "Omark Tasks" and "Omark Tasks Staging" (consent screen, Web OAuth client, secrets in Pages); brand verification. *Search Console and the staging project done 2026-10-26 (in Testing until 2.2 is live)* | 6.4.1, 8 | — | 2.2 |
 

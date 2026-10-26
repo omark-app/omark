@@ -34,8 +34,9 @@ let api: ReturnType<typeof helper>;
 let now: number;
 let cookie: string;
 const navigate = vi.fn();
-const mk = (timeoutMs?: number) =>
-  createAuth({ fetch: api.fetch as typeof fetch, navigate, cookies: () => cookie, now: () => now, timeoutMs });
+const TASKS = { cookiePrefix: 'taskapp', providerName: 'Microsoft' };
+const mk = (timeoutMs?: number, app = TASKS) =>
+  createAuth({ ...app, fetch: api.fetch as typeof fetch, navigate, cookies: () => cookie, now: () => now, timeoutMs });
 
 beforeEach(() => {
   api = helper();
@@ -126,6 +127,14 @@ describe('createAuth (sign-in helper)', () => {
     expect(mk().isSignedIn()).toBe(false);
   });
 
+  it("isSignedIn reads the app's own cookie", () => {
+    const time = { cookiePrefix: 'omark_time', providerName: 'Microsoft' };
+    expect(mk(undefined, time).isSignedIn()).toBe(false);
+    cookie = 'other=1; omark_time_signed_in=1';
+    expect(mk(undefined, time).isSignedIn()).toBe(true);
+    expect(mk().isSignedIn()).toBe(false);
+  });
+
   describe('handleRedirect', () => {
     const replaceState = vi.fn();
 
@@ -141,6 +150,19 @@ describe('createAuth (sign-in helper)', () => {
       at('https://tasks.example/?signin_error=cancelled&x=1#h');
       await expect(mk().handleRedirect()).rejects.toThrow('Sign-in was cancelled');
       expect(replaceState).toHaveBeenCalledWith(null, '', '/?x=1#h');
+    });
+
+    it("names the app's provider in the error", async () => {
+      at('https://tasks.example/?signin_error=failed');
+      await expect(mk().handleRedirect()).rejects.toThrow('Microsoft did not accept the sign-in');
+      at('https://tasks.example/?signin_error=failed');
+      await expect(mk(undefined, { cookiePrefix: 'omark_time', providerName: 'Google' }).handleRedirect()).rejects.toThrow(
+        'Google did not accept the sign-in',
+      );
+      at('https://tasks.example/?signin_error=unavailable');
+      await expect(mk(undefined, { cookiePrefix: 'omark_time', providerName: 'Google' }).handleRedirect()).rejects.toThrow(
+        'Google could not be reached; check the connection and sign in again',
+      );
     });
 
     it('does nothing on a normal start', async () => {

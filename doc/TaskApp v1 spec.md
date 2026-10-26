@@ -338,10 +338,10 @@ TypeScript monorepo (pnpm workspaces):
 
 | Package | Responsibility |
 |---|---|
-| `packages/core` | Pure TS with no UI or IO: parse/serialize `tasks.md`, `done.md` and `config.yaml`; bucket logic; recurrence; stats; search matching and ranking; three-way merge; config defaults and validation |
+| `packages/tasks-core` | Pure TS with no UI or IO: parse/serialize `tasks.md`, `done.md` and `config.yaml`; bucket logic; recurrence; stats; search matching and ranking; three-way merge; config defaults and validation |
 | `packages/storage` | Storage adapter interface, OneDrive (Graph) implementation, sign-in client, in-memory fake for tests, offline cache and write queue |
 | `packages/signin` | The sign-in helper behind `/api/auth/*` (served by `functions/` at the repo root as Cloudflare Pages Functions) |
-| `apps/web` | Svelte 5 + Vite PWA: UI, keyboard and touch handling, service worker |
+| `apps/tasks` | Svelte 5 + Vite PWA: UI, keyboard and touch handling, service worker |
 | `tools/todoist-import` | One-time import script |
 
 `core` is what gets reused by future platforms.
@@ -352,7 +352,7 @@ TDD throughout: tests are written first.
 
 | Layer | Tool | Scope |
 |---|---|---|
-| Unit | Vitest | All of `packages/core`; the bulk of the tests |
+| Unit | Vitest | All of `packages/tasks-core`; the bulk of the tests |
 | Integration | Vitest | Core + storage against the in-memory fake OneDrive: external changes, eTag conflicts, offline queue, merge |
 | End-to-end | Playwright | The real app in desktop Chromium and iPhone emulation (WebKit, touch, viewport), against the fake OneDrive. Runs on every commit. Long-press drag is poorly supported by Playwright's touch emulation, so the drop rules (4.4) are covered by unit tests and e2e keeps one drag smoke test |
 | Real-OneDrive smoke | Playwright | A few checks against a dedicated test OneDrive account; nightly or by hand, never blocking CI |

@@ -2,13 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CHUNK_SIZE, MAX_CHUNKS } from '../src/cookies.ts';
 import { importCookieKey, pkceChallenge, seal, toBase64Url } from '../src/crypto.ts';
 import { handleAuth } from '../src/handler.ts';
-import type { Env } from '../src/handler.ts';
+import type { AuthOptions, Env } from '../src/handler.ts';
+import { microsoft } from '../src/providers.ts';
 
 const ORIGIN = 'https://tasks.example';
 const KEY = toBase64Url(new Uint8Array(32).fill(7));
 const ENV: Env = { MSAL_CLIENT_ID: 'cid', MSAL_CLIENT_SECRET: 'secret', COOKIE_KEY: KEY };
 const TOKEN_URL = 'https://login.microsoftonline.com/consumers/oauth2/v2.0/token';
 const NOW = 1_800_000_000_000;
+const TASKS: AuthOptions = { provider: microsoft, cookiePrefix: 'taskapp' };
 
 /** A browser's cookies for one origin: Set-Cookie applied, and only path-matching ones sent back. */
 class Jar {
@@ -69,11 +71,16 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
-async function send(path: string, init: RequestInit & { headers?: Record<string, string> } = {}, env: Env = ENV) {
+async function send(
+  path: string,
+  init: RequestInit & { headers?: Record<string, string> } = {},
+  env: Env = ENV,
+  options: AuthOptions = TASKS,
+) {
   const url = new URL(path, ORIGIN);
   const cookie = jar.header(url.pathname);
   const req = new Request(url, { ...init, headers: { ...(cookie ? { Cookie: cookie } : {}), ...init.headers } });
-  const res = await handleAuth(req, env, { fetch: ms.fetch as typeof fetch, now: () => now });
+  const res = await handleAuth(req, env, options, { fetch: ms.fetch as typeof fetch, now: () => now });
   jar.take(res);
   return res;
 }
@@ -376,6 +383,38 @@ describe('POST /api/auth/token', () => {
     const logged = JSON.stringify([...vi.mocked(console.warn).mock.calls, ...vi.mocked(console.error).mock.calls]);
     expect(logged).not.toContain('rt-secret');
     expect(logged).toContain('invalid_grant');
+  });
+});
+
+describe('per-app cookies', () => {
+  it("uses the app's cookie prefix", async () => {
+    const time: AuthOptions = { provider: microsoft, cookiePrefix: 'omark_time' };
+    const login = await send('/api/auth/login', {}, ENV, time);
+    expect([...jar.cookies.keys()]).toEqual(['omark_time_login']);
+    const state = new URL(login.headers.get('Location')!).searchParams.get('state')!;
+    ms.ok({ access_token: 'at0', expires_in: 3600, refresh_token: 'rt1', id_token: idToken({ preferred_username: 'me@example.com' }) });
+    await send(`/api/auth/callback?code=c0de&state=${state}`, {}, ENV, time);
+    expect([...jar.cookies.keys()].sort()).toEqual(['omark_time_hint', 'omark_time_session0', 'omark_time_signed_in']);
+    expect(jar.cookies.get('omark_time_session0')!.path).toBe('/api/auth/token');
+    expect(jar.cookies.get('omark_time_signed_in')).toMatchObject({ value: '1', path: '/' });
+
+    // Another app's prefix does not open these cookies.
+    const headers = { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' };
+    expect((await send('/api/auth/token', { method: 'POST', headers }, ENV, TASKS)).status).toBe(401);
+  });
+
+  it('reads a session sealed before the move', async () => {
+    // Sealed exactly as the handler did before it had options: purpose and cookie name 'taskapp_session'.
+    const key = await importCookieKey(KEY);
+    const value = await seal(key, 'taskapp_session', { rt: 'rt-old', exp: NOW + 86_400_000 });
+    jar.cookies.set('taskapp_session0', { value, path: '/api/auth/token', attrs: '' });
+    ms.ok({ access_token: 'at1', expires_in: 3600, refresh_token: 'rt-new' });
+    const res = await post('/api/auth/token');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ accessToken: 'at1', expiresAt: NOW + 3_600_000 });
+    expect(ms.calls[0]!.get('refresh_token')).toBe('rt-old');
+    expect(jar.cookies.has('taskapp_session0')).toBe(true);
+    expect(jar.cookies.get('taskapp_signed_in')).toMatchObject({ value: '1', path: '/' });
   });
 });
 

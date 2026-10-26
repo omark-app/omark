@@ -1,15 +1,14 @@
 import { chunkedCookies, clearChunkedCookies, parseCookies, readChunkedCookie, serializeCookie } from './cookies.ts';
 import { fromBase64Url, importCookieKey, pkceChallenge, randomToken, seal, unseal } from './crypto.ts';
+import type { Env, Provider, ProviderConfig } from './providers.ts';
 
-/** The Pages project's secrets (`wrangler pages secret put`). */
-export interface Env {
-  MSAL_CLIENT_ID?: string;
-  MSAL_CLIENT_SECRET?: string;
-  COOKIE_KEY?: string;
-  /** `full` asks for the whole drive (`Files.ReadWrite`); anything else, the app folder. */
-  ONEDRIVE_SCOPE?: string;
-  /** Default `consumers`. */
-  MSAL_TENANT?: string;
+export type { Env } from './providers.ts';
+
+/** What differs between apps. */
+export interface AuthOptions {
+  provider: Provider;
+  /** Every cookie is named `<cookiePrefix>_…`. The name is sealed into the cookie's value, so changing it signs everyone out. */
+  cookiePrefix: string;
 }
 
 export interface Deps {
@@ -18,28 +17,36 @@ export interface Deps {
   now?: () => number;
 }
 
-const DEFAULT_TENANT = 'consumers';
-/** A tenant is `consumers`, `common`, `organizations`, a domain or a GUID; nothing that could change the URL's path. */
-const TENANT = /^[a-z0-9][a-z0-9.-]*$/i;
 /** What the client sends with every POST; a cross-origin page cannot set it without a CORS preflight, which is never allowed. */
 export const CSRF_HEADER = 'X-TaskApp-Auth';
 const UPSTREAM_TIMEOUT_MS = 10_000;
 
 const DAY = 24 * 60 * 60;
-/** Rolling: every token refresh sets it again. Microsoft's refresh tokens for web apps last 90 days and are replaced on use. */
-const SESSION_MAX_AGE = 90 * DAY;
 const LOGIN_MAX_AGE = 10 * 60;
 /** Chrome's cap on cookie lifetime; the account name outlives a session so the next sign-in can name it. */
 const HINT_MAX_AGE = 400 * DAY;
 
-/** The refresh token, sealed and split across `taskapp_session0..3`; only the token endpoint receives it. */
-const SESSION = { name: 'taskapp_session', path: '/api/auth/token' };
-/** State and PKCE verifier between the sign-in redirect and its return. */
-const LOGIN = { name: 'taskapp_login', path: '/api/auth/callback' };
-/** The account name, sealed, for `login_hint`. */
-const HINT = { name: 'taskapp_hint', path: '/api/auth/login' };
-/** Readable by the app (no secret in it): a session cookie probably exists, so boot skips the sign-in screen. */
-const SIGNED_IN = { name: 'taskapp_signed_in', path: '/' };
+interface Cookie {
+  name: string;
+  path: string;
+}
+interface Cookies {
+  /** The refresh token, sealed and split across `<prefix>_session0..3`; only the token endpoint receives it. */
+  session: Cookie;
+  /** State and PKCE verifier between the sign-in redirect and its return. */
+  login: Cookie;
+  /** The account name, sealed, for `login_hint`. */
+  hint: Cookie;
+  /** Readable by the app (no secret in it): a session cookie probably exists, so boot skips the sign-in screen. */
+  signedIn: Cookie;
+}
+
+const cookieNames = (prefix: string): Cookies => ({
+  session: { name: `${prefix}_session`, path: '/api/auth/token' },
+  login: { name: `${prefix}_login`, path: '/api/auth/callback' },
+  hint: { name: `${prefix}_hint`, path: '/api/auth/login' },
+  signedIn: { name: `${prefix}_signed_in`, path: '/' },
+});
 
 /** Token endpoint errors that only a fresh sign-in fixes (the refresh token expired or was revoked, consent withdrawn). */
 const SIGN_IN_ERRORS: readonly string[] = ['invalid_grant', 'interaction_required', 'consent_required', 'login_required'];
@@ -70,67 +77,57 @@ interface Context {
   request: Request;
   url: URL;
   cookies: Map<string, string>;
-  clientId: string;
-  clientSecret: string;
+  names: Cookies;
+  provider: ProviderConfig;
   key: CryptoKey;
-  /** `https://login.microsoftonline.com/<tenant>/oauth2/v2.0` */
-  authority: string;
-  /** What the refresh asks for. */
-  scope: string;
-  /** What the sign-in asks for. It also asks for an ID token, only to read the account name for the next `login_hint`. */
-  signinScope: string;
   fetch: typeof fetch;
   now: number;
 }
 
 /**
  * The sign-in helper behind `/api/auth/*`, a token broker that keeps the refresh token out of the browser's
- * JavaScript. `login` and `callback` run Microsoft's authorization code flow with PKCE as a confidential web
- * app, so the refresh token lasts 90 days instead of an SPA's 24 hours; it lives only in an encrypted
- * HttpOnly cookie. `token` trades it for a Graph access token, the only token the app ever sees, and
- * stores the new refresh token. `logout` deletes the cookies. Nothing is kept on the server, and tokens
- * are never logged.
+ * JavaScript. `login` and `callback` run the provider's authorization code flow with PKCE as a confidential
+ * web app, so the refresh token lasts longer than an SPA's (Microsoft: 90 days instead of 24 hours); it
+ * lives only in an encrypted HttpOnly cookie. `token` trades it for an access token, the only token the app
+ * ever sees, and stores the new refresh token. `logout` deletes the cookies. Nothing is kept on the server,
+ * and tokens are never logged.
  */
-export async function handleAuth(request: Request, env: Env, deps: Deps = {}): Promise<Response> {
+export async function handleAuth(request: Request, env: Env, options: AuthOptions, deps: Deps = {}): Promise<Response> {
   const url = new URL(request.url);
   const route = url.pathname.replace(/^\/api\/auth\/?/, '').replace(/\/$/, '');
   const method = route === 'login' || route === 'callback' ? 'GET' : route === 'token' || route === 'logout' ? 'POST' : null;
   if (method === null) return json(404, { error: 'not_found' });
   if (request.method !== method) return json(405, { error: 'method_not_allowed' }, [], { Allow: method });
-  if (!env.MSAL_CLIENT_ID || !env.MSAL_CLIENT_SECRET || !env.COOKIE_KEY) {
-    console.error('TaskApp sign-in: MSAL_CLIENT_ID, MSAL_CLIENT_SECRET or COOKIE_KEY is not set');
-    return json(500, { error: 'not_configured' });
-  }
-  const tenant = env.MSAL_TENANT || DEFAULT_TENANT;
-  if (!TENANT.test(tenant)) {
-    console.error('TaskApp sign-in: MSAL_TENANT is not a tenant name');
+  if (!env.COOKIE_KEY) {
+    console.error('Omark sign-in: COOKIE_KEY is not set');
     return json(500, { error: 'not_configured' });
   }
   let key: CryptoKey;
   try {
     key = await importCookieKey(env.COOKIE_KEY);
   } catch {
-    console.error('TaskApp sign-in: COOKIE_KEY is not 32 base64-encoded bytes');
+    console.error('Omark sign-in: COOKIE_KEY is not 32 base64-encoded bytes');
     return json(500, { error: 'not_configured' });
   }
-  const scope = `${env.ONEDRIVE_SCOPE === 'full' ? 'Files.ReadWrite' : 'Files.ReadWrite.AppFolder'} offline_access`;
+  const provider = options.provider.configure(env);
+  if (typeof provider === 'string') {
+    console.error(`Omark sign-in: ${provider}`);
+    return json(500, { error: 'not_configured' });
+  }
   const ctx: Context = {
     request,
     url,
     cookies: parseCookies(request.headers.get('Cookie')),
-    clientId: env.MSAL_CLIENT_ID,
-    clientSecret: env.MSAL_CLIENT_SECRET,
+    names: cookieNames(options.cookiePrefix),
+    provider,
     key,
-    authority: `https://login.microsoftonline.com/${tenant}/oauth2/v2.0`,
-    scope,
-    signinScope: `openid profile ${scope}`,
     fetch: deps.fetch ?? ((...args) => globalThis.fetch(...args)),
     now: (deps.now ?? Date.now)(),
   };
   if (route === 'login') return login(ctx);
   if (route === 'callback') return callback(ctx);
   if (!sameOrigin(ctx)) return json(403, { error: 'forbidden' });
-  return route === 'token' ? token(ctx) : logout();
+  return route === 'token' ? token(ctx) : logout(ctx);
 }
 
 const redirectUri = (ctx: Context) => `${ctx.url.origin}/api/auth/callback`;
@@ -139,34 +136,36 @@ async function login(ctx: Context): Promise<Response> {
   const state = randomToken();
   const verifier = randomToken();
   const params = new URLSearchParams({
-    client_id: ctx.clientId,
+    client_id: ctx.provider.clientId,
     response_type: 'code',
     response_mode: 'query',
     redirect_uri: redirectUri(ctx),
-    scope: ctx.signinScope,
+    scope: ctx.provider.signinScope,
     state,
     code_challenge: await pkceChallenge(verifier),
     code_challenge_method: 'S256',
   });
+  const { hint: HINT, login: LOGIN } = ctx.names;
   const hint = await unseal<Hint>(ctx.key, HINT.name, ctx.cookies.get(HINT.name));
   if (hint?.username) params.set('login_hint', hint.username);
   const sealed = await seal(ctx.key, LOGIN.name, { state, verifier, exp: ctx.now + LOGIN_MAX_AGE * 1000 } satisfies LoginState);
-  return redirect(`${ctx.authority}/authorize?${params}`, [
+  return redirect(`${ctx.provider.authorizeUrl}?${params}`, [
     serializeCookie(LOGIN.name, sealed, { path: LOGIN.path, maxAge: LOGIN_MAX_AGE }),
   ]);
 }
 
 /**
- * Microsoft's return. Any failure goes back to the app as `/?signin_error=<reason>`, which it shows:
+ * The provider's return. Any failure goes back to the app as `/?signin_error=<reason>`, which it shows:
  * `cancelled`, `expired` (no or stale sign-in state: start again), `failed` or `unavailable`.
  */
 async function callback(ctx: Context): Promise<Response> {
+  const { hint: HINT, login: LOGIN } = ctx.names;
   const clearLogin = serializeCookie(LOGIN.name, '', { path: LOGIN.path, maxAge: 0 });
   const back = (reason: string) => redirect(`/?signin_error=${reason}`, [clearLogin]);
   const q = ctx.url.searchParams;
   const error = q.get('error');
   if (error) {
-    console.warn(`TaskApp sign-in: authorize answered ${error}`);
+    console.warn(`Omark sign-in: authorize answered ${error}`);
     return back(error === 'access_denied' ? 'cancelled' : 'failed');
   }
   const login = await unseal<LoginState>(ctx.key, LOGIN.name, ctx.cookies.get(LOGIN.name));
@@ -180,7 +179,7 @@ async function callback(ctx: Context): Promise<Response> {
     code,
     redirect_uri: redirectUri(ctx),
     code_verifier: login.verifier,
-    scope: ctx.signinScope,
+    scope: ctx.provider.signinScope,
   });
   if (redeemed.kind !== 'ok') return back(redeemed.kind === 'signin' ? 'failed' : 'unavailable');
   const { refresh_token: rt, id_token } = redeemed.tokens;
@@ -190,7 +189,7 @@ async function callback(ctx: Context): Promise<Response> {
   try {
     session = await sessionCookies(ctx, rt);
   } catch {
-    console.error('TaskApp sign-in: the refresh token does not fit in the session cookies');
+    console.error('Omark sign-in: the refresh token does not fit in the session cookies');
     return back('failed');
   }
   const cookies = [clearLogin, ...session];
@@ -202,15 +201,16 @@ async function callback(ctx: Context): Promise<Response> {
   return redirect('/', cookies);
 }
 
-/** `{ accessToken, expiresAt }` (ms since the epoch); 401 `{ signin: true }` when only signing in helps; 503 when Microsoft cannot be reached. */
+/** `{ accessToken, expiresAt }` (ms since the epoch); 401 `{ signin: true }` when only signing in helps; 503 when the provider cannot be reached. */
 async function token(ctx: Context): Promise<Response> {
+  const SESSION = ctx.names.session;
   const session = await unseal<Session>(ctx.key, SESSION.name, readChunkedCookie(ctx.cookies, SESSION.name));
-  if (!session || typeof session.rt !== 'string' || session.exp < ctx.now) return json(401, { signin: true }, clearSession());
-  const redeemed = await redeem(ctx, { grant_type: 'refresh_token', refresh_token: session.rt, scope: ctx.scope });
-  if (redeemed.kind === 'signin') return json(401, { signin: true }, clearSession());
+  if (!session || typeof session.rt !== 'string' || session.exp < ctx.now) return json(401, { signin: true }, clearSession(ctx));
+  const redeemed = await redeem(ctx, { grant_type: 'refresh_token', refresh_token: session.rt, scope: ctx.provider.scope });
+  if (redeemed.kind === 'signin') return json(401, { signin: true }, clearSession(ctx));
   if (redeemed.kind === 'unavailable') return json(503, { error: 'unavailable' });
   const { access_token, expires_in, refresh_token } = redeemed.tokens;
-  // Microsoft normally sends a new refresh token on every use; keep the old one if it does not.
+  // Microsoft sends a new refresh token on every use; keep the old one if a provider does not.
   return json(
     200,
     { accessToken: access_token, expiresAt: ctx.now + expires_in * 1000 },
@@ -218,20 +218,29 @@ async function token(ctx: Context): Promise<Response> {
   );
 }
 
-const logout = (): Response => json(200, { ok: true }, [...clearSession(), serializeCookie(HINT.name, '', { path: HINT.path, maxAge: 0 })]);
+const logout = (ctx: Context): Response => {
+  const HINT = ctx.names.hint;
+  return json(200, { ok: true }, [...clearSession(ctx), serializeCookie(HINT.name, '', { path: HINT.path, maxAge: 0 })]);
+};
 
+/** Rolling: every token refresh sets them again. */
 async function sessionCookies(ctx: Context, rt: string): Promise<string[]> {
-  const sealed = await seal(ctx.key, SESSION.name, { rt, exp: ctx.now + SESSION_MAX_AGE * 1000 } satisfies Session);
+  const { session: SESSION, signedIn: SIGNED_IN } = ctx.names;
+  const maxAge = ctx.provider.sessionMaxAge;
+  const sealed = await seal(ctx.key, SESSION.name, { rt, exp: ctx.now + maxAge * 1000 } satisfies Session);
   return [
-    ...chunkedCookies(SESSION.name, sealed, { path: SESSION.path, maxAge: SESSION_MAX_AGE }),
-    serializeCookie(SIGNED_IN.name, '1', { path: SIGNED_IN.path, maxAge: SESSION_MAX_AGE, httpOnly: false }),
+    ...chunkedCookies(SESSION.name, sealed, { path: SESSION.path, maxAge }),
+    serializeCookie(SIGNED_IN.name, '1', { path: SIGNED_IN.path, maxAge, httpOnly: false }),
   ];
 }
 
-const clearSession = (): string[] => [
-  ...clearChunkedCookies(SESSION.name, { path: SESSION.path }),
-  serializeCookie(SIGNED_IN.name, '', { path: SIGNED_IN.path, maxAge: 0, httpOnly: false }),
-];
+const clearSession = (ctx: Context): string[] => {
+  const { session: SESSION, signedIn: SIGNED_IN } = ctx.names;
+  return [
+    ...clearChunkedCookies(SESSION.name, { path: SESSION.path }),
+    serializeCookie(SIGNED_IN.name, '', { path: SIGNED_IN.path, maxAge: 0, httpOnly: false }),
+  ];
+};
 
 /**
  * CSRF check for the POST endpoints: the custom header, an `Origin` equal to this origin, and (where the
@@ -245,32 +254,32 @@ function sameOrigin(ctx: Context): boolean {
   return site === null || site === 'same-origin';
 }
 
-/** One token endpoint call within the time limit. Logs Microsoft's error code, never a token. */
+/** One token endpoint call within the time limit. Logs the provider's error code, never a token. */
 async function redeem(ctx: Context, grant: Record<string, string>): Promise<Redeemed> {
   let res: Response;
   let body: Record<string, unknown>;
   try {
-    res = await ctx.fetch(`${ctx.authority}/token`, {
+    res = await ctx.fetch(ctx.provider.tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ client_id: ctx.clientId, client_secret: ctx.clientSecret, ...grant }),
+      body: new URLSearchParams({ client_id: ctx.provider.clientId, client_secret: ctx.provider.clientSecret, ...grant }),
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
     body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   } catch {
-    console.warn('TaskApp sign-in: token endpoint unreachable');
+    console.warn('Omark sign-in: token endpoint unreachable');
     return { kind: 'unavailable' };
   }
   if (res.ok && typeof body.access_token === 'string' && typeof body.expires_in === 'number') {
     return { kind: 'ok', tokens: body as unknown as Tokens };
   }
   const error = typeof body.error === 'string' ? body.error : 'none';
-  console.warn(`TaskApp sign-in: token endpoint answered ${res.status} (${error})`);
+  console.warn(`Omark sign-in: token endpoint answered ${res.status} (${error})`);
   return SIGN_IN_ERRORS.includes(error) ? { kind: 'signin' } : { kind: 'unavailable' };
 }
 
 /**
- * The account name from the ID token, for `login_hint`. It came straight from Microsoft's token endpoint
+ * The account name from the ID token, for `login_hint`. It came straight from the provider's token endpoint
  * over TLS, so its signature need not be checked (OpenID Connect Core 3.1.3.7), and it is only a hint.
  */
 function usernameFrom(idToken: string | undefined): string | null {

@@ -50,7 +50,7 @@ If anything about the expected behaviour is unclear, ask one clear question, add
 
 1. For each behaviour: write the test, run it, **see it fail**, save the failing line for the PR, then write the code.
 2. Small work turning out bigger: stop, relabel `size:large`, comment why, go to **Plan**.
-3. Before pushing, run `pnpm typecheck`, `pnpm test`, `pnpm e2e` and `pnpm --filter web build`. All green, or don't push.
+3. Before pushing, run `pnpm typecheck`, `pnpm test`, `pnpm e2e` and `pnpm --filter tasks build`. All green, or don't push.
 4. Commit in small steps with short imperative messages.
 
 ## Hand over

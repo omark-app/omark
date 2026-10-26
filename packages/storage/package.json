@@ -9,10 +9,10 @@
     "test": "vitest run --root ../.. --project @omark/storage"
   },
   "dependencies": {
-    "@omark/core": "workspace:*",
     "idb-keyval": "^6.3.0"
   },
   "devDependencies": {
+    "@omark/tasks-core": "workspace:*",
     "fake-indexeddb": "^6.2.6"
   }
 }

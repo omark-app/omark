@@ -1,6 +1,6 @@
 # TaskApp open source launch spec
 
-Status: approved, 2026-10-21. Agreed in the session that weighed a paid app against open source. Plans: [roadmap](plans/open-source-launch-roadmap.md), [milestone 1](plans/open-source-m1-groundwork.md).
+Status: approved, 2026-10-21. Agreed in the session that weighed a paid app against open source. Plans: [roadmap](plans/open-source-launch-roadmap.md), [milestone 1](history/open-source-m1-groundwork.md).
 Updated and approved 2026-10-22 for the suite: a second app, [Omark Time](Omark%20Time%20spec.md), launches with Omark Tasks from one monorepo; Google Drive storage joins the launch; PHILOSOPHY.md holds principles instead of a "won't add" list.
 Related: [v1 spec](TaskApp%20v1%20spec.md), [Omark Time spec](Omark%20Time%20spec.md), [factory spec](TaskApp%20factory%20spec.md), [backlog](TaskApp%20backlog.md).
 
@@ -340,7 +340,7 @@ AGENTS.md's task router names the app as well as the kind of task. The table bel
 | `doc/architecture.md` | The packages, the data flow (core → workspace and file sync → cache → adapter), three-way merge and eTags, the sign-in helper, how to add a storage adapter (with the contract test) | v1 spec §14–15, storage package, README |
 | `doc/self-hosting.md` | Your own Entra app, Cloudflare Pages projects, secrets, variables, Promote, rollback | README "Sign-in", "Deploy", "Later" |
 | `doc/factory.md` | The factory for maintainers and contributors (6.8), the Claude cloud environment | Factory spec, `TaskApp cloud environment.md` |
-| `doc/plans/` | Kept as is; `19-quick-dates-important.md` is generalised as the example plan | |
+| `doc/plans/` | Kept as is; `doc/history/19-quick-dates-important.md` is generalised as the example plan | |
 | `doc/history/` | The v1 build plan, factory build plan, spike findings and acceptance checklist, each with a one-line "historical, may be out of date" note at the top. Cloudflare account and zone IDs are removed from them. | Existing |
 
 **Removed:** `TaskApp ideation.md` (its spirit goes into PHILOSOPHY.md) and `TaskApp backlog.md` (its items become issues or Discussions ideas).
@@ -533,6 +533,7 @@ The suite lives in one repository, renamed `omark-app/tasks` → **`omark-app/om
   - Promote asks which app.
 
   The four commands (`pnpm typecheck`, `test`, `e2e`, and the build per app) cover the whole workspace.
+- **Calls made at the move (#47):** cookie, header and database names are per-app settings, and Tasks keeps today's names until 3.7. One shared Pages Function at the root picks the app from the Pages variable `OMARK_APP` (unset means `tasks`).
 - **Every hard-coded `apps/web` and `--filter web`** moves to the new paths: in CI, Promote and its checks, root scripts, `vitest.config.ts`, the session-start hook, the real-e2e config, CLAUDE.md, the README and the skills.
 
 **Migration:**

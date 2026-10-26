@@ -84,7 +84,7 @@ Three kinds of habit line:
 
 ## 5. Counting
 
-All of this is a pure function in `packages/core`: given the habit task, `done.md` and today, it returns the count, the misses, the attempt and the state. It runs on every sync, so a completion from Obsidian or Claude counts as soon as the app sees it.
+All of this is a pure function in `packages/tasks-core`: given the habit task, `done.md` and today, it returns the count, the misses, the attempt and the state. It runs on every sync, so a completion from Obsidian or Claude counts as soon as the app sees it.
 
 ### 5.1 Periods
 

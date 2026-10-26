@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseTasks } from '@omark/core';
+import { parseTasks } from '@omark/tasks-core';
 import { buildTasksMd, convertDue, type TodoistTask } from '../src/convert.ts';
 import fixture from './fixtures/tasks.json';
 
@@ -49,6 +49,7 @@ describe('convertDue', () => {
     expect(r.repeat).toEqual(rule);
     expect(r.warning).toContain(`"${s}"`);
     expect(r.warning).toContain(time);
+    expect(r.warning).toContain('(Omark Tasks has no times)');
     expect(r.warning).toMatch(/time/);
   });
 
