@@ -1,6 +1,6 @@
 # Omark Time spec
 
-Status: approved by AL, 2026-10-22. Agreed in the time tracker brainstorm the same day.
+Status: approved by AL, 2026-10-22. Agreed in the time tracker brainstorm the same day. Changed 2026-10-26 (AL): colouring is opt-in, so the default sign-in is read-only.
 Source: AL's vision note "Omark vision update" (2026-10-22). Related: [open source launch spec](TaskApp%20open%20source%20launch%20spec.md) (the suite, the monorepo, the launch), [roadmap](plans/open-source-launch-roadmap.md) (milestone T builds this).
 
 Calls marked *(my call)* were made by Claude during the brainstorm, not by AL; section 16 lists them for checking.
@@ -24,7 +24,7 @@ It is the second app of the Omark suite and launches together with Omark Tasks. 
 
 1. **One title format, `CODE; Category; description`**, that turns any calendar event into tracked time.
 2. **Hours you can query anywhere**: one CSV row per tracked event, readable by DuckDB, Excel, any dashboard tool and Claude.
-3. **Instant feedback in the calendar**: known codes turn green, unknown codes turn red.
+3. **Instant feedback in the calendar, if you want it**: with colouring on, known codes turn green and unknown codes turn red.
 4. **A small app** to manage projects and settings, see hours, charts and a fix list, and export a client report.
 5. **Agent-ready**: a documented format and a skill, so Claude (or any agent) can add correctly shaped events and answer questions from the files.
 6. **Try it in 30 seconds**: a public demo with a fake calendar, like the Tasks demo.
@@ -61,7 +61,8 @@ The launch counts as a failure for Omark Time if:
 | Calendar | Google Calendar only at launch. |
 | Separator | A **semicolon**, fixed. Spaces around it are optional. |
 | Project codes | Letters, digits and `_`, starting with a letter. **Case-insensitive in titles** (no Shift needed when creating an event), stored in upper case. *(Changed 2026-10-22 after approval: codes were uppercase-only.)* |
-| Colours | The tracker's rules overwrite any colour on structured events: green = known code, red = unknown code. Events without structure are left alone. |
+| Colours | **Opt-in.** By default the app only reads the calendar. With colouring switched on, the tracker's rules overwrite any colour on structured events: green = known code, red = unknown code. Events without structure are left alone. |
+| Calendar access | Read-only (`calendar.events.owned.readonly`) by default. Edit access (`calendar.events.owned`) is asked for only when the user turns colouring on. |
 | Store | CSV files in the user's storage: **Google Drive or OneDrive** (and a local folder on desktop Chrome or Edge). |
 | Event file | One row per tracked event, one file per year (`events-2026.csv`). |
 | Projects file | `projects.csv`: code, description, client, rate, currency, archived. |
@@ -80,9 +81,9 @@ The launch counts as a failure for Omark Time if:
    1. reads `projects.csv` and `config.yaml`;
    2. asks Google for the events that changed in each chosen calendar since this device's last sync (a full read on the first run or a rebuild);
    3. turns each event into zero or more rows (sections 5–6) and updates the year files;
-   4. sets the colour of every structured event whose colour is wrong (section 8);
+   4. if colouring is on, sets the colour of every structured event whose colour is wrong (section 8);
    5. shows the result: "Synced just now · 3 to fix".
-4. **Changing projects** (adding ACMEE, archiving OLD) re-checks the `known` flag and the colours of the events already in the files, without a full re-read.
+4. **Changing projects** (adding ACMEE, archiving OLD) re-checks the `known` flag (and, with colouring on, the colours) of the events already in the files, without a full re-read.
 5. **Rebuild** (in settings) throws away the year files and the sync state and reads everything again. The calendar is the source of truth, so this always restores correct files. It is also how a new column reaches old rows.
 
 ## 5. The title format
@@ -184,9 +185,10 @@ calendars: [primary]   # Google calendar ids to read
 track_from: 2026-01-01 # first day that counts
 all_day_hours: 8
 week_start: monday
+colour_events: false  # set by the "Colour my events" setting
 ```
 
-Defaults on first run: the primary calendar, 1 January of the current year, 8, Monday. Unknown keys are kept.
+Defaults on first run: the primary calendar, 1 January of the current year, 8, Monday, colouring off. Unknown keys are kept.
 
 ### 7.3 `events-YYYY.csv`
 
@@ -220,6 +222,15 @@ Google Drive may not offer a true conditional write (launch spec 6.4.1). For the
 
 ## 8. Colours
 
+**Colouring is opt-in.** Google has no permission for colours alone: setting a colour is an event edit. So the app starts read-only, and the setting "Colour my events" asks for edit access only when the user switches it on (incremental authorisation, as for Drive).
+
+- Hours, files, charts, the fix list and reports all work without it.
+- Switching it on runs the colouring pass described below. A device whose sign-in lacks edit access shows "Colouring needs edit access" with a button instead of colouring.
+- Switching it off stops colouring and offers to clear the colours the tracker set (found by the `omarkTime` property). The edit permission can then be revoked in the Google Account.
+- The setting is stored in `config.yaml` as `colour_events`. *(My call.)*
+
+With colouring on:
+
 - **Green** (Google's colour 10, "Basil") for a structured event with a known code.
 - **Red** (colour 11, "Tomato") for a structured event with an unknown code.
 - **Left alone** when the event is not structured. If the tracker coloured it before, it clears the colour back to the calendar default.
@@ -244,7 +255,7 @@ Google Drive may not offer a true conditional write (launch spec 6.4.1). For the
 
 The same design language as Omark Tasks: one calm page per view, the shared design tokens, phone and desktop, light and dark.
 
-- **First run**: "Try the demo" or "Sign in with Google", then the storage choice, then the calendars to read.
+- **First run**: "Try the demo" or "Sign in with Google" (read-only), then the storage choice, then the calendars to read. A short note offers colouring later, with what it needs and why.
 - **Hours** (the home view):
   - a range picker (this week, last week, this month, last month, custom);
   - hours per project with categories under each, done and planned shown apart;
@@ -256,7 +267,7 @@ The same design language as Omark Tasks: one calm page per view, the shared desi
   - a list with add, edit, archive and delete;
   - codes can't be renamed, because that would turn past events red, so the user archives the old project and adds a new one *(my call)*;
   - delete warns that the project's events will turn red and suggests archiving.
-- **Settings**: calendars, track from, all-day hours, week start, storage, "Rebuild", sign out.
+- **Settings**: calendars, "Colour my events" (off by default; turning it on asks Google for edit access), track from, all-day hours, week start, storage, "Rebuild", sign out.
 - **Report export**:
   - pick one client, or one or more projects, and a range;
   - get a CSV of the rows, or a Markdown report grouped by project and category with descriptions, totals, and money (rate × hours per currency, never summed across currencies);
@@ -269,11 +280,12 @@ The same design language as Omark Tasks: one calm page per view, the shared desi
 | Scope | Why | Class |
 |---|---|---|
 | `calendar.calendarlist.readonly` | list calendars to choose from; read the primary time zone | sensitive *(to check in the Console)* |
-| `calendar.events.owned` | read events with sync tokens and set colours on calendars the user owns | sensitive |
+| `calendar.events.owned.readonly` | read events with sync tokens on calendars the user owns; asked at sign-in | sensitive *(to check in the Console)* |
+| `calendar.events.owned` | set colours on calendars the user owns; asked only when the user turns colouring on | sensitive |
 | `drive.file` | only when the user picks Google Drive: files the app created | non-sensitive |
 | `openid email` | show who is signed in | non-sensitive |
 
-Drive is asked for only when the user picks Google Drive (incremental authorisation), so Calendar-only users never grant it. The calendar picker lists only calendars the user owns.
+Drive is asked for only when the user picks Google Drive, and edit access to events only when the user turns colouring on (incremental authorisation). So a user who wants only hours grants read-only calendar access and nothing else. Both Calendar scopes are sensitive, so verification is needed either way; the gain is trust, not a lighter review. The calendar picker lists only calendars the user owns.
 
 ### 10.2 Sign-in
 
@@ -367,6 +379,7 @@ To become issues:
   - patching only `colorId` on an invite changes only the attendee's copy, with `calendar.events.owned`;
   - `calendar.events.owned` covers invites on the primary calendar;
   - how recurring instances come back from incremental sync;
+  - `calendar.events.owned.readonly` alone gives everything sync needs (sync tokens, instances), and adding `calendar.events.owned` later keeps the same session;
   - which ids are green and red in `colors.get`.
 
   The findings go into this spec before the build.
@@ -382,7 +395,7 @@ To become issues:
   - rebuild;
   - the demo makes no outside requests.
 - **Manual, on staging, with the test Google account and a test calendar**:
-  - events are coloured in Google Calendar on web and phone;
+  - with colouring off, nothing in Google Calendar changes; after turning it on, events are coloured on web and phone, and turning it off clears them;
   - an edit to a past event in Google Calendar changes the CSV on the next open;
   - files appear in Google Drive and in OneDrive;
   - DuckDB reads `events-*.csv` with the README queries.
@@ -405,6 +418,7 @@ To become issues:
 12. Codes are stored in upper case everywhere, whatever case the title used.
 13. OneDrive storage uses its own Entra registrations ("Omark Time", "Omark Time Staging").
 14. On Google Drive, a lost write race on the event files is accepted, because the next sync repairs it.
+15. The colouring setting lives in `config.yaml` (`colour_events`), so it follows the files across devices; a device without edit access asks for it rather than colouring; turning it off offers to clear the colours the tracker set.
 
 ## 17. Steps only AL can do
 
