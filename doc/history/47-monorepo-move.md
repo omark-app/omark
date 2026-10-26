@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, Svelte 5, Vite, Vitest, Playwright, Cloudflare Pages Functions, GitHub Actions, pnpm 10 workspaces.
 
-**Spec:** [launch spec 6.12](../TaskApp%20open%20source%20launch%20spec.md) (the monorepo). Roadmap: [2.8](open-source-launch-roadmap.md). Issue #47, branch `issue-47-monorepo-move`, one PR, a commit per task.
+**Spec:** [launch spec 6.12](../TaskApp%20open%20source%20launch%20spec.md) (the monorepo). Roadmap: [2.8](../plans/open-source-launch-roadmap.md). Issue #47, branch `issue-47-monorepo-move`, one PR, a commit per task.
 
 ## What changes for AL
 
@@ -25,7 +25,7 @@
 - [ ] Shared packages name no Tasks file, cookie or database: `packages/storage` and `packages/signin` contain no `tasks.md`, `done.md`, `config.yaml`, `taskapp` (any case) or `@omark/tasks-core` outside their tests. The one exception is the header `X-TaskApp-Auth`, renamed in 3.7. A test checks this (Tasks 2 and 3).
 - [ ] Tasks still uses the cookies `taskapp_session0..3`, `taskapp_login`, `taskapp_hint`, `taskapp_signed_in`, the header `X-TaskApp-Auth`, the IndexedDB names `taskapp:<folder>` and `taskapp`, and the localStorage keys `taskapp:*`, byte for byte.
 - [ ] This prints nothing:
-  `git grep -nE "apps/web|--filter web|packages/core|@omark/core" -- . ':!doc/history' ':!doc/TaskApp open source launch spec.md' ':!doc/TaskApp cloud environment.md' ':!doc/plans/47-monorepo-move.md' ':!doc/plans/open-source-launch-roadmap.md' ':!tools/ci/promote-check.mjs' ':!tools/ci/test/promote-check.test.ts'`
+  `git grep -nE "apps/web|--filter web|packages/core|@omark/core" -- . ':!doc/history' ':!doc/TaskApp open source launch spec.md' ':!doc/TaskApp cloud environment.md' ':!doc/history/47-monorepo-move.md' ':!doc/plans/open-source-launch-roadmap.md' ':!tools/ci/promote-check.mjs' ':!tools/ci/test/promote-check.test.ts'`
   The launch spec and roadmap describe the move itself; the cloud environment doc is a dated log; `promote-check` keeps `apps/web` and `web-dist` so rollbacks to old commits work.
 - [ ] After the merge: staging deploys from `main` and its sign-in check passes; AL is still signed in on staging; Promote ships it with tag `tasks-prod-…`; the old variables are deleted.
 
