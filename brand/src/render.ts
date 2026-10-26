@@ -53,7 +53,7 @@ const tabIcon = (o: Output) => {
   const src = relative(at('brand'), at(o.path)).replaceAll('\\', '/');
   return `<figure><img src="${src}" width="16" height="16" alt=""><figcaption>${o.path} at 16 px</figcaption></figure>`;
 };
-const tabIcons = OUTPUTS.filter((o) => /\/favicon(-32\.png|\.svg)$/.test(o.path) && o.path.startsWith('brand/png/'));
+const tabIcons = OUTPUTS.filter((o) => /\/favicon(-32\.png|\.svg)$/.test(o.path));
 const sheet = (cls: string) =>
   `<section class="${cls}">${pngs.map(cell).join('')}</section><section class="${cls}">${tabIcons.map(tabIcon).join('')}</section>`;
 write(
