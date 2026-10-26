@@ -987,6 +987,38 @@ describe('shortcut words when editing (#19, AL in the session)', () => {
     expect(findTask(store.state, id)?.important).toBeFalsy();
   });
 
+  it('a typed hab makes the task a habit in the same change, every day when it had no rule (Final 2)', async () => {
+    const { drive, store, synced } = await setup();
+    const learn = idOf(store, 'Learn Polish sign language');
+    store.edit(learn, { title: 'Learn Polish signs', notes: [], habit: true });
+    expect(store.toast).toEqual({ message: 'Now a habit', undo: true });
+    const water = idOf(store, 'Water the plants');
+    store.edit(water, { title: 'Water the plants', notes: [], habit: true });
+    await synced();
+    const text = drive.peek('tasks.md')!;
+    expect(text).toContain('- [ ] Learn Polish signs 🌱 🔁 every day 📅 2026-10-16\n');
+    expect(text).toContain('- [ ] Water the plants 🌱 🔁 every week on Monday 📅 2026-10-19\n');
+    store.undo();
+    store.undo();
+    expect(findTask(store.state, learn)).toMatchObject({ title: 'Learn Polish sign language', repeat: null, date: null });
+    expect(findTask(store.state, learn)?.habit).toBeUndefined();
+  });
+
+  it('a typed hab at the limit saves the rest without 🌱 and says why (Final 2)', async () => {
+    const three = '# Tasks\n- [ ] A 🌱 🔁 every day 📅 2026-10-16\n- [ ] B 🌱 🔁 every day 📅 2026-10-16\n'
+      + '- [ ] C 🌱 🔁 every day 📅 2026-10-16\n- [ ] Stretch\n';
+    const { drive, store, synced } = await setup({ 'tasks.md': three });
+    const id = idOf(store, 'Stretch');
+    store.edit(id, { title: 'Stretch well', notes: [], habit: true });
+    expect(store.toast).toEqual({
+      message: '3 habits in progress already. Finish or drop one first, or raise the limit in Settings.', undo: true,
+    });
+    await synced();
+    expect(drive.peek('tasks.md')).toContain('- [ ] Stretch well 🔁 every day 📅 2026-10-16\n');
+    store.undo();
+    expect(findTask(store.state, id)).toMatchObject({ title: 'Stretch', repeat: null });
+  });
+
   it('an edit that only flags the task says so', async () => {
     const { store } = await setup();
     const id = idOf(store, 'Call the dentist');

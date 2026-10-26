@@ -133,12 +133,15 @@ export interface AppStore {
   remove(id: string): void;
   /**
    * Trims the title and notes and drops blank notes; a blank title or an edit that changes nothing is ignored.
-   * `when` and `important` come from shortcut words typed in the title (issue #19) and land in the same change.
+   * `when`, `important` and `habit` come from shortcut words typed in the title (issue #19) and land in the
+   * same change; `habit` works as in `add`, but at the limit the toast is the limit one (spec 10.1).
    * Renaming a habit with progress asks first (`deps.confirm`) unless `confirmed` says the UI already did.
    */
   edit(
     id: string,
-    patch: { title: string; notes: string[]; when?: DateChoice | null; important?: boolean; confirmed?: boolean },
+    patch: {
+      title: string; notes: string[]; when?: DateChoice | null; important?: boolean; habit?: boolean; confirmed?: boolean;
+    },
   ): void;
   setRepeat(id: string, rule: RepeatRule | null): void;
   /** Flags or unflags a task as Important (issue #19). */
@@ -615,7 +618,9 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
 
   function edit(
     id: string,
-    patch: { title: string; notes: string[]; when?: DateChoice | null; important?: boolean; confirmed?: boolean },
+    patch: {
+      title: string; notes: string[]; when?: DateChoice | null; important?: boolean; habit?: boolean; confirmed?: boolean;
+    },
   ): void {
     const task = findTask(state, id);
     if (!task) return;
@@ -623,10 +628,22 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     const notes = patch.notes.map((n) => n.trim()).filter((n) => n !== '');
     const moves = patch.when != null;
     const flags = patch.important === true && task.important !== true;
-    if (title === '' || (title === task.title && sameList(notes, task.notes) && !moves && !flags)) return;
+    const starts = patch.habit === true && task.habit === undefined;
+    if (title === '' || (title === task.title && sameList(notes, task.notes) && !moves && !flags && !starts)) return;
     let next = title === task.title && sameList(notes, task.notes) ? state : editTask(state, id, { title, notes });
     if (moves) next = moveToBucket(next, id, patch.when!, ctx);
     if (flags) next = setImportantOp(next, id, true);
+    // A typed `hab`, as in `add`: every day when no rule is set; a `when done` rule stays as it is.
+    let habitMessage: string | null = null;
+    if (starts && findTask(next, id)?.habit === undefined) {
+      if (!findTask(next, id)!.repeat) next = setRepeatOp(next, id, { type: 'daily' }, ctx.today);
+      if (isUsableHabitRule(findTask(next, id)!.repeat)) {
+        if (canStartHabit(state.doc, config.habits)) {
+          next = setHabitOp(next, id, true);
+          habitMessage = msg.nowHabit();
+        } else habitMessage = msg.habitLimit(config.habits.maxInProgress);
+      }
+    }
     const after = findTask(next, id);
     // Progress is found by title, so a rename starts a habit at 0 (habits spec 8).
     if (task.habit && after && after.title !== task.title && !patch.confirmed) {
@@ -635,12 +652,10 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     }
     // A typed `som` takes a task out of Important, not urgent without changing its date (#38).
     const moved = after?.date !== task.date || (after !== null && bucketOf(after, ctx) !== bucketOf(task, ctx));
-    if (moved) commitMove(id, next);
-    else {
-      // A rename onto a title with history can form the habit: the task leaves, as in `complete`.
-      const fallback = neighbour(id);
-      if (commit(next, flags ? msg.markedImportant() : msg.saved())) keepVisible(id, fallback);
-    }
+    // A rename onto a title with history can form the habit: the task leaves, as in `complete`.
+    const fallback = neighbour(id);
+    const message = habitMessage ?? (moved ? movedMessage(next, id) : flags ? msg.markedImportant() : msg.saved());
+    if (commit(next, message)) keepVisible(id, fallback);
   }
 
   function setRepeat(id: string, rule: RepeatRule | null): void {

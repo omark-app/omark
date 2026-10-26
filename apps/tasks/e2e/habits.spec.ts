@@ -515,3 +515,20 @@ test.describe('phone header', () => {
     expect(link!.x + link!.width).toBeGreaterThan(vw * 0.8);
   });
 });
+
+/** Fixes from the final review of the habits branch. */
+
+test('hab typed while editing the title makes a habit (desktop detail, phone edit sheet)', async ({ page, isMobile }) => {
+  await openApp(page, { files: { 'tasks.md': `# Tasks\n${PLAIN('Stretch')}` } });
+  if (isMobile) await row(page, 'Stretch').tap();
+  else await row(page, 'Stretch').click();
+  const title = isMobile ? sheet(page).getByLabel('Task title') : page.getByTestId('detail-title');
+  await title.press('End');
+  await title.pressSequentially(' hab');
+  if (isMobile) await sheet(page).getByRole('button', { name: 'Save', exact: true }).tap();
+  else await title.press('Enter');
+  await expect(page.getByTestId('toast')).toContainText('Now a habit');
+  await expect(row(page, 'Stretch').first()).toHaveAttribute('data-habit', 'true');
+  await expect.poll(() => driveFile(page, 'tasks.md')).toBe('# Tasks\n- [ ] Stretch 🌱 🔁 every day 📅 2026-10-16\n');
+  if (!isMobile) await expect(title).toHaveValue('Stretch');
+});

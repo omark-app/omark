@@ -10,9 +10,9 @@ type Field = 'title' | 'notes';
  * typed in since the last save are sent, so an outside change to the other field (arriving while one is
  * being typed in) is never overwritten with stale text. The store runs `commit` before every flush (the
  * page being hidden) and refresh, and unmounting the component commits too, so typing is never lost.
- * Shortcut words typed in the title (issue #19) move or flag the task when it saves, and then leave the
- * field; words the title already had when it was shown stay plain text. The commit before a flush is not
- * final, so it holds back a habit rename; unmounting is. Call during component init.
+ * Shortcut words typed in the title (issue #19) move, flag or make a habit of the task when it saves, then
+ * leave the field; words the title already had when it was shown stay plain text. The commit before a flush
+ * is not final, so it holds back a habit rename; unmounting is. Call during component init.
  */
 export function createTaskEdit(
   store: AppStore,
@@ -69,6 +69,7 @@ export function createTaskEdit(
         notes: notesDirty ? notes.split('\n') : current.notes,
         when: typed?.when ?? null,
         important: typed?.important ?? false,
+        habit: typed?.habit ?? false,
       };
       store.edit(id, patch);
       const after = findTask(store.state, id);
