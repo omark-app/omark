@@ -104,7 +104,7 @@ export function calendarContract(name: string, make: () => ContractHarness | Pro
   2. A full read returns the added events and a token, but not a cancelled one.
   3. With that token: no change → `[]`; after `edit` → the edited event; after `cancel` → `{ id, status: 'cancelled' }`; after `add` → the new event; each read returns a new token.
   4. After `expireTokens`, a read with an old token rejects with `SyncTokenExpiredError`; a full read still works.
-  5. `readRange('primary', '2026-10-22T00:00:00+02:00', '2026-10-23T00:00:00+02:00')` returns the instances starting that day only, each instance of a series on its own.
+  5. `readRange('primary', '2026-10-22T00:00:00+02:00', '2026-10-23T00:00:00+02:00')` returns the instances overlapping that day (Google's `timeMin`/`timeMax`), each instance of a series on its own; an event that started the day before and ends that day is included.
   6. `colourIds()` → `{ green: '10', red: '11' }`.
   7. `setColour(…, { colorId: '10', marker: 'green' })`, then the next incremental read returns the event with `colorId: '10'`, `marker: 'green'` and the same title, start, end and response.
   8. `setColour(…, { colorId: null, marker: null })` clears both.
