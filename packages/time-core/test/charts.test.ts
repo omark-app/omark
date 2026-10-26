@@ -50,3 +50,57 @@ test('weeklyByCategory', () => {
     { key: 'ops', label: 'Ops', hours: [0, 0, 3] },
   ]);
 });
+
+test('weeklyByProject orders by total, then code', () => {
+  const r = [
+    row({ project: 'ACME', hours: 1 }),
+    row({ project: 'GAMMA', hours: 3 }),
+    row({ project: 'BETA', hours: 3 }),
+    row({ project: 'ZED', hours: 5 }),
+  ];
+  expect(weeklyByProject(r, range, 'monday', now).series.map((s) => s.key)).toEqual(['ZED', 'BETA', 'GAMMA', 'ACME']);
+});
+
+test('weeklyByCategory orders by total, none last, and includePlanned', () => {
+  const r = [
+    row({ date: '2026-10-27', category: '', hours: 5 }),
+    row({ date: '2026-10-27', category: 'Dev', hours: 2 }),
+    row({ date: '2026-10-27', category: 'Zed', hours: 1 }),
+    row({ date: '2026-11-12', category: 'zed', hours: 4, end: '2026-11-12T10:00+00:00' }),
+  ];
+  const done = weeklyByCategory(r, 'ACME', range, 'monday', now);
+  expect(done.series.map((s) => [s.key, s.label, s.hours])).toEqual([
+    ['dev', 'Dev', [2, 0, 0]],
+    ['zed', 'Zed', [1, 0, 0]],
+    ['', '', [5, 0, 0]],
+  ]);
+  const all = weeklyByCategory(r, 'ACME', range, 'monday', now, true);
+  expect(all.series.map((s) => [s.key, s.hours])).toEqual([
+    ['zed', [1, 0, 4]],
+    ['dev', [2, 0, 0]],
+    ['', [5, 0, 0]],
+  ]);
+});
+
+test('weeks start on the chosen day and rows before from are left out', () => {
+  const r = [
+    row({ date: '2026-10-26', hours: 9 }),
+    row({ date: '2026-10-28', hours: 2 }),
+    row({ date: '2026-11-01', hours: 1 }),
+    row({ date: '2026-11-05', hours: 4 }),
+    row({ date: '2026-11-06', hours: 8 }),
+  ];
+  const s = weeklyByProject(r, { from: '2026-10-28', to: '2026-11-05' }, 'saturday', now);
+  expect(s.weeks).toEqual(['2026-10-24', '2026-10-31']);
+  expect(s.series).toEqual([{ key: 'ACME', label: 'ACME', hours: [2, 5] }]);
+});
+
+test('a row dated exactly on `to` is counted, and sums are rounded', () => {
+  const r = [
+    row({ date: '2026-11-15', hours: 1 }),
+    row({ date: '2026-11-15', hours: 0.1 }),
+    row({ date: '2026-11-15', hours: 0.2 }),
+  ];
+  const s = weeklyByProject(r, range, 'monday', now);
+  expect(s.series[0]!.hours).toEqual([0, 0, 1.3]);
+});
