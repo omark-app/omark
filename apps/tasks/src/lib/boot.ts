@@ -86,7 +86,7 @@ export async function boot(): Promise<BootResult> {
     return signedIn(auth, tokenGated(drive, () => auth.getToken()), async () => ({ cache: new MemoryCache(), ...MEMORY }));
   }
 
-  const auth = createAuth({ cookiePrefix: 'taskapp', providerName: 'Microsoft' });
+  const auth = createAuth({ cookiePrefix: 'taskapp', providers: { microsoft: 'Microsoft' } });
   const adapter = new OneDriveAdapter({ root: ONEDRIVE_ROOT, folder: ONEDRIVE_FOLDER, getToken: (o) => auth.getToken(o) });
   return signedIn(auth, adapter, openCache);
 }

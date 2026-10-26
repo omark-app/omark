@@ -28,7 +28,9 @@ export function createAuthStub(state: AuthStubState): AuthStub {
       if (state === 'stalled-start') await new Promise<never>(() => {});
     },
     isSignedIn: () => state !== 'signed-out',
-    async signIn() {
+    signedInProvider: () => (state === 'signed-out' ? null : 'microsoft'),
+    availableProviders: async () => ['microsoft'],
+    async signIn(_provider?: string) {
       signIns++;
     },
     async getToken() {
