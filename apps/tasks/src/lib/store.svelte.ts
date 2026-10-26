@@ -174,8 +174,12 @@ const byBucket = <T>(value: (key: BucketKey) => T): Record<BucketKey, T> =>
 const sameList = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((x, i) => x === b[i]);
 
-const conflictNote = (labels: readonly string[]): string =>
-  `Also changed on another device: ${labels.join(', ')}. Kept the change made here.`;
+/** `dropped`: the other device's file has a mistake, so it was kept and the change made here was not. */
+const conflictNote = (labels: readonly string[], dropped: boolean): string => {
+  if (!dropped) return `Also changed on another device: ${labels.join(', ')}. Kept the change made here.`;
+  const what = labels.length > 0 ? `your change to ${labels.join(', ')}` : 'your change';
+  return `config.yaml on another device has a mistake; ${what} was not applied.`;
+};
 
 /** Parsed files with any `- [x]` lines in tasks.md swept into done.md. */
 function loadState(doc: State['doc'], doneText: string, today: ISODate): State {
@@ -324,7 +328,9 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
       if (configText !== base.config) {
         const merged = mergeSettings(TASKS_SCHEMA, base.config, configText, next.config);
         text = merged.text;
-        if (merged.conflicts.length > 0) configNote = conflictNote(merged.conflicts.map((f) => f.label));
+        if (merged.conflicts.length > 0 || merged.dropped) {
+          configNote = conflictNote(merged.conflicts.map((f) => f.label), merged.dropped);
+        }
       }
       base.config = next.config;
       if (text !== configText) applyConfig(text);
@@ -586,9 +592,9 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     });
   }
 
-  // A staged config edit met another device's change to the same setting (merged in the workspace).
-  workspace.onConfigConflict((labels) => {
-    configNote = conflictNote(labels);
+  // A staged config edit met another device's change to the same setting, or a file with a mistake.
+  workspace.onConfigConflict((labels, dropped) => {
+    configNote = conflictNote(labels, dropped);
   });
 
   // A pull or save that met another device's change merged it in (#6): show it now, not on the next focus.

@@ -994,6 +994,7 @@ describe('shortcut words when editing (#19, AL in the session)', () => {
 
 describe('writing config.yaml (#45)', () => {
   const NOTE = 'Also changed on another device: Theme. Kept the change made here.';
+  const DROPPED = 'config.yaml on another device has a mistake; your change to Theme was not applied.';
 
   it('writeConfig applies at once, with no toast or undo, and flush writes the file', async () => {
     const { drive, store } = await setup();
@@ -1072,5 +1073,29 @@ describe('writing config.yaml (#45)', () => {
     expect(store.configNote).toBe(NOTE);
     store.writeConfig('theme: system\n');
     expect(store.configNote).toBeNull();
+  });
+
+  it('an upload that meets a config.yaml with a mistake keeps that file and says the change was not applied', async () => {
+    const { drive, store, synced } = await setup({ 'tasks.md': SEED_TASKS, 'config.yaml': 'theme: system\n' });
+    store.writeConfig('theme: dark\n');
+    drive.externalWrite('config.yaml', 'theme: [\n');
+    await synced();
+    expect(drive.peek('config.yaml')).toBe('theme: [\n');
+    expect(store.configNote).toBe(DROPPED);
+  });
+
+  it('a refresh that brings a config.yaml with a mistake keeps it and says the unsaved change was not applied', async () => {
+    const drive = new SlowDrive({ 'tasks.md': SEED_TASKS, 'config.yaml': 'theme: system\n' });
+    const ws = createWorkspace(drive, new MemoryCache());
+    const store = await createStore({ workspace: ws, clock, isPhone: () => false });
+    drive.externalWrite('config.yaml', 'theme: [\n');
+    drive.holdReads = (name) => name === 'config.yaml';
+    const done = store.refresh();
+    await vi.waitFor(() => expect(drive.stalled).toBeGreaterThan(0));
+    store.writeConfig('theme: dark\n');
+    drive.release();
+    await done;
+    expect(store.configText).toBe('theme: [\n');
+    expect(store.configNote).toBe(DROPPED);
   });
 });

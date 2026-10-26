@@ -56,9 +56,10 @@ export interface Workspace {
   /**
    * Calls `cb` when merging config.yaml found settings changed differently here and on another device
    * (when a staged edit meets a newer file, on a pull or a save). `labels` are the settings' labels;
-   * the change made here was kept.
+   * the change made here was kept. When `dropped`, the other device's file could not take the change
+   * (it has a mistake): that file was kept, and `labels` are the settings changed here.
    */
-  onConfigConflict(cb: (labels: string[]) => void): () => void;
+  onConfigConflict(cb: (labels: string[], dropped: boolean) => void): () => void;
   /** Worst of the three files: signin > offline > syncing > saved. */
   status(): SyncStatus;
   onStatus(cb: (s: SyncStatus) => void): () => void;
@@ -67,15 +68,15 @@ export interface Workspace {
 const RANK: Record<SyncStatus, number> = { saved: 0, syncing: 1, offline: 2, signin: 3 };
 
 export function createWorkspace(adapter: StorageAdapter, cache: LocalCache): Workspace {
-  const conflictListeners = new Set<(labels: string[]) => void>();
+  const conflictListeners = new Set<(labels: string[], dropped: boolean) => void>();
   /** config.yaml merges one setting at a time; where both sides changed one, the local value wins. */
   const mergeConfig = (base: string, local: string, remote: string): string => {
-    const { text, conflicts } = mergeSettings(TASKS_SCHEMA, base, local, remote);
-    if (conflicts.length > 0) {
+    const { text, conflicts, dropped } = mergeSettings(TASKS_SCHEMA, base, local, remote);
+    if (conflicts.length > 0 || dropped) {
       const labels = conflicts.map((f) => f.label);
       for (const cb of conflictListeners) {
         try {
-          cb(labels);
+          cb(labels, dropped);
         } catch (e) {
           console.error('Workspace config-conflict listener failed', e);
         }
