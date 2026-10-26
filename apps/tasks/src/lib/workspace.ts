@@ -1,8 +1,9 @@
+import { FileSync } from '@omark/storage';
+import type { LocalCache, StorageAdapter, SyncStatus } from '@omark/storage';
 import { DEFAULT_CONFIG_YAML, mergeDoneText, mergeTasksText } from '@omark/tasks-core';
-import type { FileName, StorageAdapter } from './adapter.ts';
-import type { LocalCache } from './cache.ts';
-import { FileSync } from './file-sync.ts';
-import type { SyncStatus } from './file-sync.ts';
+
+export type TaskFile = 'tasks.md' | 'done.md' | 'config.yaml';
+export const TASK_FILES: readonly TaskFile[] = ['tasks.md', 'done.md', 'config.yaml'];
 
 export interface Snapshot {
   tasks: string;
@@ -62,7 +63,7 @@ const RANK: Record<SyncStatus, number> = { saved: 0, syncing: 1, offline: 2, sig
 const mergeConfig = (_base: string, _local: string, remote: string): string => remote;
 
 export function createWorkspace(adapter: StorageAdapter, cache: LocalCache): Workspace {
-  const make = (name: FileName, merge: (b: string, l: string, r: string) => string, initial: string) =>
+  const make = (name: TaskFile, merge: (b: string, l: string, r: string) => string, initial: string) =>
     new FileSync({ name, adapter, cache, merge, initial });
   const tasks = make('tasks.md', mergeTasksText, '# Tasks\n');
   const done = make('done.md', mergeDoneText, '');

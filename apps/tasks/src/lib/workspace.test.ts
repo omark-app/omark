@@ -1,25 +1,22 @@
 import { DEFAULT_CONFIG_YAML } from '@omark/tasks-core';
+import { FakeOneDrive, MemoryCache, OfflineError } from '@omark/storage';
+import type { CachedFile, RemoteFile, StorageAdapter, SyncStatus } from '@omark/storage';
 import { describe, expect, it } from 'vitest';
-import type { FileName, RemoteFile, StorageAdapter } from '../src/adapter.ts';
-import { MemoryCache } from '../src/cache.ts';
-import type { CachedFile } from '../src/cache.ts';
-import { OfflineError } from '../src/errors.ts';
-import { FakeOneDrive } from '../src/fake-onedrive.ts';
-import type { SyncStatus } from '../src/file-sync.ts';
-import { createWorkspace } from '../src/workspace.ts';
+import { createWorkspace } from './workspace.ts';
+import type { TaskFile } from './workspace.ts';
 
 const TASKS0 = '# Tasks\n';
 const S = '# Always\n\n# Tasks\n- [ ] Buy milk\n- [ ] Call mom\n';
 
 /** Delegates to a drive but can take single files offline. */
 class PerFileAdapter implements StorageAdapter {
-  down = new Set<FileName>();
+  down = new Set<TaskFile>();
   constructor(readonly drive: FakeOneDrive) {}
-  async read(name: FileName): Promise<RemoteFile | null> {
+  async read(name: TaskFile): Promise<RemoteFile | null> {
     if (this.down.has(name)) throw new OfflineError('Offline');
     return this.drive.read(name);
   }
-  async write(name: FileName, text: string, ifMatch: string | null) {
+  async write(name: TaskFile, text: string, ifMatch: string | null) {
     if (this.down.has(name)) throw new OfflineError('Offline');
     return this.drive.write(name, text, ifMatch);
   }
@@ -50,7 +47,7 @@ describe('createWorkspace', () => {
     drive.externalWrite('tasks.md', `${S}- [ ] From elsewhere\n`);
 
     // A network that never answers ("lie-fi"): open() must not wait for it.
-    const reads: FileName[] = [];
+    const reads: string[] = [];
     const hung: StorageAdapter = {
       read: (name) => {
         reads.push(name);
@@ -160,7 +157,7 @@ describe('createWorkspace', () => {
   it('stage() still caches done.md when the tasks.md put fails, then rethrows', async () => {
     class TasksPutFails extends MemoryCache {
       failing = false;
-      override async put(name: FileName, f: CachedFile): Promise<void> {
+      override async put(name: TaskFile, f: CachedFile): Promise<void> {
         if (this.failing && name === 'tasks.md') throw new Error('tasks put failed');
         return super.put(name, f);
       }

@@ -1,11 +1,11 @@
-import type { FileName, RemoteFile, StorageAdapter } from './adapter.ts';
+import type { RemoteFile, StorageAdapter } from './adapter.ts';
 import type { CachedFile, LocalCache } from './cache.ts';
 import { AuthRequiredError, PreconditionFailedError } from './errors.ts';
 
 export type SyncStatus = 'saved' | 'syncing' | 'offline' | 'signin';
 
 export interface FileSyncOptions {
-  name: FileName;
+  name: string;
   adapter: StorageAdapter;
   cache: LocalCache;
   /** Three-way merge; merge(b, l, b) = l and merge(b, b, r) = r. */

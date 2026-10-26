@@ -44,7 +44,8 @@ import type {
   Task,
   WeekCtx,
 } from '@omark/tasks-core';
-import type { SyncStatus, Workspace } from '@omark/storage';
+import type { SyncStatus } from '@omark/storage';
+import type { Workspace } from './workspace.ts';
 import type { Clock } from './clock.ts';
 import * as msg from './messages.ts';
 

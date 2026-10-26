@@ -1,5 +1,6 @@
 import { AuthRequiredError } from '@omark/storage';
-import type { Auth, FileName, StorageAdapter } from '@omark/storage';
+import type { Auth, StorageAdapter } from '@omark/storage';
+import type { TaskFile } from './workspace.ts';
 
 /**
  * The Microsoft account an e2e test pretends to have, set as `window.__TASKAPP_AUTH_STUB__` before the
@@ -39,11 +40,11 @@ export function createAuthStub(state: AuthStubState): AuthStub {
 /** The drive behind a token, like the Graph adapter: every call gets a token first. */
 export function tokenGated(drive: StorageAdapter, getToken: () => Promise<string>): StorageAdapter {
   return {
-    async read(name: FileName) {
+    async read(name: TaskFile) {
       await getToken();
       return drive.read(name);
     },
-    async write(name: FileName, text: string, ifMatch: string | null) {
+    async write(name: TaskFile, text: string, ifMatch: string | null) {
       await getToken();
       return drive.write(name, text, ifMatch);
     },

@@ -1,17 +1,18 @@
 import {
   createAuth,
-  createWorkspace,
   FakeOneDrive,
   IdbCache,
   MemoryCache,
   migrateCache,
   OneDriveAdapter,
 } from '@omark/storage';
-import type { Auth, FileName, LocalCache, StorageAdapter, Workspace } from '@omark/storage';
+import type { Auth, LocalCache, StorageAdapter } from '@omark/storage';
 import { toISODate } from '@omark/tasks-core';
 import { BRAND } from '../brand.ts';
 import { APP_ENV, HOSTS, ONEDRIVE_FOLDER, ONEDRIVE_ROOT, STORAGE_MODE } from '../env.ts';
 import { createAuthStub, tokenGated } from './auth-stub.ts';
+import { createWorkspace, TASK_FILES } from './workspace.ts';
+import type { TaskFile, Workspace } from './workspace.ts';
 import type { AuthStub, AuthStubState } from './auth-stub.ts';
 import { systemClock } from './clock.ts';
 import { legacyCacheApplies } from './environment.ts';
@@ -25,7 +26,7 @@ import type { UpdateDeps, Updates } from './updates.svelte.ts';
 declare global {
   interface Window {
     /** Files the fake drive starts with (set by e2e tests before the app loads). */
-    __TASKAPP_SEED__?: Partial<Record<FileName, string>>;
+    __TASKAPP_SEED__?: Partial<Record<TaskFile, string>>;
     /** The fake drive, so e2e tests can read files and simulate other devices. */
     __taskappFake?: FakeOneDrive;
     /** Fake builds only: boot through sign-in with a stubbed account (set by e2e tests before the app loads). */
@@ -164,7 +165,6 @@ async function ready(workspace: Workspace, cache: CacheInfo, auth: Auth | null):
 /** The cache's IndexedDB database before it was keyed by folder (it only ever held the default folder's files on the deployed origin). */
 const LEGACY_DB = 'taskapp';
 const MIGRATED_KEY = 'taskapp:cache-migrated';
-const FILES: readonly FileName[] = ['tasks.md', 'done.md', 'config.yaml'];
 
 /**
  * IndexedDB can throw on construction or first use (iOS private mode): then use memory. The database is
@@ -194,7 +194,7 @@ async function migrateLegacyCache(cache: LocalCache): Promise<void> {
   if (!legacyCacheApplies(ONEDRIVE_FOLDER, HOSTS)) return;
   try {
     if (localStorage.getItem(MIGRATED_KEY)) return;
-    await migrateCache(new IdbCache(LEGACY_DB), cache, FILES);
+    await migrateCache(new IdbCache(LEGACY_DB), cache, TASK_FILES);
     localStorage.setItem(MIGRATED_KEY, '1');
   } catch (e) {
     console.warn(`${BRAND.app}: could not migrate the old offline cache`, e);

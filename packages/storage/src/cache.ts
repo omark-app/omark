@@ -1,6 +1,5 @@
 import { clear, createStore, get, set } from 'idb-keyval';
 import type { UseStore } from 'idb-keyval';
-import type { FileName } from './adapter.ts';
 
 /** Local copy of one remote file: last-synced base, its etag, and the working text. */
 export interface CachedFile {
@@ -11,20 +10,20 @@ export interface CachedFile {
 }
 
 export interface LocalCache {
-  get(name: FileName): Promise<CachedFile | null>;
-  put(name: FileName, f: CachedFile): Promise<void>;
+  get(name: string): Promise<CachedFile | null>;
+  put(name: string, f: CachedFile): Promise<void>;
   clear(): Promise<void>;
 }
 
 export class MemoryCache implements LocalCache {
-  private readonly files = new Map<FileName, CachedFile>();
+  private readonly files = new Map<string, CachedFile>();
 
-  async get(name: FileName): Promise<CachedFile | null> {
+  async get(name: string): Promise<CachedFile | null> {
     const f = this.files.get(name);
     return f ? { ...f } : null;
   }
 
-  async put(name: FileName, f: CachedFile): Promise<void> {
+  async put(name: string, f: CachedFile): Promise<void> {
     this.files.set(name, { ...f });
   }
 
@@ -43,17 +42,17 @@ export class IdbCache implements LocalCache {
   private readonly openStore: (dbName: string, storeName: string) => UseStore;
   private store: UseStore;
 
-  constructor(dbName = 'taskapp', openStore: (dbName: string, storeName: string) => UseStore = createStore) {
+  constructor(dbName: string, openStore: (dbName: string, storeName: string) => UseStore = createStore) {
     this.dbName = dbName;
     this.openStore = openStore;
     this.store = openStore(dbName, 'files');
   }
 
-  async get(name: FileName): Promise<CachedFile | null> {
+  async get(name: string): Promise<CachedFile | null> {
     return (await this.retry((store) => get<CachedFile>(name, store))) ?? null;
   }
 
-  async put(name: FileName, f: CachedFile): Promise<void> {
+  async put(name: string, f: CachedFile): Promise<void> {
     await this.retry((store) => set(name, f, store));
   }
 
@@ -78,7 +77,7 @@ export class IdbCache implements LocalCache {
  * entry for is copied to `target`; then `legacy` is cleared. Clean entries are dropped, since the next
  * pull brings their text back.
  */
-export async function migrateCache(legacy: LocalCache, target: LocalCache, names: readonly FileName[]): Promise<void> {
+export async function migrateCache(legacy: LocalCache, target: LocalCache, names: readonly string[]): Promise<void> {
   for (const name of names) {
     const old = await legacy.get(name);
     if (old?.dirty && (await target.get(name)) === null) await target.put(name, old);

@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { flushSync } from 'svelte';
 import { allTasks } from '@omark/tasks-core';
-import { createWorkspace, FakeOneDrive, MemoryCache } from '@omark/storage';
+import { FakeOneDrive, MemoryCache } from '@omark/storage';
 import { createStore } from './store.svelte.ts';
+import { createWorkspace } from './workspace.ts';
 
 // A rune test file: `$effect` here only runs if runes compile for Svelte's client runtime.
 

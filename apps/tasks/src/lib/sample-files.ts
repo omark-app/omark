@@ -1,6 +1,6 @@
 import { addDays, dayOfWeek, DEFAULT_CONFIG_YAML, endOfWeek } from '@omark/tasks-core';
 import type { ISODate } from '@omark/tasks-core';
-import type { FileName } from '@omark/storage';
+import type { TaskFile } from './workspace.ts';
 import type { AppEnv } from './environment.ts';
 
 /**
@@ -9,9 +9,9 @@ import type { AppEnv } from './environment.ts';
  */
 export function fakeSeed(
   env: AppEnv,
-  testSeed: Partial<Record<FileName, string>> | undefined,
+  testSeed: Partial<Record<TaskFile, string>> | undefined,
   today: ISODate,
-): Partial<Record<FileName, string>> {
+): Partial<Record<TaskFile, string>> {
   return testSeed ?? (env === 'preview' ? sampleFiles(today) : {});
 }
 
@@ -19,7 +19,7 @@ export function fakeSeed(
  * Files a PR preview's fake drive starts with, so a preview is worth opening on the phone: every bucket,
  * Important, not urgent, a repeat, notes and a few completions. Dates are relative to `today`.
  */
-export function sampleFiles(today: ISODate): Record<FileName, string> {
+export function sampleFiles(today: ISODate): Record<TaskFile, string> {
   const ctx = { today, weekStart: 0 };
   const weekEnd = endOfWeek(ctx);
   const nextMonday = addDays(today, 7 - dayOfWeek(today));

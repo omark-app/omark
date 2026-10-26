@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { allTasks, DEFAULT_CONFIG, findTask, tasksInBucket } from '@omark/tasks-core';
 import type { BucketKey } from '@omark/tasks-core';
-import { createWorkspace, FakeOneDrive, MemoryCache } from '@omark/storage';
-import type { CachedFile, FileName, LocalCache, Workspace } from '@omark/storage';
+import { FakeOneDrive, MemoryCache } from '@omark/storage';
+import type { CachedFile, LocalCache } from '@omark/storage';
 import { createStore } from './store.svelte.ts';
+import { createWorkspace } from './workspace.ts';
 import type { AppStore } from './store.svelte.ts';
+import type { TaskFile, Workspace } from './workspace.ts';
 
 const SEED_TASKS = `# Tasks
 - [ ] Call the dentist 📅 2026-10-16
@@ -20,8 +22,8 @@ const clock = { now: () => now };
 /** A MemoryCache whose writes can be made to fail, like a full or blocked IndexedDB. */
 class FlakyCache extends MemoryCache {
   /** True to fail every put, or a predicate to fail only some files. */
-  failing: boolean | ((name: FileName) => boolean) = false;
-  override async put(name: FileName, f: CachedFile): Promise<void> {
+  failing: boolean | ((name: TaskFile) => boolean) = false;
+  override async put(name: TaskFile, f: CachedFile): Promise<void> {
     if (this.failing === true || (typeof this.failing === 'function' && this.failing(name))) {
       throw new Error('QuotaExceededError');
     }
@@ -33,7 +35,7 @@ class FlakyCache extends MemoryCache {
 class SlowDrive extends FakeOneDrive {
   hold = false;
   /** True to hold every read, or a predicate to hold only some files. */
-  holdReads: boolean | ((name: FileName) => boolean) = false;
+  holdReads: boolean | ((name: TaskFile) => boolean) = false;
   private waiting: (() => void)[] = [];
   private stall(): Promise<void> {
     return new Promise((resolve) => this.waiting.push(resolve));
@@ -47,13 +49,13 @@ class SlowDrive extends FakeOneDrive {
     this.holdReads = false;
     for (const resolve of this.waiting.splice(0)) resolve();
   }
-  override async read(name: FileName) {
+  override async read(name: TaskFile) {
     if (this.holdReads === true || (typeof this.holdReads === 'function' && this.holdReads(name))) {
       await this.stall();
     }
     return super.read(name);
   }
-  override async write(name: FileName, text: string, ifMatch: string | null) {
+  override async write(name: TaskFile, text: string, ifMatch: string | null) {
     if (this.hold) await this.stall();
     return super.write(name, text, ifMatch);
   }
@@ -62,14 +64,14 @@ class SlowDrive extends FakeOneDrive {
 /** A drive that counts reads. */
 class CountingDrive extends FakeOneDrive {
   reads = 0;
-  override async read(name: FileName) {
+  override async read(name: TaskFile) {
     this.reads++;
     return super.read(name);
   }
 }
 
 async function setup(
-  seed: Partial<Record<FileName, string>> = { 'tasks.md': SEED_TASKS },
+  seed: Partial<Record<TaskFile, string>> = { 'tasks.md': SEED_TASKS },
   opts: { cache?: LocalCache; phone?: boolean; wrap?: (ws: Workspace) => Workspace } = {},
 ) {
   const drive = new FakeOneDrive(seed);
@@ -684,7 +686,7 @@ ${['A', 'B', 'C', 'D'].map((t) => `- [ ] Tom ${t} 📅 2026-10-17`).join('\n')}
   describe('a flush while a refresh is reading', () => {
     const RACE_SEED = '# Tasks\n- [ ] One\n- [ ] Weekly 🔁 every week on Monday 📅 2026-10-19\n';
 
-    async function racing(hold: boolean | ((name: FileName) => boolean) = true) {
+    async function racing(hold: boolean | ((name: TaskFile) => boolean) = true) {
       const drive = new SlowDrive({ 'tasks.md': RACE_SEED });
       const ws = createWorkspace(drive, new MemoryCache());
       const store = await createStore({ workspace: ws, clock, isPhone: () => false });
@@ -844,7 +846,7 @@ ${['A', 'B', 'C', 'D'].map((t) => `- [ ] Tom ${t} 📅 2026-10-17`).join('\n')}
     /** A cache whose writes can be made to never settle, like an IndexedDB that stopped answering. */
     class HangingCache extends MemoryCache {
       hangPuts = false;
-      override put(name: FileName, f: CachedFile): Promise<void> {
+      override put(name: TaskFile, f: CachedFile): Promise<void> {
         return this.hangPuts ? new Promise<never>(() => {}) : super.put(name, f);
       }
     }
