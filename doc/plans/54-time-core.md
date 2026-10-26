@@ -191,8 +191,8 @@ test('date arithmetic', () => {
 | `acme; coding; new featureX` | ACME / coding / new featureX, known |
 | `ACME`, `acme`, `  acme  ` | ACME / '' / '', known |
 | `OOO`, `Lunch` | null |
-| `OOO; away` | OOO / '' / away, not known |
-| `Lunch; with Tom` | LUNCH / '' / with Tom, not known |
+| `OOO; away` | OOO / away / '', not known |
+| `Lunch; with Tom` | LUNCH / with Tom / '', not known |
 | `John-Mary call`, `Call: John`, `Q&A; prep`, `''` | null |
 | `A; x` (1 char), `ABCDEFGHIJKLMNOPQRSTU; x` (21), `1ACME; x` | null |
 | `ABCDEFGHIJKLMNOPQRST; x` (20), `A_1; x` | structured |
