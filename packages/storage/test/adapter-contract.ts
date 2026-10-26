@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { OfflineError, PreconditionFailedError } from '../src/errors.ts';
-import type { FileName, StorageAdapter } from '../src/adapter.ts';
+import type { StorageAdapter } from '../src/adapter.ts';
 
 export interface ContractHarness {
   adapter: StorageAdapter;
-  external(name: FileName, text: string): void;
+  external(name: string, text: string): void;
   offline(on: boolean): void;
 }
 

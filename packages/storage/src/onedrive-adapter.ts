@@ -1,4 +1,4 @@
-import type { FileName, RemoteFile, StorageAdapter } from './adapter.ts';
+import type { RemoteFile, StorageAdapter } from './adapter.ts';
 import { AuthRequiredError, OfflineError, PreconditionFailedError } from './errors.ts';
 import { quickXorHash } from './quick-xor-hash.ts';
 
@@ -65,7 +65,7 @@ export class OneDriveAdapter implements StorageAdapter {
    * base of the next write, and that write, passing `If-Match`, would undo the newer change. On a mismatch
    * both requests are repeated, and after 3 tries the read fails (the sync reads as offline and retries).
    */
-  async read(name: FileName): Promise<RemoteFile | null> {
+  async read(name: string): Promise<RemoteFile | null> {
     for (let attempt = 1; ; attempt++) {
       const meta = await this.graph(this.base + encodeURIComponent(name), {});
       if (meta.status === 404) return null;
@@ -80,7 +80,7 @@ export class OneDriveAdapter implements StorageAdapter {
     }
   }
 
-  async write(name: FileName, text: string, ifMatch: string | null): Promise<{ etag: string }> {
+  async write(name: string, text: string, ifMatch: string | null): Promise<{ etag: string }> {
     const res = await this.graph(this.base + encodeURIComponent(name) + ':/content', {
       method: 'PUT',
       headers: {

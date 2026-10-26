@@ -1,12 +1,20 @@
 name: Promote to production
 # By hand only (GitHub app: Actions → Promote to production → Run workflow). Deploys the exact build staging
-# ran for a commit on main whose CI passed, then tags it prod-YYYY-MM-DD-n with release notes. Rollback:
-# run it with an older prod- tag. (doc/TaskApp factory spec.md, 6.2)
+# ran for a commit on main whose CI passed, then tags it <app>-prod-YYYY-MM-DD-n (tasks-prod-…) with release
+# notes. Rollback: run it with an older tasks-prod- tag, or a prod- tag from before the monorepo move. The app's
+# folder, package and build name come from the promoted commit (promote-check.mjs), so an older one still
+# deploys. (doc/TaskApp factory spec.md, 6.2)
 on:
   workflow_dispatch:
     inputs:
+      app:
+        description: 'The app to promote.'
+        type: choice
+        options: [tasks]
+        default: tasks
+        required: true
       commit:
-        description: 'Commit SHA or prod- tag. Empty: what staging runs now.'
+        description: 'Commit SHA or tasks-prod- (or older prod-) tag. Empty: what staging runs now.'
         required: false
         default: ''
 permissions:
@@ -20,21 +28,22 @@ jobs:
     # Only the promote.yml on main may run: from another branch the file (and its checks) could be edited.
     if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check the repository variables
         run: |
-          if [ -z "$CF_PROD_PROJECT" ] || [ -z "$PROD_HOST" ] || [ -z "$PROD_URL" ]; then
-            echo "::error::Set the repository variables CF_PROD_PROJECT, PROD_HOST and PROD_URL (README, Environment variables)."
+          if [ -z "$CF_TASKS_PROD_PROJECT" ] || [ -z "$TASKS_PROD_HOST" ] || [ -z "$TASKS_PROD_URL" ]; then
+            echo "::error::Set the repository variables CF_TASKS_PROD_PROJECT, TASKS_PROD_HOST and TASKS_PROD_URL (README, Environment variables)."
             exit 1
           fi
-          if [ "$PROD_URL" != "https://$PROD_HOST" ]; then
-            echo "::error::PROD_URL must be https:// followed by PROD_HOST."
+          if [ "$TASKS_PROD_URL" != "https://$TASKS_PROD_HOST" ]; then
+            echo "::error::TASKS_PROD_URL must be https:// followed by TASKS_PROD_HOST."
             exit 1
           fi
         env:
-          CF_PROD_PROJECT: ${{ vars.CF_PROD_PROJECT }}
-          PROD_HOST: ${{ vars.PROD_HOST }}
-          PROD_URL: ${{ vars.PROD_URL }}
+          CF_TASKS_PROD_PROJECT: ${{ vars.CF_TASKS_PROD_PROJECT }}
+          TASKS_PROD_HOST: ${{ vars.TASKS_PROD_HOST }}
+          TASKS_PROD_URL: ${{ vars.TASKS_PROD_URL }}
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -43,9 +52,10 @@ jobs:
         run: cp -r tools/ci "$RUNNER_TEMP/ci"
       - name: Check the commit
         id: check
-        run: node "$RUNNER_TEMP/ci/promote-check.mjs" "$COMMIT"
+        run: node "$RUNNER_TEMP/ci/promote-check.mjs" "$COMMIT" "$APP"
         env:
           COMMIT: ${{ inputs.commit }}
+          APP: ${{ inputs.app }}
           GITHUB_TOKEN: ${{ github.token }}
       - name: Check out the commit
         run: git checkout --detach "$SHA"
@@ -61,21 +71,24 @@ jobs:
         if: steps.check.outputs.artifact == 'true'
         uses: actions/download-artifact@v4
         with:
-          name: web-dist
-          path: apps/web/dist
+          name: ${{ steps.check.outputs.artifact_name }}
+          path: ${{ steps.check.outputs.app_dir }}/dist
           run-id: ${{ steps.check.outputs.run_id }}
           github-token: ${{ github.token }}
       - name: Rebuild (the stored build has expired)
         if: steps.check.outputs.artifact != 'true'
-        run: pnpm --filter web build
+        run: pnpm --filter ${{ steps.check.outputs.filter }} build
         env:
           BUILD_SHA: ${{ steps.check.outputs.sha }}
-          VITE_PROD_HOST: ${{ vars.PROD_HOST }}
-          VITE_STAGING_HOST: ${{ vars.STAGING_HOST }}
-          VITE_PREVIEW_HOST_SUFFIXES: ${{ vars.PREVIEW_HOST_SUFFIXES }}
-          VITE_PROD_FOLDER: ${{ vars.PROD_FOLDER }}
-          VITE_STAGING_FOLDER: ${{ vars.STAGING_FOLDER }}
-          VITE_ONEDRIVE_SCOPE: ${{ vars.ONEDRIVE_SCOPE }}
+          # The version label of the build staging ran: its run number and date.
+          BUILD_NUMBER: ${{ steps.check.outputs.run_number }}
+          BUILD_TIME: ${{ steps.check.outputs.built_at }}
+          VITE_PROD_HOST: ${{ vars.TASKS_PROD_HOST }}
+          VITE_STAGING_HOST: ${{ vars.TASKS_STAGING_HOST }}
+          VITE_PREVIEW_HOST_SUFFIXES: ${{ vars.TASKS_PREVIEW_HOST_SUFFIXES }}
+          VITE_PROD_FOLDER: ${{ vars.TASKS_PROD_FOLDER }}
+          VITE_STAGING_FOLDER: ${{ vars.TASKS_STAGING_FOLDER }}
+          VITE_ONEDRIVE_SCOPE: ${{ vars.TASKS_ONEDRIVE_SCOPE }}
       - uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -83,20 +96,21 @@ jobs:
           # Use the workspace's pinned wrangler; the action can't `pnpm add` it at a workspace root.
           wranglerVersion: '4.151.1'
           # Run from the repo root, so wrangler also bundles functions/ (the sign-in helper at /api/auth/*).
-          command: pages deploy apps/web/dist --project-name=${{ vars.CF_PROD_PROJECT }} --branch=main --commit-hash=${{ steps.check.outputs.sha }}
+          command: pages deploy ${{ steps.check.outputs.app_dir }}/dist --project-name=${{ vars.CF_TASKS_PROD_PROJECT }} --branch=main --commit-hash=${{ steps.check.outputs.sha }}
       - name: Check the sign-in helper is live
         # /api/auth/login must redirect to Microsoft for MSAL_TENANT, asking for the scope the build expects.
         # That holds only when the functions shipped and the Pages secrets (README, Sign-in) are set.
         run: node "$RUNNER_TEMP/ci/check-signin.mjs"
         env:
-          SIGNIN_URL: ${{ vars.PROD_URL }}
-          MSAL_TENANT: ${{ vars.MSAL_TENANT }}
-          ONEDRIVE_SCOPE: ${{ vars.ONEDRIVE_SCOPE }}
+          SIGNIN_URL: ${{ vars.TASKS_PROD_URL }}
+          MSAL_TENANT: ${{ vars.TASKS_MSAL_TENANT }}
+          ONEDRIVE_SCOPE: ${{ vars.TASKS_ONEDRIVE_SCOPE }}
       - name: Release notes
         id: notes
-        run: node "$RUNNER_TEMP/ci/release-notes.mjs" "$SHA"
+        run: node "$RUNNER_TEMP/ci/release-notes.mjs" "$SHA" "$APP"
         env:
           SHA: ${{ steps.check.outputs.sha }}
+          APP: ${{ inputs.app }}
       - name: Tag and release
         run: gh release create "$TAG" --target "$SHA" --title "$TAG" --notes-file release-notes.md
         env:

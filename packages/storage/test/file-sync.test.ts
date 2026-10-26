@@ -1,6 +1,6 @@
-import { mergeTasksText } from '@omark/core';
+import { mergeTasksText } from '@omark/tasks-core';
 import { describe, expect, it, vi } from 'vitest';
-import type { FileName, RemoteFile, StorageAdapter } from '../src/adapter.ts';
+import type { RemoteFile, StorageAdapter } from '../src/adapter.ts';
 import type { CachedFile, LocalCache } from '../src/cache.ts';
 import { MemoryCache } from '../src/cache.ts';
 import { AuthRequiredError, OfflineError, PreconditionFailedError } from '../src/errors.ts';
@@ -8,7 +8,7 @@ import { FakeOneDrive } from '../src/fake-onedrive.ts';
 import { FileSync } from '../src/file-sync.ts';
 import type { SyncStatus } from '../src/file-sync.ts';
 
-const NAME: FileName = 'tasks.md';
+const NAME = 'tasks.md';
 const INITIAL = '# Tasks\n';
 const S = '# Tasks\n- [ ] Buy milk\n- [ ] Call mom\n';
 const withLocal = '# Tasks\n- [ ] Buy milk\n- [ ] Call mom\n- [ ] Local task\n';
@@ -48,7 +48,7 @@ class TrackingAdapter implements StorageAdapter {
 
   constructor(readonly drive: FakeOneDrive) {}
 
-  async read(name: FileName): Promise<RemoteFile | null> {
+  async read(name: string): Promise<RemoteFile | null> {
     if (this.failAll) throw this.failAll;
     return this.track(async () => {
       if (this.readGate) await this.readGate;
@@ -56,7 +56,7 @@ class TrackingAdapter implements StorageAdapter {
     });
   }
 
-  async write(name: FileName, text: string, ifMatch: string | null): Promise<{ etag: string }> {
+  async write(name: string, text: string, ifMatch: string | null): Promise<{ etag: string }> {
     if (this.failAll) throw this.failAll;
     if (this.failWrites) throw this.failWrites;
     this.writes.push(text);
@@ -190,10 +190,10 @@ describe('FileSync', () => {
     drive.setOffline(true);
     const sync = makeSync(drive);
     await sync.open();
-    drive.externalWrite(NAME, '# Always\n- Water\n\n# Tasks\n- [ ] Remote task\n');
+    drive.externalWrite(NAME, 'Notes above\n# Tasks\n- [ ] Remote task\n');
     drive.setOffline(false);
     const { text } = await sync.pull();
-    expect(text).toBe('# Always\n- Water\n\n# Tasks\n- [ ] Remote task\n');
+    expect(text).toBe('Notes above\n# Tasks\n- [ ] Remote task\n');
     expect(drive.peek(NAME)).toBe(text);
   });
 
@@ -602,10 +602,10 @@ describe('FileSync', () => {
     class HangingCache extends MemoryCache {
       hangPuts = false;
       hangGets = false;
-      override get(name: FileName) {
+      override get(name: string) {
         return this.hangGets ? new Promise<never>(() => {}) : super.get(name);
       }
-      override put(name: FileName, f: CachedFile) {
+      override put(name: string, f: CachedFile) {
         return this.hangPuts ? new Promise<never>(() => {}) : super.put(name, f);
       }
     }
@@ -816,7 +816,7 @@ describe('FileSync', () => {
 
 class FailingCache extends MemoryCache {
   failing = false;
-  override async put(name: FileName, f: CachedFile): Promise<void> {
+  override async put(name: string, f: CachedFile): Promise<void> {
     if (this.failing) throw new Error('put failed');
     return super.put(name, f);
   }

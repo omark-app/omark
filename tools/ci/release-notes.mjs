@@ -1,17 +1,19 @@
 #!/usr/bin/env node
-// Promote to production, last step: the next prod- tag and the release notes (the PRs merged since the last
-// prod- tag). Usage, in a full clone: release-notes.mjs <sha>. Writes `tag` to $GITHUB_OUTPUT and the notes
-// to release-notes.md.
+// Promote to production, last step: the app's next <app>-prod- tag and the release notes (the PRs merged since
+// its last release tag; for tasks that includes the prod- tags from before the monorepo move). Usage, in a full
+// clone: release-notes.mjs <sha> <app>. Writes `tag` to $GITHUB_OUTPUT and the notes to release-notes.md.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 
 /**
- * The next tag for `today` (YYYY-MM-DD): prod-YYYY-MM-DD-n, counting up within a day.
+ * The next tag for `today` (YYYY-MM-DD): <app>-prod-YYYY-MM-DD-n, counting up within a day.
  * @param {string[]} tags
  * @param {string} today
+ * @param {string} app
  */
-export function nextTag(tags, today) {
-  const prefix = `prod-${today}-`;
+export function nextTag(tags, today, app) {
+  const prefix = `${app}-prod-${today}-`;
   let n = 0;
   for (const t of tags) {
     if (!t.startsWith(prefix)) continue;
@@ -19,6 +21,14 @@ export function nextTag(tags, today) {
     if (Number.isInteger(k) && k > n) n = k;
   }
   return `${prefix}${n + 1}`;
+}
+
+/**
+ * The git patterns for an app's release tags. Tasks was released as prod-YYYY-MM-DD-n before the monorepo move.
+ * @param {string} app
+ */
+export function tagPatterns(app) {
+  return app === 'tasks' ? ['tasks-prod-*', 'prod-*'] : [`${app}-prod-*`];
 }
 
 /**
@@ -41,15 +51,18 @@ export function releaseNotes({ merges, rollback, sha }) {
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
 
 function main() {
-  const sha = process.argv[2];
-  if (!sha) {
-    console.log('::error::usage: release-notes.mjs <sha>');
+  const [sha, app] = process.argv.slice(2);
+  if (!sha || !app) {
+    console.log('::error::usage: release-notes.mjs <sha> <app>');
     return 1;
   }
-  const tags = git('tag', '--list', 'prod-*').split('\n').filter(Boolean);
-  const last = tags.length ? tryGit('describe', '--tags', '--abbrev=0', '--match', 'prod-*', `${sha}^{commit}`) : '';
+  const patterns = tagPatterns(app);
+  const tags = git('tag', '--list', ...patterns).split('\n').filter(Boolean);
+  const match = patterns.flatMap((p) => ['--match', p]);
+  const last = tags.length ? tryGit('describe', '--tags', '--abbrev=0', ...match, `${sha}^{commit}`) : '';
   // Promoting a commit the last release already contains (an older one) is a rollback.
-  const latest = tags.length ? git('for-each-ref', '--sort=-creatordate', '--count=1', '--format=%(refname:short)', 'refs/tags/prod-*') : '';
+  const refs = patterns.map((p) => `refs/tags/${p}`);
+  const latest = tags.length ? git('for-each-ref', '--sort=-creatordate', '--count=1', '--format=%(refname:short)', ...refs) : '';
   const rollback = latest !== '' && git('rev-parse', `${latest}^{commit}`) !== sha && isAncestor(sha, latest);
   const range = last ? [`${last}..${sha}`] : [sha, '-n', '20'];
   const log = git('log', '--merges', '--first-parent', '--format=%s%x1f%b%x1e', ...range);
@@ -61,7 +74,7 @@ function main() {
       const [subject = '', body = ''] = r.split('\x1f');
       return { subject, body };
     });
-  const tag = nextTag(tags, new Date().toISOString().slice(0, 10));
+  const tag = nextTag(tags, new Date().toISOString().slice(0, 10), app);
   writeFileSync('release-notes.md', releaseNotes({ merges, rollback, sha: sha.slice(0, 7) }));
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `tag=${tag}\n`);
   console.log(`Tag ${tag}`);
@@ -87,4 +100,4 @@ function isAncestor(a, b) {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) process.exitCode = main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = main();

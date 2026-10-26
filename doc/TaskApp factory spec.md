@@ -100,7 +100,7 @@ Remote Control (driving the local PC session from the phone) is not used for fac
 A PR is ready for me when:
 
 1. The new behaviour, or the bug, has a test that was written first and failed before the change. The PR body quotes the failing line.
-2. `pnpm typecheck`, `pnpm test`, `pnpm e2e` and `pnpm --filter web build` pass in the session, then in CI.
+2. `pnpm typecheck`, `pnpm test`, `pnpm e2e` and `pnpm --filter tasks build` pass in the session, then in CI.
 3. The PR body follows the template, links the issue, and has the preview link.
 4. Claude has reviewed its own diff fresh (a review subagent with no memory of writing it) against the issue or the approved plan, and fixed what it found.
 5. For large work: every acceptance criterion in the plan is met or explicitly moved out.
@@ -134,21 +134,24 @@ The real-OneDrive smoke (`pnpm e2e:real`) stays manual, since its sign-in lasts 
 
 | Workflow | When | Does |
 |---|---|---|
-| `ci.yml` | PR opened or updated | check; e2e, whose last step deploys the fake build it just tested as the preview and comments the link |
-| `ci.yml` | Push to `main` | check; e2e; a small deploy job that builds once for staging and production, deploys to staging, and keeps the files as a workflow artifact |
+| `ci.yml` | PR opened or updated | check; e2e, one job per Playwright project (`e2e (desktop)`, `e2e (iphone)`) in parallel; then a preview job that deploys the fake build and comments the link |
+| `ci.yml` | Push to `main` | check; both e2e jobs; then a small deploy job that builds once for staging and production, deploys to staging, and keeps the files as a workflow artifact |
 | `promote.yml` | By hand (`workflow_dispatch`) | Production deploy (below) |
 
-- The preview reuses the e2e job's build and runs inside that job, so it costs no extra build and no extra job (each job is rounded up to a whole minute).
+- The preview and staging deploys wait for check and both e2e jobs. The preview builds the fake app again, so e2e needs nothing from the repository's settings.
+- e2e runs in Playwright's own container image (`mcr.microsoft.com/playwright`), whose version must match `@playwright/test`; `workflows.test.ts` checks it. It keeps Playwright's default workers: 4 made the iPhone job slower (#35).
+- check and e2e start together, so a green run doesn't wait for check. If check fails, a small job after it (`stop-on-check-failure`) cancels the run, so the e2e jobs stop early and check still shows as failed.
+- Every job has a time limit (`timeout-minutes`): check 10, stop-on-check-failure 5, e2e 20, preview, staging deploy and Promote 15.
 - The staging build is a separate build from the e2e one, because e2e tests the fake drive and staging needs the real one.
 
 **Promote to production**, one tap from the GitHub app (Actions → Promote to production → Run workflow):
 
-1. Input: a commit, defaulting to the one staging runs now.
+1. Input: the app (only `tasks` so far) and a commit, defaulting to the one staging runs now.
 2. Refuses unless that commit is on `main` and its CI run passed.
 3. Downloads that run's artifact and deploys it unchanged to the `taskapp` project. If the artifact has expired (kept 30 days), it rebuilds from the commit.
-4. Tags it `prod-YYYY-MM-DD-n` and creates a GitHub release listing the PRs merged since the last `prod-` tag.
+4. Tags it `tasks-prod-YYYY-MM-DD-n` (the app's name first; before the monorepo move it was `prod-YYYY-MM-DD-n`) and creates a GitHub release listing the PRs merged since the last of these tags.
 
-**Rollback:** run Promote with an older `prod-` tag. Cloudflare's dashboard rollback also works.
+**Rollback:** run Promote with an older `tasks-prod-` or `prod-` tag. Cloudflare's dashboard rollback also works.
 
 ### 6.3 Keeping CI within the free minutes
 
@@ -157,9 +160,9 @@ Today every push to a PR branch runs CI twice (`push` and `pull_request`), about
 - CI runs on `pull_request` and on `push` to `main` only, so a PR is checked once per push.
 - `concurrency` with `cancel-in-progress`: a newer push cancels the older run on the same branch.
 - `paths-ignore` for `doc/**` and `**/*.md`: doc-only changes skip CI.
-- The Playwright browsers are cached between runs.
+- e2e runs in Playwright's image, so no browsers or Linux packages are installed in a run.
 - Claude runs the suite in its session before pushing, so CI confirms rather than debugs.
-- Rough budget: ~6 minutes per PR push and ~7 per merge. 2,000 minutes is about 250 PR pushes a month.
+- Rough budget (each job rounds up to a whole minute): ~9 minutes per PR push (check 1, e2e desktop 3, e2e iPhone 4, preview 1) and ~9 per merge (deploy instead of preview). 2,000 minutes is about 220 PR pushes a month. A merge reaches tasks-staging in about 3.5 minutes.
 
 ## 7. Repo setup for Claude
 
@@ -169,7 +172,7 @@ Short and factual:
 - What TaskApp is and where things live; points to the specs.
 - Commands and the definition of done (section 5).
 - How work flows: sizing, plans, labels, PRs (sections 3–5).
-- Hard rules: never push to `main`, never merge, never run Promote unless I ask in that conversation, never delete or rewrite task lines in my real files, and use `ALAI/TaskApp-e2e` or `ALAI/TaskApp-staging` for anything real.
+- Hard rules: never push to `main`, never merge, never run Promote unless I ask in that conversation, never delete or rewrite task lines in my real files, and use `TaskApp-e2e` (in the app folder, which the real e2e uses) or `ALAI/TaskApp-staging` for anything real.
 - In cloud sessions, `gh issue` and `gh pr` (GraphQL) are blocked by the proxy: use the GitHub tools or `gh api` (REST).
 
 ### 7.2 Skills

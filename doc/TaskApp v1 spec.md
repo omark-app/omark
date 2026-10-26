@@ -6,7 +6,7 @@ UI reference: the throwaway prototype on branch `prototype/ui` (`prototype/taska
 
 ## 1. Goal and audience
 
-A super simple personal task app replacing the parts of Todoist actually used: dated buckets, a someday list, recurring tasks, and a few always-visible reminder lines. One page, opens in one click, fast to add and move tasks.
+A super simple personal task app replacing the parts of Todoist actually used: dated buckets, a someday list, recurring tasks, and an always-visible **Important, not urgent** list (section 7). One page, opens in one click, fast to add and move tasks.
 
 - **v1 is personal-first**: one user (me), no accounts, no backend I operate.
 - **Ready to go wider later**: all task logic lives in a pure core package with no UI or storage dependencies, so other storage, platforms or a multi-user layer can be added without a rewrite.
@@ -35,7 +35,7 @@ A super simple personal task app replacing the parts of Todoist actually used: d
 
 | File | Holds |
 |---|---|
-| `tasks.md` | ALWAYS lines and all open tasks |
+| `tasks.md` | All open tasks |
 | `done.md` | One line per completion (the stats source), with the task's notes under it |
 | `config.yaml` | User settings (section 10) |
 
@@ -44,10 +44,6 @@ A super simple personal task app replacing the parts of Todoist actually used: d
 Obsidian Tasks–compatible markdown. Tasks are one flat list; buckets are computed by the app, never stored as headings.
 
 ```markdown
-# Always
-- Walk before the first coffee
-- One tab at a time
-
 # Tasks
 - [ ] Call the dentist about the crown 📅 2026-10-16
     - ask about zirconia
@@ -55,13 +51,15 @@ Obsidian Tasks–compatible markdown. Tasks are one flat list; buckets are compu
 - [ ] Water the plants 🔁 every week on Monday 📅 2026-10-19
 - [ ] Send the invoice 📅 2026-10-19
 - [ ] Learn Polish sign language
+- [ ] One tab at a time ⏫
 ```
 
-- `📅 YYYY-MM-DD` = due date. No date = Someday.
+- `📅 YYYY-MM-DD` = due date. No date = Someday, or Important, not urgent when the task has `⏫` (section 7).
 - `🔁 <rule>` = repeat rule (section 6).
 - `⏫` = Important (added 2026-10-19, #19), Obsidian Tasks' high priority. It can sit anywhere in the line (every `⏫` counts as the one flag); the app writes it right after the title: `- [ ] Call the bank ⏫ 🔁 every day 📅 2026-10-20`. The other priority signs (`🔺 🔼 🔽 ⏬`) stay in the title as text.
 - Indented `- ` lines under a task are its notes.
 - Line order within the file is the manual order (section 4.3).
+- Anything above `# Tasks` is kept as it is. Files from before #38 have a `# Always` section above `# Tasks` (one `- text` line per reminder). On the next sync the app turns each such line into `- [ ] text ⏫` at the top of `# Tasks`, in the same order, and removes the section; other lines in it stay above `# Tasks`. New files start as just `# Tasks`.
 
 ### 3.4 `done.md` format
 
@@ -84,12 +82,13 @@ Obsidian Tasks–compatible markdown. Tasks are one flat list; buckets are compu
 ### 3.5 Saving, sync, offline and conflicts
 
 - **Save** ~1 s after typing stops (configurable), plus on leaving a field and when the app is hidden or closed.
-- **Footer status**: a faint `saved` · `syncing`, next to the build's short commit hash (so it is clear which build a device runs).
+- **Footer status**: a faint `saved` · `syncing`, next to the build's version, e.g. `v143 · 22 Oct` (the UTC day it was built; so it is clear which build a device runs). The number is the CI run that made the build and goes up with every build; staging and production show the same number for the same build (Promote ships the build staging ran). The commit hash and build time are in its tooltip; a build made outside CI shows the hash (`dev` when unknown). Issue #36.
 - **Sync banner** (added 2026-10-18), above the list on every layout, when the files are not in step with OneDrive: `Can't reach OneDrive since 11:02 — showing your last saved copy`, or `Sign in again to reach OneDrive …` with a Sign in button. A sync still running after 4 s gets a quieter one. "Since" is the last time every file was in sync on this device.
 - **Nothing waits for ever**: every network request, token request and cache read or write has a time limit, so the status always settles on `saved`, `offline` or `sign in needed`. If the sign-in library does not start within 15 s, the cached list opens anyway.
 - **Re-read** all files whenever the app regains focus, so edits from another device, Obsidian or Claude Code show up.
 - **Optimistic concurrency**: every write uses the file's eTag (`If-Match`). If the file changed since the last read, re-read and merge.
 - **Offline**: the app keeps a cached copy and works fully offline; edits are queued and written on reconnect.
+- **New builds** (added 2026-10-22, issue #32): the app asks `/version.json` which build is deployed when it opens, on every return (again after 2 s and 5 s if that fails), on focus, when it comes back online, and every 30 minutes while visible. A newer build loads at once on open or return: the edits are saved first (and again just before the reload) and `updating…` shows briefly while the page takes no input. If something is open, dragged or focused, or the add field holds a draft, and on a page in use, it waits until none of that is true and there has been no input for a minute; meanwhile the footer shows `New version · tap to update`, which loads it now (asking first if edits would be lost). Edits that can't be saved block the reload until later. Offline, or when the check fails, the saved build keeps running. At most two tries per new build and tab, so a half-done deploy can't cause a reload loop; without sessionStorage only the footer offers it.
 - **Merge**: three-way, task by task (base = last synced version). If the same task changed on both sides, keep both versions as two tasks so nothing is lost; the user deletes one.
 
 ### 3.6 Export
@@ -109,12 +108,13 @@ Weeks run Monday–Sunday. All dates use the device's local time zone; days end 
 | **This week** | Due the day after tomorrow to this Sunday; empty on Saturday and Sunday | Open |
 | **Next week** | Due next Monday to next Sunday (on a Sunday, Monday is in Tomorrow) | Open |
 | **Later** | Due after next Sunday | Folded |
-| **Someday** | No date | Folded |
+| **Someday** | No date, not important | Folded |
 
 - Every bucket header shows a count, including when folded.
 - An empty bucket shows its header only (count 0), folded.
 - Fold state resets to the default every time the app opens. Folding or unfolding a bucket by hand wins over the default (also over the empty-bucket rule) until then.
 - Tasks move between buckets by themselves as days pass.
+- Important tasks with no date are not in Someday: they are in **Important, not urgent** (section 7), which is not a bucket and never folds.
 
 ### 4.2 Setting a date ("moving to a bucket")
 
@@ -125,7 +125,7 @@ Moving a task means setting its date:
 - **This week** → this Sunday. On a Saturday this is tomorrow and on a Sunday today, so the task lands in Tomorrow or Today, and the This week chip is not offered.
 - **Next week** → next Sunday.
 - **Pick a date** → any specific date, including today.
-- **Someday** → removes the date.
+- **Someday** → removes the date. A task in Important, not urgent also loses `⏫`, so it lands in Someday; any other important task keeps `⏫` and so lands in Important, not urgent (#38).
 
 "This week" and "next week" are only date shortcuts. There is no separate flag; the task simply shows as due `Sun`.
 
@@ -139,6 +139,7 @@ Moving a task means setting its date:
 - **Drop between tasks in the same bucket** → reorder (changes line order in `tasks.md`). Order only applies among tasks with the same importance and date, since those sort first; dropping among other dates or the other kind keeps the task's date and flag and says so.
 - **Drop on another bucket** (its header or anywhere in it, including folded headers) → set the date as in 4.2: Today, Tomorrow, This week (this Sunday), Next week (next Sunday), Someday (no date). Dropping between two tasks there also places it at that position.
 - Overdue tasks are in Today, so dropping one between Today's tasks reorders it and keeps its date (and says so).
+- **Drop on Important, not urgent** → removes the date and sets `⏫`; dropping between two of its tasks places it there. Dropping between its own tasks reorders them (#38).
 - **Drop on Later** → opens the date picker, pre-filled with the day after next Sunday, because Later has no single date.
 - The bucket under the pointer is highlighted; a line shows the insert position.
 
@@ -176,12 +177,17 @@ Completing a recurring task moves it to its next date. An overdue recurring task
 - **N days after completion** = today + N.
 - **Setting a repeat on a task** keeps its date if the date fits the pattern; otherwise (or if it has no date) the date moves to the first fitting date on or after it (or today).
 
-## 7. ALWAYS lines
+## 7. Important, not urgent
 
-- Plain text lines in the `# Always` section of `tasks.md`.
-- Always visible on the same page as the tasks (where exactly depends on the view, section 11); editable inline; "+ Add a line" adds one, emptying a line removes it.
-- Not completable, no dates, not counted, not in stats.
-- No hard limit; the layout is designed for about 1–3 lines.
+Replaced the ALWAYS lines on 2026-10-23 (#38).
+
+**Why.** The group comes from D. Eisenhower's four-box matrix (urgent / not urgent × important / not important). Important but not urgent tasks are the ones that get put off forever, because nothing forces them, yet over time they matter most. So they stay in sight on the main page, not buried in Someday. They don't have to be things to finish: they can also be reminders of what to do, how to behave, what to notice. Seen every day, the group is a habit-building machine as much as a to-do list.
+
+- Holds every open task with `⏫` and no `📅`. Nothing else marks it in the file.
+- Shown where ALWAYS was (section 11): the right pane of the task list, the left rail of the week board (in place of the detail while no task is open), below the buckets on the phone. Header with its name and count; never folds; an empty group says so.
+- Its tasks are ordinary tasks: amber, completable (logged in `done.md` and counted in stats), editable, with the same keys, swipes and move sheet.
+- Order: line order in `tasks.md`, so new ones come last. Drag a task within the group to reorder it (desktop mouse drag, phone long press).
+- Getting in: flag an undated task important (`i`, the toggle, `imp`), add one with `imp` and Someday, or drop any task on the group. Getting out: give it a date (it stays important, now urgent too), unflag it, or move it to Someday (which unflags it).
 
 ## 8. Stats
 
@@ -300,18 +306,18 @@ Two views on desktop, switched with `v` (default from config). **Phones (narrow 
 **Task list** (default):
 - One framed sheet with two panes.
 - **Left pane "tasks"**: the add input, then the buckets stacked (section 4: Today, Tomorrow, This week, Next week, Later, Someday), one-line rows (5.1).
-- **Right pane**: when a task is selected, its **detail** on top and the **ALWAYS** lines right below it; with nothing selected, just ALWAYS. The completion **stats** (section 8) sit at the bottom of the right pane.
+- **Right pane**: when a task is selected, its **detail** on top and **Important, not urgent** (section 7) right below it; with nothing selected, just the group. The completion **stats** (section 8) sit at the bottom of the right pane.
 - **Task detail**: bucket name, editable title (wraps onto more lines when long), editable notes (one per line), Due (button opening the date picker, red when overdue) with quick chips Today / Tomorrow / This week / Next week / Someday, Repeat (button opening the repeat picker), an Important toggle (Flag), Complete and Delete buttons, and an `esc` close button.
 - Below the sheet: the keyboard-hint strip and the save status.
 
 **Week board** (desktop only):
-- Left rail: app name and today's date, the stats, then one box that shows ALWAYS, or the selected task's detail in its place; then the hint strip and save status.
+- Left rail: app name and today's date, the stats, then one box that shows Important, not urgent, or the selected task's detail in its place (both would make the rail taller than the window); then the hint strip and save status. `j`/`k` stay on the board.
 - Main area: the add input, then the buckets in four columns. The buckets keep their order (Today, Tomorrow, This week, Next week, Later, Someday) and are cut into four groups of one or more, stacked within a column. The cuts are chosen so the tallest column is as short as possible, counting a folded or empty bucket as one row (its header) and an open one as one row plus one per task; among equally tall layouts the best balanced one wins (the next tallest column as short as possible, and so on), then the one closest to the default `Today | Tomorrow + This week | Next week | Later + Someday` (fewest buckets out of their default column). Example: Today 3 tasks, Tomorrow 7, This week 2, Next week 3, Later and Someday folded gives `Today | Tomorrow | This week | Next week + Later + Someday` (8 rows tall, against 11 for the default).
 - The layout is worked out when the board is shown (the app opens or reloads, or the view switches to the board) and then kept while you work: completing, adding, moving, dragging or folding never moves a bucket to another column. Starting from the offline cache, it is worked out once more if the first sync brings changes. A bucket that empties meanwhile keeps its place as an empty header.
 - Today, Tomorrow, This week and Next week start open on the board whatever `foldedOnOpen` says (an empty one still starts folded); Later and Someday fold on open as usual. Every bucket header folds and unfolds on click.
 - Columns wrap to two per row on narrower desktop windows (the same four groups in a 2×2 grid) (packing added after v1, 2026-10-18).
 
-**Phone (Task list)**: a compact stats line at the top, the buckets, ALWAYS at the bottom, a + button at the bottom right. No detail pane; tap opens the edit sheet (9.2).
+**Phone (Task list)**: a compact stats line at the top, the buckets, Important, not urgent at the bottom, a + button at the bottom right. No detail pane; tap opens the edit sheet (9.2).
 
 ## 12. Claude Code integration
 
@@ -332,10 +338,10 @@ TypeScript monorepo (pnpm workspaces):
 
 | Package | Responsibility |
 |---|---|
-| `packages/core` | Pure TS with no UI or IO: parse/serialize `tasks.md`, `done.md` and `config.yaml`; bucket logic; recurrence; stats; search matching and ranking; three-way merge; config defaults and validation |
+| `packages/tasks-core` | Pure TS with no UI or IO: parse/serialize `tasks.md`, `done.md` and `config.yaml`; bucket logic; recurrence; stats; search matching and ranking; three-way merge; config defaults and validation |
 | `packages/storage` | Storage adapter interface, OneDrive (Graph) implementation, sign-in client, in-memory fake for tests, offline cache and write queue |
 | `packages/signin` | The sign-in helper behind `/api/auth/*` (served by `functions/` at the repo root as Cloudflare Pages Functions) |
-| `apps/web` | Svelte 5 + Vite PWA: UI, keyboard and touch handling, service worker |
+| `apps/tasks` | Svelte 5 + Vite PWA: UI, keyboard and touch handling, service worker |
 | `tools/todoist-import` | One-time import script |
 
 `core` is what gets reused by future platforms.
@@ -346,7 +352,7 @@ TDD throughout: tests are written first.
 
 | Layer | Tool | Scope |
 |---|---|---|
-| Unit | Vitest | All of `packages/core`; the bulk of the tests |
+| Unit | Vitest | All of `packages/tasks-core`; the bulk of the tests |
 | Integration | Vitest | Core + storage against the in-memory fake OneDrive: external changes, eTag conflicts, offline queue, merge |
 | End-to-end | Playwright | The real app in desktop Chromium and iPhone emulation (WebKit, touch, viewport), against the fake OneDrive. Runs on every commit. Long-press drag is poorly supported by Playwright's touch emulation, so the drop rules (4.4) are covered by unit tests and e2e keeps one drag smoke test |
 | Real-OneDrive smoke | Playwright | A few checks against a dedicated test OneDrive account; nightly or by hand, never blocking CI |

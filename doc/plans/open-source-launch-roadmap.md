@@ -1,10 +1,18 @@
 # Open source launch roadmap
 
-Implements [the open source launch spec](../TaskApp%20open%20source%20launch%20spec.md). The spec covers about ten independent workstreams, so this file orders them, and each becomes one GitHub issue with its own detailed plan, written when its turn comes (the factory's large-work rule). Milestone 1 is planned in detail in [open-source-m1-groundwork.md](open-source-m1-groundwork.md).
+Implements [the open source launch spec](../TaskApp%20open%20source%20launch%20spec.md). The spec covers about ten independent workstreams, so this file orders them, and each becomes one GitHub issue with its own detailed plan, written when its turn comes (the factory's large-work rule). Milestone 1 is planned in detail in [open-source-m1-groundwork.md](../history/open-source-m1-groundwork.md).
+
+Updated 2026-10-22 for the suite:
+- the monorepo move (2.8);
+- suite-wide landing, docs, icons and factory;
+- Google Drive storage (3.8–3.9);
+- a new **milestone T** that builds [Omark Time](../Omark%20Time%20spec.md) alongside milestone 3.
+
+The launch waits for both apps. Row numbers already in use are unchanged.
 
 Legend: **AL** = a step only AL can do (`needs-human`). **Plan** = a detailed TDD plan in `doc/plans/` is written and approved before the work starts.
 
-## Milestone 0: name and home (AL, before any code) — done 2026-10-21
+## Milestone 0: name and home (AL, before any code)
 
 | # | Step | Spec |
 |---|---|---|
@@ -12,7 +20,7 @@ Legend: **AL** = a step only AL can do (`needs-human`). **Plan** = a detailed TD
 | 0.2 | AL: buy `omark.app`, add it to Cloudflare, set up Email Routing for `hello@` and `security@`. | 6.10 |
 | 0.3 | AL: create the GitHub org (`omarkhq`, `omark-app` or `getomark`); transfer the repo (still private), rename it `tasks`; check that old URLs redirect and that CI and Promote still work. | 6.10 |
 
-## Milestone 1: groundwork — done 2026-10-22 (PRs #29, #30)
+## Milestone 1: groundwork (one PR, detailed plan ready)
 
 | # | Workstream | Spec | Depends on |
 |---|---|---|---|
@@ -31,13 +39,16 @@ Each row is one issue and one PR; rows marked Plan get a detailed plan first.
 
 | # | Workstream | Spec | Size | Depends on |
 |---|---|---|---|---|
-| 2.1 | (#31) Demo storage mode (seeded, IndexedDB-durable, "Reset demo"), `pnpm demo`, `.env.example`, demo deployment at `demo-tasks.omark.app` | 6.3 | large, Plan | M1 |
-| 2.2 | Landing page at `omark.app` with privacy and terms pages | 6.3.1 | large, Plan | 2.1, 2.4 |
-| 2.3 | Docs set: README, PHILOSOPHY, AGENTS.md (+ `CLAUDE.md` import), CONTRIBUTING, GOVERNANCE, SECURITY, CODE_OF_CONDUCT, LICENSE, `doc/spec.md`, `doc/format.md`, `doc/architecture.md`, `doc/self-hosting.md`, `doc/factory.md`, `doc/history/` | 6.7 | large, Plan | M1 |
-| 2.4 | Icon family: 2–3 directions as side-by-side mockups → AL picks → full set in `brand/`, wired into the app and manifests | 6.6 | large, Plan | M1 |
-| 2.5 | Factory generalised: roles, maintainer check by repo role, role-neutral skills, guard and templates, labels script, issue and PR templates | 6.8 | large, Plan | 2.3 |
+| 2.1 | Demo storage mode (seeded, IndexedDB-durable, "Reset demo"), `pnpm demo`, `.env.example`, demo deployment at `demo-tasks.omark.app` | 6.3 | large, Plan | M1 |
+| 2.8 | *Built 2026-10-26 (#47); after-merge steps pending.* **Monorepo move** (right after 2.1 merges): `apps/web` → `apps/tasks`, `packages/core` → `packages/tasks-core`, storage and sign-in made app-neutral, CI and Promote per app, paths, hooks and docs re-pointed; no behaviour change. AL: rename the repo to `omark` | 6.12 | large, Plan | 2.1 |
+| 2.2 | Landing page at `omark.app` with a card per app (Tasks, Time), privacy policy covering Google data (Limited Use) and terms; live early for Google's review | 6.3.1 | large, Plan | 2.8, 2.4 |
+| 2.3 | Docs set, suite-wide: README, PHILOSOPHY (principles), AGENTS.md (+ `CLAUDE.md` import), CONTRIBUTING, GOVERNANCE, SECURITY, CODE_OF_CONDUCT, LICENSE, `doc/tasks/spec.md`, `doc/format.md`, `doc/architecture.md`, `doc/self-hosting.md`, `doc/factory.md`, `doc/history/` (Omark Time's own docs come in T.8) | 6.7 | large, Plan | 2.8 |
+| 2.4 | Icon family: 2–3 directions shown with both the Tasks and Time glyphs → AL picks → full set for both apps in `brand/`, wired into the apps and manifests | 6.6 | large, Plan | 2.8 |
+| 2.5 | Factory generalised: roles, maintainer check by repo role, role-neutral skills (`omark-factory`), guard and templates, labels script (with `app:`, `task`, `needs-info`, `in-progress`), issue forms (Bug, Feature, Task), the Ideas Discussion form, security and Q&A contact links, the skill's "missing required field → `needs-info`" rule, PR template; one factory for both apps | 6.8 | large, Plan | 2.3 |
 | 2.6 | AL: give 2–3 pilot developers Read or Triage; one runs the contributor dry run from a private fork | 6.2, 6.8 | — | 2.5 |
-| 2.7 | AL: approve PHILOSOPHY wording and the "won't add" list | 6.7.1 | — | 2.3 |
+| 2.7 | AL: approve the PHILOSOPHY principles and wording | 6.7.1 | — | 2.3 |
+
+Order: 2.1, then 2.8, then 2.2–2.5. 2.8 went before 2.1 by AL's choice, so #31 (demo mode) rebases onto the new paths.
 
 Build-in-public posts on LinkedIn can start here.
 
@@ -46,26 +57,46 @@ Build-in-public posts on LinkedIn can start here.
 | # | Workstream | Spec | Size | Depends on |
 |---|---|---|---|---|
 | 3.1 | `LocalFolderAdapter` (File System Access API) + folder picking + permission re-prompt | 6.4 | large, Plan | M1 |
-| 3.2 | First-run choice screen (demo / OneDrive / folder) and a setting to change it | 6.5 | large, Plan | 2.1, 3.1 |
+| 3.2 | First-run choice screen (demo / OneDrive / Google Drive / folder) and a setting to change it | 6.5 | large, Plan | 2.1, 3.1, 3.8 |
 | 3.3 | AL: two Entra registrations ("Omark Tasks", "Omark Tasks Staging"), Pages projects for `tasks.`, `staging-tasks.`, `demo-tasks.` and `omark.app`, Pages secrets, repository variables switched to the Omark values | 6.5, 8 | — | M1 |
 | 3.4 | CI re-pointed to the Omark projects; the bridge kept for my old instance until 3.6 | 6.5 | small | 3.3 |
 | 3.5 | AL: publisher verification (not a blocker) | 6.5 | — | 2.2 |
 | 3.6 | AL: cutover to `tasks.omark.app` (spec 6.5.1, checklist in `doc/history/`) | 6.5.1 | — | 3.4 |
-| 3.7 | Remove the bridge: drive-root scope option, the old hosts and folders, the legacy-cache migration, old tests; the spec's `grep` is clean | 6.1 | large, Plan | 3.6 |
+| 3.7 | Remove the bridge: drive-root scope option, the old hosts and folders, the legacy-cache migration, old tests; rename the Tasks cookies, header, IndexedDB names and tags; the spec's `grep` is clean | 6.1 | large, Plan | 3.6 |
+| 3.8 | Google provider in `@omark/signin` and a shared `GoogleDriveAdapter` (`drive.file`), after checking conditional writes and desktop-edit file ids; Tasks can use Google Drive | 6.4.1 | large, Plan | 2.8, 3.9 |
+| 3.9 | AL: verify `omark.app` in Google Search Console; Google Cloud projects "Omark Tasks" and "Omark Tasks Staging" (consent screen, Web OAuth client, secrets in Pages); brand verification. *Search Console and the staging project done 2026-10-26 (in Testing until 2.2 is live)* | 6.4.1, 8 | — | 2.2 |
+
+## Milestone T: Omark Time
+
+Builds [the Omark Time spec](../Omark%20Time%20spec.md). It runs alongside milestone 3 and starts once the monorepo move (2.8) has merged. Its first planned item is the T.2 plan, which splits the build into issues.
+
+| # | Workstream | Spec | Size | Depends on |
+|---|---|---|---|---|
+| T.1 | AL: Google Cloud project "Omark Time Staging" (published, unverified) and a test Google account with a test calendar. *Staging project and client done 2026-10-26 (in Testing until 2.2 is live); `hello@omark.app` doubles as the test account* | Time 10.3, 17 | — | 3.9 |
+| T.2 | Spike (throwaway): colour patch on an invite with `calendar.events.owned`, invites on the primary calendar, recurring instances in incremental sync, the green and red ids, read-only sync with `calendar.events.owned.readonly`; findings into the Time spec; then the milestone plan. *Spike done 2026-10-26 (Time 15.1); the plan waits for 2.8* | Time 15 | small, then Plan | T.1 |
+| T.3 | `packages/time-core`: title parser, event → rows (window, midnight split, all-day, declined, overlaps, time zone), colour decision, CSV and YAML, projects and config models, summaries, chart series, reports | Time 5–7, 9 | large, Plan | T.2 |
+| T.4 | `packages/calendar`: `CalendarSource` interface, Google implementation (calendar list, incremental sync, colour patch with throttling), fake calendar, shared contract test | Time 8, 13 | large, Plan | T.2, 3.8 |
+| T.5 | `apps/time` shell: Google sign-in, first run, storage choice (Google Drive, OneDrive, local folder), sync and colouring loop, rebuild, offline cache; staging at `staging-time.omark.app` | Time 4, 7, 8, 10 | large, Plan | T.3, T.4, 3.1, 3.8 |
+| T.6 | Screens: hours summary, charts, fix list, projects, settings, report export | Time 9 | large, Plan | T.5 |
+| T.7 | Demo mode on the fake calendar, deployed at `demo-time.omark.app`; no outside requests | Time 12 | large, Plan | T.5 |
+| T.8 | Agent skill `omark-time`, the Time part of `doc/format.md`, `doc/time/spec.md`, README examples with DuckDB queries | Time 11 | small | T.3 |
+| T.9 | AL: production Google Cloud project "Omark Time"; Entra registrations "Omark Time" and "Omark Time Staging"; Pages projects and DNS for `time.`, `staging-time.`, `demo-time.omark.app`; secrets and repository variables | Time 17 | — | T.5 |
+| T.10 | AL: record the verification video (Claude writes the script) and submit Google verification; not a launch blocker | Time 10.3 | — | 2.2, T.5 on staging |
+| T.11 | AL: acceptance on staging with the test account (Time spec 15), then Promote and use `time.omark.app` on his own calendar for at least a week before launch | Time 15 | — | T.6, T.7, T.9 |
 
 ## Milestone 4: open the doors
 
 | # | Step | Spec | Depends on |
 |---|---|---|---|
-| 4.1 | Write the ~10 seeded issues with acceptance criteria and labels | 6.9 | 2.5 |
+| 4.1 | Write the seeded issues (Tasks and Time) with acceptance criteria and labels | 6.9 | 2.5 |
 | 4.2 | AL: ask 5–10 developers to take one each | 6.9 | 4.1 |
-| 4.3 | AL: delete stale branches, set repository settings (branch protection, fork approval, Discussions, vulnerability reporting, topics, social preview), skim Actions logs, flip to public | 6.10 | everything above |
+| 4.3 | AL: delete stale branches, set repository settings (branch protection, fork approval, Discussions, vulnerability reporting, topics, social preview), skim Actions logs, flip to public | 6.10 | everything above, including milestone T |
 
 ## Milestone 5: launch
 
 | # | Step | Spec |
 |---|---|---|
-| 5.1 | Demo GIF or video (quick add, complete, the file changing in Obsidian, Claude editing it) | 6.11 |
+| 5.1 | Demo GIF or video per app: Tasks (quick add, complete, the file changing in Obsidian, Claude editing it); Time (an event turning green, Claude adding an event, a DuckDB or Claude answer) | 6.11 |
 | 5.2 | AL: launch day: Show HN, r/ObsidianMD, r/selfhosted, r/gtd, r/ClaudeAI, LinkedIn | 6.11 |
 | 5.3 | Awesome-list submissions; answer issues and Discussions within 24 h for two weeks | 6.11 |
 
@@ -78,10 +109,13 @@ Build-in-public posts on LinkedIn can start here.
 | 6.3 | 2.1 |
 | 6.3.1 | 2.2 |
 | 6.4 | 3.1 |
+| 6.4.1 | 3.8, 3.9 |
 | 6.5, 6.5.1 | 3.2–3.6 |
-| 6.6 | 1.4, 2.4 |
+| 6.6 | 1.4, 2.4, 2.8 (repo rename) |
 | 6.7 | 2.3, 2.7 |
 | 6.8 | 2.5, 2.6 |
 | 6.9 | 4.1, 4.2 |
 | 6.10 | 0.1–0.3, 4.3 |
 | 6.11 | 5.1–5.3 |
+| 6.12 | 2.8 |
+| 6.13 and the Omark Time spec | T.1–T.11 |

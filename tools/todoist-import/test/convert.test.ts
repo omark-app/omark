@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseTasks } from '@omark/core';
+import { parseTasks } from '@omark/tasks-core';
 import { buildTasksMd, convertDue, type TodoistTask } from '../src/convert.ts';
 import fixture from './fixtures/tasks.json';
 
@@ -49,6 +49,7 @@ describe('convertDue', () => {
     expect(r.repeat).toEqual(rule);
     expect(r.warning).toContain(`"${s}"`);
     expect(r.warning).toContain(time);
+    expect(r.warning).toContain('(Omark Tasks has no times)');
     expect(r.warning).toMatch(/time/);
   });
 
@@ -120,7 +121,7 @@ describe('buildTasksMd', () => {
       t({ id: 'a', content: 'Parent', description: 'one\ntwo' }),
       t({ id: 'b', content: 'Child', parent_id: 'a' }),
     ]);
-    expect(text).toBe('# Always\n\n# Tasks\n- [ ] Parent\n    - one\n    - two\n    - Child\n');
+    expect(text).toBe('# Tasks\n- [ ] Parent\n    - one\n    - two\n    - Child\n');
   });
 
   it('names the task in warnings', () => {
@@ -134,7 +135,7 @@ describe('buildTasksMd', () => {
     const { text, warnings } = buildTasksMd([
       t({ content: 'Gym', due: { date: '2026-10-18T07:00:00', string: 'Every 2 days at 7am', is_recurring: true } }),
     ]);
-    expect(text).toBe('# Always\n\n# Tasks\n- [ ] Gym 🔁 every 2 days 📅 2026-10-18\n');
+    expect(text).toBe('# Tasks\n- [ ] Gym 🔁 every 2 days 📅 2026-10-18\n');
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain('"Gym"');
     expect(warnings[0]).toContain('"Every 2 days at 7am"');
@@ -143,7 +144,7 @@ describe('buildTasksMd', () => {
   it('converts the fixture', () => {
     const { text, warnings } = buildTasksMd(fixture as TodoistTask[]);
     expect(text).toBe(
-      '# Always\n\n# Tasks\n' +
+      '# Tasks\n' +
         '- [ ] Buy milk 📅 2026-10-20\n    - 2 litres\n    - semi-skimmed\n    - Check bank\n' +
         '- [ ] Pay rent 📅 2026-11-01\n' +
         '- [ ] Someday idea\n' +
@@ -173,7 +174,7 @@ describe('buildTasksMd', () => {
       t({ id: 'o', content: 'Orphan', parent_id: 'missing' }),
     ]);
     expect(text).toBe(
-      '# Always\n\n# Tasks\n- [ ] Top\n    - d\n    - Child\n    - Grandchild\n    - Child2\n- [ ] Orphan\n',
+      '# Tasks\n- [ ] Top\n    - d\n    - Child\n    - Grandchild\n    - Child2\n- [ ] Orphan\n',
     );
   });
 
