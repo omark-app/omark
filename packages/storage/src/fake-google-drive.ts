@@ -79,10 +79,17 @@ export class FakeGoogleDrive {
 
   /** Trashes the folder, which trashes the files in it too. */
   trashFolder(): void {
-    const folder = this.currentFolder();
-    if (!folder) throw new Error('FakeGoogleDrive: no folder to trash');
+    const folder = this.mustFindFolder();
     folder.trashed = true;
     this.newEtag(folder);
+  }
+
+  /** Deletes the folder and its files for good, past the trash. */
+  deleteFolder(): void {
+    const folder = this.mustFindFolder();
+    for (const item of [...this.items.values()]) {
+      if (item === folder || item.parent === folder.id) this.items.delete(item.id);
+    }
   }
 
   /** The names of the untrashed folders, oldest first. */
@@ -153,6 +160,7 @@ export class FakeGoogleDrive {
       found = this.sorted((i) => i.parent === null && i.name === name && !i.trashed);
     } else if ((m = FILE_QUERY.exec(q))) {
       const [name, parent] = [unescape(m[1]!), m[2]!];
+      if (!this.items.has(parent)) return googleError(404, 'notFound');
       found = this.sorted((i) => i.parent === parent && i.name === name && !this.isTrashed(i));
     } else unexpected(call);
     return Response.json({ files: found.map((i) => ({ id: i.id })) });
@@ -280,6 +288,12 @@ export class FakeGoogleDrive {
   private currentFile(name: string): Item | undefined {
     const folder = this.currentFolder();
     return folder && this.sorted((i) => i.parent === folder.id && i.name === name && !i.trashed)[0];
+  }
+
+  private mustFindFolder(): Item {
+    const folder = this.currentFolder();
+    if (!folder) throw new Error('FakeGoogleDrive: no folder');
+    return folder;
   }
 
   private mustFind(name: string): Item {

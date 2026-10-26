@@ -5,6 +5,7 @@ import { GoogleDriveAdapter } from '../src/google-drive-adapter.ts';
 import { adapterContract } from './adapter-contract.ts';
 
 const FOLDER = 'Omark Tasks';
+const FOLDER_MIME_Q = "mimeType='application/vnd.google-apps.folder'";
 function setup(fake: FakeGoogleDrive, fetchFn: typeof fetch = fake.fetch, getToken = async () => 'tok') {
   return new GoogleDriveAdapter({ folder: FOLDER, getToken, fetch: fetchFn });
 }
@@ -49,6 +50,31 @@ describe('GoogleDriveAdapter (Drive specifics)', () => {
     await b.write('config.yaml', 'c', null);
     expect(fake.folders()).toEqual(['Omark Tasks']);
     expect((await b.read('tasks.md'))?.text).toBe('a');
+  });
+
+  it('concurrent first writes on one adapter create one folder', async () => {
+    const fake = new FakeGoogleDrive();
+    const a = setup(fake);
+    await Promise.all([a.write('tasks.md', 'a', null), a.write('done.md', 'b', null), a.write('config.yaml', 'c', null)]);
+    expect(fake.folders()).toEqual(['Omark Tasks']);
+    expect(fake.files().sort()).toEqual(['config.yaml', 'done.md', 'tasks.md']);
+    expect([fake.peek('tasks.md'), fake.peek('done.md'), fake.peek('config.yaml')]).toEqual(['a', 'b', 'c']);
+  });
+
+  it('finds a folder another device created after a read found none', async () => {
+    const fake = new FakeGoogleDrive();
+    const a = setup(fake);
+    expect(await a.read('tasks.md')).toBeNull();
+    fake.externalWrite('tasks.md', 'x');
+    expect((await a.read('tasks.md'))?.text).toBe('x');
+  });
+
+  it('concurrent reads share one folder lookup', async () => {
+    const fake = new FakeGoogleDrive({ 'tasks.md': 'a', 'done.md': 'b', 'config.yaml': 'c' });
+    const a = setup(fake);
+    const texts = await Promise.all(['tasks.md', 'done.md', 'config.yaml'].map(async (n) => (await a.read(n))?.text));
+    expect(texts).toEqual(['a', 'b', 'c']);
+    expect(fake.calls.filter((c) => decodeURIComponent(c.url).includes(FOLDER_MIME_Q))).toHaveLength(1);
   });
 
   it('finds names with quotes and backslashes', async () => {
@@ -124,7 +150,7 @@ describe('GoogleDriveAdapter (Drive specifics)', () => {
     const fake = new FakeGoogleDrive();
     const a = setup(fake);
     const b = setup(fake);
-    const held = fake.holdReply((c) => decodeURIComponent(c.url).includes("mimeType='application/vnd.google-apps.folder'"));
+    const held = fake.holdReply((c) => decodeURIComponent(c.url).includes(FOLDER_MIME_Q));
     const first = a.write('tasks.md', 'a', null);
     await held.reached; // a has seen no folder and is about to create one
     await b.write('done.md', 'b', null);
@@ -158,6 +184,41 @@ describe('GoogleDriveAdapter (Drive specifics)', () => {
     await adapter.write('tasks.md', 'b', null);
     expect(fake.folders()).toEqual(['Omark Tasks']);
     expect(fake.peek('tasks.md')).toBe('b');
+  });
+
+  it('a write after the folder is deleted for good fails once with a 412, then recreates folder and file', async () => {
+    const fake = new FakeGoogleDrive({ 'tasks.md': 'a' });
+    const adapter = setup(fake);
+    await adapter.read('tasks.md');
+    fake.deleteFolder();
+    await expect(adapter.write('tasks.md', 'b', null)).rejects.toBeInstanceOf(PreconditionFailedError);
+    await adapter.write('tasks.md', 'b', null);
+    expect(fake.folders()).toEqual(['Omark Tasks']);
+    expect(fake.peek('tasks.md')).toBe('b');
+  });
+
+  it('a folder deleted between the look and the create also reads as a 412, once', async () => {
+    const fake = new FakeGoogleDrive({ 'tasks.md': 'a' });
+    const adapter = setup(fake);
+    await adapter.read('tasks.md');
+    const held = fake.holdReply((c) => decodeURIComponent(c.url).includes("name='done.md'"));
+    const writing = adapter.write('done.md', 'd', null);
+    await held.reached; // the folder still had no done.md
+    fake.deleteFolder();
+    held.release();
+    await expect(writing).rejects.toBeInstanceOf(PreconditionFailedError);
+    await adapter.write('done.md', 'd', null);
+    expect(fake.peek('done.md')).toBe('d');
+  });
+
+  it('reads null for a file in a folder deleted for good', async () => {
+    const fake = new FakeGoogleDrive({ 'tasks.md': 'a', 'done.md': 'd' });
+    const adapter = setup(fake);
+    await adapter.read('tasks.md');
+    fake.deleteFolder();
+    expect(await adapter.read('done.md')).toBeNull();
+    await adapter.write('done.md', 'e', null);
+    expect(fake.peek('done.md')).toBe('e');
   });
 
   it('throws AuthRequiredError on a second 401, after asking for a fresh token', async () => {
