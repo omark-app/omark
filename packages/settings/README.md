@@ -15,8 +15,8 @@ Used by Omark Tasks (`TASKS_SCHEMA` in `packages/tasks-core/src/settings-schema.
 | `schema.ts` | `Schema`, `Section`, `Field` types; `defaults(schema)` |
 | `read.ts` | `readSettings(schema, text)` returns `{ values, error }` (the error has a 1-based `line`) |
 | `write.ts` | `setSetting(text, path, value)` changes one key by its node range and leaves every other byte alone |
-| `merge.ts` | `mergeSettings(schema, base, local, remote)` merges key by key; on the same key the local write wins; if the merge would not read it returns local |
-| `edit.ts` | what the form calls: `applyField`, `captureKey`, `writeOnInput`, `numberInput`, `displayKey` |
+| `merge.ts` | `mergeSettings(schema, base, local, remote)` merges key by key onto the remote and returns `{ text, conflicts, dropped }`. On the same key the local write wins. If the merge itself would add an error, it returns local. If the remote does not parse (or local's change can't be written into it), it keeps the remote as it is: `dropped` is true and `conflicts` lists what local changed |
+| `edit.ts` | what the form calls: `applyField`, `captureKey`, `capturedKey`, `writeOnInput`, `numberInput`, `displayKey` |
 | `SettingsPage.svelte` | the page |
 
 ## Using the page
@@ -47,13 +47,35 @@ Props:
 | `schema` | the `Schema` |
 | `text` | the file's text. The page re-reads it whenever it changes |
 | `onwrite(text)` | called with the whole new text for every change |
-| `back` | `{ label, href }` of the back link |
+| `back` | `{ label, href, onclick? }` of the back link. `onclick` can go back in history instead of following `href` |
 | `apps` | `{ current, other: { label, href } }`, the switch between the apps' settings |
 | `defaultText` | what "Reset to defaults" writes (the commented default file) |
 | `note` | optional message above the cards, e.g. that a change made elsewhere won |
 | `status` | optional snippet shown beside the file's buttons, e.g. the save status |
 
 A file that does not read opens the page on the text editor, at the problem line.
+
+A comment-only edit made in Edit as text is lost if another device changes a setting before it syncs: the merge goes setting by setting, and a comment is not a setting.
+
+### Colours and fonts
+
+The page uses the host's CSS variables. Set them on a parent:
+
+| variable | used for |
+|---|---|
+| `--bg` | the page background |
+| `--surface` | cards, the selected segment |
+| `--ink` | text |
+| `--muted` | hints, labels |
+| `--faint` | the text editor's line numbers |
+| `--line` | borders |
+| `--chip` | key chips, segment tracks, the line-number gutter |
+| `--sel` | the note above the cards, the current app in the switch |
+| `--accent` | links, the armed key, the primary button |
+| `--danger` | errors and the problem line |
+| `--sans`, `--mono` | fonts |
+| `--on-accent` | optional: text on the primary button (default `--surface`) |
+| `--seg-shadow` | optional: the selected segment's shadow |
 
 ## Describing settings
 

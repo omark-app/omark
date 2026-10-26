@@ -226,7 +226,7 @@ Shown compactly, e.g. `Today 4 (3.2) · 7d 23 (19 ↑) · All 412`.
 | Delete / Backspace | Delete (with undo) |
 | Esc | Close the detail (deselect) |
 
-- Global: `z` or Ctrl+Z undo; `v` switch view (section 11); `f` or Ctrl+K search (9.3).
+- Global: `z` or Ctrl+Z undo; `v` switch view (section 11); `f` or Ctrl+K search (9.3); `,` settings (section 10).
 - Clicking a task's date label opens the date picker; the picker has Today, Tomorrow, This week, Next week, Someday and a calendar field.
 - Mouse drag between and within buckets (section 4.4).
 - Every change shows a short toast with **Undo** (e.g. "Moved to Next week · Sun", "Done · next Mon 19 Oct").
@@ -271,7 +271,7 @@ Typed anywhere in a task's title: when adding (the phone's add sheet, the deskto
 - `config.yaml` beside `tasks.md`, so it syncs to every device. Editable by hand, by Obsidian, or by Claude Code; no rebuild needed.
 - Built-in defaults; the file only needs overrides. On first run the app writes a fully commented copy.
 - After that the app writes `config.yaml` only from the Settings page (below). Nothing else changes it.
-- Reloaded whenever the app regains focus. A change made on another device meanwhile is merged key by key; if the same key changed on both sides, the newer write wins and the page says so.
+- Reloaded whenever the app regains focus. A change made on another device meanwhile is merged key by key; if the same key changed on both sides, this device's change wins and the page says so. If the other device's file has a mistake, it is kept as it is, and the page says this device's change was not applied.
 - If the file is invalid, show a small banner naming the problem line and fall back to defaults. Never crash.
 - One config for all devices.
 - Note: Obsidian hides `.yaml` files unless "Detect all file extensions" is on.
