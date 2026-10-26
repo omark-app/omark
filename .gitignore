@@ -7,6 +7,7 @@ test-results
 .dev.vars
 .wrangler
 dist-real
+dist-demo
 .env
 .env.*
 !.env.example

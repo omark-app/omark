@@ -8,3 +8,8 @@ export function e2ePort(dir: string, env: Record<string, string | undefined>): n
   for (const c of dir.replaceAll('\\', '/').toLowerCase()) hash = (hash * 31 + c.charCodeAt(0)) >>> 0;
   return 4200 + (hash % 700);
 }
+
+/** The demo build's preview port (e2e/demo.spec.ts): the one after the e2e port. */
+export function demoPort(dir: string, env: Record<string, string | undefined>): number {
+  return e2ePort(dir, env) + 1;
+}
