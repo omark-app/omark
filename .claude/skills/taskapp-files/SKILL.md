@@ -128,7 +128,7 @@ Repeating: keep the block, notes included, in `tasks.md` (the sample shows the w
 
 - An entry is a `- [x] … ✅ {date}` line plus the indented lines right under it (its notes). A blank or unindented line ends the entry.
 - Each `- [x]` line with a valid `✅` date counts as one completion. Indented lines are never counted.
-- Two more habit lines are boundaries, not completions (no `✅`, never counted): `- [x] {title} 🌱 🏆 {date}` (formed, written by the app) and `- [-] {title} 🌱 ❌ {date}` (dropped). Leave them as they are.
+- Two more habit lines are boundaries, not completions (no `✅`, never counted): `- [x] {title} 🌱 🏆 {date}` (formed, written by the app, sometimes with the habit's notes indented under it) and `- [-] {title} 🌱 ❌ {date}` (dropped). Leave them as they are.
 - Older entries are a single line with no notes; leave them so. Leave any other line (free text, headings, a `- [x]` without `✅`) as it is.
 - Append new entries at the end, keeping each entry's notes directly under its own line.
 
