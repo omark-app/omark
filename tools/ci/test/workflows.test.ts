@@ -6,7 +6,7 @@ const FILES = ['ci.yml', 'promote.yml'];
 const path = (f: string) => new URL(`../../../.github/workflows/${f}`, import.meta.url);
 const text = (f: string) => readFileSync(path(f), 'utf8');
 
-interface Step { if?: string; uses?: string; with?: unknown; env?: unknown; run?: string }
+interface Step { if?: string; uses?: string; with?: unknown; env?: unknown; run?: string; 'working-directory'?: string }
 interface Job {
   if?: string;
   needs?: string[];
@@ -188,11 +188,16 @@ describe('workflows', () => {
       CLOUDFLARE_ACCOUNT_ID: '${{ secrets.CLOUDFLARE_ACCOUNT_ID }}',
       CF_PROJECT: '${{ vars.CF_TASKS_DEMO_PROJECT }}',
     });
-    const deploys = steps.filter((s) => s.uses?.startsWith('cloudflare/wrangler-action@'));
+    // A plain step with the workspace's wrangler, run from apps/tasks; values come in through env, not ${{ }}.
+    expect(steps.some((s) => s.uses?.startsWith('cloudflare/wrangler-action@'))).toBe(false);
+    const deploys = steps.filter((s) => s.run?.includes('wrangler pages deploy'));
     expect(deploys).toHaveLength(1);
-    expect(deploys[0]!.with).toMatchObject({
-      workingDirectory: 'apps/tasks',
-      command: 'pages deploy dist --project-name=${{ vars.CF_TASKS_DEMO_PROJECT }} --branch=main',
+    expect(deploys[0]!['working-directory']).toBe('apps/tasks');
+    expect(deploys[0]!.run).toBe('../../node_modules/.bin/wrangler pages deploy dist --project-name="$CF_TASKS_DEMO_PROJECT" --branch=main');
+    expect(deploys[0]!.env).toEqual({
+      CLOUDFLARE_API_TOKEN: '${{ secrets.CLOUDFLARE_API_TOKEN }}',
+      CLOUDFLARE_ACCOUNT_ID: '${{ secrets.CLOUDFLARE_ACCOUNT_ID }}',
+      CF_TASKS_DEMO_PROJECT: '${{ vars.CF_TASKS_DEMO_PROJECT }}',
     });
     const check = steps.find((s) => s.run === 'node tools/ci/check-demo.mjs')!;
     expect(check.env).toEqual({ DEMO_URL: '${{ vars.TASKS_DEMO_URL }}' });
@@ -205,9 +210,13 @@ describe('workflows', () => {
 
   it('uses the same pinned wrangler action and version for every deploy', () => {
     const deploys = allSteps().filter((s) => s.uses?.startsWith('cloudflare/wrangler-action@'));
-    expect(deploys.length).toBeGreaterThan(3);
+    expect(deploys.length).toBeGreaterThan(2);
     expect(new Set(deploys.map((s) => s.uses)).size).toBe(1);
-    expect(new Set(deploys.map((s) => (s.with as Record<string, string>).wranglerVersion)).size).toBe(1);
+    const versions = new Set(deploys.map((s) => (s.with as Record<string, string>).wranglerVersion));
+    expect(versions.size).toBe(1);
+    // The demo deploys with the workspace's wrangler (root package.json), so that must be the same version.
+    const root = JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'));
+    expect(root.devDependencies.wrangler).toBe([...versions][0]);
   });
 
   it('calls ensure-pages-project with the generic variable names', () => {
@@ -285,7 +294,8 @@ describe('workflows', () => {
 
   it('names no project, host or folder', () => {
     for (const f of FILES) {
-      expect(text(f)).not.toMatch(/--project-name=(?!\$\{\{ vars\.)/);
+      // From a repository variable: `${{ vars.X }}` in an action's input, `"$X"` (set from vars in env) in a script.
+      expect(text(f)).not.toMatch(/--project-name=(?!\$\{\{ vars\.|"\$[A-Z_]+")/);
       expect(text(f)).not.toMatch(/alipka|ALAI/i);
     }
   });
