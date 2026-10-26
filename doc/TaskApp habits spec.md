@@ -1,6 +1,6 @@
 # TaskApp habits spec
 
-Status: draft for AL's approval, 2026-10-26. Issue #44.
+Status: draft for AL's approval, 2026-10-26. Issue #44. Changed 2026-10-26 (AL): at most 3 habits in progress (section 10.1).
 Source: AL's brainstorm in the session of 2026-10-26. Related: [v1 spec](TaskApp%20v1%20spec.md) (sections 3, 5–7 and 10 change), [settings page spec](Omark%20settings%20page%20spec.md) (#45).
 Mockups: https://claude.ai/artifact/VwN7ULDERA3tsd2JoMatWt (desktop, phone, row states, detail, history, settings).
 
@@ -27,6 +27,7 @@ The goal is a setting, but the default matters, because reaching it removes the 
 | Goal | 66 repetitions | Lally's median. Lower it per habit for easy or weekly ones. |
 | Misses in a row | 1 | One miss doesn't hurt (Lally); two in a row is where habits break. |
 | Misses per attempt | 10% of the goal, rounded down (6 for 66) | Keeps the bar the same for a 30-goal and a 66-goal habit. *(My call: AL left the number open.)* |
+| Habits in progress at most | 3 | AL's call. Each habit costs daily attention; too many at once and they all slip. |
 
 ## 3. Decisions
 
@@ -42,6 +43,7 @@ The goal is a setting, but the default matters, because reaching it removes the 
 | History | Formed and dropped habits are lines in `done.md`. No new file. |
 | Colour | Violet, like amber for Important. |
 | Overdue | A habit is never shown as overdue. A missed period is a miss, not a red date. |
+| Limit | At most 3 habits in progress (a setting). A new one waits until one is formed or dropped. |
 | Config | `habits` in `config.yaml`, and on the settings page (#45). |
 
 ## 4. File format
@@ -158,7 +160,7 @@ Violet: `--habit` `#6A48D7` with ink `#4F33B3` and tint `#F1EEFC` in light, `#A8
 
 ### 9.3 Habits group
 
-A group like Important, not urgent, listing every habit in progress: title, `12/66`, a bar, and one line of state ("missed yesterday · one more miss restarts · misses 2/6", "done today · formed ~ 30 Nov", "attempt 2 (best 11)"). Its header has the count and a link "2 formed · 1 dropped ›" that opens History.
+A group like Important, not urgent, listing every habit in progress: title, `12/66`, a bar, and one line of state ("missed yesterday · one more miss restarts · misses 2/6", "done today · formed ~ 30 Nov", "attempt 2 (best 11)"). Its header has the count against the limit (`3 of 3`) and a link "2 formed · 1 dropped ›" that opens History.
 
 - Task list (desktop): the right pane, above Important, not urgent.
 - Week board: the rail, above Important, not urgent (or the detail).
@@ -187,10 +189,21 @@ A sheet (desktop dialog) with In progress, Formed and Dropped. Formed: title, go
 - **Phone**: a Habit toggle beside Important in the add sheet; "Make it a habit" / "Not a habit" in the move sheet.
 - The repeat picker hides `when done` for a habit.
 
+### 10.1 The limit
+
+At most `habits.maxInProgress` habits (default 3) can be in progress at once: open tasks with `🌱` in `tasks.md`.
+
+- **At the limit, the app won't start another.** `h`, the toggle and "Make it a habit" say: "3 habits in progress already. Finish or drop one first, or raise the limit in Settings." Nothing changes.
+- **A typed `hab`** at the limit still adds the task, as an ordinary repeating task (with `🔁 every day` if none was typed) and without `🌱`. The toast says so, with Undo. *(My call: the typing isn't lost.)*
+- **Keep as task** after a habit is formed or Undo of a drop count against the limit like any other way in.
+- **Over the limit** (habits added by hand, in Obsidian or by Claude, or a limit lowered in Settings): nothing is removed or paused. Every habit keeps counting, the Habits header shows `4 of 3` in red, and no new habit can start until the count is under the limit. *(My call: the app never takes away progress.)*
+- `0` means no limit.
+
 ## 11. Config
 
 ```yaml
 habits:
+  maxInProgress: 3        # habits in progress at once; 0 = no limit
   goal: 66                # repetitions to form a habit; a habit's own `🌱 N` wins
   missesInARow: 1         # misses allowed in a row
   missesPerAttempt: 10%   # a number, or a share of the goal (rounded down)
@@ -200,6 +213,7 @@ shortcuts:
 
 | key | values |
 |---|---|
+| `habits.maxInProgress` | whole number 0–99 (default 3; 0 = no limit) |
 | `habits.goal` | whole number 1–999 (default 66) |
 | `habits.missesInARow` | whole number 0–99 (default 1) |
 | `habits.missesPerAttempt` | whole number 0–999, or a percentage `0%`–`100%` (default `10%`) |
@@ -212,7 +226,7 @@ Invalid values behave like every config mistake today: a banner and the defaults
 - **Stats**: habit completions count like any completion. Formed and dropped lines don't.
 - **Search**: habits are searched like tasks. Formed and dropped lines are not search results. *(My call; backlog if wanted.)*
 - **Merge**: nothing new. Progress isn't stored, so two devices can't disagree about it. If two devices both write the same formed or dropped line for the same title and day, the merge keeps one.
-- **`taskapp-files` skill**: how to write `🌱`, that completing a habit is completing a repeating task with `🌱` kept in the done line, the period and restart rules for answering "how is my meditation going?", and that the app writes `🏆` lines itself.
+- **`taskapp-files` skill**: how to write `🌱`, that completing a habit is completing a repeating task with `🌱` kept in the done line, the period and restart rules for answering "how is my meditation going?", that the app writes `🏆` lines itself, and that at the limit Claude says so instead of adding a fourth `🌱`.
 - **Docs**: v1 spec sections 3.3, 3.4, 5.1, 9.1, 9.2, 9.4, 10 and 11; README; `doc/format.md` when it exists.
 
 ## 13. Calls made by Claude, to check
@@ -226,6 +240,7 @@ Invalid values behave like every config mistake today: a banner and the defaults
 7. Formed shows a toast with Undo and Keep as task; formed and dropped lines live in `done.md` with `🏆` and Obsidian's `- [-] … ❌`.
 8. Violet; habits sort after important tasks; the Habits group sits above Important, not urgent, and at the top on the phone.
 9. Formed and dropped lines are not search results.
+10. At the limit a typed `hab` adds an ordinary repeating task; over the limit (hand edits, a lowered limit) nothing is removed, the header turns red and no new habit can start.
 
 ## 14. Acceptance criteria
 
@@ -236,6 +251,7 @@ Invalid values behave like every config mistake today: a banner and the defaults
 - [ ] Delete and Drop habit write the dropped line; Not a habit removes only `🌱`.
 - [ ] Rows, the Habits group (list, board, phone), the detail block and History look like the mockups in light and dark; colours pass 4.5:1.
 - [ ] `h`, `hab`/`habit`, the add-sheet toggle and the move-sheet entries work; `when done` is hidden for habits.
+- [ ] At the limit, `h`, the toggle and the move sheet refuse with the message, and `hab` adds an ordinary repeating task; over the limit nothing is removed and the header shows `4 of 3` in red; `0` means no limit.
 - [ ] The `habits` and `shortcuts.habit` config keys are validated with the usual banner.
 - [ ] Stats unchanged for non-habit data; formed and dropped lines don't count.
 - [ ] e2e on both projects: add a habit, tick it, see `1/66`; a seeded history with a miss shows last chance; a goal of 3 forms on the third tick.
