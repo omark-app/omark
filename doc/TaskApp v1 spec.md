@@ -270,10 +270,20 @@ Typed anywhere in a task's title: when adding (the phone's add sheet, the deskto
 
 - `config.yaml` beside `tasks.md`, so it syncs to every device. Editable by hand, by Obsidian, or by Claude Code; no rebuild needed.
 - Built-in defaults; the file only needs overrides. On first run the app writes a fully commented copy.
-- Reloaded whenever the app regains focus.
+- After that the app writes `config.yaml` only from the Settings page (below). Nothing else changes it.
+- Reloaded whenever the app regains focus. A change made on another device meanwhile is merged key by key; if the same key changed on both sides, the newer write wins and the page says so.
 - If the file is invalid, show a small banner naming the problem line and fall back to defaults. Never crash.
 - One config for all devices.
 - Note: Obsidian hides `.yaml` files unless "Detect all file extensions" is on.
+
+**Settings page**: the gear in the footer or the `settings` shortcut (default `,`, yielding like `tomorrow`) opens `#settings`: a form with every setting. On the phone it is a full-screen page with a back link.
+
+- Each control applies at once and saves with the usual delay. No Save button.
+- It writes only the keys that differ from the defaults. Setting a value back to its default removes the key. Comments, order and other keys stay as they are.
+- Input is checked with the same rules as the reader. A key another command already shows is refused, naming that command.
+- **Edit as text** opens the file in a plain editor; **Reset to defaults** writes the commented default file (asks first).
+- A file that does not read opens the page on the text editor at the problem line. The config banner has an "Open Settings" link.
+- The page is the shared `@omark/settings` component, drawn from a schema (`packages/settings/README.md`).
 
 Settings in v1:
 

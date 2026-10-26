@@ -2,7 +2,9 @@
 
 A small task app that keeps your tasks in plain Markdown files on your own OneDrive (`tasks.md`, `done.md`, `config.yaml`). It is a Svelte 5 + TypeScript PWA with a list view and a week board, works offline, and the files stay editable in Obsidian or by Claude Code.
 
-Monorepo: `packages/tasks-core` (parsing and logic), `packages/storage` (OneDrive and the sign-in client), `packages/signin` (the sign-in helper, served from `functions/` as Cloudflare Pages Functions), `apps/tasks` (the Tasks app), `tools/todoist-import`, `tools/claude-guard` (the guard hook), `tools/ci` (CI helper scripts).
+Monorepo: `packages/tasks-core` (parsing and logic), `packages/settings` (the schema-driven Settings page), `packages/storage` (OneDrive and the sign-in client), `packages/signin` (the sign-in helper, served from `functions/` as Cloudflare Pages Functions), `apps/tasks` (the Tasks app), `tools/todoist-import`, `tools/claude-guard` (the guard hook), `tools/ci` (CI helper scripts).
+
+Settings: the gear in the footer, or the `,` key, opens a Settings page that edits `config.yaml`. It writes only the keys that differ from the defaults and keeps your comments. The page is the shared `@omark/settings` package ([how to use it](packages/settings/README.md)).
 
 Work on the app runs through GitHub issues and pull requests, mostly done by Claude in cloud sessions: see `CLAUDE.md` and [the factory spec](doc/TaskApp%20factory%20spec.md).
 

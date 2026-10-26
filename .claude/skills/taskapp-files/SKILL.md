@@ -158,7 +158,7 @@ Weeks run Monday to Sunday unless `firstDayOfWeek` in `config.yaml` names anothe
 
 ## config.yaml
 
-YAML with only the settings that differ from the defaults. Keep its comments. A mistake makes the app show a banner and fall back to all defaults, so change one key at a time, use only the values below, and keep the YAML valid. Unknown keys are errors too.
+YAML with only the settings that differ from the defaults. Keep its comments. The app's Settings page (footer gear, or `,`) writes this file too, and does the same: it adds only the keys that differ from the defaults, removes a key set back to its default, and keeps comments. Do likewise: add only the keys you need and leave the rest byte for byte. A mistake makes the app show a banner and fall back to all defaults, so change one key at a time, use only the values below, and keep the YAML valid. Unknown keys are errors too.
 
 | key | values (default first) |
 | --- | --- |
@@ -169,4 +169,4 @@ YAML with only the settings that differ from the defaults. Keep its comments. A 
 | `dateLabels` | `short` (Thu, 12 Nov), `iso` |
 | `newTaskBucket` | `today`, `tomorrow`, `week`, `next`, `someday` |
 | `saveDelaySeconds` | number, 0 or more (default 1) |
-| `shortcuts` | map of command to a key or list of keys (`KeyboardEvent.key` names); a key binds to one command only. Commands: focusAdd, down, up, today, tomorrow, thisWeek, nextWeek, pickDate, someday, repeat, important, complete, edit, delete, deselect, undo, switchView, search |
+| `shortcuts` | map of command to a key or list of keys (`KeyboardEvent.key` names); a key binds to one command only. Commands: focusAdd, down, up, today, tomorrow, thisWeek, nextWeek, pickDate, someday, repeat, important, complete, edit, delete, deselect, undo, switchView, search, settings (default `,`; like `tomorrow` and `important` it gives way to a key the file binds to another command) |
