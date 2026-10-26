@@ -18,10 +18,10 @@
   function onkeydown(e: KeyboardEvent): void {
     if (e.key === 'Enter' && !e.isComposing) {
       e.preventDefault();
-      // Shortcut words typed in the title set the date and the flag (issue #19).
+      // Shortcut words typed in the title set the date and the flags (issue #19); `hab` alone means today.
       const typed = readQuickAdd(value, store.ctx, dismissed);
       // A title of shortcut words only adds nothing; its text stays to be finished.
-      if (store.add(typed.title, typed.when ?? undefined, typed.important, typed.habit) || value.trim() === '') {
+      if (store.add(typed.title, typed.when ?? (typed.habit ? 'today' : undefined), typed.important, typed.habit) || value.trim() === '') {
         value = '';
         dismissed = [];
       }

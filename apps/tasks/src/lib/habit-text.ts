@@ -20,7 +20,8 @@ export function habitStateLine(task: Task, p: HabitProgress, ctx: WeekCtx): stri
   const parts: string[] = [];
   const rule = shortRule(task);
   if (rule) parts.push(rule);
-  if (p.lastChance) parts.push(`missed ${day ? 'yesterday' : 'last time'} · one more miss restarts`);
+  // The last chance can come from the misses per attempt alone, with no miss in a row.
+  if (p.lastChance) parts.push(p.missesInARow === 0 ? 'one more miss restarts' : `missed ${day ? 'yesterday' : 'last time'} · one more miss restarts`);
   else if (p.doneThisPeriod) parts.push(day ? 'done today' : 'done this period');
   parts.push(`misses ${p.missesThisAttempt}/${p.rules.missesPerAttempt}`);
   if (p.attempt > 1) parts.push(attempt);

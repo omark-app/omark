@@ -302,3 +302,216 @@ test('the board rail opens a habit from the Habits group', async ({ page, isMobi
   await expect(page.getByTestId('rail').getByTestId('detail-title')).toHaveValue('Meditate');
   await expect(page.getByTestId('rail').getByTestId('habit-block')).toBeVisible();
 });
+
+/** The ways to make a habit: h, the hab word, the add-sheet toggle, the move sheet, the repeat picker (#44). */
+
+const PLAIN = (title: string, date = '2026-10-16') => `- [ ] ${title} 📅 ${date}\n`;
+const REPEATING = (title: string, date = '2026-10-16') => `- [ ] ${title} 🔁 every day 📅 ${date}\n`;
+const sheet = (page: Page) => page.getByTestId('sheet');
+const three = ['A', 'B', 'C'].map((t) => habit(`Habit ${t}`, '2026-10-16')).join('');
+
+/** A horizontal touch swipe across `target` (the phone's row swipe). */
+async function swipe(target: ReturnType<Page['locator']>, dx: number) {
+  await target.evaluate((el, dx) => {
+    const box = el.getBoundingClientRect();
+    const x = box.left + box.width / 2;
+    const y = box.top + box.height / 2;
+    const at = (type: string, cx: number) =>
+      el.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 7, pointerType: 'touch', isPrimary: true, clientX: cx, clientY: y }));
+    at('pointerdown', x);
+    for (let i = 1; i <= 6; i++) at('pointermove', x + (dx * i) / 6);
+    at('pointerup', x + dx);
+  }, dx);
+}
+
+test.describe('keys', () => {
+  test.skip(({ isMobile }) => isMobile, 'keyboard commands are a desktop feature');
+
+  test('h toggles a habit on a repeating task and off again', async ({ page }) => {
+    await openApp(page, { files: { 'tasks.md': `# Tasks\n${REPEATING('Meditate')}` } });
+    await row(page, 'Meditate').click();
+    await page.keyboard.press('h');
+    await expect(page.getByTestId('toast')).toContainText('Now a habit');
+    await expect(row(page, 'Meditate').first()).toHaveAttribute('data-habit', 'true');
+    await expect.poll(() => driveFile(page, 'tasks.md')).toBe(`# Tasks\n${habit('Meditate', '2026-10-16')}`);
+    await page.keyboard.press('h');
+    await expect(page.getByTestId('toast')).toContainText('No longer a habit');
+    await expect(row(page, 'Meditate').first()).toHaveAttribute('data-habit', 'false');
+    await expect.poll(() => driveFile(page, 'tasks.md')).toBe(`# Tasks\n${REPEATING('Meditate')}`);
+  });
+
+  test('h on a task with no rule opens the repeat picker without when done, and saving makes a habit', async ({ page }) => {
+    await openApp(page, { files: { 'tasks.md': `# Tasks\n${PLAIN('Stretch')}` } });
+    await row(page, 'Stretch').click();
+    await page.keyboard.press('h');
+    await expect(sheet(page)).toBeVisible();
+    await expect(sheet(page).getByRole('radio', { name: 'Every day', exact: true })).toBeChecked();
+    await expect(sheet(page).getByLabel('No repeat')).toHaveCount(0);
+    await expect(sheet(page)).not.toContainText('after I complete it');
+    await sheet(page).getByLabel('Weekdays').check();
+    await sheet(page).getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByTestId('toast')).toContainText('Now a habit');
+    await expect(row(page, 'Stretch').first()).toHaveAttribute('data-habit', 'true');
+    await expect.poll(() => driveFile(page, 'tasks.md')).toBe('# Tasks\n- [ ] Stretch 🌱 🔁 every weekday 📅 2026-10-16\n');
+  });
+
+  test('h on a fourth habit is refused with the message', async ({ page }) => {
+    await openApp(page, { files: { 'tasks.md': `# Tasks\n${three}${REPEATING('Stretch')}` } });
+    await row(page, 'Stretch').click();
+    await page.keyboard.press('h');
+    await expect(page.getByTestId('toast')).toContainText('3 habits in progress already. Finish or drop one first');
+    await expect(row(page, 'Stretch').first()).toHaveAttribute('data-habit', 'false');
+    expect(await driveFile(page, 'tasks.md')).toBe(`# Tasks\n${three}${REPEATING('Stretch')}`);
+  });
+
+  test('typing hab at the limit adds an ordinary repeating task', async ({ page }) => {
+    await openApp(page, { files: { 'tasks.md': `# Tasks\n${three}` } });
+    await page.getByTestId('add-input').click();
+    await page.keyboard.type('Stretch hab');
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('toast')).toContainText('Stretch added as a repeating task');
+    await expect(row(page, 'Stretch').first()).toHaveAttribute('data-habit', 'false');
+    await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Stretch 🔁 every day 📅 2026-10-16\n');
+  });
+
+  test('hab with no date word lands in Today and shows violet', async ({ page }) => {
+    await openApp(page, { files: { 'tasks.md': '# Tasks\n', 'config.yaml': 'newTaskBucket: someday\n' } });
+    await page.getByTestId('add-input').click();
+    await page.keyboard.type('Stretch hab');
+    await expect(page.getByTestId('add').getByTestId('shortcut-word')).toHaveClass(/hab/);
+    await page.keyboard.press('Enter');
+    await expect(rowsOf(page, 'today').filter({ hasText: 'Stretch' })).toHaveAttribute('data-habit', 'true');
+  });
+
+  test("a habit's repeat picker has no when done", async ({ page }) => {
+    await openApp(page, { files: { 'tasks.md': `# Tasks\n${habit('Meditate', '2026-10-16')}` } });
+    await row(page, 'Meditate').click();
+    await page.keyboard.press('r');
+    await expect(sheet(page)).toBeVisible();
+    await expect(sheet(page)).not.toContainText('after I complete it');
+    await expect(sheet(page).getByLabel('No repeat')).toBeVisible();
+    await expect(sheet(page).getByRole('radio', { name: 'Every day', exact: true })).toBeChecked();
+  });
+
+  test('the hints list h', async ({ page }) => {
+    await openApp(page, { files: { 'tasks.md': '# Tasks\n' } });
+    await expect(page.getByTestId('hints')).toContainText('i important');
+    await expect(page.getByTestId('hints')).toContainText('h habit');
+  });
+});
+
+test.describe('phone', () => {
+  test.skip(({ isMobile }) => !isMobile, 'the sheets are the phone layout');
+
+  test('the add-sheet Habit toggle and the move-sheet entry work', async ({ page }) => {
+    await openApp(page, { files: { 'tasks.md': `# Tasks\n${PLAIN('Stretch')}` } });
+    await page.getByTestId('fab').tap();
+    await sheet(page).getByLabel('New task').fill('Read');
+    const toggle = sheet(page).getByRole('button', { name: 'Habit', exact: true });
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await toggle.tap();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await sheet(page).getByRole('button', { name: 'Add', exact: true }).tap();
+    await expect(row(page, 'Read').first()).toHaveAttribute('data-habit', 'true');
+    await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Read 🌱 🔁 every day 📅 2026-10-16\n');
+
+    // The move sheet: a plain task has no rule, so the entry opens the habit repeat picker.
+    await swipe(row(page, 'Stretch'), -120);
+    await sheet(page).getByRole('button', { name: /^Make it a habit/ }).tap();
+    await expect(sheet(page).getByRole('radio', { name: 'Every day', exact: true })).toBeChecked();
+    await expect(sheet(page).getByLabel('No repeat')).toHaveCount(0);
+    await sheet(page).getByRole('button', { name: 'Save' }).tap();
+    await expect(row(page, 'Stretch').first()).toHaveAttribute('data-habit', 'true');
+
+    await swipe(row(page, 'Stretch'), -120);
+    await sheet(page).getByRole('button', { name: /^Not a habit/ }).tap();
+    await expect(row(page, 'Stretch').first()).toHaveAttribute('data-habit', 'false');
+  });
+
+  test('the Habit toggle at the limit says why and stays off', async ({ page }) => {
+    await openApp(page, { files: { 'tasks.md': `# Tasks\n${three}` } });
+    await page.getByTestId('fab').tap();
+    const toggle = sheet(page).getByRole('button', { name: 'Habit', exact: true });
+    await toggle.tap();
+    await expect(page.getByTestId('toast')).toContainText('3 habits in progress already');
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('the edit sheet offers Make it a habit on a repeating task', async ({ page }) => {
+    await openApp(page, { files: { 'tasks.md': `# Tasks\n${REPEATING('Stretch')}` } });
+    await row(page, 'Stretch').first().tap();
+    await sheet(page).getByRole('button', { name: /^Make it a habit/ }).tap();
+    await expect(row(page, 'Stretch').first()).toHaveAttribute('data-habit', 'true');
+  });
+});
+
+test('stats count a habit tick', async ({ page }) => {
+  await openApp(page, { files: { 'tasks.md': `# Tasks\n${habit('Meditate', '2026-10-16')}` } });
+  await expect(page.getByTestId('stats')).toContainText(/Today\s*0/);
+  await row(page, 'Meditate').getByTestId('task-check').click();
+  await expect(page.getByTestId('stats')).toContainText(/Today\s*1/);
+});
+
+/** Carried fixes from the reviews of the habit UI. */
+
+test('the History in-progress line has a space after the dot', async ({ page }) => {
+  await openApp(page, { files: { 'tasks.md': line('Meditate', '2026-10-16'), 'done.md': ticks('Meditate', '13', '14') } });
+  await group(page).getByTestId('habits-history').click();
+  await expect(history(page)).toContainText(/last chance · \d+ of \d+/);
+});
+
+test('the Habits state line says just one more miss restarts when none was missed in a row', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'the state line is the desktop list');
+  const done = ticks('Meditate', '01', '03', '05', '07', '09', '11', '13', '14', '15');
+  await openApp(page, { files: { 'tasks.md': line('Meditate', '2026-10-16'), 'done.md': done } });
+  await expect(group(page).getByTestId('habit-state')).toHaveText(/^one more miss restarts · misses/);
+});
+
+test('the Goal field rejects 1e2, 0x5 and +5', async ({ page, isMobile }) => {
+  await openApp(page, { files: { 'tasks.md': line('Meditate', '2026-10-16') } });
+  await openTask(page, isMobile, 'Meditate');
+  for (const bad of ['1e2', '0x5', '+5']) {
+    await block(page).getByTestId('habit-goal').click();
+    const field = block(page).getByLabel('Goal');
+    await field.fill(bad);
+    await field.press('Enter');
+    await expect(block(page).getByTestId('habit-goal')).toHaveText('66 (default)');
+  }
+  expect(await driveFile(page, 'tasks.md')).toBe(line('Meditate', '2026-10-16'));
+});
+
+test.describe('desktop detail', () => {
+  test.skip(({ isMobile }) => isMobile, 'the detail is a desktop pane');
+
+  test('the window losing focus does not ask to rename a habit', async ({ page }) => {
+    await openApp(page, { files: { 'tasks.md': line('Meditate', '2026-10-16'), 'done.md': ticks('Meditate', '15') } });
+    const asked: string[] = [];
+    page.on('dialog', (d) => { asked.push(d.message()); void d.dismiss(); });
+    await openTask(page, false, 'Meditate');
+    const title = page.getByTestId('detail-title');
+    await title.fill('Meditate 15 min');
+    // A tab switch blurs the field with no other element taking the focus, and the document is not focused.
+    await title.evaluate((el) => {
+      document.hasFocus = () => false;
+      (el as HTMLElement).blur();
+    });
+    await page.waitForTimeout(300);
+    expect(asked).toEqual([]);
+    await expect(title).toHaveValue('Meditate 15 min');
+  });
+});
+
+test.describe('phone header', () => {
+  test.skip(({ isMobile }) => !isMobile, 'the cards are the phone layout');
+
+  test('Habits N of M and History sit on their own row above the cards', async ({ page }) => {
+    await openApp(page, { files: { 'tasks.md': `# Tasks\n${habit('Meditate', '2026-10-16')}${habit('Read', '2026-10-16')}` } });
+    const head = await group(page).locator('.head').boundingBox();
+    const cards = await group(page).getByTestId('habit-cards').boundingBox();
+    const link = await group(page).getByTestId('habits-history').boundingBox();
+    const vw = page.viewportSize()!.width;
+    expect(head!.y + head!.height).toBeLessThanOrEqual(cards!.y);
+    expect(head!.width).toBeGreaterThan(vw * 0.8);
+    expect(link!.x + link!.width).toBeGreaterThan(vw * 0.8);
+  });
+});

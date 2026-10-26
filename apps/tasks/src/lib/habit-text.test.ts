@@ -31,6 +31,12 @@ describe('habitStateLine', () => {
     );
   });
 
+  it('a last chance from the misses per attempt alone says only that', () => {
+    // Six single misses, each made up the next day: none in a row, but the seventh would restart.
+    const done = ticks(DAILY, '01', '03', '05', '07', '09', '11', '13', '14', '15');
+    expect(line(`- [ ] Meditate ${DAILY} 📅 ${TODAY}`, done)).toBe('one more miss restarts · misses 6/6');
+  });
+
   it('done today shows the estimate', () => {
     expect(line(`- [ ] Meditate ${DAILY} 📅 2026-10-17`, ticks(DAILY, '15', '16'))).toMatch(
       /^done today · misses 0\/6 · formed ~ \d+ \w{3}( '\d\d)?$/,

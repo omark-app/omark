@@ -55,8 +55,10 @@
   }
 
   function blurred(e: FocusEvent): void {
-    // Moving between the two fields keeps what is typed (e.g. the new note line after Shift+Enter).
-    commit(e.relatedTarget !== titleEl && e.relatedTarget !== notesEl);
+    // Moving between the two fields keeps what is typed (e.g. the new note line after Shift+Enter). So does
+    // the window or tab losing focus: nothing was decided, so a habit rename doesn't ask.
+    const away = e.relatedTarget === null && !document.hasFocus();
+    commit(e.relatedTarget !== titleEl && e.relatedTarget !== notesEl && !away);
   }
 
   export function focusTitle(): void {

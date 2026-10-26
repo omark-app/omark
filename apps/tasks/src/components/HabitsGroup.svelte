@@ -82,6 +82,8 @@
 <style>
   .habits.list { display: flex; flex-direction: column; gap: 6px; border: 1px solid color-mix(in srgb, var(--habit) 30%, var(--line)); border-radius: 12px; padding: 12px 8px; background: var(--surface); }
   .head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 6px; }
+  /* The phone's header sits on its own row above the sideways cards. */
+  .habits.cards { display: flex; flex-direction: column; min-width: 0; }
   .habits.cards .head { padding: 4px 2px 6px; }
   h2 { margin: 0; font: 600 12px var(--sans); letter-spacing: .04em; text-transform: uppercase; color: var(--habit-ink); }
   .n { margin-left: 4px; font-weight: 500; color: var(--faint); }

@@ -53,15 +53,16 @@
   }
 
   /**
-   * Saves the typed goal: empty is the configured one; anything outside 1–999 is left alone. A setting, not
+   * Saves the typed goal: empty is the configured one; anything but 1–999 in plain digits is left alone. A setting, not
    * an action: the edit sheet stays open and keeps what is typed in it.
    */
   function saveGoal(): void {
     if (!editing) return;
     editing = false;
     const text = goalText.trim();
+    if (text !== '' && !/^\d{1,3}$/.test(text)) return;
     const goal = text === '' ? null : Number(text);
-    if (goal !== null && !(Number.isInteger(goal) && goal >= 1 && goal <= 999)) return;
+    if (goal !== null && (goal < 1 || goal > 999)) return;
     if (goal === (task.habit?.goal ?? null)) return;
     store.setHabitGoal(task.id, goal);
   }

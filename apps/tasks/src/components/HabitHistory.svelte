@@ -54,7 +54,7 @@
         {@const p = store.habits.get(task.id)}
         <div class="item">
           <span class="ti habit">{task.title}</span>
-          <span class="sub">{#if p?.lastChance}<span class="red">last chance</span> · {/if}{progressLine(task.id)}</span>
+          <span class="sub">{#if p?.lastChance}<span class="red">last chance</span>{' · '}{/if}{progressLine(task.id)}</span>
         </div>
       {:else}
         <div class="sub">None.</div>

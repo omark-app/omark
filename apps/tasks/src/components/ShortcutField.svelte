@@ -114,7 +114,7 @@
 </script>
 
 <span class="sf" class:wrap>
-  <span class="mirror" aria-hidden="true" bind:this={mirror}><span class="line">{#each parts as p, i (i)}{#if p.kind}<b data-testid="shortcut-word" class:imp={p.kind === 'important'}>{p.text}</b>{:else}{p.text}{/if}{/each}</span></span>
+  <span class="mirror" aria-hidden="true" bind:this={mirror}><span class="line">{#each parts as p, i (i)}{#if p.kind}<b data-testid="shortcut-word" class:imp={p.kind === 'important'} class:hab={p.kind === 'habit'}>{p.text}</b>{:else}{p.text}{/if}{/each}</span></span>
   {#if wrap}
     <textarea
       bind:this={input}
@@ -165,4 +165,5 @@
   .wrap .line { flex: 1 1 auto; min-width: 0; white-space: pre-wrap; overflow-wrap: break-word; padding-right: 0; }
   b { font-weight: 600; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); border-radius: 3px; }
   b.imp { color: var(--imp); background: var(--imp-soft); }
+  b.hab { color: var(--habit-ink); background: var(--habit-soft); }
 </style>

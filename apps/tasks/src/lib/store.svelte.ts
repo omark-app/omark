@@ -151,6 +151,8 @@ export interface AppStore {
   setHabit(id: string, on: boolean): 'ok' | 'limit' | 'needsRule';
   /** The repeat picker's habit mode: the rule and 🌱 in one undo step, within the limit. */
   makeHabit(id: string, rule: RepeatRule): void;
+  /** True when another habit may start; otherwise the limit toast says why (spec 10.1). */
+  habitRoom(): boolean;
   /** The habit's own goal, or null for the configured one. */
   setHabitGoal(id: string, goal: number | null): void;
   undo(): void;
@@ -484,7 +486,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   }
 
   /** True when another habit may start; otherwise the toast says why (spec 10.1). */
-  function roomForHabit(): boolean {
+  function habitRoom(): boolean {
     if (canStartHabit(state.doc, config.habits)) return true;
     show(msg.habitLimit(config.habits.maxInProgress), false);
     return false;
@@ -494,7 +496,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     const task = findTask(state, id);
     if (!task || (task.habit !== undefined) === on) return 'ok';
     if (on && !isUsableHabitRule(task.repeat)) return 'needsRule';
-    if (on && !roomForHabit()) return 'limit';
+    if (on && !habitRoom()) return 'limit';
     const fallback = neighbour(id);
     if (commit(setHabitOp(state, id, on), on ? msg.nowHabit() : msg.notHabit())) keepVisible(id, fallback);
     return 'ok';
@@ -504,7 +506,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     const task = findTask(state, id);
     if (!task) return;
     if (!isUsableHabitRule(rule)) return setRepeat(id, rule);
-    if (task.habit === undefined && !roomForHabit()) return;
+    if (task.habit === undefined && !habitRoom()) return;
     const fallback = neighbour(id);
     const next = setHabitOp(setRepeatOp(state, id, rule, ctx.today), id, true);
     if (commit(next, task.habit ? msg.repeats(rule) : msg.nowHabit())) keepVisible(id, fallback);
@@ -779,6 +781,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     setImportant,
     setHabit,
     makeHabit,
+    habitRoom,
     setHabitGoal,
     undo,
     registerPending(fn) {

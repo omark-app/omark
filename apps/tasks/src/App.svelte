@@ -30,7 +30,7 @@
    */
   type OpenSheet =
     | { kind: 'date'; id: string; suggested?: ISODate; beforeId?: string }
-    | { kind: 'repeat'; id: string }
+    | { kind: 'repeat'; id: string; habit?: boolean }
     | { kind: 'add' }
     | { kind: 'edit'; id: string }
     | { kind: 'move'; id: string }
@@ -61,6 +61,7 @@
   function openSheet(command: ShellCommand, id: string): void {
     if (command === 'pickDate') sheet = { kind: 'date', id };
     else if (command === 'repeat') sheet = { kind: 'repeat', id };
+    else if (command === 'habitRepeat') sheet = { kind: 'repeat', id, habit: true };
     else if (command === 'move') sheet = { kind: 'move', id };
     // On desktop, edit means the detail's title field, which the view focuses itself.
     else if (command === 'edit' && phone.value) sheet = { kind: 'edit', id };
@@ -212,7 +213,7 @@
       {#if sheet?.kind === 'date'}
         <DatePicker {store} taskId={sheet.id} suggested={sheet.suggested} beforeId={sheet.beforeId} onclose={closeSheet} />
       {:else if sheet?.kind === 'repeat'}
-        <RepeatPicker {store} taskId={sheet.id} onclose={closeSheet} />
+        <RepeatPicker {store} taskId={sheet.id} habit={sheet.habit} onclose={closeSheet} />
       {:else if sheet?.kind === 'add'}
         <AddSheet {store} onclose={closeSheet} />
       {:else if sheet?.kind === 'edit'}
