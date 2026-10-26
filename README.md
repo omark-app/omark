@@ -12,6 +12,8 @@ Node 22 or newer and pnpm 10, then `pnpm i`.
 
 ## Environment variables
 
+`.env.example` at the repo root lists every variable below (a test keeps it complete).
+
 | name | used for |
 | --- | --- |
 | `VITE_STORAGE` | `onedrive` (default), `demo` (sample tasks kept in this browser's IndexedDB, no sign-in; Reset demo in the footer) or `fake` (in-memory drive, used by the tests) |
@@ -78,13 +80,13 @@ The SPA platform with `https://tasks.alipka.com/` and `http://localhost:5173/` c
 - **Client secret expiry.** When the secret expires, the token refresh fails with `invalid_client`: the app reads "offline" and the Pages Functions log shows `invalid_client`. Make a new secret (step 2), set it (step 3, `MSAL_CLIENT_SECRET` only) and redeploy (run Promote to production again with the current `tasks-prod-` tag; for staging, re-run the last `main` CI run); nobody needs to sign in again.
 - **Changing `COOKIE_KEY`** signs every device out.
 - **Signing out** a device: `fetch('/api/auth/logout', { method: 'POST', headers: { 'X-TaskApp-Auth': '1' } })` in its console, or clear the site's cookies.
-- **Local sign-in:** `pnpm dev:signin` builds the app and serves it with the helper on http://localhost:5173 (`wrangler pages dev`, secrets from `.dev.vars`, and the localhost Web redirect URI from step 1). `pnpm dev` (plain Vite) has no `/api/auth`, so use it with `VITE_STORAGE=fake`.
+- **Local sign-in:** `pnpm dev:signin` builds the app and serves it with the helper on http://localhost:5173 (`wrangler pages dev`, secrets from `.dev.vars`, and the localhost Web redirect URI from step 1). `pnpm dev` (plain Vite) has no `/api/auth`: it runs the demo (`apps/tasks/.env.development`), which needs no sign-in.
 
 ## Commands
 
 | command | what it does |
 | --- | --- |
-| `pnpm dev` (in `apps/tasks`) | dev server on http://localhost:5173 (no sign-in; use `VITE_STORAGE=fake`) |
+| `pnpm demo` (or `pnpm dev`) | dev server on http://localhost:5173 with the demo: sample tasks, no sign-in. For OneDrive instead, put `VITE_STORAGE=onedrive` in `apps/tasks/.env.development.local` (or set it in the shell), and use `pnpm dev:signin` to sign in |
 | `pnpm dev:signin` | build and serve the app with the sign-in helper on http://localhost:5173 (needs `.dev.vars`) |
 | `pnpm test` | unit tests |
 | `pnpm typecheck` | type checks |
