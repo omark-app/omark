@@ -1,4 +1,4 @@
-import { dayMonth, describeRepeat, weekdayShort } from '@omark/tasks-core';
+import { dayMonth, daysBetween, describeRepeat, weekdayShort } from '@omark/tasks-core';
 import type { ISODate, RepeatRule, WeekCtx } from '@omark/tasks-core';
 
 /** Toast wording (spec 9.1), one function per toast. */
@@ -33,3 +33,38 @@ export const notImportant = (): string => 'No longer important';
 export const undone = (): string => 'Undone';
 
 export const nothingToUndo = (): string => 'Nothing to undo';
+
+// ---- habits (#44, habits spec 6–8 and 10.1) ----
+
+/** `Tue` within the next six days, else `12 Nov`. */
+const nextDay = (next: ISODate, ctx: WeekCtx): string =>
+  daysBetween(ctx.today, next) <= 6 ? weekdayShort(next) : dayMonth(next, ctx);
+
+const habits = (n: number): string => (n === 1 ? '1 habit' : `${n} habits`);
+
+export const habitTick = (title: string, count: number, goal: number, next: ISODate, ctx: WeekCtx): string =>
+  `${title} · ${count}/${goal} · next ${nextDay(next, ctx)}`;
+
+export const alreadyDone = (span: 'today' | 'this week' | 'this period', next: ISODate, ctx: WeekCtx): string =>
+  `Already done ${span} · next ${nextDay(next, ctx)}`;
+
+export const habitFormed = (title: string, goal: number, days: number): string =>
+  `Habit formed: ${title} · ${goal} in ${days} ${days === 1 ? 'day' : 'days'} · moved to History`;
+
+export const habitLimit = (max: number): string =>
+  `${habits(max)} in progress already. Finish or drop one first, or raise the limit in Settings.`;
+
+export const addedNotHabit = (max: number, title: string): string =>
+  `${habits(max)} in progress already. ${title} added as a repeating task; make it a habit when one is formed or dropped.`;
+
+export const nowHabit = (): string => 'Now a habit';
+
+export const notHabit = (): string => 'No longer a habit';
+
+export const droppedHabit = (title: string): string => `Dropped habit · ${title}`;
+
+export const keptAsTask = (): string => 'Kept as a repeating task';
+
+export const renameHabit = (title: string): string => `Renaming restarts ${title} at 0. Rename?`;
+
+export const habitGoal = (goal: number): string => `Goal ${goal}`;
