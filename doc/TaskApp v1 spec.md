@@ -341,7 +341,7 @@ TypeScript monorepo (pnpm workspaces):
 | `packages/tasks-core` | Pure TS with no UI or IO: parse/serialize `tasks.md`, `done.md` and `config.yaml`; bucket logic; recurrence; stats; search matching and ranking; three-way merge; config defaults and validation |
 | `packages/storage` | Storage adapter interface, OneDrive (Graph) implementation, sign-in client, in-memory fake for tests, offline cache and write queue |
 | `packages/signin` | The sign-in helper behind `/api/auth/*` (served by `functions/` at the repo root as Cloudflare Pages Functions) |
-| `apps/tasks` | Svelte 5 + Vite PWA: UI, keyboard and touch handling, service worker |
+| `apps/tasks` | Svelte 5 + Vite PWA: UI, keyboard and touch handling, service worker. Icons: `brand/README.md` |
 | `tools/todoist-import` | One-time import script |
 
 `core` is what gets reused by future platforms.
