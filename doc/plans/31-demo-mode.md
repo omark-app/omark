@@ -57,19 +57,19 @@ Issue #31, roadmap 2.1, [launch spec](../TaskApp%20open%20source%20launch%20spec
 
 ## Acceptance criteria
 
-- [ ] `pnpm i && pnpm demo` on a fresh clone shows the sample tasks (Windows PowerShell and bash).
-- [ ] Plain `pnpm dev` opens the demo; `VITE_STORAGE=onedrive` in the shell or `.env.development.local` still gives the OneDrive build.
-- [ ] In the demo, an edit (add, complete, edit a note) survives a reload, on desktop Chrome and iPhone WebKit.
-- [ ] Reset demo asks first, then brings back exactly the sample files.
-- [ ] The footer shows DEMO, Reset demo and "Use it for real".
-- [ ] The demo build makes no request outside its own origin and none to `/api/`; an e2e test fails if it does.
-- [ ] Private mode (IndexedDB blocked) still opens the demo in memory with the demo warning.
-- [ ] `IdbDrive` passes the shared adapter contract.
-- [ ] PR previews are demo builds and still say PREVIEW.
-- [ ] `main` deploys the demo to `demo-tasks.omark.app`; the CI check passes, and I open it in the built-in browser.
-- [ ] `.env.example` lists every variable the code, the helper and CI read, and a unit test fails when a new `VITE_*` appears in the source without being listed.
-- [ ] Production and staging builds are unchanged (same variables, still OneDrive; `pnpm e2e:real` unaffected).
-- [ ] The new `tasks-demo` job has `timeout-minutes`; the roadmap marks milestones 0 and 1 done.
+- [x] `pnpm i && pnpm demo` on a fresh clone shows the sample tasks (Windows PowerShell and bash).
+- [x] Plain `pnpm dev` opens the demo; `VITE_STORAGE=onedrive` in the shell or `.env.development.local` still gives the OneDrive build.
+- [x] In the demo, an edit (add, complete, edit a note) survives a reload, on desktop Chrome and iPhone WebKit.
+- [x] Reset demo asks first, then brings back exactly the sample files.
+- [x] The footer shows DEMO, Reset demo and "Use it for real".
+- [x] The demo build makes no request outside its own origin and none to `/api/`; an e2e test fails if it does.
+- [x] Private mode (IndexedDB blocked) still opens the demo in memory with the demo warning.
+- [x] `IdbDrive` passes the shared adapter contract.
+- [x] PR previews are demo builds and still say PREVIEW.
+- [ ] `main` deploys the demo to `demo-tasks.omark.app`; the CI check passes, and I open it in the built-in browser. *(After merge: the job runs only on `main`. The same deploy was checked by hand on a branch alias.)*
+- [x] `.env.example` lists every variable the code, the helper and CI read, and a unit test fails when a new `VITE_*` appears in the source without being listed.
+- [x] Production and staging builds are unchanged (same variables, still OneDrive; `pnpm e2e:real` unaffected).
+- [x] The new `tasks-demo` job has `timeout-minutes`; the roadmap marks milestones 0 and 1 done.
 
 ## Tests I'll write first
 
