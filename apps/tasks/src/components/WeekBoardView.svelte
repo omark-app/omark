@@ -4,6 +4,7 @@
   import type { Updates } from '../lib/updates.svelte.ts';
   import { BRAND } from '../brand.ts';
   import Bucket from './Bucket.svelte';
+  import HabitsGroup from './HabitsGroup.svelte';
   import Stats from './Stats.svelte';
   import Hints from './Hints.svelte';
   import StatusLine from './StatusLine.svelte';
@@ -20,6 +21,7 @@
     onCommand = () => {},
     onDropPickDate = () => {},
     onSignIn,
+    onHistory = () => {},
     updates,
     onUpdate,
   }: {
@@ -27,6 +29,7 @@
     onCommand?: OnCommand;
     onDropPickDate?: OnDropPickDate;
     onSignIn?: () => void;
+    onHistory?: () => void;
     updates?: Updates;
     onUpdate?: () => void;
   } = $props();
@@ -63,6 +66,9 @@
         {/key}
       </div>
     {:else}
+      <div class="rblock group">
+        <HabitsGroup {store} variant="list" onopen={() => {}} onhistory={onHistory} />
+      </div>
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div class="rblock group" {ondblclick}>
         <Bucket {store} key={IMPORTANT_GROUP.key} name={IMPORTANT_GROUP.name} onpickdate={pick} ondroppickdate={onDropPickDate} />

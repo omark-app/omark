@@ -17,6 +17,7 @@
   import SignIn from './components/SignIn.svelte';
   import SearchPanel from './components/SearchPanel.svelte';
   import DoneSheet from './components/DoneSheet.svelte';
+  import HabitHistory from './components/HabitHistory.svelte';
   import { createSearch } from './lib/search.svelte.ts';
   import type { SearchResult } from './lib/search.svelte.ts';
   import { commandFor, keyInput } from './lib/keys.ts';
@@ -39,6 +40,8 @@
   let error = $state<string | null>(null);
   let signInError = $state<string | null>(null);
   let sheet = $state<OpenSheet | null>(null);
+  /** The History of habits is open (a sheet on the phone, a dialog on desktop). */
+  let historyOpen = $state(false);
   // Phones always get the Task list (whatever the view), with the + button.
   const phone = createPhone();
   const search = createSearch();
@@ -140,6 +143,7 @@
     const drafts = document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('[data-draft]');
     return (
       sheet !== null ||
+      historyOpen ||
       search.mode === 'open' ||
       [...drafts].some((el) => el.value.trim() !== '') ||
       mouseDragging() ||
@@ -186,7 +190,7 @@
   {@const updates = result.updates}
   {#if signInError}<p class="signin-error" role="alert">{signInError}</p>{/if}
   {#if store.view === 'board' && !phone.value}
-    <WeekBoardView {store} onCommand={openSheet} onDropPickDate={openDropDate} {onSignIn} {updates} onUpdate={update} />
+    <WeekBoardView {store} onCommand={openSheet} onDropPickDate={openDropDate} {onSignIn} onHistory={() => (historyOpen = true)} {updates} onUpdate={update} />
   {:else}
     <TaskListView
       {store}
@@ -194,10 +198,12 @@
       onDropPickDate={openDropDate}
       {onSignIn}
       onSearch={() => search.open()}
+      onHistory={() => (historyOpen = true)}
       {updates}
       onUpdate={update}
     />
   {/if}
+  {#if historyOpen}<HabitHistory {store} variant={phone.value ? 'sheet' : 'dialog'} onclose={() => (historyOpen = false)} />{/if}
   {#if phone.value}<Fab onclick={() => (sheet = { kind: 'add' })} />{/if}
   {#if search.mode === 'open'}<SearchPanel {store} {search} onopen={openResult} />{/if}
   <!-- One sheet per kind, so a sheet opened from another (move → date) gets its own focus and backdrop guard. -->
