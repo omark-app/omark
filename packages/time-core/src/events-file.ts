@@ -47,14 +47,16 @@ function parseBool(text: string): boolean | null {
 
 /** Read a year file. Rows that cannot be read are left out; `badLines` holds their 1-based lines. */
 export function parseEventsFile(text: string): { rows: EventRow[]; badLines: number[] } {
-  const { rows: cells, lines } = parseCsv(text);
+  const { rows: cells, lines, unterminated } = parseCsv(text);
   const rows: EventRow[] = [];
   const badLines: number[] = [];
   const header = cells[0];
   if (!header) return { rows, badLines };
 
   const standard = new Set(EVENT_COLUMNS);
-  for (let i = 1; i < cells.length; i++) {
+  // An unclosed quote swallows the rest of the file into the last row.
+  const readable = unterminated === null ? cells.length : cells.length - 1;
+  for (let i = 1; i < readable; i++) {
     const values = new Map<string, string>();
     const extra: Record<string, string> = {};
     header.forEach((name, c) => {
@@ -94,6 +96,7 @@ export function parseEventsFile(text: string): { rows: EventRow[]; badLines: num
       extra,
     });
   }
+  if (unterminated !== null && !badLines.includes(unterminated)) badLines.push(unterminated);
   return { rows, badLines };
 }
 

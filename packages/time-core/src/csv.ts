@@ -1,5 +1,10 @@
-/** Read RFC 4180 CSV. `lines[i]` is the 1-based physical line where row `i` starts. */
-export function parseCsv(text: string): { rows: string[][]; lines: number[] } {
+/**
+ * Read RFC 4180 CSV. `lines[i]` is the 1-based physical line where row `i`
+ * starts. A `"` opens a quoted field only at the start of a field; elsewhere
+ * it is a plain character. `unterminated` is the line where a quoted field
+ * that never closes starts (the rest of the input is in that field), or null.
+ */
+export function parseCsv(text: string): { rows: string[][]; lines: number[]; unterminated: number | null } {
   const src = text.startsWith('\uFEFF') ? text.slice(1) : text;
   const rows: string[][] = [];
   const lines: number[] = [];
@@ -7,8 +12,10 @@ export function parseCsv(text: string): { rows: string[][]; lines: number[] } {
   let field = '';
   let quoted = false;
   let started = false; // the current line has any characters
+  let fieldStart = true; // nothing read yet in the current field
   let line = 1;
   let rowLine = 1;
+  let quoteLine = 1;
 
   const endRow = () => {
     if (started) {
@@ -19,6 +26,7 @@ export function parseCsv(text: string): { rows: string[][]; lines: number[] } {
     row = [];
     field = '';
     started = false;
+    fieldStart = true;
   };
 
   for (let i = 0; i < src.length; i++) {
@@ -47,14 +55,22 @@ export function parseCsv(text: string): { rows: string[][]; lines: number[] } {
       started = true;
       rowLine = line;
     }
-    if (c === '"') quoted = true;
-    else if (c === ',') {
+    if (c === '"' && fieldStart) {
+      quoted = true;
+      quoteLine = line;
+      fieldStart = false;
+    } else if (c === ',') {
       row.push(field);
       field = '';
-    } else field += c;
+      fieldStart = true;
+    } else {
+      field += c;
+      fieldStart = false;
+    }
   }
+  const unterminated = quoted ? quoteLine : null;
   endRow();
-  return { rows, lines };
+  return { rows, lines, unterminated };
 }
 
 const needsQuotes = /[,"\r\n]/;

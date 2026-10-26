@@ -109,3 +109,12 @@ test('ties break on calendar, event_id, date', () => {
   expect(compareRows(row({ date: '2026-10-25' }), row({ date: '2026-10-26' }))).toBeLessThan(0);
   expect(compareRows(a, a)).toBe(0);
 });
+
+test('an unclosed quote is a bad line', () => {
+  const { rows, badLines } = parseEventsFile(SAMPLE.replace(',def456\n', ',\"def456\n'));
+  expect(rows.map((r) => r.eventId)).toEqual(['abc123']);
+  expect(badLines).toEqual([3]);
+  const early = parseEventsFile(SAMPLE.replace(',new featureX,', ',"new featureX,'));
+  expect(early.rows).toEqual([]);
+  expect(early.badLines).toEqual([2]);
+});

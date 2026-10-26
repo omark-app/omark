@@ -72,8 +72,10 @@ function allProblems(projects: Project[]): Problem[] {
 
 /** Read projects.csv. Rows with problems stay, so nothing is lost on write. */
 export function parseProjects(text: string): ProjectsFile {
-  const { rows, lines } = parseCsv(text);
-  if (rows.length === 0) return { projects: [], columns: [...PROJECT_COLUMNS], problems: [] };
+  const { rows, lines, unterminated } = parseCsv(text);
+  const quoteProblem: Problem[] =
+    unterminated === null ? [] : [{ line: unterminated, message: `Unclosed quote starting on line ${unterminated}` }];
+  if (rows.length === 0) return { projects: [], columns: [...PROJECT_COLUMNS], problems: quoteProblem };
 
   const header = rows[0]!;
   const columns = [...header];
@@ -110,6 +112,7 @@ export function parseProjects(text: string): ProjectsFile {
     for (const message of problemsOf(project, projects)) problems.push({ line: lines[r]!, message });
     projects.push(project);
   }
+  problems.push(...quoteProblem);
   return { projects, columns, problems };
 }
 

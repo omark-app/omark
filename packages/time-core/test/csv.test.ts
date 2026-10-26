@@ -30,3 +30,19 @@ test('toCsv of nothing is empty and quotes CR', () => {
   expect(toCsv([])).toBe('');
   expect(toCsv([['a\rb']])).toBe('"a\rb"\n');
 });
+
+test('a quote opens a quoted field only at the start of the field', () => {
+  const parsed = parseCsv('ACME,27" monitor work,Acme\nX,Acme "big" client,"a,b"\n');
+  expect(parsed.rows).toEqual([
+    ['ACME', '27" monitor work', 'Acme'],
+    ['X', 'Acme "big" client', 'a,b'],
+  ]);
+  expect(parsed.unterminated).toBeNull();
+});
+
+test('an unclosed quote takes the rest of the input and reports its line', () => {
+  const parsed = parseCsv('a,"b\nc,d\n');
+  expect(parsed.rows).toEqual([['a', 'b\nc,d\n']]);
+  expect(parsed.unterminated).toBe(1);
+  expect(parseCsv('x\ny,z,"q').unterminated).toBe(2);
+});

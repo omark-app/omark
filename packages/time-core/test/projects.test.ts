@@ -196,3 +196,21 @@ test('setting a rate replaces an invalid one', () => {
   expect(g.problems).toEqual([]);
   expect(serializeProjects(g)).toContain('ACME,7,EUR');
 });
+
+test('a quote inside a field is a literal character', () => {
+  const f = parseProjects(
+    'code,description,client,rate,currency,archived\nACME,27" monitor work,Acme,120,EUR,\nOLD,Old client,Old Co,90,PLN,2026-06-30\n',
+  );
+  expect(f.projects.map((p) => p.code)).toEqual(['ACME', 'OLD']);
+  expect(f.projects[0]!.description).toBe('27" monitor work');
+  expect(f.projects[0]!.rate).toBe(120);
+  expect(knownCodes(f.projects).has('OLD')).toBe(true);
+  expect(f.problems).toEqual([]);
+  expect(parseProjects('code,description\nACME,Acme "big" client\n').projects[0]!.description).toBe('Acme "big" client');
+});
+
+test('an unclosed quote is a problem on the line it starts', () => {
+  const f = parseProjects('code,description\nACME,"b\nc,d\n');
+  expect(f.problems).toEqual([{ line: 2, message: 'Unclosed quote starting on line 2' }]);
+  expect(parseProjects('a,"b\nc,d\n').problems).toEqual([{ line: 1, message: 'Unclosed quote starting on line 1' }]);
+});
