@@ -97,14 +97,14 @@
   .c { font: 500 12px var(--sans); color: var(--habit-ink); font-variant-numeric: tabular-nums; }
   .bar { display: block; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--habit) 18%, transparent); }
   .bar > span { display: block; height: 100%; border-radius: 3px; background: var(--habit); }
-  .state { font: 11.5px var(--sans); color: var(--muted); }
-  .state.last { color: var(--danger); }
+  .state { font: 11.5px var(--sans); color: var(--habit-muted); }
+  .state.last { color: var(--habit-danger); }
   .cards { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: none; }
   .card { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; width: 132px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--habit-soft); color: inherit; text-align: left; cursor: pointer; }
   .card.last { border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
   .card .t { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .card .bar { height: 4px; }
-  .s { font: 500 11px var(--sans); color: var(--muted); }
-  .s.last { color: var(--danger); }
-  .s.done { color: var(--good); }
+  .s { font: 500 11px var(--sans); color: var(--habit-muted); }
+  .s.last { color: var(--habit-danger); }
+  .s.done { color: var(--habit-good); }
 </style>

@@ -41,3 +41,29 @@ describe.each(themes)('habit violet, %s', (_, vars, text) => {
     expect(ratio(vars[text]!, vars[bg]!)).toBeGreaterThanOrEqual(4.5);
   });
 });
+
+/** `a` mixed into `b` as `color-mix(in srgb, a p%, b)` does. */
+function mix(a: string, b: string, p: number): string {
+  const ch = (h: string, i: number) => parseInt(h.slice(i, i + 2), 16);
+  return `#${[1, 3, 5].map((i) => Math.round(ch(a, i) * p + ch(b, i) * (1 - p)).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * The text on the phone's habit cards (`--habit-soft`), in the desktop's last-chance tag and on a selected
+ * item of the Habits group (`--sel`) (Final 3).
+ */
+describe.each(themes)('habit card and tag text, %s', (_, vars) => {
+  const tint = (v: Record<string, string>) => mix(v['--danger']!, v['--surface']!, 0.12);
+  it.each([
+    ['--habit-muted', '--habit-soft'],
+    ['--habit-good', '--habit-soft'],
+    ['--habit-danger', '--habit-soft'],
+    ['--habit-danger', 'the --danger 12% tint'],
+    ['--habit-muted', '--sel'],
+    ['--habit-danger', '--sel'],
+  ])('%s on %s is at least 4.5:1', (text, bg) => {
+    expect(vars[text], `${text} defined`).toBeDefined();
+    const back = bg.startsWith('the') ? tint(vars) : vars[bg]!;
+    expect(ratio(vars[text]!, back)).toBeGreaterThanOrEqual(4.5);
+  });
+});

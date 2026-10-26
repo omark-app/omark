@@ -86,7 +86,7 @@
   .task.habit .check:hover { border-color: var(--habit); background: color-mix(in srgb, var(--habit) 15%, transparent); }
   .task.habit .title { color: var(--habit-ink); font-weight: 500; }
   .htag { margin-left: 8px; padding: 1px 6px; border-radius: 4px; font: 600 11px/1.45 var(--sans); color: var(--muted); white-space: nowrap; }
-  .htag.last { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, var(--surface)); }
+  .htag.last { color: var(--habit-danger); background: color-mix(in srgb, var(--danger) 12%, var(--surface)); }
   .hcount { color: var(--habit-ink); }
   .hbar { display: inline-block; width: 44px; height: 4px; margin: 0 6px; border-radius: 2px; background: color-mix(in srgb, var(--habit) 20%, var(--surface)); vertical-align: middle; overflow: hidden; }
   .hbar span { display: block; height: 4px; background: var(--habit); }
