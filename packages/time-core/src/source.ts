@@ -46,7 +46,7 @@ export interface CalendarSource {
   listCalendars(): Promise<CalendarInfo[]>;
   /** Every page. A null token is a full read. Throws SyncTokenExpiredError (Google: 410). */
   readChanges(calendarId: string, syncToken: string | null): Promise<ChangesResult>;
-  /** Instances starting in [from, to), RFC 3339 instants; no sync token. */
+  /** Instances overlapping [from, to), RFC 3339 instants (Google's timeMin/timeMax); no sync token. */
   readRange(calendarId: string, from: string, to: string): Promise<CalendarEvent[]>;
   colourIds(): Promise<Record<TrackerColour, string>>;
   /** Throws EditAccessRequiredError when the sign-in has read-only access. */

@@ -65,7 +65,13 @@ ${row.date}`) ?? {}) } });
   return finish(files, next);
 }
 
-/** Set `known` on every row from the current project codes. The input is not changed. */
+/**
+ * Set `known` on every row from the current project codes. The input is not
+ * changed. It only flips `known` on rows that exist: when the set of known
+ * codes changes, events titled with a bare code (`OOO`, no `;`) gain or lose
+ * rows and colours too, so the caller must also re-read the window (readRange
+ * from track_from to the window end) and run applyChanges and colourPlan on it.
+ */
 export function recheckKnown(files: YearFiles, knownCodes: ReadonlySet<string>): Result {
   const next = new Map<string, EventRow[]>();
   for (const [year, rows] of files) {
