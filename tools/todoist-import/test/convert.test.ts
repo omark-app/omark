@@ -49,6 +49,7 @@ describe('convertDue', () => {
     expect(r.repeat).toEqual(rule);
     expect(r.warning).toContain(`"${s}"`);
     expect(r.warning).toContain(time);
+    expect(r.warning).toContain('(Omark Tasks has no times)');
     expect(r.warning).toMatch(/time/);
   });
 

@@ -15,7 +15,7 @@ const DAYS: Record<string, number> = {
   thu: 3, thur: 3, thurs: 3, thursday: 3, fri: 4, friday: 4, sat: 5, saturday: 5, sun: 6, sunday: 6,
 };
 
-/** A trailing time of day (`at 7am`, `at 6:00 pm`, `at 18:00`); TaskApp has no times. */
+/** A trailing time of day (`at 7am`, `at 6:00 pm`, `at 18:00`); Omark Tasks has no times. */
 const TIME = /\s+at\s+\d{1,2}(?::\d{2})?\s*(?:[ap]\.?m\.?)?$/i;
 
 /** `{ n }` for an interval above 1, else nothing: N = 1 is the plain weekly / monthly rule. */
@@ -79,7 +79,7 @@ export function convertDue(
   const repeat = rule && parseRepeat(formatRepeat(rule)) ? rule : null;
   let warning: string | null = null;
   if (!repeat) warning = `unsupported repeat "${due.string}" (date kept, no repeat)`;
-  else if (time) warning = `time "${time[0].trim()}" dropped from repeat "${due.string}" (TaskApp has no times)`;
+  else if (time) warning = `time "${time[0].trim()}" dropped from repeat "${due.string}" (Omark Tasks has no times)`;
   return { date, repeat, warning };
 }
 
