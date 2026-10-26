@@ -1,16 +1,10 @@
 import type { DriveRoot } from '@omark/storage';
 import { envForHost, folderFor, hostConfig, lookFor } from './lib/environment.ts';
+import { storageMode } from './storage-mode.ts';
+import type { StorageMode } from './storage-mode.ts';
 
-/**
- * Where the files live. `onedrive` (the default): the signed-in account's OneDrive. `demo`: a drive in this
- * browser's IndexedDB, seeded with sample files, with no sign-in. `fake`: an in-memory drive for the e2e tests.
- */
-export type StorageMode = 'fake' | 'demo' | 'onedrive';
-
-/** Reads `VITE_STORAGE`: `demo` and `fake` as they are, anything else is `onedrive`. */
-export function storageMode(value: unknown): StorageMode {
-  return value === 'demo' || value === 'fake' ? value : 'onedrive';
-}
+export { storageMode } from './storage-mode.ts';
+export type { StorageMode } from './storage-mode.ts';
 
 /** Reads `VITE_REAL_USE_URL`, where the demo's "Use it for real" link goes; unset or blank means omark.app. */
 export function realUseUrl(value: unknown): string {
@@ -18,7 +12,14 @@ export function realUseUrl(value: unknown): string {
   return url === '' ? 'https://omark.app' : url;
 }
 
-export const STORAGE_MODE = storageMode(import.meta.env.VITE_STORAGE);
+declare const __STORAGE_MODE__: StorageMode | undefined;
+/**
+ * This build's storage mode. vite.config.ts writes it in as a literal (`__STORAGE_MODE__`), so the bundler
+ * drops the code of the other modes: a demo build has no sign-in path, a OneDrive build no demo. Under
+ * Vitest, where nothing is written in, it is read from `VITE_STORAGE`.
+ */
+export const STORAGE_MODE: StorageMode =
+  typeof __STORAGE_MODE__ === 'string' ? __STORAGE_MODE__ : storageMode(import.meta.env.VITE_STORAGE);
 export const REAL_USE_URL = realUseUrl(import.meta.env.VITE_REAL_USE_URL);
 /** The hosts and folders this build serves, from its build variables. */
 export const HOSTS = hostConfig(import.meta.env);

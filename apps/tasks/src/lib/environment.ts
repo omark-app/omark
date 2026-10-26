@@ -1,5 +1,5 @@
 import { BRAND } from '../brand.ts';
-import type { StorageMode } from '../env.ts';
+import type { StorageMode } from '../storage-mode.ts';
 
 /**
  * Which environment this page runs in, from its host name (doc/TaskApp factory spec.md, 6.1). The hosts and

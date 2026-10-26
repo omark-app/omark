@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import type { Plugin } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
 import { BRAND } from './src/brand.ts';
+import { storageMode } from './src/storage-mode.ts';
 
 /** The short commit hash shown beside the save status, so it is clear which build a device runs. */
 function buildId(): string {
@@ -40,8 +41,11 @@ function versionFile(build: string, number: number | null): Plugin {
 const BUILD_ID = buildId();
 const BUILD_NUMBER = buildNumber();
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   define: {
+    // The storage mode as a literal (from the shell or a .env file, as Vite reads them), so each build
+    // keeps only its own mode's code (src/env.ts).
+    __STORAGE_MODE__: JSON.stringify(storageMode(loadEnv(mode, import.meta.dirname, 'VITE_').VITE_STORAGE)),
     __BUILD_ID__: JSON.stringify(BUILD_ID),
     __BUILD_NUMBER__: JSON.stringify(BUILD_NUMBER),
     // BUILD_TIME: Promote rebuilding an older commit keeps the date of the build staging ran.
@@ -91,4 +95,4 @@ export default defineConfig({
       },
     }),
   ],
-});
+}));

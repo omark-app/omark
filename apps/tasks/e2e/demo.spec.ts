@@ -149,6 +149,16 @@ test('every request goes to the demo origin, and none to /api/', async ({ page, 
   expect(stray).toEqual([]);
 });
 
+test('the demo bundle has no sign-in path', async ({ request }) => {
+  const html = await (await request.get('/')).text();
+  const scripts = [...html.matchAll(/<script[^>]+src="([^"]+\.js)"/g)].map((m) => m[1]!);
+  expect(scripts.length).toBeGreaterThan(0);
+  for (const src of scripts) {
+    const js = await (await request.get(src)).text();
+    expect(js.includes('api/auth'), `${src} contains api/auth`).toBe(false);
+  }
+});
+
 test('with IndexedDB blocked (private mode) the demo opens in memory with a warning', async ({ page }) => {
   await page.addInitScript(() => {
     IDBFactory.prototype.open = () => {
