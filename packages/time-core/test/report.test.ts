@@ -284,3 +284,26 @@ test('the title is escaped', () => {
   const report = buildReport([row({})], [project({ client: '<Acme>' })], { ...plainOpts, client: '<Acme>' });
   expect(reportToMarkdown(report).startsWith('# \\<Acme\\>: ')).toBe(true);
 });
+
+function minutes(n: number, count: number): EventRow[] {
+  return Array.from({ length: count }, (_, i) => {
+    const date = `2026-10-${String(i + 1).padStart(2, '0')}`;
+    const end = `${date}T09:${String(n).padStart(2, '0')}+00:00`;
+    return row({ eventId: `m${i}`, category: 'Dev', date, start: `${date}T09:00+00:00`, end, hours: Math.round((n / 60) * 10000) / 10000 });
+  });
+}
+
+test('totals add exact seconds: 3 × 20 minutes bill one hour', () => {
+  for (const rounding of [0, 5] as const) {
+    const r = buildReport(minutes(20, 3), [project({})], { ...plainOpts, rounding });
+    expect(r.hours).toBe(1);
+    expect(r.projects[0]!.hours).toBe(1);
+    expect(r.projects[0]!.categories[0]!.hours).toBe(1);
+    expect(r.projects[0]!.categories[0]!.lines[0]!.hours).toBe(0.3333);
+    expect(r.projects[0]!.money).toEqual({ amount: 120, currency: 'EUR' });
+    expect(r.money).toEqual([{ amount: 120, currency: 'EUR' }]);
+  }
+  const six = buildReport(minutes(10, 6), [project({})], plainOpts);
+  expect(six.hours).toBe(1);
+  expect(six.projects[0]!.money).toEqual({ amount: 120, currency: 'EUR' });
+});

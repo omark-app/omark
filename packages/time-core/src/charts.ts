@@ -1,7 +1,7 @@
 // Weekly series for the hours charts.
 import { groupCategories } from './categories.ts';
 import type { WeekStart } from './config.ts';
-import { roundHours } from './hours.ts';
+import { rowSeconds, secondsToHours } from './hours.ts';
 import { compareText, type EventRow } from './rows.ts';
 import { inRange, isDone, weekStartOf, type DateRange } from './summary.ts';
 import { addDays, daysBetween } from './zone.ts';
@@ -25,9 +25,9 @@ function hoursPerWeek(rows: EventRow[], weeks: string[], weekStart: WeekStart): 
   const sums = weeks.map(() => 0);
   for (const r of rows) {
     const i = daysBetween(first, weekStartOf(r.date, weekStart)) / 7;
-    if (i >= 0 && i < sums.length) sums[i]! += r.hours;
+    if (i >= 0 && i < sums.length) sums[i]! += rowSeconds(r);
   }
-  return sums.map(roundHours);
+  return sums.map(secondsToHours);
 }
 
 const total = (hours: number[]) => hours.reduce((a, b) => a + b, 0);

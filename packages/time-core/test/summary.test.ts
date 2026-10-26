@@ -130,7 +130,7 @@ test('range edges and unknown hours', () => {
 
 test('hours are added up, then rounded', () => {
   const thirds = [1, 2, 3].map(() => row({ hours: 0.3333 }));
-  expect(summarise(thirds, WEEK, NOW).done).toBe(0.9999);
+  expect(summarise(thirds, WEEK, NOW).done).toBe(1);
   const s = summarise([row({ hours: 0.1 }), row({ hours: 0.2 })], WEEK, NOW);
   expect(s.done).toBe(0.3);
   expect(s.projects[0]!.done).toBe(0.3);
@@ -140,4 +140,14 @@ test('hours are added up, then rounded', () => {
 test('groupCategories tie goes to the smaller spelling in either order', () => {
   expect(groupCategories([row({ category: 'B' }), row({ category: 'b' })]).get('b')!.name).toBe('B');
   expect(groupCategories([row({ category: 'b' }), row({ category: 'B' })]).get('b')!.name).toBe('B');
+});
+
+test('summarise adds exact seconds: 3 × 20 minutes is one hour', () => {
+  const rows = [0, 1, 2].map((i) =>
+    row({ eventId: `t${i}`, start: `2026-10-26T0${i + 1}:00+00:00`, end: `2026-10-26T0${i + 1}:20+00:00`, hours: 0.3333 }),
+  );
+  const s = summarise(rows, WEEK, NOW);
+  expect(s.done).toBe(1);
+  expect(s.projects[0]!.done).toBe(1);
+  expect(s.projects[0]!.categories[0]!.done).toBe(1);
 });

@@ -2,7 +2,7 @@
 import { groupCategories } from './categories.ts';
 import { toCsv } from './csv.ts';
 import { compareRows, EVENT_COLUMNS } from './events-file.ts';
-import { formatHours, roundHours } from './hours.ts';
+import { formatHours, rowSeconds, secondsToHours } from './hours.ts';
 import type { Project } from './projects.ts';
 import { compareText, type EventRow } from './rows.ts';
 import { inRange, isDone } from './summary.ts';
@@ -48,16 +48,27 @@ export interface Report {
   money: Money[];
 }
 
-const sum = (xs: number[]) => roundHours(xs.reduce((a, b) => a + b, 0));
+const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+
+/** Seconds rounded up to the next `minutes`; 0 leaves them alone. */
+function roundUpSeconds(seconds: number, minutes: Rounding): number {
+  if (minutes === 0) return seconds;
+  const step = minutes * 60;
+  return Math.ceil(seconds / step) * step;
+}
 
 /**
- * Hours rounded up to the next `minutes`; 0 leaves them alone. Hours are
- * stored at 4 decimals (error under 0.003 minutes), so 0.005 minutes of slack
- * stops an exact 10 minutes from billing as 15.
+ * Hours rounded up to the next `minutes`; 0 leaves them alone. Works on whole
+ * seconds, so hours stored at 4 decimals (0.1667) still round as 10 minutes.
  */
 export function roundUp(hours: number, minutes: Rounding): number {
   if (minutes === 0) return hours;
-  return roundHours((Math.ceil((hours * 60 - 0.005) / minutes) * minutes) / 60);
+  return secondsToHours(roundUpSeconds(Math.round(hours * 3600), minutes));
+}
+
+/** A row's billed seconds: its exact length rounded up to the next `minutes`. */
+function billedSeconds(row: EventRow, minutes: Rounding): number {
+  return roundUpSeconds(rowSeconds(row), minutes);
 }
 
 function codesOf(opts: ReportOptions): string[] {
@@ -82,9 +93,9 @@ function select(rows: EventRow[], projects: Project[], opts: ReportOptions): Eve
     .sort(compareRows);
 }
 
-function money(project: Project | undefined, hours: number): Money | null {
+function money(project: Project | undefined, seconds: number): Money | null {
   if (!project || project.rate === null || project.currency === '') return null;
-  const cents = Math.round(Number((project.rate * hours * 100).toPrecision(12)));
+  const cents = Math.round(Number(((project.rate * seconds) / 3600 * 100).toPrecision(12)));
   return { amount: cents / 100, currency: project.currency };
 }
 
@@ -102,30 +113,34 @@ export function buildReport(rows: EventRow[], projects: Project[], opts: ReportO
     else byProject.set(r.project, [r]);
   }
   const out: ReportProject[] = [];
+  let totalSeconds = 0;
   for (const [code, list] of byProject) {
     const info = projects.find((p) => p.code === code);
+    let projectSeconds = 0;
     const categories: ReportCategory[] = [...groupCategories(list).values()].map((g) => {
       const lines = g.rows.map((r) => ({
         date: r.date,
         start: r.start,
-        hours: roundUp(r.hours, opts.rounding),
+        seconds: billedSeconds(r, opts.rounding),
         description: r.description,
       }));
       lines.sort((a, b) => compareText(a.date, b.date) || parseInstant(a.start) - parseInstant(b.start));
+      const seconds = sum(lines.map((l) => l.seconds));
+      projectSeconds += seconds;
       return {
         name: g.name,
-        hours: sum(lines.map((l) => l.hours)),
-        lines: lines.map(({ date, hours, description }) => ({ date, hours, description })),
+        hours: secondsToHours(seconds),
+        lines: lines.map(({ date, seconds, description }) => ({ date, hours: secondsToHours(seconds), description })),
       };
     });
     categories.sort(byCategoryName);
-    const hours = sum(categories.map((c) => c.hours));
+    totalSeconds += projectSeconds;
     out.push({
       code,
       description: info?.description ?? '',
       client: info?.client ?? '',
-      hours,
-      money: money(info, hours),
+      hours: secondsToHours(projectSeconds),
+      money: money(info, projectSeconds),
       categories,
     });
   }
@@ -140,7 +155,7 @@ export function buildReport(rows: EventRow[], projects: Project[], opts: ReportO
   const totals = [...perCurrency]
     .map(([currency, cents]) => ({ amount: cents / 100, currency }))
     .sort((a, b) => compareText(a.currency, b.currency));
-  return { options: opts, projects: out, hours: sum(out.map((p) => p.hours)), money: totals };
+  return { options: opts, projects: out, hours: secondsToHours(totalSeconds), money: totals };
 }
 
 /** Text from calendar events or files, safe inside one Markdown line. */
@@ -199,7 +214,7 @@ export function reportToCsv(rows: EventRow[], projects: Project[], opts: ReportO
       r.date,
       r.start,
       r.end,
-      formatHours(roundUp(r.hours, opts.rounding)),
+      formatHours(secondsToHours(billedSeconds(r, opts.rounding))),
       safeCell(r.project),
       safeCell(r.category),
       safeCell(r.description),

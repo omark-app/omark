@@ -1,7 +1,7 @@
 // Date ranges and the hours summary.
 import { groupCategories } from './categories.ts';
 import type { WeekStart } from './config.ts';
-import { roundHours } from './hours.ts';
+import { rowSeconds, secondsToHours } from './hours.ts';
 import { compareText, type EventRow } from './rows.ts';
 import { addDays, parseInstant, weekday } from './zone.ts';
 
@@ -75,14 +75,15 @@ export interface Summary {
   unknown: number;
 }
 
+/** Done and planned hours, added up in seconds. */
 function split(rows: EventRow[], nowMs: number): { done: number; planned: number } {
   let done = 0;
   let planned = 0;
   for (const r of rows) {
-    if (isDone(r, nowMs)) done += r.hours;
-    else planned += r.hours;
+    if (isDone(r, nowMs)) done += rowSeconds(r);
+    else planned += rowSeconds(r);
   }
-  return { done, planned };
+  return { done: secondsToHours(done), planned: secondsToHours(planned) };
 }
 
 /** Hours per project and category inside the range. */
@@ -100,17 +101,17 @@ export function summarise(rows: EventRow[], range: DateRange, nowMs: number): Su
     const categories = [...groupCategories(list).values()]
       .map((g) => {
         const s = split(g.rows, nowMs);
-        return { name: g.name, done: roundHours(s.done), planned: roundHours(s.planned) };
+        return { name: g.name, ...s };
       })
       .sort((a, b) => {
         if ((a.name === '') !== (b.name === '')) return a.name === '' ? 1 : -1;
         return b.done + b.planned - (a.done + a.planned) || compareText(a.name, b.name);
       });
     const s = split(list, nowMs);
-    projects.push({ code, done: roundHours(s.done), planned: roundHours(s.planned), categories });
+    projects.push({ code, ...s, categories });
   }
   projects.sort((a, b) => b.done + b.planned - (a.done + a.planned) || compareText(a.code, b.code));
   const all = split(known, nowMs);
-  const unknown = inside.filter((r) => !r.known).reduce((sum, r) => sum + r.hours, 0);
-  return { projects, done: roundHours(all.done), planned: roundHours(all.planned), unknown: roundHours(unknown) };
+  const unknown = inside.filter((r) => !r.known).reduce((sum, r) => sum + rowSeconds(r), 0);
+  return { projects, ...all, unknown: secondsToHours(unknown) };
 }

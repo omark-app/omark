@@ -104,3 +104,10 @@ test('a row dated exactly on `to` is counted, and sums are rounded', () => {
   const s = weeklyByProject(r, range, 'monday', now);
   expect(s.series[0]!.hours).toEqual([0, 0, 1.3]);
 });
+
+test('weekly hours add exact seconds', () => {
+  const thirds = [0, 1, 2].map((i) =>
+    row({ eventId: `t${i}`, date: '2026-10-27', start: `2026-10-27T0${i + 1}:00+00:00`, end: `2026-10-27T0${i + 1}:20+00:00`, hours: 0.3333 }),
+  );
+  expect(weeklyByProject(thirds, range, 'monday', now).series[0]!.hours).toEqual([1, 0, 0]);
+});

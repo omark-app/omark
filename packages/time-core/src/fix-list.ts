@@ -1,6 +1,6 @@
 // The fix list: unknown codes and overlapping days.
 import { compareRows } from './events-file.ts';
-import { roundHours } from './hours.ts';
+import { rowSeconds, secondsToHours } from './hours.ts';
 import { compareText, keyOf, type EventRow } from './rows.ts';
 import { formatTitle } from './title.ts';
 import { parseInstant } from './zone.ts';
@@ -44,7 +44,7 @@ function unknownEvents(rows: EventRow[]): UnknownEvent[] {
       code: first.project,
       title: formatTitle({ code: first.project, category: first.category, description: first.description }),
       dates: sorted.map((r) => r.date),
-      hours: roundHours(sorted.reduce((sum, r) => sum + r.hours, 0)),
+      hours: secondsToHours(sorted.reduce((sum, r) => sum + rowSeconds(r), 0)),
     });
   }
   return out.sort(

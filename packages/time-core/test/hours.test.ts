@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { formatHours, hoursBetween, roundHours } from '../src/hours.ts';
+import { formatHours, hoursBetween, roundHours, rowSeconds } from '../src/hours.ts';
 
 test('formats hours with up to 4 decimals and no trailing zeros', () => {
   expect(formatHours(1.5)).toBe('1.5');
@@ -22,4 +22,14 @@ test('rounds to 4 decimals and measures between instants', () => {
   expect(roundHours(0.12345)).toBe(0.1235);
   expect(hoursBetween(0, 20 * 60_000)).toBe(0.3333);
   expect(hoursBetween(0, 90 * 60_000)).toBe(1.5);
+});
+
+test('rowSeconds recovers whole seconds from 4-decimal hours', () => {
+  expect(rowSeconds({ hours: 0.3333 })).toBe(1200);
+  expect(rowSeconds({ hours: 0.1667 })).toBe(600);
+  expect(rowSeconds({ hours: 4 })).toBe(14400);
+  expect(rowSeconds({ hours: 8 })).toBe(28800);
+  // 1 h 0 min 1 s and 7 min 31 s, as eventToRows writes them
+  expect(rowSeconds({ hours: hoursBetween(0, 3601_000) })).toBe(3601);
+  expect(rowSeconds({ hours: hoursBetween(0, 451_000) })).toBe(451);
 });
