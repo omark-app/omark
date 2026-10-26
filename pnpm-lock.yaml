@@ -94,6 +94,9 @@ importers:
 
   packages/tasks-core:
     dependencies:
+      '@omark/settings':
+        specifier: workspace:*
+        version: link:../settings
       node-diff3:
         specifier: ^3.2.1
         version: 3.2.1

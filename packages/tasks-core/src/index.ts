@@ -12,6 +12,7 @@ export * from './drop.ts';
 export * from './stats.ts';
 export * from './merge.ts';
 export * from './config.ts';
+export * from './settings-schema.ts';
 export * from './board.ts';
 export * from './search.ts';
 export * from './quick-add.ts';
