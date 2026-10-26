@@ -51,8 +51,8 @@ describe('mergeSettings', () => {
   });
 
   it('keeps the remote when any side does not parse, unless the remote is the base', () => {
-    expect(mergeSettings(demo, 'delay: [\n', 'delay: 2\n', 'delay: 3\n')).toMatchObject({ text: 'delay: 3\n', dropped: true });
-    expect(mergeSettings(demo, 'delay: 1\n', 'delay: [\n', 'delay: 3\n')).toMatchObject({ text: 'delay: 3\n', dropped: true });
+    expect(mergeSettings(demo, 'delay: [\n', 'delay: 2\n', 'delay: 3\n')).toMatchObject({ text: 'delay: 3\n', dropped: 'unsafe' });
+    expect(mergeSettings(demo, 'delay: 1\n', 'delay: [\n', 'delay: 3\n')).toMatchObject({ text: 'delay: 3\n', dropped: 'unsafe' });
     expect(mergeSettings(demo, 'delay: 1\n', 'delay: [\n', 'delay: 1\n')).toEqual({ text: 'delay: [\n', conflicts: [], dropped: false });
   });
 
@@ -60,9 +60,9 @@ describe('mergeSettings', () => {
     expect(mergeSettings(demo, 'delay: 1\n', 'delay: 2\ntheme: dark\n', 'delay: [\n')).toEqual({
       text: 'delay: [\n',
       conflicts: [theme, delay],
-      dropped: true,
+      dropped: 'remote-broken',
     });
-    expect(mergeSettings(demo, 'delay: 1\n', 'delay: 2\n', '- a\n')).toEqual({ text: '- a\n', conflicts: [delay], dropped: true });
+    expect(mergeSettings(demo, 'delay: 1\n', 'delay: 2\n', '- a\n')).toEqual({ text: '- a\n', conflicts: [delay], dropped: 'remote-broken' });
   });
 
   it('keeps an unknown key in the remote and local\'s change too', () => {
@@ -82,9 +82,17 @@ describe('mergeSettings', () => {
     });
   });
 
+  it('keeps a remote with two reader errors when local fixes the first one', () => {
+    expect(mergeSettings(demo, 'delay: 1\n', 'delay: 2\n', 'delay: -3\nnewer: 5\n')).toEqual({
+      text: 'delay: 2\nnewer: 5\n',
+      conflicts: [delay],
+      dropped: false,
+    });
+  });
+
   it('keeps the remote when a change cannot be written into it safely', () => {
     const remote = 'habits:\n  goal: &g 5\n  misses: *g\n';
-    expect(mergeSettings(demo, '', 'habits:\n  goal: 6\n', remote)).toEqual({ text: remote, conflicts: [goal], dropped: true });
+    expect(mergeSettings(demo, '', 'habits:\n  goal: 6\n', remote)).toEqual({ text: remote, conflicts: [goal], dropped: 'unsafe' });
   });
 
   it('returns local when the merged text would not read', () => {

@@ -5,12 +5,18 @@ import type { Field, Path, Schema, SettingsError } from './schema.ts';
 import { readSettings } from './read.ts';
 import { setSetting } from './write.ts';
 
+/**
+ * Why local's changes were not applied (`text` is then the remote, as it was):
+ * `remote-broken`, the remote does not parse; `unsafe`, the base or local does not parse,
+ * or a change could not be written into the remote safely.
+ */
+export type Dropped = false | 'remote-broken' | 'unsafe';
+
 export interface MergeResult {
   text: string;
   /** Settings both sides changed differently; when `dropped`, every setting local changed. */
   conflicts: Field[];
-  /** True when local's changes could not be applied: `text` is the remote, as it was. */
-  dropped: boolean;
+  dropped: Dropped;
 }
 
 function parses(text: string): boolean {
@@ -43,8 +49,9 @@ const sameError = (a: SettingsError, b: SettingsError | null): boolean => b !== 
 /**
  * Three-way merge of config texts, one setting at a time. Starts from `remote` and
  * applies what `local` changed since `base`. If both changed a setting differently, local wins.
- * A remote text is never replaced by local's, except when the merge itself would add an error:
- * if a side does not parse or a change cannot be written, the remote is kept and `dropped` is true.
+ * A remote text is never replaced by local's, except when the remote reads clean and the merge
+ * would add an error. If a side does not parse or a change cannot be written, the remote is kept
+ * and `dropped` says why.
  */
 export function mergeSettings(schema: Schema, base: string, local: string, remote: string): MergeResult {
   if (local === base) return { text: remote, conflicts: [], dropped: false };
@@ -54,12 +61,13 @@ export function mergeSettings(schema: Schema, base: string, local: string, remot
   const l = docOf(local);
   const r = docOf(remote);
   const fields = allFields(schema);
-  const keepRemote = (): MergeResult => ({
+  const keepRemote = (dropped: Dropped): MergeResult => ({
     text: remote,
     conflicts: fields.filter((f) => leaves(f).some((p) => rawAt(b, p) !== rawAt(l, p))),
-    dropped: true,
+    dropped,
   });
-  if (!parses(base) || !parses(local) || !parses(remote)) return keepRemote();
+  if (!parses(remote)) return keepRemote('remote-broken');
+  if (!parses(base) || !parses(local)) return keepRemote('unsafe');
 
   let text = remote;
   const conflicts: Field[] = [];
@@ -83,12 +91,13 @@ export function mergeSettings(schema: Schema, base: string, local: string, remot
       if (localChanged && remoteChanged) bothChanged.push(field);
     }
   } catch {
-    return keepRemote();
+    return keepRemote('unsafe');
   }
-  // Two edits that are fine alone can clash together (one key on two commands). An error the
-  // remote or local already had (a key from a newer build, say) is not the merge's doing.
+  // Two edits that are fine alone can clash together (one key on two commands). If the remote
+  // already had an error (a key from a newer build, say), the merged text keeps it, errors and all:
+  // the reader stops at the first error, so a later one can't be told from one the merge made.
   const error = readSettings(schema, text).error;
-  if (error && !sameError(error, readSettings(schema, remote).error) && !sameError(error, readSettings(schema, local).error)) {
+  if (error && !readSettings(schema, remote).error && !sameError(error, readSettings(schema, local).error)) {
     return { text: local, conflicts: bothChanged, dropped: false };
   }
   return { text, conflicts, dropped: false };
