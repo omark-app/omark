@@ -120,11 +120,16 @@ describe('createAuth (sign-in helper)', () => {
     expect(api.fetch).not.toHaveBeenCalled();
   });
 
-  it('signIn with a provider navigates to /api/auth/login?provider=<id>', async () => {
+  it('signIn with a provider other than the default navigates to /api/auth/login?provider=<id>', async () => {
     await mk(undefined, BOTH).signIn('google');
     expect(navigate).toHaveBeenCalledWith('/api/auth/login?provider=google');
+  });
+
+  it('signIn with the default provider keeps the plain /api/auth/login, as before', async () => {
     await mk(undefined, BOTH).signIn('microsoft');
-    expect(navigate).toHaveBeenLastCalledWith('/api/auth/login?provider=microsoft');
+    expect(navigate).toHaveBeenLastCalledWith('/api/auth/login');
+    await mk().signIn('microsoft');
+    expect(navigate).toHaveBeenLastCalledWith('/api/auth/login');
   });
 
   it('signIn without a provider uses the one last seen signed in, else the default', async () => {

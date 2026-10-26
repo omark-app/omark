@@ -125,8 +125,8 @@ export function createAuth(opts: AuthOptions): Auth {
       // A top-level navigation: the helper redirects to the provider and back to /api/auth/callback, which
       // returns to / (in an iOS home-screen app's scope). The helper adds the last account as login_hint.
       const id = provider ?? signedInProvider() ?? defaultProvider;
-      // Without a choice, the default keeps the plain URL.
-      navigate(provider === undefined && id === defaultProvider ? `${BASE}/login` : `${BASE}/login?provider=${encodeURIComponent(id)}`);
+      // The default keeps the plain URL (as before there were several providers), chosen or not.
+      navigate(id === defaultProvider ? `${BASE}/login` : `${BASE}/login?provider=${encodeURIComponent(id)}`);
     },
     async getToken(o) {
       if (!o?.fresh && cached && cached.expiresAt - RENEW_BEFORE_MS > now()) return cached.accessToken;
