@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { envForHost, folderFor, hostConfig, legacyCacheApplies, lookFor } from './environment.ts';
+import {
+  cacheName,
+  envForHost,
+  folderFor,
+  googleFolderFor,
+  hostConfig,
+  legacyCacheApplies,
+  lookFor,
+  STORAGE_NAMES,
+} from './environment.ts';
 
 const CFG = hostConfig({
   VITE_PROD_HOST: 'tasks.example.test',
@@ -78,6 +87,32 @@ describe('folderFor', () => {
     });
     expect(folderFor(envForHost('tasks.alipka.com', BRIDGE), '', BRIDGE)).toBe('ALAI/TaskApp');
     expect(folderFor(envForHost('taskapp-64g.pages.dev', BRIDGE), '', BRIDGE)).toBe('ALAI/TaskApp-staging');
+  });
+});
+
+describe('googleFolderFor', () => {
+  it.each([
+    ['production', 'Other', 'Omark Tasks'],
+    ['staging', 'Other', 'Omark Tasks Staging'],
+    ['preview', 'Other', 'Other'],
+    ['local', 'Other', 'Other'],
+    ['preview', '', 'Omark Tasks Dev'],
+    ['local', '', 'Omark Tasks Dev'],
+  ] as const)('%s with build folder %j is %j', (env, build, folder) => {
+    expect(googleFolderFor(env, build)).toBe(folder);
+  });
+});
+
+describe('cacheName', () => {
+  it('keeps the OneDrive name of today and gives Google Drive its own', () => {
+    expect(cacheName('microsoft', 'Dev/Tasks')).toBe('taskapp:Dev/Tasks');
+    expect(cacheName('google', 'Dev/Tasks')).toBe('taskapp:google:Dev/Tasks');
+  });
+  it('never shares a cache between the two storages for the same folder', () => {
+    expect(cacheName('google', 'Omark Tasks')).not.toBe(cacheName('microsoft', 'Omark Tasks'));
+  });
+  it('names each storage', () => {
+    expect(STORAGE_NAMES).toEqual({ microsoft: 'OneDrive', google: 'Google Drive' });
   });
 });
 

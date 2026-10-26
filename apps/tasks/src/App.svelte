@@ -104,8 +104,8 @@
     else if (selectedId !== search.viewing) search.close(false);
   });
 
-  const loseEdits = (doing: string): string =>
-    `You have changes that aren't saved to OneDrive yet. ${doing} will lose them. Continue?`;
+  const loseEdits = (doing: string, storageName = 'OneDrive'): string =>
+    `You have changes that aren't saved to ${storageName} yet. ${doing} will lose them. Continue?`;
 
   /**
    * Signs in by redirect, which leaves the page. Pending edits go to the cache first; if some would

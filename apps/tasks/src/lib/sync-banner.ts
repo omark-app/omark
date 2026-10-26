@@ -18,18 +18,24 @@ export function sinceText(at: Date, now: Date): string {
 /**
  * The banner for a sync that is not fine, or null when the faint status word says enough: `saved`, and
  * `syncing` until it has lasted `QUIET_SYNC_MS` (`slow`). `syncedAt` is when this device last had every
- * file in step with OneDrive; the list on screen is that copy plus edits made since.
+ * file in step with the storage (`storageName`); the list on screen is that copy plus edits made since.
  */
-export function bannerText(status: SyncStatus, slow: boolean, syncedAt: Date | null, now: Date): string | null {
+export function bannerText(
+  status: SyncStatus,
+  slow: boolean,
+  syncedAt: Date | null,
+  now: Date,
+  storageName = 'OneDrive',
+): string | null {
   const since = syncedAt ? ` since ${sinceText(syncedAt, now)}` : '';
   switch (status) {
     case 'saved':
       return null;
     case 'syncing':
-      return slow ? `Still reaching OneDrive — showing your last saved copy${since ? ` (synced${since})` : ''}` : null;
+      return slow ? `Still reaching ${storageName} — showing your last saved copy${since ? ` (synced${since})` : ''}` : null;
     case 'offline':
-      return `Can't reach OneDrive${since} — showing your last saved copy`;
+      return `Can't reach ${storageName}${since} — showing your last saved copy`;
     case 'signin':
-      return `Sign in again to reach OneDrive${since} — showing your last saved copy`;
+      return `Sign in again to reach ${storageName}${since} — showing your last saved copy`;
   }
 }

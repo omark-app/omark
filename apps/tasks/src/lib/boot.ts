@@ -50,8 +50,8 @@ export type BootResult =
 
 const PHONE_QUERY = '(max-width: 719.98px)';
 
-export const CACHE_WARNING =
-  'This browser blocks offline storage (private browsing?). Changes are saved to OneDrive but not kept offline.';
+export const cacheWarning = (storageName = 'OneDrive'): string =>
+  `This browser blocks offline storage (private browsing?). Changes are saved to ${storageName} but not kept offline.`;
 
 /** What the store is told about its cache: a warning to show, and whether it survives a reload. */
 interface CacheInfo {
@@ -177,7 +177,7 @@ async function openCache(): Promise<{ cache: LocalCache } & CacheInfo> {
     cache = new IdbCache(`taskapp:${ONEDRIVE_FOLDER}`);
     await cache.get('tasks.md');
   } catch {
-    return { cache: new MemoryCache(), cacheWarning: CACHE_WARNING, durableCache: false };
+    return { cache: new MemoryCache(), cacheWarning: cacheWarning(), durableCache: false };
   }
   await migrateLegacyCache(cache);
   // Ask the browser not to evict the cache under storage pressure (it may hold unsynced edits).
