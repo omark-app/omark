@@ -64,7 +64,7 @@ Build-in-public posts on LinkedIn can start here.
 | 3.6 | AL: cutover to `tasks.omark.app` (spec 6.5.1, checklist in `doc/history/`) | 6.5.1 | — | 3.4 |
 | 3.7 | Remove the bridge: drive-root scope option, the old hosts and folders, the legacy-cache migration, old tests; the spec's `grep` is clean | 6.1 | large, Plan | 3.6 |
 | 3.8 | Google provider in `@omark/signin` and a shared `GoogleDriveAdapter` (`drive.file`), after checking conditional writes and desktop-edit file ids; Tasks can use Google Drive | 6.4.1 | large, Plan | 2.8, 3.9 |
-| 3.9 | AL: verify `omark.app` in Google Search Console; Google Cloud projects "Omark Tasks" and "Omark Tasks Staging" (consent screen, Web OAuth client, secrets in Pages); brand verification | 6.4.1, 8 | — | 2.2 |
+| 3.9 | AL: verify `omark.app` in Google Search Console; Google Cloud projects "Omark Tasks" and "Omark Tasks Staging" (consent screen, Web OAuth client, secrets in Pages); brand verification. *Search Console and the staging project done 2026-10-26 (in Testing until 2.2 is live)* | 6.4.1, 8 | — | 2.2 |
 
 ## Milestone T: Omark Time
 
@@ -72,8 +72,8 @@ Builds [the Omark Time spec](../Omark%20Time%20spec.md). It runs alongside miles
 
 | # | Workstream | Spec | Size | Depends on |
 |---|---|---|---|---|
-| T.1 | AL: Google Cloud project "Omark Time Staging" (published, unverified) and a test Google account with a test calendar | Time 10.3, 17 | — | 3.9 |
-| T.2 | Spike (throwaway): colour patch on an invite with `calendar.events.owned`, invites on the primary calendar, recurring instances in incremental sync, the green and red ids, read-only sync with `calendar.events.owned.readonly`; findings into the Time spec; then the milestone plan | Time 15 | small, then Plan | T.1 |
+| T.1 | AL: Google Cloud project "Omark Time Staging" (published, unverified) and a test Google account with a test calendar. *Staging project and client done 2026-10-26 (in Testing until 2.2 is live); `hello@omark.app` doubles as the test account* | Time 10.3, 17 | — | 3.9 |
+| T.2 | Spike (throwaway): colour patch on an invite with `calendar.events.owned`, invites on the primary calendar, recurring instances in incremental sync, the green and red ids, read-only sync with `calendar.events.owned.readonly`; findings into the Time spec; then the milestone plan. *Spike done 2026-10-26 (Time 15.1); the plan waits for 2.8* | Time 15 | small, then Plan | T.1 |
 | T.3 | `packages/time-core`: title parser, event → rows (window, midnight split, all-day, declined, overlaps, time zone), colour decision, CSV and YAML, projects and config models, summaries, chart series, reports | Time 5–7, 9 | large, Plan | T.2 |
 | T.4 | `packages/calendar`: `CalendarSource` interface, Google implementation (calendar list, incremental sync, colour patch with throttling), fake calendar, shared contract test | Time 8, 13 | large, Plan | T.2, 3.8 |
 | T.5 | `apps/time` shell: Google sign-in, first run, storage choice (Google Drive, OneDrive, local folder), sync and colouring loop, rebuild, offline cache; staging at `staging-time.omark.app` | Time 4, 7, 8, 10 | large, Plan | T.3, T.4, 3.1, 3.8 |

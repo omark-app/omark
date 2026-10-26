@@ -1,6 +1,6 @@
 # Omark Time spec
 
-Status: approved by AL, 2026-10-22. Agreed in the time tracker brainstorm the same day. Changed 2026-10-26 (AL): colouring is opt-in, so the default sign-in is read-only.
+Status: approved by AL, 2026-10-22. Agreed in the time tracker brainstorm the same day. Changed 2026-10-26 (AL): colouring is opt-in, so the default sign-in is read-only. Spike findings added 2026-10-26 (T.2, section 15.1).
 Source: AL's vision note "Omark vision update" (2026-10-22). Related: [open source launch spec](TaskApp%20open%20source%20launch%20spec.md) (the suite, the monorepo, the launch), [roadmap](plans/open-source-launch-roadmap.md) (milestone T builds this).
 
 Calls marked *(my call)* were made by Claude during the brainstorm, not by AL; section 16 lists them for checking.
@@ -125,8 +125,9 @@ Category is stored as typed. Summaries and charts group categories ignoring case
 
 **The window.** The tracker reads, colours and writes rows only for events that start between the "track from" date in settings and **90 days ahead** of today. Older events are never coloured.
 
-- Google's sync tokens can't be limited to a window, so the full read filters locally.
-- Recurring events are read as single instances.
+- Google's sync tokens can't be limited to a window, so the full read filters locally. (Confirmed: a sync token with `timeMin` is refused with 400.)
+- Recurring events are read as single instances (`singleEvents=true`). Each instance has its own id, `recurringEventId` and `originalStartTime`.
+- Renaming a series makes the next incremental read return all its instances. A deleted instance comes back as `cancelled` with no title, so rows are found by event id.
 - As days pass, each sync also reads the days that newly entered the 90-day window, because an unchanged event there would not appear in the incremental changes.
 
 *(The window: my call.)*
@@ -235,11 +236,11 @@ With colouring on:
 - **Red** (colour 11, "Tomato") for a structured event with an unknown code.
 - **Left alone** when the event is not structured. If the tracker coloured it before, it clears the colour back to the calendar default.
 
-**Which ids mean green and red** is checked against `colors.get` at run time.
+**Which ids mean green and red** is checked against `colors.get` at run time. On 2026-10-26 it returned 10 = `#51b749` and 11 = `#dc2127`.
 
 **The tracker writes only `colorId`**, plus a private extended property (`omarkTime` = `green` or `red`) that marks which colours it set. It never changes any other field.
 
-**Invites.** For events organised by someone else, the patch touches only the user's copy. A spike confirms this before the build (section 15).
+**Invites.** For events organised by someone else, the patch touches only the user's copy. The spike confirmed it (section 15.1): `calendar.events.owned` may patch an invite on the primary calendar, and the organiser's copy keeps its colour. The title, time, guest list and replies stayed the same. The patch uses `sendUpdates=none`.
 
 **Throttling.** Google allows 600 requests a minute per user. The first run can colour thousands of events:
 
@@ -249,7 +250,7 @@ With colouring on:
 
 **Event labels.** Google's newer event labels (`eventLabelId`) are not used. `colorId` works for every Google account and needs no extra scope.
 
-**Recurring events.** How they are coloured (per instance, or once on the series when the series title qualifies) is left to the builder. No instance is ever left with a wrong colour.
+**Recurring events.** How they are coloured (per instance, or once on the series when the series title qualifies) is left to the builder. In the spike, a colour set on one instance survived a rename of the series. No instance is ever left with a wrong colour.
 
 ## 9. Screens
 
@@ -279,13 +280,13 @@ The same design language as Omark Tasks: one calm page per view, the shared desi
 
 | Scope | Why | Class |
 |---|---|---|
-| `calendar.calendarlist.readonly` | list calendars to choose from; read the primary time zone | sensitive *(to check in the Console)* |
-| `calendar.events.owned.readonly` | read events with sync tokens on calendars the user owns; asked at sign-in | sensitive *(to check in the Console)* |
+| `calendar.calendarlist.readonly` | list calendars to choose from; read the primary time zone (`timeZone` on the primary entry) | non-sensitive |
+| `calendar.events.owned.readonly` | read events with sync tokens on calendars the user owns; asked at sign-in | sensitive |
 | `calendar.events.owned` | set colours on calendars the user owns; asked only when the user turns colouring on | sensitive |
 | `drive.file` | only when the user picks Google Drive: files the app created | non-sensitive |
 | `openid email` | show who is signed in | non-sensitive |
 
-Drive is asked for only when the user picks Google Drive, and edit access to events only when the user turns colouring on (incremental authorisation). So a user who wants only hours grants read-only calendar access and nothing else. Both Calendar scopes are sensitive, so verification is needed either way; the gain is trust, not a lighter review. The calendar picker lists only calendars the user owns.
+Drive is asked for only when the user picks Google Drive, and edit access to events only when the user turns colouring on (incremental authorisation). So a user who wants only hours grants read-only calendar access and nothing else. Both event scopes are sensitive (checked in the Console, 2026-10-26), so verification is needed either way; the gain is trust, not a lighter review. The calendar picker lists only calendars the user owns (`accessRole` = `owner` in the calendar list).
 
 ### 10.2 Sign-in
 
@@ -297,9 +298,11 @@ Drive is asked for only when the user picks Google Drive, and edit access to eve
 
 Google doesn't rotate refresh tokens; the session lasts until the user signs out or revokes access. Nothing is stored on the server.
 
+**Adding a scope later** (Drive, or edit access for colouring) is a second consent with `include_granted_scopes=true`. Google returns a **new** refresh token that covers all granted scopes; the old one keeps working with its old scopes only and can't be widened (`invalid_scope`). So the helper replaces the sealed cookie after the second consent, and other devices stay read-only until they consent too ("Colouring needs edit access", section 8).
+
 ### 10.3 Projects and verification
 
-- **Google Cloud projects:** "Omark Time" for production and "Omark Time Staging" for staging and previews, each with its own OAuth client and secret. Staging is published unverified, so its tokens don't expire after 7 days, and is used only by AL and the test account. *(Separate projects: my call, mirroring the separate Entra registrations.)*
+- **Google Cloud projects:** "Omark Time" for production and "Omark Time Staging" for staging and previews, each with its own OAuth client and secret. Staging is published unverified, so its tokens don't expire after 7 days, and is used only by AL and the test account. Until the landing page and privacy policy are live it stays in Testing: only listed test users can sign in, and refresh tokens expire after 7 days. *(Separate projects: my call, mirroring the separate Entra registrations.)*
 - **Verification** of the production project for the sensitive scopes needs:
   - `omark.app` verified in Google Search Console;
   - the landing page as the homepage;
@@ -375,11 +378,11 @@ To become issues:
 
 ## 15. Acceptance
 
-- **Spike first** (a short throwaway with a second Google account), answering:
+- **Spike first** (a short throwaway with a second Google account), answering *(done 2026-10-26, section 15.1)*:
   - patching only `colorId` on an invite changes only the attendee's copy, with `calendar.events.owned`;
   - `calendar.events.owned` covers invites on the primary calendar;
   - how recurring instances come back from incremental sync;
-  - `calendar.events.owned.readonly` alone gives everything sync needs (sync tokens, instances), and adding `calendar.events.owned` later keeps the same session;
+  - `calendar.events.owned.readonly` alone gives everything sync needs (sync tokens, instances), and adding `calendar.events.owned` later keeps the same session (no: it gives a new refresh token, section 10.2);
   - which ids are green and red in `colors.get`.
 
   The findings go into this spec before the build.
@@ -402,6 +405,24 @@ To become issues:
 - **The agent skill**: Claude, given the skill and the test files, adds a correctly shaped event through a calendar connector, and answers "hours per category on ACME last week" to match the app's summary.
 - **AL's real calendar is never written by tests.** The real e2e uses the test account only.
 
+### 15.1 Spike findings (T.2, 2026-10-26)
+
+Run against `hello@omark.app` (the Omark account, standing in for the test account) with the "Omark Time Staging" project. AL's own Gmail only sent the invite.
+
+| Question | Finding |
+|---|---|
+| Green and red ids | `colors.get` → 10 = `#51b749`, 11 = `#dc2127` (Google calls them Basil and Tomato, section 8). |
+| `colorId` on an invite | With `calendar.events.owned`, a PATCH of `colorId` and `extendedProperties.private` on an invite (organiser AL's Gmail, reply `needsAction`) returns 200. Read back, the title, time, guest list and replies are unchanged. The organiser's copy kept its default colour (AL checked). |
+| Invites on the primary calendar | Listed with `organizer.self = false`. Both scopes read it: the read-only full sync of the primary calendar returned the invite (its only event). |
+| Recurring instances | On a secondary calendar the app created ("Omark Test"), so the owned scopes also cover secondary calendars. With `singleEvents=true`, the full read returns one item per instance. After colouring one instance, renaming the series and deleting another instance, the incremental read returned all instances (renamed), the coloured one with its `colorId`, and the deleted one as `cancelled` with `recurringEventId` and `originalStartTime` but no title. With `singleEvents=false` it returns the series and the changed instances only. |
+| Read-only is enough to sync | `calendar.events.owned.readonly` gives the full read, a sync token and incremental reads. A colour PATCH with it fails with 403 "insufficient authentication scopes". |
+| Adding edit access later | A second consent with `include_granted_scopes=true` returns a new refresh token with all scopes. The first refresh token still works but stays read-only; asking it for `calendar.events.owned` fails with `invalid_scope` (section 10.2). |
+| Sync token and a window | A sync token with `timeMin` is refused (400 "Sync token cannot be used with other request restrictions"). |
+| Primary time zone | `calendarList/primary` gives `timeZone` (and `accessRole` = `owner`) with `calendar.calendarlist.readonly`. |
+| Scope classes | In the Console: `calendar.calendarlist.readonly`, `drive.file`, `openid`, `email` non-sensitive; `calendar.events.owned` and `calendar.events.owned.readonly` sensitive. |
+
+Open for the build: how far ahead Google expands a series with no end when it is renamed (the window filter handles the rows, but the read may be large).
+
 ## 16. Calls made by Claude, to check
 
 1. Code: 2–20 characters; a title that is only a known code counts; a lone unknown code is untouched, not red.
@@ -422,12 +443,14 @@ To become issues:
 
 ## 17. Steps only AL can do
 
-1. Verify `omark.app` in Google Search Console.
+1. Verify `omark.app` in Google Search Console. *(Done 2026-10-26, owned by the Omark Google account `hello@omark.app`.)*
 2. Create the Google Cloud projects "Omark Time" and "Omark Time Staging":
    - the consent screen (app name, logo, the `omark.app` homepage and privacy policy, scopes);
    - a Web OAuth client with the redirect URIs;
    - the client secret into the Pages secrets.
-3. Create a test Google account with a test calendar for staging and the real e2e.
+
+   *(Staging done 2026-10-26: consent screen, scopes and Web client; still in Testing until the landing page and privacy policy are live, then published. The production project comes in T.9.)*
+3. Create a test Google account with a test calendar for staging and the real e2e. *(For now `hello@omark.app` doubles as the test account, with an "Omark Test" calendar; Google's phone check blocked a separate account.)*
 4. Two Entra registrations, "Omark Time" and "Omark Time Staging", with Web redirect URIs on `time.omark.app` and `staging-time.omark.app` and their client secrets (for OneDrive storage).
 5. Cloudflare Pages projects and DNS for `time.`, `staging-time.` and `demo-time.omark.app`.
 6. Record the verification demo video (Claude writes the script) and submit verification.
