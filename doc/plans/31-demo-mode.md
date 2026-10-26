@@ -25,12 +25,12 @@ Issue #31, roadmap 2.1, [launch spec](../TaskApp%20open%20source%20launch%20spec
 
 ### Developer setup
 
-- `apps/web/.env.development` sets `VITE_STORAGE=demo`. Vite reads it only for `vite` (dev), never for `vite build`, so deploy builds are unaffected. A variable already set in the shell wins over the file, so the real-OneDrive smoke (`VITE_STORAGE=onedrive`) and `.env.development.local` overrides keep working.
-- Root `package.json`: `pnpm dev` and `pnpm demo` (= `pnpm --filter web dev`), with no inline `VAR=value`, so they work in PowerShell, cmd and bash.
+- `apps/tasks/.env.development` sets `VITE_STORAGE=demo`. Vite reads it only for `vite` (dev), never for `vite build`, so deploy builds are unaffected. A variable already set in the shell wins over the file, so the real-OneDrive smoke (`VITE_STORAGE=onedrive`) and `.env.development.local` overrides keep working.
+- Root `package.json`: `pnpm dev` and `pnpm demo` (= `pnpm --filter tasks dev`), with no inline `VAR=value`, so they work in PowerShell, cmd and bash.
 - `.env.example` at the root lists every variable:
   - the build's `VITE_*`;
-  - the sign-in helper's Pages variables and secrets (`MSAL_CLIENT_ID`, `MSAL_CLIENT_SECRET`, `MSAL_TENANT`, `COOKIE_KEY`, `ONEDRIVE_SCOPE`);
-  - the CI repository variables.
+  - the sign-in helper's Pages variables and secrets (`OMARK_APP`, `MSAL_CLIENT_ID`, `MSAL_CLIENT_SECRET`, `MSAL_TENANT`, `COOKIE_KEY`, `ONEDRIVE_SCOPE`);
+  - the CI repository variables (the per-app `TASKS_*` and `CF_TASKS_*` ones).
 
   Each gets a one-line comment and a safe default. It holds no real values.
 - The README's command section is updated for `pnpm demo` and the shell note. The full rewrite stays in 2.3.
@@ -39,23 +39,21 @@ Issue #31, roadmap 2.1, [launch spec](../TaskApp%20open%20source%20launch%20spec
 
 - **A separate Pages project, `omark-tasks-demo`, with its own build**, not a host-selected mode of the staging build. Reasons:
   - the demo bundle carries no sign-in path;
-  - deploying from `apps/web/dist` leaves out `functions/`, so the demo origin has no `/api/auth` at all;
+  - wrangler runs from `apps/tasks` and deploys `dist`, so the repo-root `functions/` is left out and the demo origin has no `/api/auth` at all;
   - its IndexedDB origin is its own;
   - it can't be confused with production.
-- CI job `deploy-demo` on `main` (push and manual run), parallel to `deploy-staging`, after `check` and `e2e`:
+- CI job `tasks-demo` on `main` (push and manual run), parallel to `tasks-staging`, after `check` and `e2e`, `timeout-minutes: 15`:
   - build with `VITE_STORAGE=demo` and `VITE_REAL_USE_URL`;
-  - `ensure-staging.mjs` (generalised to `ensure-pages-project.mjs` with a `project` and `domain` per call) makes sure the project, custom domain and DNS exist;
+  - `tools/ci/ensure-staging.mjs`, generalised to `tools/ci/ensure-pages-project.mjs` with a `project` (and optionally a `domain` and zone) per call, makes sure the project exists;
   - deploy;
-  - an HTTP check that `/` returns 200 and `/api/auth/session` returns 404.
-- New repository variables: `CF_DEMO_PROJECT=omark-tasks-demo`, `DEMO_DOMAIN=demo-tasks.omark.app`, `CF_DEMO_ZONE_ID` (the omark.app zone; `CF_ZONE_ID` stays the alipka.com zone for staging), and `REAL_USE_URL`. I set them with `gh` and create the project, domain and DNS with the wrangler OAuth token. If the CI token can't reach the omark.app zone, I add `needs-human` with the steps.
-- The CI token's permissions: the existing Pages-edit token covers a new project in the same account. DNS for omark.app needs Zone DNS edit on that zone, and I'll check that before relying on it.
+  - an HTTP check that `https://demo-tasks.omark.app/` returns 200 and `/api/auth/session` returns 404.
+- New repository variables, named like the move's per-app ones: `CF_TASKS_DEMO_PROJECT=omark-tasks-demo`, `TASKS_DEMO_URL=https://demo-tasks.omark.app` and `TASKS_REAL_USE_URL`. I set them with `gh`.
+- The custom domain and the DNS record are one-time setup that I do now: the project and domain with the wrangler OAuth token, the proxied CNAME with the omark.app DNS token. CI doesn't touch the omark.app zone, so the CI token needs no new permission; the live-URL check catches a broken domain.
 
 ### Leftovers folded in
 
 - The roadmap marks milestones 0 and 1 done.
-- `timeout-minutes` on every CI job: check 10, e2e 20, preview 15, deploy-staging 15, deploy-demo 15.
-- CLAUDE.md's `ALAI/TaskApp-e2e` line now names the app-folder `TaskApp-e2e`.
-- The sign-in helper's console prefix and the todoist-import warning say Omark Tasks.
+- Already done by the monorepo move (#47), so dropped here: `timeout-minutes` on the existing CI jobs, the CLAUDE.md `TaskApp-e2e` line, the sign-in helper's console prefix.
 
 ## Acceptance criteria
 
@@ -71,22 +69,22 @@ Issue #31, roadmap 2.1, [launch spec](../TaskApp%20open%20source%20launch%20spec
 - [ ] `main` deploys the demo to `demo-tasks.omark.app`; the CI check passes, and I open it in the built-in browser.
 - [ ] `.env.example` lists every variable the code, the helper and CI read, and a unit test fails when a new `VITE_*` appears in the source without being listed.
 - [ ] Production and staging builds are unchanged (same variables, still OneDrive; `pnpm e2e:real` unaffected).
-- [ ] Every CI job has `timeout-minutes`; the leftovers are fixed.
+- [ ] The new `tasks-demo` job has `timeout-minutes`; the roadmap marks milestones 0 and 1 done.
 
 ## Tests I'll write first
 
 1. `packages/storage/test/idb-drive.test.ts`: `adapterContract(() => new IdbDrive(...))` with `fake-indexeddb`, plus seeding only when empty, `clear()` emptying it, and versions surviving a new instance on the same database. This fails: there is no `IdbDrive`.
-2. `apps/web/src/env.test.ts` (or `storage-mode.test.ts`): `storageMode('demo')` → `demo`, unset → `onedrive`, `fake` → `fake`. This fails: `demo` maps to `onedrive` today.
-3. `apps/web/src/lib/demo.test.ts`: `openDemo()` seeds an empty drive with `sampleFiles(today)`, leaves a non-empty one alone, and `resetDemo()` empties both databases. This fails: the module doesn't exist.
-4. `apps/web/e2e/demo.spec.ts`, against a second Playwright web server (a demo build on port 4174), both projects:
+2. `apps/tasks/src/env.test.ts` (or `storage-mode.test.ts`): `storageMode('demo')` → `demo`, unset → `onedrive`, `fake` → `fake`. This fails: `demo` maps to `onedrive` today.
+3. `apps/tasks/src/lib/demo.test.ts`: `openDemo()` seeds an empty drive with `sampleFiles(today)`, leaves a non-empty one alone, and `resetDemo()` empties both databases. This fails: the module doesn't exist.
+4. `apps/tasks/e2e/demo.spec.ts`, against a second Playwright web server (a demo build on the checkout's e2e port + 1, from `e2e/port.ts`), both projects:
    - the sample tasks show;
    - add a task, reload, and it's still there;
    - Reset demo (accepting the confirm) brings back the samples;
    - the footer shows DEMO and the link;
-   - every request's origin is `localhost:4174`, and none hits `/api/`.
+   - every request's origin is the demo server's, and none hits `/api/`.
 
    It fails: there is no demo build.
-5. `tools/env-example.test.ts`: every `import.meta.env.VITE_*` and every `env.X` in `functions/` and `packages/signin` appears in `.env.example`. It fails: the file doesn't exist.
+5. `tools/env-example.test.ts`: every `import.meta.env.VITE_*` and every `env.X` in `functions/` and `packages/signin`, and every `vars.X` in `.github/workflows/`, appears in `.env.example`. It fails: the file doesn't exist.
 6. `tools/ci/ensure-pages-project.test.mjs`: the existing ensure-staging tests, re-run with the generalised name and one demo case.
 
 The existing `offline.spec.ts` keeps using `__TASKAPP_FAKE_DURABLE__`, so it doesn't change. `sample-files.test.ts` changes only where `fakeSeed`'s preview branch moves to demo mode, and the PR will say so.
@@ -97,7 +95,7 @@ The existing `offline.spec.ts` keeps using `__TASKAPP_FAKE_DURABLE__`, so it doe
 - **iOS WebKit evicts IndexedDB** after 7 days without a visit. For the demo that's fine: it re-seeds.
 - **The demo deploy needs DNS on the omark.app zone.** If the CI token lacks it, the custom domain is a one-time manual step (`needs-human`), and later deploys don't need it.
 - **The e2e run gets a second build** (about 20 s). Acceptable; the timeout guard covers a stuck build.
-- **The monorepo move** (decided 2026-10-22, planned in the time tracker brainstorm) will move these files later. Nothing here depends on the layout.
+- **The monorepo move** (#47) landed first; this plan was updated for its paths on 2026-10-26 (see the note at the end).
 
 ## Out of scope
 
@@ -106,3 +104,14 @@ The existing `offline.spec.ts` keeps using `__TASKAPP_FAKE_DURABLE__`, so it doe
 - A Promote step for the demo.
 - The full README rewrite (2.3).
 - Caching or skipping `playwright install-deps`. That's a separate small CI issue, which I'll file if the timeouts don't settle it.
+
+## Update after the monorepo move (2026-10-26)
+
+Paths and names only; scope and acceptance criteria are unchanged.
+
+- `apps/web` → `apps/tasks`, `packages/core` → `packages/tasks-core`; `pnpm demo` filters `tasks`.
+- CI names follow the move's per-app scheme: job `tasks-demo`, variables `CF_TASKS_DEMO_PROJECT`, `TASKS_DEMO_URL`, `TASKS_REAL_USE_URL`.
+- `functions/` is at the repo root now, so the demo deploy runs wrangler from `apps/tasks` to leave it out.
+- The e2e demo server takes the checkout's port + 1 (#50) instead of a fixed 4174.
+- The domain and DNS are set up once by me rather than by CI, so the CI token needs no omark.app DNS permission.
+- Leftovers the move already did are dropped (timeouts on existing jobs, CLAUDE.md line, console prefix).
