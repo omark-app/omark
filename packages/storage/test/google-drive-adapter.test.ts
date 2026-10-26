@@ -6,6 +6,7 @@ import { adapterContract } from './adapter-contract.ts';
 
 const FOLDER = 'Omark Tasks';
 const FOLDER_MIME_Q = "mimeType='application/vnd.google-apps.folder'";
+const INSERT = '/upload/drive/v2/files?uploadType=multipart';
 function setup(fake: FakeGoogleDrive, fetchFn: typeof fetch = fake.fetch, getToken = async () => 'tok') {
   return new GoogleDriveAdapter({ folder: FOLDER, getToken, fetch: fetchFn });
 }
@@ -186,12 +187,11 @@ describe('GoogleDriveAdapter (Drive specifics)', () => {
     expect(fake.peek('tasks.md')).toBe('b');
   });
 
-  it('a write after the folder is deleted for good fails once with a 412, then recreates folder and file', async () => {
+  it('a create after the folder is deleted for good makes a new folder and file', async () => {
     const fake = new FakeGoogleDrive({ 'tasks.md': 'a' });
     const adapter = setup(fake);
     await adapter.read('tasks.md');
     fake.deleteFolder();
-    await expect(adapter.write('tasks.md', 'b', null)).rejects.toBeInstanceOf(PreconditionFailedError);
     await adapter.write('tasks.md', 'b', null);
     expect(fake.folders()).toEqual(['Omark Tasks']);
     expect(fake.peek('tasks.md')).toBe('b');
@@ -207,6 +207,7 @@ describe('GoogleDriveAdapter (Drive specifics)', () => {
     fake.deleteFolder();
     held.release();
     await expect(writing).rejects.toBeInstanceOf(PreconditionFailedError);
+    expect(fake.calls.at(-1)).toMatchObject({ method: 'POST', url: expect.stringContaining(INSERT) });
     await adapter.write('done.md', 'd', null);
     expect(fake.peek('done.md')).toBe('d');
   });
@@ -219,6 +220,17 @@ describe('GoogleDriveAdapter (Drive specifics)', () => {
     expect(await adapter.read('done.md')).toBeNull();
     await adapter.write('done.md', 'e', null);
     expect(fake.peek('done.md')).toBe('e');
+  });
+
+  it('a create after the folder is trashed goes into a new folder, not the trashed one', async () => {
+    const fake = new FakeGoogleDrive();
+    const adapter = setup(fake);
+    await adapter.write('tasks.md', 'a', null);
+    fake.trashFolder();
+    await adapter.write('new.md', 'x', null);
+    expect(fake.folders()).toEqual(['Omark Tasks']); // untrashed folders only
+    expect(fake.files()).toEqual(['new.md']); // untrashed files only
+    expect(fake.peek('new.md')).toBe('x'); // in the untrashed folder
   });
 
   it('throws AuthRequiredError on a second 401, after asking for a fresh token', async () => {

@@ -28,13 +28,14 @@ interface Metadata {
  * (by `createdTime`) is the one in use, for the folder too. Writes go through API v2, the only one that
  * honours `If-Match` (v3 overwrites whatever the etag). Folder and file ids are kept in memory; when one
  * turns out gone or trashed, both are forgotten and looked up again. One adapter serves several files at
- * once, so the folder is looked up, and created, by one request that all of them share.
+ * once, so concurrent calls share one folder lookup, and one folder creation.
  */
 export class GoogleDriveAdapter implements StorageAdapter {
   private folder: string;
   private http: Http;
-  /** The folder lookup, shared by concurrent calls; kept only once it found the folder. */
-  private folderId: Promise<string | null> | null = null;
+  private folderId: string | null = null;
+  /** A folder lookup in progress, shared by concurrent calls. */
+  private lookingUpFolder: Promise<string | null> | null = null;
   /** A folder creation in progress, shared the same way. */
   private creatingFolder: Promise<string> | null = null;
   private fileIds = new Map<string, string>();
@@ -94,9 +95,7 @@ export class GoogleDriveAdapter implements StorageAdapter {
    */
   private async create(name: string, text: string): Promise<{ etag: string }> {
     const folderId = await this.ensureFolder();
-    const existing = await this.listFiles(name, folderId);
-    if (existing === null) throw new PreconditionFailedError(`The folder for ${name} is gone`);
-    if (existing.length > 0) throw new PreconditionFailedError(`${name} already exists`);
+    if ((await this.list(fileQuery(name, folderId))).length > 0) throw new PreconditionFailedError(`${name} already exists`);
     const boundary = `boundary-${crypto.randomUUID()}`;
     const meta = { title: name, parents: [{ id: folderId }], mimeType: mimeType(name) };
     const body =
@@ -107,14 +106,11 @@ export class GoogleDriveAdapter implements StorageAdapter {
       headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
       body,
     });
-    if (res.status === 404) {
-      this.forget(name);
-      throw new PreconditionFailedError(`The folder for ${name} is gone`);
-    }
+    // The folder was deleted for good after we looked it up; the sync's next try makes a new one.
+    if (res.status === 404) throw new PreconditionFailedError(`The folder for ${name} is gone`);
     if (!res.ok) throw new Error(`Google Drive create failed: ${res.status}`);
     const made = JSON.parse(res.text) as { id: string; etag: string };
-    const ids = await this.listFiles(name, folderId);
-    if (ids === null) throw new PreconditionFailedError(`The folder for ${name} is gone`);
+    const ids = await this.list(fileQuery(name, folderId));
     if (ids[0] !== made.id) {
       const trash = await this.api(`${API}drive/v3/files/${encodeURIComponent(made.id)}`, {
         method: 'PATCH',
@@ -122,7 +118,6 @@ export class GoogleDriveAdapter implements StorageAdapter {
         body: JSON.stringify({ trashed: true }),
       });
       if (!trash.ok) throw new Error(`Google Drive trash failed: ${trash.status}`);
-      this.forget(name); // no file listed at all means the folder itself went to the trash
       throw new PreconditionFailedError(`${name} already exists`);
     }
     this.fileIds.set(name, made.id);
@@ -132,31 +127,24 @@ export class GoogleDriveAdapter implements StorageAdapter {
   private async findFile(name: string): Promise<string | null> {
     const folderId = await this.findFolder();
     if (folderId === null) return null;
-    return (await this.listFiles(name, folderId))?.[0] ?? null;
+    return (await this.list(fileQuery(name, folderId)))[0] ?? null;
   }
 
-  /** The ids of the files called `name` in the folder, oldest first; null when the folder is gone for good. */
-  private async listFiles(name: string, folderId: string): Promise<string[] | null> {
-    const ids = await this.list(`name='${escapeQuery(name)}' and '${folderId}' in parents and trashed=false`);
-    if (ids === null) this.forget(name);
-    return ids;
+  /** The cached folder id, or a lookup (one in progress is shared). `fresh` skips the cached id. */
+  private async findFolder(fresh = false): Promise<string | null> {
+    if (this.folderId !== null && !fresh) return this.folderId;
+    this.lookingUpFolder ??= this.list(this.folderQuery())
+      .then((ids) => (this.folderId = ids[0] ?? null))
+      .finally(() => (this.lookingUpFolder = null));
+    return this.lookingUpFolder;
   }
 
-  private findFolder(): Promise<string | null> {
-    if (this.folderId === null) {
-      const lookup = this.list(this.folderQuery()).then((ids) => ids?.[0] ?? null);
-      this.folderId = lookup;
-      // No folder yet, or a failed lookup: the next call asks again.
-      const drop = () => {
-        if (this.folderId === lookup) this.folderId = null;
-      };
-      lookup.then((id) => id === null && drop(), drop);
-    }
-    return this.folderId;
-  }
-
+  /**
+   * The folder for a new file, looked up afresh: Drive accepts a file into a trashed folder, so the cached
+   * id could put it in the trash, out of the user's sight. The lookup skips trashed folders.
+   */
   private async ensureFolder(): Promise<string> {
-    const found = await this.findFolder();
+    const found = await this.findFolder(true);
     if (found !== null) return found;
     this.creatingFolder ??= this.createFolder().finally(() => (this.creatingFolder = null));
     return this.creatingFolder;
@@ -170,21 +158,19 @@ export class GoogleDriveAdapter implements StorageAdapter {
       body: JSON.stringify({ name: this.folder, mimeType: FOLDER_MIME }),
     });
     if (!res.ok) throw new Error(`Google Drive folder create failed: ${res.status}`);
-    const id = (await this.list(this.folderQuery()))?.[0];
+    const id = (await this.list(this.folderQuery()))[0];
     if (id === undefined) throw new Error('Google Drive did not list the new folder');
-    this.folderId = Promise.resolve(id);
-    return id;
+    return (this.folderId = id);
   }
 
   private folderQuery(): string {
     return `name='${escapeQuery(this.folder)}' and mimeType='${FOLDER_MIME}' and trashed=false`;
   }
 
-  /** The ids that match `q`, oldest first; null when a parent named in `q` no longer exists (404). */
-  private async list(q: string): Promise<string[] | null> {
+  /** The ids that match `q`, oldest first. */
+  private async list(q: string): Promise<string[]> {
     const url = `${API}drive/v3/files?q=${encodeURIComponent(q)}&orderBy=createdTime&fields=files(id)&spaces=drive`;
     const res = await this.api(url, {});
-    if (res.status === 404) return null;
     if (!res.ok) throw new Error(`Google Drive list failed: ${res.status}`);
     return (JSON.parse(res.text) as { files: { id: string }[] }).files.map((f) => f.id);
   }
@@ -202,6 +188,10 @@ export class GoogleDriveAdapter implements StorageAdapter {
     this.fileIds.delete(name);
     this.folderId = null;
   }
+}
+
+function fileQuery(name: string, folderId: string): string {
+  return `name='${escapeQuery(name)}' and '${folderId}' in parents and trashed=false`;
 }
 
 function escapeQuery(s: string): string {

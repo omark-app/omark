@@ -77,11 +77,16 @@ export class FakeGoogleDrive {
     this.newEtag(file);
   }
 
-  /** Trashes the folder, which trashes the files in it too. */
+  /**
+   * Trashes the folder and the files in it. As in Drive, a file added to the trashed folder later is not
+   * trashed: it is listed and its `labels.trashed` is false.
+   */
   trashFolder(): void {
     const folder = this.mustFindFolder();
-    folder.trashed = true;
-    this.newEtag(folder);
+    for (const item of [...this.items.values()].filter((i) => i === folder || i.parent === folder.id)) {
+      item.trashed = true;
+      this.newEtag(item);
+    }
   }
 
   /** Deletes the folder and its files for good, past the trash. */
@@ -99,7 +104,7 @@ export class FakeGoogleDrive {
 
   /** The names of the untrashed files in every folder, oldest first. */
   files(): string[] {
-    return this.sorted((i) => i.parent !== null && !this.isTrashed(i)).map((i) => i.name);
+    return this.sorted((i) => i.parent !== null && !i.trashed).map((i) => i.name);
   }
 
   /**
@@ -160,8 +165,7 @@ export class FakeGoogleDrive {
       found = this.sorted((i) => i.parent === null && i.name === name && !i.trashed);
     } else if ((m = FILE_QUERY.exec(q))) {
       const [name, parent] = [unescape(m[1]!), m[2]!];
-      if (!this.items.has(parent)) return googleError(404, 'notFound');
-      found = this.sorted((i) => i.parent === parent && i.name === name && !this.isTrashed(i));
+      found = this.sorted((i) => i.parent === parent && i.name === name && !i.trashed);
     } else unexpected(call);
     return Response.json({ files: found.map((i) => ({ id: i.id })) });
   }
@@ -190,7 +194,7 @@ export class FakeGoogleDrive {
     expectQuery(call, url, { fields: 'etag,headRevisionId,labels/trashed' });
     const item = this.items.get(decodeURIComponent(id));
     if (!item) return googleError(404, 'notFound');
-    return Response.json({ etag: item.etag, headRevisionId: item.headRevisionId, labels: { trashed: this.isTrashed(item) } });
+    return Response.json({ etag: item.etag, headRevisionId: item.headRevisionId, labels: { trashed: item.trashed } });
   }
 
   /** v3 revision content: exactly the bytes of that revision. */
@@ -270,10 +274,6 @@ export class FakeGoogleDrive {
   private newEtag(item: Item): void {
     item.etag = `"${btoa(String(1_793_000_000_000 + ++this.clock)).replace(/=+$/, '')}"`;
     item.etags.add(item.etag);
-  }
-
-  private isTrashed(item: Item): boolean {
-    return item.trashed || (item.parent !== null && this.items.get(item.parent)!.trashed);
   }
 
   private sorted(keep: (i: Item) => boolean): Item[] {
