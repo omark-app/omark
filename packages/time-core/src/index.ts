@@ -6,3 +6,4 @@ export * from './hours.ts';
 export * from './rows.ts';
 export * from './events-file.ts';
 export * from './apply.ts';
+export * from './colour.ts';
