@@ -6,6 +6,10 @@ Monorepo: `packages/tasks-core` (parsing and logic), `packages/storage` (OneDriv
 
 Work on the app runs through GitHub issues and pull requests, mostly done by Claude in cloud sessions: see `CLAUDE.md` and [the factory spec](doc/TaskApp%20factory%20spec.md).
 
+## Habits
+
+A task with `🌱` and a `🔁` rule (not `when done`) is a habit: `- [ ] Meditate 10 min 🌱 🔁 every day`. `🌱 30` sets its own goal. The app counts repetitions from `done.md` and shows the count (`12/66`); after the goal (default 66) it counts as formed and moves to History as a `🏆` line in `done.md`. Too many misses restart the count; dropping a habit writes a `- [-] … ❌` line. Press `h` or type `hab` to make one. The `habits` block in `config.yaml` sets the goal, the misses allowed and the limit of habits in progress (3). Details: [the habits spec](doc/TaskApp%20habits%20spec.md).
+
 ## Setup
 
 Node 22 or newer and pnpm 10, then `pnpm i`.
