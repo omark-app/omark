@@ -44,6 +44,7 @@ Ideas deliberately left out of v1 ([[TaskApp v1 spec]]). Grouped by theme; not o
 - **Fragments typed into a title** (🔁 or 📅 text): escape or reject them so they don't become fields on re-read.
 - **Security headers and CSP** (`public/_headers`): start Report-Only; `connect-src` would enforce the privacy rule.
 - **First offline run orders `done.md` completions before remote history**: cosmetic.
+- **Contrast on selected rows**: `--muted` (4.27:1) and `--danger` (4.41:1) on `--sel` are under 4.5:1 app-wide (e.g. an overdue date on a selected row). Found during #44; the habit colours were fixed there.
 
 ## AI
 
