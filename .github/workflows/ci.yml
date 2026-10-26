@@ -75,7 +75,7 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter web e2e --project=${{ matrix.project }}
+      - run: pnpm --filter tasks e2e --project=${{ matrix.project }}
   preview:
     # Same-repo PRs only: a fork's PR has no secrets, and its code must never meet ours.
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && vars.DEPLOY_ENABLED == 'true'
@@ -94,7 +94,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # The fake build e2e tested, built again here so e2e needs nothing from the repository's settings.
-      - run: pnpm --filter web build
+      - run: pnpm --filter tasks build
         env:
           VITE_STORAGE: fake
           BUILD_NUMBER: ${{ github.run_number }}
@@ -115,7 +115,7 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # Use the workspace's pinned wrangler; the action can't `pnpm add` it at a workspace root.
           wranglerVersion: '4.151.1'
-          command: pages deploy apps/web/dist --project-name=${{ vars.CF_STAGING_PROJECT }} --branch=pr-${{ github.event.number }}
+          command: pages deploy apps/tasks/dist --project-name=${{ vars.CF_STAGING_PROJECT }} --branch=pr-${{ github.event.number }}
       - name: Comment the preview link
         uses: actions/github-script@v7
         env:
@@ -162,7 +162,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # One build for staging and production: the app picks its folder and look from the host name.
-      - run: pnpm --filter web build
+      - run: pnpm --filter tasks build
         env:
           # The version shown in the footer; Promote ships this same build, so production shows it too.
           # run_number counts per workflow file: renaming ci.yml would restart it at 1.
@@ -177,7 +177,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: web-dist
-          path: apps/web/dist
+          path: apps/tasks/dist
           retention-days: 30
       - name: Make sure the staging project exists
         run: node tools/ci/ensure-staging.mjs
@@ -193,7 +193,7 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: '4.151.1'
           # Run from the repo root, so wrangler also bundles functions/ (the sign-in helper at /api/auth/*).
-          command: pages deploy apps/web/dist --project-name=${{ vars.CF_STAGING_PROJECT }} --branch=main
+          command: pages deploy apps/tasks/dist --project-name=${{ vars.CF_STAGING_PROJECT }} --branch=main
       - name: Check the sign-in helper is live
         # /api/auth/login must redirect to Microsoft for MSAL_TENANT, asking for the scope the build expects.
         # That holds only when the functions shipped and the Pages secrets (README, Sign-in) are set.

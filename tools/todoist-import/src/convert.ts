@@ -1,5 +1,5 @@
-import { formatRepeat, parseRepeat, serializeTasks } from '@omark/core';
-import type { ISODate, Item, RepeatRule, TasksDoc } from '@omark/core';
+import { formatRepeat, parseRepeat, serializeTasks } from '@omark/tasks-core';
+import type { ISODate, Item, RepeatRule, TasksDoc } from '@omark/tasks-core';
 
 export interface TodoistTask {
   id: string;

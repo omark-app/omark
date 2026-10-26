@@ -63,12 +63,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: web-dist
-          path: apps/web/dist
+          path: apps/tasks/dist
           run-id: ${{ steps.check.outputs.run_id }}
           github-token: ${{ github.token }}
       - name: Rebuild (the stored build has expired)
         if: steps.check.outputs.artifact != 'true'
-        run: pnpm --filter web build
+        run: pnpm --filter tasks build
         env:
           BUILD_SHA: ${{ steps.check.outputs.sha }}
           # The version label of the build staging ran: its run number and date.
@@ -87,7 +87,7 @@ jobs:
           # Use the workspace's pinned wrangler; the action can't `pnpm add` it at a workspace root.
           wranglerVersion: '4.151.1'
           # Run from the repo root, so wrangler also bundles functions/ (the sign-in helper at /api/auth/*).
-          command: pages deploy apps/web/dist --project-name=${{ vars.CF_PROD_PROJECT }} --branch=main --commit-hash=${{ steps.check.outputs.sha }}
+          command: pages deploy apps/tasks/dist --project-name=${{ vars.CF_PROD_PROJECT }} --branch=main --commit-hash=${{ steps.check.outputs.sha }}
       - name: Check the sign-in helper is live
         # /api/auth/login must redirect to Microsoft for MSAL_TENANT, asking for the scope the build expects.
         # That holds only when the functions shipped and the Pages secrets (README, Sign-in) are set.

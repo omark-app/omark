@@ -9,7 +9,7 @@
     "test": "vitest run --root ../.. --project todoist-import"
   },
   "dependencies": {
-    "@omark/core": "workspace:*"
+    "@omark/tasks-core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.20.5"

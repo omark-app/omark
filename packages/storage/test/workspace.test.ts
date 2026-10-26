@@ -1,4 +1,4 @@
-import { DEFAULT_CONFIG_YAML } from '@omark/core';
+import { DEFAULT_CONFIG_YAML } from '@omark/tasks-core';
 import { describe, expect, it } from 'vitest';
 import type { FileName, RemoteFile, StorageAdapter } from '../src/adapter.ts';
 import { MemoryCache } from '../src/cache.ts';

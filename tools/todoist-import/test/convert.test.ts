@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseTasks } from '@omark/core';
+import { parseTasks } from '@omark/tasks-core';
 import { buildTasksMd, convertDue, type TodoistTask } from '../src/convert.ts';
 import fixture from './fixtures/tasks.json';
 

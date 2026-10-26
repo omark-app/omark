@@ -48,7 +48,7 @@ function forkProblems(wf: Workflow): string[] {
 describe('workflows', () => {
   it('gives every deployed build the CI run number; a Promote rebuild gets the promoted run’s', () => {
     const builds = (f: string) =>
-      jobsOf(f).flatMap(([name, j]) => (j.steps ?? []).filter((s) => s.run === 'pnpm --filter web build').map((s) => ({ name, env: (s.env ?? {}) as Record<string, string> })));
+      jobsOf(f).flatMap(([name, j]) => (j.steps ?? []).filter((s) => s.run === 'pnpm --filter tasks build').map((s) => ({ name, env: (s.env ?? {}) as Record<string, string> })));
     const ci = builds('ci.yml');
     expect(ci.map((b) => b.name).sort()).toEqual(['deploy-staging', 'preview']);
     for (const b of ci) expect(b.env.BUILD_NUMBER, b.name).toBe('${{ github.run_number }}');
@@ -97,14 +97,14 @@ describe('workflows', () => {
   });
 
   it('runs e2e in the Playwright image that matches @playwright/test, installing no browsers', () => {
-    const installed = JSON.parse(readFileSync(new URL('../../../apps/web/node_modules/@playwright/test/package.json', import.meta.url), 'utf8')).version;
+    const installed = JSON.parse(readFileSync(new URL('../../../apps/tasks/node_modules/@playwright/test/package.json', import.meta.url), 'utf8')).version;
     const e2e = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1];
     expect(e2e.container?.image).toMatch(new RegExp(`^mcr\\.microsoft\\.com/playwright:v${installed.replaceAll('.', '\\.')}-noble@sha256:[0-9a-f]{64}$`));
     expect(text('ci.yml')).not.toMatch(/playwright install/);
   });
 
   it('splits e2e into one job per Playwright project', () => {
-    const config = readFileSync(new URL('../../../apps/web/playwright.config.ts', import.meta.url), 'utf8');
+    const config = readFileSync(new URL('../../../apps/tasks/playwright.config.ts', import.meta.url), 'utf8');
     const block = config.match(/projects: \[([\s\S]*?)\n {2}\],/)![1]!;
     const projects = [...block.matchAll(/\{ name: '(\w+)'/g)].map((m) => m[1]);
     // Every project in the block, however it is written, must be one the pattern above found.
@@ -113,7 +113,7 @@ describe('workflows', () => {
     const e2e = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1];
     expect(e2e.strategy?.matrix?.project).toEqual(projects);
     expect(e2e.strategy?.['fail-fast']).toBe(false);
-    expect(e2e.steps!.map((s) => s.run)).toContain('pnpm --filter web e2e --project=${{ matrix.project }}');
+    expect(e2e.steps!.map((s) => s.run)).toContain('pnpm --filter tasks e2e --project=${{ matrix.project }}');
   });
 
   it('deploys only after check and every e2e job', () => {

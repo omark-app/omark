@@ -10,9 +10,9 @@
     "test": "vitest run",
     "typecheck": "pnpm -r --if-present typecheck",
     "e2e": "pnpm -r --if-present e2e",
-    "dev:signin": "pnpm --filter web build && wrangler pages dev apps/web/dist --port 5173",
-    "e2e:real:login": "pnpm --filter web e2e:real:login",
-    "e2e:real": "pnpm --filter web e2e:real"
+    "dev:signin": "pnpm --filter tasks build && wrangler pages dev apps/tasks/dist --port 5173",
+    "e2e:real:login": "pnpm --filter tasks e2e:real:login",
+    "e2e:real": "pnpm --filter tasks e2e:real"
   },
   "devDependencies": {
     "typescript": "^5.9.0",

@@ -1,4 +1,4 @@
-import { DEFAULT_CONFIG_YAML, mergeDoneText, mergeTasksText } from '@omark/core';
+import { DEFAULT_CONFIG_YAML, mergeDoneText, mergeTasksText } from '@omark/tasks-core';
 import type { FileName, StorageAdapter } from './adapter.ts';
 import type { LocalCache } from './cache.ts';
 import { FileSync } from './file-sync.ts';

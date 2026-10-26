@@ -1,4 +1,4 @@
-import { mergeTasksText } from '@omark/core';
+import { mergeTasksText } from '@omark/tasks-core';
 import { describe, expect, it, vi } from 'vitest';
 import type { FileName, RemoteFile, StorageAdapter } from '../src/adapter.ts';
 import type { CachedFile, LocalCache } from '../src/cache.ts';
