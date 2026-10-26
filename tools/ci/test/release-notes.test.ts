@@ -1,15 +1,94 @@
-import { describe, expect, it } from 'vitest';
-import { nextTag, releaseNotes } from '../release-notes.mjs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { afterEach, describe, expect, it } from 'vitest';
+import { nextTag, releaseNotes, tagPatterns } from '../release-notes.mjs';
 
 describe('nextTag', () => {
   it('starts at 1 each day', () => {
-    expect(nextTag(['prod-2026-10-17-1', 'prod-2026-10-17-2'], '2026-10-18')).toBe('prod-2026-10-18-1');
+    expect(nextTag(['tasks-prod-2026-10-17-1', 'tasks-prod-2026-10-17-2'], '2026-10-18', 'tasks')).toBe('tasks-prod-2026-10-18-1');
   });
   it('counts up within a day, past 9', () => {
-    expect(nextTag(['prod-2026-10-18-1', 'prod-2026-10-18-10', 'prod-2026-10-18-2'], '2026-10-18')).toBe('prod-2026-10-18-11');
+    expect(nextTag(['tasks-prod-2026-10-18-1', 'tasks-prod-2026-10-18-10', 'tasks-prod-2026-10-18-2'], '2026-10-18', 'tasks')).toBe('tasks-prod-2026-10-18-11');
   });
   it('ignores other tags', () => {
-    expect(nextTag(['v1', 'prod-2026-10-18-x'], '2026-10-18')).toBe('prod-2026-10-18-1');
+    expect(nextTag(['v1', 'tasks-prod-2026-10-18-x', 'time-prod-2026-10-18-4'], '2026-10-18', 'tasks')).toBe('tasks-prod-2026-10-18-1');
+  });
+  it('names the app, starting at 1 after the legacy prod- tags', () => {
+    expect(nextTag(['prod-2026-10-22-1'], '2026-11-02', 'tasks')).toBe('tasks-prod-2026-11-02-1');
+    expect(nextTag(['prod-2026-11-02-1'], '2026-11-02', 'tasks')).toBe('tasks-prod-2026-11-02-1');
+    expect(nextTag(['tasks-prod-2026-11-02-1'], '2026-11-02', 'tasks')).toBe('tasks-prod-2026-11-02-2');
+  });
+});
+
+describe('tagPatterns', () => {
+  it('includes the legacy prod- tags for tasks only', () => {
+    expect(tagPatterns('tasks')).toEqual(['tasks-prod-*', 'prod-*']);
+    expect(tagPatterns('time')).toEqual(['time-prod-*']);
+  });
+});
+
+describe('release-notes.mjs in a repository', () => {
+  const script = fileURLToPath(new URL('../release-notes.mjs', import.meta.url));
+  let dir = '';
+  let day = 0;
+  afterEach(() => {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+    dir = '';
+  });
+  /** Each commit a day later, so tags sort by date the way they would in real life. */
+  const git = (...args: string[]) => {
+    const date = `2026-10-${String(10 + day).padStart(2, '0')}T12:00:00Z`;
+    return execFileSync('git', args, {
+      cwd: dir,
+      encoding: 'utf8',
+      env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.com', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.com', GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date },
+    }).trim();
+  };
+  const merge = (n: number, title: string) => {
+    day++;
+    git('checkout', '-q', '-b', `pr-${n}`);
+    git('commit', '-q', '--allow-empty', '-m', `Work for #${n}`);
+    git('checkout', '-q', 'main');
+    git('merge', '-q', '--no-ff', '-m', `Merge pull request #${n} from owner/pr-${n}`, '-m', title, `pr-${n}`);
+    return git('rev-parse', 'HEAD');
+  };
+  const run = (sha: string, app: string) => {
+    const out = join(dir, 'github-output');
+    execFileSync(process.execPath, [script, sha, app], { cwd: dir, env: { ...process.env, GITHUB_OUTPUT: out } });
+    return { notes: readFileSync(join(dir, 'release-notes.md'), 'utf8'), output: readFileSync(out, 'utf8') };
+  };
+  const repo = () => {
+    dir = mkdtempSync(join(tmpdir(), 'release-notes-'));
+    day = 0;
+    git('init', '-q', '-b', 'main');
+    git('commit', '-q', '--allow-empty', '-m', 'Start');
+  };
+
+  it('lists the PRs since the last legacy prod- tag in the first tasks-prod- release', () => {
+    repo();
+    git('tag', 'prod-2026-10-11-1', merge(1, 'Old work'));
+    const head = merge(2, 'New work');
+    const { notes, output } = run(head, 'tasks');
+    expect(notes).toBe('- #2 New work\n');
+    expect(output).toMatch(/^tag=tasks-prod-\d{4}-\d{2}-\d{2}-1\n$/);
+  });
+
+  it('takes a legacy prod- tag older than the last tasks-prod- tag as a rollback', () => {
+    repo();
+    const old = merge(1, 'Old work');
+    git('tag', 'prod-2026-10-11-1', old);
+    git('tag', 'tasks-prod-2026-10-12-1', merge(2, 'New work'));
+    expect(run(old, 'tasks').notes).toBe(`Rollback to ${old.slice(0, 7)}.\n`);
+  });
+
+  it('lists the PRs since the last tasks-prod- tag', () => {
+    repo();
+    git('tag', 'prod-2026-10-11-1', merge(1, 'Old work'));
+    git('tag', 'tasks-prod-2026-10-12-1', merge(2, 'New work'));
+    expect(run(merge(3, 'Newer work'), 'tasks').notes).toBe('- #3 Newer work\n');
   });
 });
 

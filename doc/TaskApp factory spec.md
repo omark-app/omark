@@ -146,12 +146,12 @@ The real-OneDrive smoke (`pnpm e2e:real`) stays manual, since its sign-in lasts 
 
 **Promote to production**, one tap from the GitHub app (Actions → Promote to production → Run workflow):
 
-1. Input: a commit, defaulting to the one staging runs now.
+1. Input: the app (only `tasks` so far) and a commit, defaulting to the one staging runs now.
 2. Refuses unless that commit is on `main` and its CI run passed.
 3. Downloads that run's artifact and deploys it unchanged to the `taskapp` project. If the artifact has expired (kept 30 days), it rebuilds from the commit.
-4. Tags it `prod-YYYY-MM-DD-n` and creates a GitHub release listing the PRs merged since the last `prod-` tag.
+4. Tags it `tasks-prod-YYYY-MM-DD-n` (the app's name first; before the monorepo move it was `prod-YYYY-MM-DD-n`) and creates a GitHub release listing the PRs merged since the last of these tags.
 
-**Rollback:** run Promote with an older `prod-` tag. Cloudflare's dashboard rollback also works.
+**Rollback:** run Promote with an older `tasks-prod-` or `prod-` tag. Cloudflare's dashboard rollback also works.
 
 ### 6.3 Keeping CI within the free minutes
 

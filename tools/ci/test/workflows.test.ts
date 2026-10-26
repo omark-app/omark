@@ -48,12 +48,17 @@ function forkProblems(wf: Workflow): string[] {
 describe('workflows', () => {
   it('gives every deployed build the CI run number; a Promote rebuild gets the promoted run’s', () => {
     const builds = (f: string) =>
-      jobsOf(f).flatMap(([name, j]) => (j.steps ?? []).filter((s) => s.run === 'pnpm --filter tasks build').map((s) => ({ name, env: (s.env ?? {}) as Record<string, string> })));
+      jobsOf(f).flatMap(([name, j]) =>
+        (j.steps ?? []).filter((s) => /^pnpm --filter .+ build$/.test(s.run ?? '')).map((s) => ({ name, run: s.run, env: (s.env ?? {}) as Record<string, string> })),
+      );
     const ci = builds('ci.yml');
-    expect(ci.map((b) => b.name).sort()).toEqual(['deploy-staging', 'preview']);
+    expect(ci.map((b) => b.name).sort()).toEqual(['tasks-preview', 'tasks-staging']);
+    for (const b of ci) expect(b.run, b.name).toBe('pnpm --filter tasks build');
     for (const b of ci) expect(b.env.BUILD_NUMBER, b.name).toBe('${{ github.run_number }}');
     const promote = builds('promote.yml');
     expect(promote).toHaveLength(1);
+    // The filter comes from the promoted commit: `web` before the monorepo move, so rollbacks still build.
+    expect(promote[0]!.run).toBe('pnpm --filter ${{ steps.check.outputs.filter }} build');
     expect(promote[0]!.env.BUILD_NUMBER).toBe('${{ steps.check.outputs.run_number }}');
     // The date in the label is the original build's, not the rebuild's.
     expect(promote[0]!.env.BUILD_TIME).toBe('${{ steps.check.outputs.built_at }}');
@@ -65,7 +70,7 @@ describe('workflows', () => {
 
   it('lets CI be started by hand, deploying staging only from main', () => {
     expect('workflow_dispatch' in ((parse(text('ci.yml')) as { on: object }).on ?? {})).toBe(true);
-    const deploy = jobsOf('ci.yml').find(([n]) => n === 'deploy-staging')![1];
+    const deploy = jobsOf('ci.yml').find(([n]) => n === 'tasks-staging')![1];
     expect(deploy.if!.startsWith(MAIN_ONLY)).toBe(true);
   });
 
@@ -85,10 +90,69 @@ describe('workflows', () => {
     expect(forkProblems(bad)).toEqual(['sneaky: secrets without DEPLOY_ENABLED', 'sneaky: no fork guard']);
   });
 
-  it('checks the host variables before a deploy', () => {
-    const first = (f: string, job: string) => JSON.stringify(jobsOf(f).find(([n]) => n === job)![1].steps![0]);
-    expect(first('promote.yml', 'promote')).toMatch(/PROD_HOST.*PROD_URL|PROD_URL.*PROD_HOST/);
-    expect(first('ci.yml', 'deploy-staging')).toMatch(/STAGING_HOST.*STAGING_URL|STAGING_URL.*STAGING_HOST/);
+  it('checks the app’s variables first, naming them, before a deploy', () => {
+    const first = (f: string, job: string) => jobsOf(f).find(([n]) => n === job)![1].steps![0]!;
+    // The message a run with only the old variables set would show: it must name the new ones.
+    const error = (s: Step) => (s.run ?? '').match(/::error::Set the repository variables? (.*)$/m)?.[1] ?? '';
+    const names = (s: Step) => Object.values((s.env ?? {}) as Record<string, string>).join(' ');
+    const expected: [string, string, string[]][] = [
+      ['promote.yml', 'promote', ['CF_TASKS_PROD_PROJECT', 'TASKS_PROD_HOST', 'TASKS_PROD_URL']],
+      ['ci.yml', 'tasks-staging', ['CF_TASKS_STAGING_PROJECT', 'TASKS_STAGING_HOST', 'TASKS_STAGING_URL']],
+      ['ci.yml', 'tasks-preview', ['CF_TASKS_STAGING_PROJECT']],
+    ];
+    for (const [f, job, vars] of expected) {
+      const step = first(f, job);
+      expect(step.uses, job).toBeUndefined();
+      for (const v of vars) {
+        expect(error(step), job).toContain(v);
+        expect(names(step), job).toContain(`\${{ vars.${v} }}`);
+      }
+    }
+  });
+
+  it('reads only the per-app repository variables (and DEPLOY_ENABLED)', () => {
+    const NEW = [
+      'CF_TASKS_STAGING_PROJECT', 'CF_TASKS_PROD_PROJECT', 'CF_TASKS_ZONE_ID',
+      'TASKS_STAGING_DOMAIN', 'TASKS_STAGING_HOST', 'TASKS_STAGING_URL',
+      'TASKS_PROD_HOST', 'TASKS_PROD_URL',
+      'TASKS_PROD_FOLDER', 'TASKS_STAGING_FOLDER', 'TASKS_PREVIEW_HOST_SUFFIXES',
+      'TASKS_ONEDRIVE_SCOPE', 'TASKS_MSAL_TENANT',
+    ];
+    const used = new Set(FILES.flatMap((f) => [...text(f).matchAll(/\bvars\.(\w+)/g)].map((m) => m[1]!)));
+    expect(used.size).toBeGreaterThan(1);
+    for (const v of used) expect([...NEW, 'DEPLOY_ENABLED'], v).toContain(v);
+  });
+
+  it('keeps the staging build as tasks-dist, from apps/tasks/dist', () => {
+    const staging = jobsOf('ci.yml').find(([n]) => n === 'tasks-staging')![1];
+    const upload = staging.steps!.filter((s) => s.uses?.startsWith('actions/upload-artifact@'));
+    expect(upload.map((s) => s.with)).toEqual([{ name: 'tasks-dist', path: 'apps/tasks/dist', 'retention-days': 30 }]);
+  });
+
+  it('asks Promote which app, and takes the path, artifact and filter from the promoted commit', () => {
+    const wf = parse(text('promote.yml')) as { on: { workflow_dispatch: { inputs: Record<string, object> } } };
+    expect(wf.on.workflow_dispatch.inputs.app).toMatchObject({ type: 'choice', options: ['tasks'], default: 'tasks', required: true });
+    const steps = jobsOf('promote.yml').find(([n]) => n === 'promote')![1].steps!;
+    const env = (s: Step) => (s.env ?? {}) as Record<string, string>;
+    const check = steps.find((s) => s.run?.includes('promote-check.mjs'))!;
+    expect(check.run).toBe('node "$RUNNER_TEMP/ci/promote-check.mjs" "$COMMIT" "$APP"');
+    expect(env(check).APP).toBe('${{ inputs.app }}');
+    const notes = steps.find((s) => s.run?.includes('release-notes.mjs'))!;
+    expect(notes.run).toBe('node "$RUNNER_TEMP/ci/release-notes.mjs" "$SHA" "$APP"');
+    expect(env(notes).APP).toBe('${{ inputs.app }}');
+    const download = steps.find((s) => s.uses?.startsWith('actions/download-artifact@'))!;
+    expect(download.with).toMatchObject({ name: '${{ steps.check.outputs.artifact_name }}', path: '${{ steps.check.outputs.app_dir }}/dist' });
+    const deploy = steps.find((s) => s.uses?.startsWith('cloudflare/wrangler-action@'))!;
+    expect((deploy.with as Record<string, string>).command).toMatch(/^pages deploy \$\{\{ steps\.check\.outputs\.app_dir \}\}\/dist /);
+    // Nothing in Promote may name today's folder: an older commit has another one.
+    expect(text('promote.yml')).not.toMatch(/apps\/tasks|--filter tasks|tasks-dist/);
+  });
+
+  it('updates the old preview comment too', () => {
+    const preview = jobsOf('ci.yml').find(([n]) => n === 'tasks-preview')![1];
+    const script = String((preview.steps!.find((s) => s.uses?.startsWith('actions/github-script@'))!.with as Record<string, string>).script);
+    expect(script).toContain("'<!-- tasks-preview -->'");
+    expect(script).toContain("'<!-- taskapp-preview -->'");
   });
 
   it('gives the e2e job no write permission', () => {
@@ -117,7 +181,7 @@ describe('workflows', () => {
   });
 
   it('deploys only after check and every e2e job', () => {
-    for (const name of ['preview', 'deploy-staging']) {
+    for (const name of ['tasks-preview', 'tasks-staging']) {
       expect(jobsOf('ci.yml').find(([n]) => n === name)![1].needs, name).toEqual(['check', 'e2e']);
     }
   });
@@ -137,7 +201,7 @@ describe('workflows', () => {
 
   it('gives every job a time limit', () => {
     const limits = Object.fromEntries(FILES.flatMap((f) => jobsOf(f).map(([n, j]) => [n, j['timeout-minutes']])));
-    expect(limits).toEqual({ check: 10, 'stop-on-check-failure': 5, e2e: 20, preview: 15, 'deploy-staging': 15, promote: 15 });
+    expect(limits).toEqual({ check: 10, 'stop-on-check-failure': 5, e2e: 20, 'tasks-preview': 15, 'tasks-staging': 15, promote: 15 });
   });
 
   it('never uses pull_request_target', () => {

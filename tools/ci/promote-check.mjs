@@ -1,18 +1,24 @@
 #!/usr/bin/env node
 // Promote to production, step 1: resolve the commit to promote and refuse anything that isn't on main with
-// a passing CI run (doc/TaskApp factory spec.md, 6.2). Usage: promote-check.mjs [<sha | short sha | prod- tag>];
-// empty means the commit staging runs now. Needs GITHUB_TOKEN and GITHUB_REPOSITORY; writes sha, run_id, run_number, built_at and
-// artifact (true when that run's web-dist build can still be downloaded) to $GITHUB_OUTPUT.
+// a passing CI run (doc/TaskApp factory spec.md, 6.2). Usage: promote-check.mjs <sha | short sha | tag> <app>;
+// an empty commit means the one staging runs now. The tag is <app>-prod-…, or for tasks also a prod-… tag from
+// before the monorepo move. Needs GITHUB_TOKEN and GITHUB_REPOSITORY; writes sha, run_id, run_number,
+// built_at, artifact (true when that run's build can still be downloaded), artifact_name, app_dir and filter
+// to $GITHUB_OUTPUT. A commit from before the move has apps/web, the package `web` and the build `web-dist`,
+// so a rollback to it still deploys.
 import { appendFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+import { tagPatterns } from './release-notes.mjs';
 
 /** The commit may not be promoted; the message says why. */
 export class Refused extends Error {}
 
 /**
- * @param {{ repo: string, token: string, input: string, fetch?: typeof fetch }} opts
- * @returns {Promise<{ sha: string, runId: number, runNumber: number, builtAt: string, artifact: boolean }>}
+ * @param {{ repo: string, token: string, input: string, app: string, fetch?: typeof fetch }} opts
+ * @returns {Promise<{ sha: string, runId: number, runNumber: number, builtAt: string, artifact: boolean,
+ *   artifactName: string, appDir: string, filter: string }>}
  */
-export async function promoteCheck({ repo, token, input, fetch: f = fetch }) {
+export async function promoteCheck({ repo, token, input, app, fetch: f = fetch }) {
   /** @param {string} path */
   const get = async (path) => {
     const res = await f(`https://api.github.com/repos/${repo}${path}`, {
@@ -29,6 +35,8 @@ export async function promoteCheck({ repo, token, input, fetch: f = fetch }) {
    */
   const ofMain = (res) =>
     (res.data.workflow_runs ?? []).filter((/** @type {any} */ r) => r.event === 'push' || r.event === 'workflow_dispatch');
+  // Only tasks existed before the move, so only it falls back to the old names.
+  const legacy = app === 'tasks';
 
   const ref = input.trim();
   /** @type {string} */
@@ -39,7 +47,10 @@ export async function promoteCheck({ repo, token, input, fetch: f = fetch }) {
     sha = run.head_sha;
   } else {
     const commit = await get(`/commits/${encodeURIComponent(ref)}`);
-    if (!commit.ok) throw new Refused(`"${ref}" was not found: give a commit SHA from main or a prod- tag.`);
+    if (!commit.ok) {
+      const tags = tagPatterns(app).map((p) => p.replace('*', '…')).join(' or ');
+      throw new Refused(`"${ref}" was not found: give a commit SHA from main or a ${tags} tag.`);
+    }
     sha = commit.data.sha;
   }
   const short = sha.slice(0, 7);
@@ -48,6 +59,15 @@ export async function promoteCheck({ repo, token, input, fetch: f = fetch }) {
   if (!compare.ok || !['ahead', 'identical'].includes(compare.data.status)) {
     throw new Refused(`${short} is not on main; only commits merged to main can go to production.`);
   }
+
+  // Where the app lives in that commit: apps/<app>, or apps/web (package `web`) before the move.
+  const contents = await get(`/contents/apps/${encodeURIComponent(app)}?ref=${sha}`);
+  /** @type {{ appDir: string, filter: string }} */
+  let layout;
+  if (contents.ok) layout = { appDir: `apps/${app}`, filter: app };
+  else if (contents.status === 404 && legacy) layout = { appDir: 'apps/web', filter: 'web' };
+  else if (contents.status === 404) throw new Refused(`${short} has no apps/${app}; promote a commit that has the app.`);
+  else throw new Refused(`Could not read apps/${app} in ${short} (status ${contents.status}); try again.`);
 
   const runs = ofMain(await get(`${runsOnMain}&head_sha=${sha}`));
   const passed = runs.find((/** @type {any} */ r) => r.conclusion === 'success');
@@ -58,25 +78,39 @@ export async function promoteCheck({ repo, token, input, fetch: f = fetch }) {
     throw new Refused(`CI for ${short} did not pass (${latest.conclusion}).`);
   }
 
+  // The build staging ran: <app>-dist, or web-dist before the move.
   const artifacts = (await get(`/actions/runs/${passed.id}/artifacts`)).data.artifacts ?? [];
-  const artifact = artifacts.some((/** @type {any} */ a) => a.name === 'web-dist' && !a.expired);
+  const live = new Set(artifacts.filter((/** @type {any} */ a) => !a.expired).map((/** @type {any} */ a) => a.name));
+  const names = legacy ? [`${app}-dist`, 'web-dist'] : [`${app}-dist`];
+  const found = names.find((n) => live.has(n));
+  const artifactName = found ?? (layout.appDir === 'apps/web' ? 'web-dist' : `${app}-dist`);
   // When the run started, in the footer's `YYYY-MM-DD HH:MM UTC` form: a rebuild keeps the original build's date.
   const builtAt = `${String(passed.run_started_at ?? passed.created_at).slice(0, 16).replace('T', ' ')} UTC`;
-  return { sha, runId: passed.id, runNumber: passed.run_number, builtAt, artifact };
+  return { sha, runId: passed.id, runNumber: passed.run_number, builtAt, artifact: found !== undefined, artifactName, ...layout };
 }
 
 async function main() {
   const token = process.env.GITHUB_TOKEN;
   const repo = process.env.GITHUB_REPOSITORY;
+  const [input = '', app = ''] = process.argv.slice(2);
   if (!token || !repo) {
     console.log('::error::GITHUB_TOKEN and GITHUB_REPOSITORY must be set.');
     return 1;
   }
+  if (!/^[a-z][a-z0-9-]*$/.test(app)) {
+    console.log('::error::usage: promote-check.mjs <commit or tag> <app>');
+    return 1;
+  }
   try {
-    const { sha, runId, runNumber, builtAt, artifact } = await promoteCheck({ repo, token, input: process.argv[2] ?? '' });
-    console.log(`Promoting ${sha} (CI run ${runId}, v${runNumber}, ${artifact ? 'using its build' : 'build expired, rebuilding'})`);
+    const r = await promoteCheck({ repo, token, input, app });
+    const build = r.artifact ? `using its ${r.artifactName} build` : 'build expired, rebuilding';
+    console.log(`Promoting ${app} at ${r.sha} from ${r.appDir} (CI run ${r.runId}, v${r.runNumber}, ${build})`);
     if (process.env.GITHUB_OUTPUT) {
-      appendFileSync(process.env.GITHUB_OUTPUT, `sha=${sha}\nrun_id=${runId}\nrun_number=${runNumber}\nbuilt_at=${builtAt}\nartifact=${artifact}\n`);
+      appendFileSync(
+        process.env.GITHUB_OUTPUT,
+        `sha=${r.sha}\nrun_id=${r.runId}\nrun_number=${r.runNumber}\nbuilt_at=${r.builtAt}\nartifact=${r.artifact}\n` +
+          `artifact_name=${r.artifactName}\napp_dir=${r.appDir}\nfilter=${r.filter}\n`,
+      );
     }
     return 0;
   } catch (e) {
@@ -85,4 +119,4 @@ async function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) process.exitCode = await main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = await main();

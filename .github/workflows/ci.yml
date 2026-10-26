@@ -1,7 +1,8 @@
 name: CI
 # PRs: check, e2e, and (same-repo PRs, once DEPLOY_ENABLED is set) a preview of the fake build. Merges to main:
 # the same checks, then a deploy to staging when DEPLOY_ENABLED is set. A fork has no secrets, so only check
-# and e2e run for it. Names, hosts and folders are repository variables (README, Environment variables).
+# and e2e run for it. Names, hosts and folders are repository variables (README, Environment variables), one
+# set per app: the deploy jobs are named after the app (tasks-preview, tasks-staging) and read TASKS_* ones.
 # CI can also be started by hand (Actions → CI → Run workflow) for when GitHub misses a push; on main that
 # deploys staging too. Production only changes through promote.yml. (doc/TaskApp factory spec.md, section 6)
 on:
@@ -13,7 +14,7 @@ on:
     paths-ignore: ['doc/**', '**/*.md']
 concurrency:
   # PRs: a newer push replaces the older run. main: one group per commit, so no merge's checks are dropped.
-  # (Its deploy-staging job still queues in the `staging` group, where only the newest waiting deploy runs.)
+  # (Its tasks-staging job still queues in the `staging` group, where only the newest waiting deploy runs.)
   group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
@@ -76,7 +77,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter tasks e2e --project=${{ matrix.project }}
-  preview:
+  tasks-preview:
     # Same-repo PRs only: a fork's PR has no secrets, and its code must never meet ours.
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && vars.DEPLOY_ENABLED == 'true'
     needs: [check, e2e]
@@ -86,6 +87,14 @@ jobs:
       contents: read
       pull-requests: write
     steps:
+      - name: Check the repository variables
+        run: |
+          if [ -z "$CF_TASKS_STAGING_PROJECT" ]; then
+            echo "::error::Set the repository variable CF_TASKS_STAGING_PROJECT (README, Environment variables)."
+            exit 1
+          fi
+        env:
+          CF_TASKS_STAGING_PROJECT: ${{ vars.CF_TASKS_STAGING_PROJECT }}
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@v4
@@ -98,15 +107,15 @@ jobs:
         env:
           VITE_STORAGE: fake
           BUILD_NUMBER: ${{ github.run_number }}
-          VITE_PREVIEW_HOST_SUFFIXES: ${{ vars.PREVIEW_HOST_SUFFIXES }}
+          VITE_PREVIEW_HOST_SUFFIXES: ${{ vars.TASKS_PREVIEW_HOST_SUFFIXES }}
       - name: Make sure the staging project exists
         run: node tools/ci/ensure-staging.mjs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CF_STAGING_PROJECT: ${{ vars.CF_STAGING_PROJECT }}
-          STAGING_DOMAIN: ${{ vars.STAGING_DOMAIN }}
-          CF_ZONE_ID: ${{ vars.CF_ZONE_ID }}
+          CF_STAGING_PROJECT: ${{ vars.CF_TASKS_STAGING_PROJECT }}
+          STAGING_DOMAIN: ${{ vars.TASKS_STAGING_DOMAIN }}
+          CF_ZONE_ID: ${{ vars.CF_TASKS_ZONE_ID }}
       - name: Deploy the preview
         id: preview
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
@@ -115,23 +124,25 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # Use the workspace's pinned wrangler; the action can't `pnpm add` it at a workspace root.
           wranglerVersion: '4.151.1'
-          command: pages deploy apps/tasks/dist --project-name=${{ vars.CF_STAGING_PROJECT }} --branch=pr-${{ github.event.number }}
+          command: pages deploy apps/tasks/dist --project-name=${{ vars.CF_TASKS_STAGING_PROJECT }} --branch=pr-${{ github.event.number }}
       - name: Comment the preview link
         uses: actions/github-script@v7
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.pages-deployment-alias-url || steps.preview.outputs.deployment-url }}
         with:
           script: |
-            const marker = '<!-- taskapp-preview -->';
+            // Before the monorepo move the marker was taskapp-preview: update that comment too.
+            const marker = '<!-- tasks-preview -->';
+            const markers = [marker, '<!-- taskapp-preview -->'];
             const sha = context.payload.pull_request.head.sha.slice(0, 7);
             const body = `${marker}\n**Preview:** ${process.env.PREVIEW_URL}\n\nFake drive with sample tasks, build v${context.runNumber} (\`${sha}\`). Sign-in is stubbed.`;
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
             const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
-            const old = comments.find((c) => c.body?.startsWith(marker));
+            const old = comments.find((c) => markers.some((m) => c.body?.startsWith(m)));
             if (old) await github.rest.issues.updateComment({ owner, repo, comment_id: old.id, body });
             else await github.rest.issues.createComment({ owner, repo, issue_number, body });
-  deploy-staging:
+  tasks-staging:
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
     needs: [check, e2e]
     runs-on: ubuntu-latest
@@ -142,18 +153,18 @@ jobs:
     steps:
       - name: Check the repository variables
         run: |
-          if [ -z "$CF_STAGING_PROJECT" ] || [ -z "$STAGING_HOST" ] || [ -z "$STAGING_URL" ]; then
-            echo "::error::Set the repository variables CF_STAGING_PROJECT, STAGING_HOST and STAGING_URL (README, Environment variables)."
+          if [ -z "$CF_TASKS_STAGING_PROJECT" ] || [ -z "$TASKS_STAGING_HOST" ] || [ -z "$TASKS_STAGING_URL" ]; then
+            echo "::error::Set the repository variables CF_TASKS_STAGING_PROJECT, TASKS_STAGING_HOST and TASKS_STAGING_URL (README, Environment variables)."
             exit 1
           fi
-          if [ "$STAGING_URL" != "https://$STAGING_HOST" ]; then
-            echo "::error::STAGING_URL must be https:// followed by STAGING_HOST."
+          if [ "$TASKS_STAGING_URL" != "https://$TASKS_STAGING_HOST" ]; then
+            echo "::error::TASKS_STAGING_URL must be https:// followed by TASKS_STAGING_HOST."
             exit 1
           fi
         env:
-          CF_STAGING_PROJECT: ${{ vars.CF_STAGING_PROJECT }}
-          STAGING_HOST: ${{ vars.STAGING_HOST }}
-          STAGING_URL: ${{ vars.STAGING_URL }}
+          CF_TASKS_STAGING_PROJECT: ${{ vars.CF_TASKS_STAGING_PROJECT }}
+          TASKS_STAGING_HOST: ${{ vars.TASKS_STAGING_HOST }}
+          TASKS_STAGING_URL: ${{ vars.TASKS_STAGING_URL }}
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@v4
@@ -167,16 +178,16 @@ jobs:
           # The version shown in the footer; Promote ships this same build, so production shows it too.
           # run_number counts per workflow file: renaming ci.yml would restart it at 1.
           BUILD_NUMBER: ${{ github.run_number }}
-          VITE_PROD_HOST: ${{ vars.PROD_HOST }}
-          VITE_STAGING_HOST: ${{ vars.STAGING_HOST }}
-          VITE_PREVIEW_HOST_SUFFIXES: ${{ vars.PREVIEW_HOST_SUFFIXES }}
-          VITE_PROD_FOLDER: ${{ vars.PROD_FOLDER }}
-          VITE_STAGING_FOLDER: ${{ vars.STAGING_FOLDER }}
-          VITE_ONEDRIVE_SCOPE: ${{ vars.ONEDRIVE_SCOPE }}
+          VITE_PROD_HOST: ${{ vars.TASKS_PROD_HOST }}
+          VITE_STAGING_HOST: ${{ vars.TASKS_STAGING_HOST }}
+          VITE_PREVIEW_HOST_SUFFIXES: ${{ vars.TASKS_PREVIEW_HOST_SUFFIXES }}
+          VITE_PROD_FOLDER: ${{ vars.TASKS_PROD_FOLDER }}
+          VITE_STAGING_FOLDER: ${{ vars.TASKS_STAGING_FOLDER }}
+          VITE_ONEDRIVE_SCOPE: ${{ vars.TASKS_ONEDRIVE_SCOPE }}
       - name: Keep the build for Promote
         uses: actions/upload-artifact@v4
         with:
-          name: web-dist
+          name: tasks-dist
           path: apps/tasks/dist
           retention-days: 30
       - name: Make sure the staging project exists
@@ -184,21 +195,21 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CF_STAGING_PROJECT: ${{ vars.CF_STAGING_PROJECT }}
-          STAGING_DOMAIN: ${{ vars.STAGING_DOMAIN }}
-          CF_ZONE_ID: ${{ vars.CF_ZONE_ID }}
+          CF_STAGING_PROJECT: ${{ vars.CF_TASKS_STAGING_PROJECT }}
+          STAGING_DOMAIN: ${{ vars.TASKS_STAGING_DOMAIN }}
+          CF_ZONE_ID: ${{ vars.CF_TASKS_ZONE_ID }}
       - uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: '4.151.1'
           # Run from the repo root, so wrangler also bundles functions/ (the sign-in helper at /api/auth/*).
-          command: pages deploy apps/tasks/dist --project-name=${{ vars.CF_STAGING_PROJECT }} --branch=main
+          command: pages deploy apps/tasks/dist --project-name=${{ vars.CF_TASKS_STAGING_PROJECT }} --branch=main
       - name: Check the sign-in helper is live
         # /api/auth/login must redirect to Microsoft for MSAL_TENANT, asking for the scope the build expects.
         # That holds only when the functions shipped and the Pages secrets (README, Sign-in) are set.
         run: node tools/ci/check-signin.mjs
         env:
-          SIGNIN_URL: ${{ vars.STAGING_URL }}
-          MSAL_TENANT: ${{ vars.MSAL_TENANT }}
-          ONEDRIVE_SCOPE: ${{ vars.ONEDRIVE_SCOPE }}
+          SIGNIN_URL: ${{ vars.TASKS_STAGING_URL }}
+          MSAL_TENANT: ${{ vars.TASKS_MSAL_TENANT }}
+          ONEDRIVE_SCOPE: ${{ vars.TASKS_ONEDRIVE_SCOPE }}
