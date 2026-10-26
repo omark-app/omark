@@ -259,6 +259,8 @@ Omark Time needs a Google sign-in anyway, so Google Drive storage joins the laun
   - e2e covers the first run with Google Drive on fake storage.
   - Manual on staging: a test Google account's files appear in `My Drive/Omark Tasks`, and an edit made through Google Drive for desktop is merged.
 
+**Findings (2026-10-26).** Drive API v3 ignores `If-Match`; v2 honours it and answers 412 on a stale etag, so the adapter writes through v2. Reads take the v2 `etag` and `headRevisionId` and download that exact revision. The Drive box on Google's consent screen starts unticked, so the helper checks the granted scope and refuses a sign-in without it. The desktop-edit check stays the manual staging step. Details: `doc/plans/61-google-drive.md`, "Spike findings".
+
 ### 6.5 The open hosted app (large: sign-in and storage scope)
 
 - **The hosted app lives at `tasks.omark.app` and is Omark's production.** It goes through today's pipeline, re-pointed:
