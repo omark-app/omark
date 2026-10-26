@@ -1,4 +1,5 @@
 import { untrack } from 'svelte';
+import { mergeSettings } from '@omark/settings';
 import { BRAND } from '../brand.ts';
 import {
   addTask,
@@ -27,6 +28,7 @@ import {
   setImportant as setImportantOp,
   setRepeat as setRepeatOp,
   sweepCompleted,
+  TASKS_SCHEMA,
   tasksInBucket,
   weekCtx,
 } from '@omark/tasks-core';
@@ -56,14 +58,21 @@ export interface Toast {
 }
 
 /**
- * The one place where UI actions become core operations. Every change pushes the previous `State` on the
- * undo stack, shows a toast with Undo and schedules a debounced save.
+ * The one place where UI actions become core operations. Every change to the tasks pushes the previous
+ * `State` on the undo stack, shows a toast with Undo and schedules a debounced save.
  */
 export interface AppStore {
   readonly state: State;
   readonly ctx: WeekCtx;
   readonly config: Config;
   readonly configError: ConfigError | null;
+  /** The working text of config.yaml (what `config` was read from). */
+  readonly configText: string;
+  /**
+   * Set when a setting changed here was also changed on another device: names them and says the change
+   * made here was kept. Stays until the next `writeConfig` or the next such conflict.
+   */
+  readonly configNote: string | null;
   readonly selectedId: string | null;
   /** Open tasks per bucket. */
   readonly counts: Record<BucketKey, number>;
@@ -106,6 +115,11 @@ export interface AppStore {
   /** Flags or unflags a task as Important (issue #19). */
   setImportant(id: string, important: boolean): void;
   undo(): void;
+  /**
+   * Replaces config.yaml with `text` (the whole new file): applies it at once and saves it like a task
+   * edit, merged key by key with other devices' changes. No toast and no undo. The same text is a no-op.
+   */
+  writeConfig(text: string): void;
   /**
    * Registers a callback that commits input still waiting in the UI (e.g. debounced typing). `flush()` and
    * `refresh()` run every callback before they stage, and `refresh()` again before it merges what it read.
@@ -160,6 +174,9 @@ const byBucket = <T>(value: (key: BucketKey) => T): Record<BucketKey, T> =>
 const sameList = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((x, i) => x === b[i]);
 
+const conflictNote = (labels: readonly string[]): string =>
+  `Also changed on another device: ${labels.join(', ')}. Kept the change made here.`;
+
 /** Parsed files with any `- [x]` lines in tasks.md swept into done.md. */
 function loadState(doc: State['doc'], doneText: string, today: ISODate): State {
   const state: State = { doc, done: parseDone(doneText) };
@@ -171,8 +188,9 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   const snap = await workspace.open();
 
   // The file texts the store's edits start from (Ruling 21): what it last adopted or saved.
-  const base = { tasks: snap.tasks, done: snap.done };
-  let configText = snap.config;
+  const base = { tasks: snap.tasks, done: snap.done, config: snap.config };
+  let configText = $state.raw(snap.config);
+  let configNote = $state.raw<string | null>(null);
   const first = parseConfig(snap.config);
   const firstCtx = weekCtx(clock.now(), first.config.firstDayOfWeek);
 
@@ -248,7 +266,9 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   }
 
   const isDirty = (): boolean =>
-    serializeTasks(state.doc) !== base.tasks || serializeDone(state.done) !== base.done;
+    serializeTasks(state.doc) !== base.tasks ||
+    serializeDone(state.done) !== base.done ||
+    configText !== base.config;
 
   /**
    * Stages each file whose text differs from its base (Ruling 23): resolves once the edits are in the
@@ -257,10 +277,12 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   async function stageNow(): Promise<void> {
     const tasks = serializeTasks(state.doc);
     const done = serializeDone(state.done);
+    const config = configText;
     const files: Parameters<Workspace['stage']>[0] = {};
     if (tasks !== base.tasks) files.tasks = { text: tasks, base: base.tasks };
     if (done !== base.done) files.done = { text: done, base: base.done };
-    if (!files.tasks && !files.done) return;
+    if (config !== base.config) files.config = { text: config, base: base.config };
+    if (!files.tasks && !files.done && !files.config) return;
     try {
       await workspace.stage(files);
     } catch {
@@ -270,6 +292,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     }
     if (files.tasks) base.tasks = tasks;
     if (files.done) base.done = done;
+    if (files.config) base.config = config;
   }
 
   function applyConfig(text: string): void {
@@ -294,8 +317,22 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   function adopt(): boolean {
     for (const fn of [...pending]) fn();
     const next = workspace.texts();
-    if (next.config !== configText) applyConfig(next.config);
-    if (next.tasks === base.tasks && next.done === base.done) return false;
+    const configIn = next.config !== base.config;
+    if (configIn) {
+      // Like tasks.md: a config edit not staged yet is merged onto the new text, setting by setting.
+      let text = next.config;
+      if (configText !== base.config) {
+        const merged = mergeSettings(TASKS_SCHEMA, base.config, configText, next.config);
+        text = merged.text;
+        if (merged.conflicts.length > 0) configNote = conflictNote(merged.conflicts.map((f) => f.label));
+      }
+      base.config = next.config;
+      if (text !== configText) applyConfig(text);
+    }
+    if (next.tasks === base.tasks && next.done === base.done) {
+      if (configIn && isDirty()) scheduleSave();
+      return false;
+    }
 
     const localTasks = serializeTasks(state.doc);
     const localDone = serializeDone(state.done);
@@ -468,6 +505,14 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     scheduleSave();
   }
 
+  function writeConfig(text: string): void {
+    if (text === configText) return;
+    configNote = null;
+    unsynced = true;
+    applyConfig(text);
+    scheduleSave();
+  }
+
   // ---- view ------------------------------------------------------------------------------------------
 
   /** Board column groups for the tasks as they are now. */
@@ -541,6 +586,11 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     });
   }
 
+  // A staged config edit met another device's change to the same setting (merged in the workspace).
+  workspace.onConfigConflict((labels) => {
+    configNote = conflictNote(labels);
+  });
+
   // A pull or save that met another device's change merged it in (#6): show it now, not on the next focus.
   // During the first pull this can run before `refreshOnce` adopts, so it may pack the board too.
   workspace.onRemoteChange(() => void serial(async () => adoptRemote()).catch((e: unknown) => console.error(e)));
@@ -555,6 +605,8 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     get ctx() { return ctx; },
     get config() { return config; },
     get configError() { return configError; },
+    get configText() { return configText; },
+    get configNote() { return configNote; },
     get selectedId() { return selectedId; },
     get counts() { return counts; },
     get folded() { return folded; },
@@ -579,6 +631,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     setRepeat,
     setImportant,
     undo,
+    writeConfig,
     registerPending(fn) {
       pending.add(fn);
       return () => {

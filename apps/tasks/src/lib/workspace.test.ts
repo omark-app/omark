@@ -154,6 +154,23 @@ describe('createWorkspace', () => {
     expect(drive.peek('tasks.md')).toBe(S);
   });
 
+  it('stage({ config }) writes config.yaml, and a 412 merge reports the conflicts by label', async () => {
+    const drive = new FakeOneDrive({ 'config.yaml': 'theme: system\n' });
+    const ws = createWorkspace(drive, new MemoryCache());
+    const seen: string[][] = [];
+    ws.onConfigConflict((labels) => seen.push(labels));
+    await ws.open();
+    await ws.stage({ config: { text: 'theme: light\n', base: 'theme: system\n' } });
+    await ws.refresh(); // queued behind the upload
+    expect(drive.peek('config.yaml')).toBe('theme: light\n');
+
+    // Another device changed the theme too, and the save delay: the write meets it (412) and merges.
+    drive.externalWrite('config.yaml', 'theme: dark\nsaveDelaySeconds: 2\n');
+    await ws.save({ config: { text: 'theme: system\n', base: 'theme: light\n' } });
+    expect(drive.peek('config.yaml')).toBe('theme: system\nsaveDelaySeconds: 2\n');
+    expect(seen).toEqual([['Theme']]);
+  });
+
   it('stage() still caches done.md when the tasks.md put fails, then rethrows', async () => {
     class TasksPutFails extends MemoryCache {
       failing = false;

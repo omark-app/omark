@@ -991,3 +991,86 @@ describe('shortcut words when editing (#19, AL in the session)', () => {
     expect(store.toast?.message).toBe('Marked important');
   });
 });
+
+describe('writing config.yaml (#45)', () => {
+  const NOTE = 'Also changed on another device: Theme. Kept the change made here.';
+
+  it('writeConfig applies at once, with no toast or undo, and flush writes the file', async () => {
+    const { drive, store } = await setup();
+    store.writeConfig('theme: dark\n');
+    expect(store.config.theme).toBe('dark');
+    expect(store.configText).toBe('theme: dark\n');
+    expect(store.toast).toBeNull();
+    await store.flush();
+    await vi.waitFor(() => expect(drive.peek('config.yaml')).toBe('theme: dark\n'));
+    store.undo();
+    expect(store.toast?.message).toBe('Nothing to undo');
+    expect(store.config.theme).toBe('dark');
+  });
+
+  it('writeConfig saves after the save delay', async () => {
+    const { drive, store } = await setup();
+    store.writeConfig('theme: dark\n');
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.waitFor(() => expect(drive.peek('config.yaml')).toBe('theme: dark\n'));
+  });
+
+  it('writeConfig with the text it already has changes nothing', async () => {
+    const { store } = await setup();
+    store.writeConfig(store.configText);
+    expect(store.wouldLoseEdits()).toBe(false);
+  });
+
+  it('flush stages a pending config edit', async () => {
+    const cache = new MemoryCache();
+    const { store } = await setup({ 'tasks.md': SEED_TASKS }, { cache });
+    store.writeConfig('theme: dark\n');
+    expect(store.wouldLoseEdits()).toBe(true);
+    await store.flush();
+    expect((await cache.get('config.yaml'))?.local).toBe('theme: dark\n');
+  });
+
+  it('unstaged config edit survives a refresh', async () => {
+    // An empty file, so each side adds one key (the defaults file already has both).
+    const { drive, store } = await setup({ 'tasks.md': SEED_TASKS, 'config.yaml': '' });
+    store.writeConfig('theme: dark\n');
+    drive.externalWrite('config.yaml', 'saveDelaySeconds: 2\n');
+    await store.refresh();
+    const text = drive.peek('config.yaml')!;
+    expect(text).toContain('theme: dark');
+    expect(text).toContain('saveDelaySeconds: 2');
+    expect(store.config).toMatchObject({ theme: 'dark', saveDelaySeconds: 2 });
+  });
+
+  it('a config edit made while a refresh reads is merged key by key with the remote', async () => {
+    const drive = new SlowDrive({ 'tasks.md': SEED_TASKS, 'config.yaml': 'theme: system\n' });
+    const ws = createWorkspace(drive, new MemoryCache());
+    const store = await createStore({ workspace: ws, clock, isPhone: () => false });
+    drive.externalWrite('config.yaml', 'theme: light\nsaveDelaySeconds: 2\n');
+    drive.holdReads = (name) => name === 'config.yaml';
+    const done = store.refresh();
+    await vi.waitFor(() => expect(drive.stalled).toBeGreaterThan(0));
+    store.writeConfig('theme: dark\n');
+    drive.release();
+    await done;
+    expect(store.config).toMatchObject({ theme: 'dark', saveDelaySeconds: 2 });
+    expect(store.configNote).toBe(NOTE);
+    await vi.runAllTimersAsync();
+    await store.flush();
+    await ws.refresh();
+    expect(drive.peek('config.yaml')).toBe('theme: dark\nsaveDelaySeconds: 2\n');
+  });
+
+  it('a conflict on theme met by the upload keeps the local value and says so in configNote', async () => {
+    const { drive, store, synced } = await setup({ 'tasks.md': SEED_TASKS, 'config.yaml': 'theme: system\n' });
+    expect(store.configNote).toBeNull();
+    store.writeConfig('theme: dark\n');
+    drive.externalWrite('config.yaml', 'theme: light\n');
+    await synced();
+    expect(drive.peek('config.yaml')).toBe('theme: dark\n');
+    expect(store.config.theme).toBe('dark');
+    expect(store.configNote).toBe(NOTE);
+    store.writeConfig('theme: system\n');
+    expect(store.configNote).toBeNull();
+  });
+});
