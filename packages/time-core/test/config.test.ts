@@ -105,3 +105,46 @@ test('setTimeConfig fills an empty value and adds an absent key', () => {
   const out = setTimeConfig('week_start:   # later\ntheme: dark', { weekStart: 'friday', colourEvents: true }, TODAY);
   expect(out).toBe('week_start: friday   # later\ntheme: dark\ncolour_events: true\n');
 });
+
+const roundTrips = (text: string, changes: Parameters<typeof setTimeConfig>[1], expected: Partial<typeof DEFAULTS>) => {
+  const out = setTimeConfig(text, changes, TODAY);
+  expect(parseTimeConfig(out, TODAY)).toEqual({ config: { ...DEFAULTS, ...expected }, problems: [] });
+  return out;
+};
+
+test('setTimeConfig keeps the next line when the old value was a block list', () => {
+  const out = roundTrips('calendars:\n  - primary\n  - work@x.com\nweek_start: monday\n', { calendars: ['a', 'b'] }, { calendars: ['a', 'b'] });
+  expect(out).toBe('calendars: [a, b]\nweek_start: monday\n');
+});
+
+test('setTimeConfig keeps the next line when the old value was a block scalar', () => {
+  const out = roundTrips('week_start: >-\n  monday\ncolour_events: false\n', { weekStart: 'sunday' }, { weekStart: 'sunday' });
+  expect(out).toBe('week_start: sunday\ncolour_events: false\n');
+});
+
+test('setTimeConfig replaces an explicit null', () => {
+  expect(roundTrips('week_start: ~\n', { weekStart: 'sunday' }, { weekStart: 'sunday' })).toBe('week_start: sunday\n');
+  expect(roundTrips('week_start: null # c\n', { weekStart: 'sunday' }, { weekStart: 'sunday' })).toBe('week_start: sunday # c\n');
+});
+
+test('setTimeConfig appends to a comment-only file', () => {
+  expect(roundTrips('# hi\n', { colourEvents: true }, { colourEvents: true })).toBe('# hi\ncolour_events: true\n');
+});
+
+test('setTimeConfig appends with CRLF and without a final newline', () => {
+  expect(roundTrips('theme: dark\r\n', { colourEvents: true }, { colourEvents: true })).toBe('theme: dark\r\ncolour_events: true\r\n');
+  expect(roundTrips('theme: dark', { colourEvents: true }, { colourEvents: true })).toBe('theme: dark\ncolour_events: true\n');
+});
+
+test('setTimeConfig replaces a quoted value', () => {
+  expect(roundTrips('week_start: "monday"\n', { weekStart: 'sunday' }, { weekStart: 'sunday' })).toBe('week_start: sunday\n');
+});
+
+test('setTimeConfig appends a top-level key when only a nested map has that name', () => {
+  const out = roundTrips('other:\n  colour_events: false\n', { colourEvents: true }, { colourEvents: true });
+  expect(out).toBe('other:\n  colour_events: false\ncolour_events: true\n');
+});
+
+test('setTimeConfig fills an empty value at the end of a file with no final newline', () => {
+  expect(roundTrips('colour_events:', { colourEvents: true }, { colourEvents: true })).toBe('colour_events: true');
+});

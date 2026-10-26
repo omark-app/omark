@@ -143,39 +143,53 @@ function valueText<K extends keyof TimeConfig>(key: K, value: TimeConfig[K]): st
   return String(value);
 }
 
+/** The top-level map, or null for a file with no content (empty or only comments). */
 function parseForEdit(text: string) {
   const doc = parseDocument(text, { prettyErrors: false });
   const first = doc.errors[0];
   if (first) throw new Error(first.message.split('\n')[0]!);
+  if (doc.contents === null) return { map: null, data: {} as Record<string, unknown> };
   if (!isMap(doc.contents)) throw new Error('config.yaml must be a map of settings');
-  return doc.contents;
+  return { map: doc.contents, data: (doc.toJS() ?? {}) as Record<string, unknown> };
+}
+
+/** Splices one value into the text, keeping the rest of the line and every other line as they are. */
+function spliceValue(text: string, name: string, newText: string): string {
+  const pair = parseForEdit(text).map?.items.find((p) => isScalar(p.key) && p.key.value === name);
+  const keyRange = isScalar(pair?.key) ? pair.key.range : null;
+  if (!pair || !keyRange) {
+    const eol = text.includes('\r\n') ? '\r\n' : '\n';
+    return `${text}${text === '' || text.endsWith('\n') ? '' : eol}${name}: ${newText}${eol}`;
+  }
+  const colonEnd = keyRange[1] + 1;
+  let end = isNode(pair.value) && pair.value.range ? Math.min(pair.value.range[1], text.length) : colonEnd;
+  // Block values include their line breaks; an empty value includes the spaces after the colon.
+  while (end > colonEnd && /\s/.test(text[end - 1]!)) end--;
+  return `${text.slice(0, keyRange[1])}: ${newText}${text.slice(Math.max(end, colonEnd))}`;
 }
 
 /**
  * Sets only the given keys and returns the new text. Only the changed value is rewritten, so every other
  * line, comment and unknown key stays byte for byte as it was.
- * Throws an Error with the parser's message when the text is not valid YAML.
+ * Throws an Error with the parser's message when the text is not valid YAML, or when the result would
+ * not read back as intended.
  */
 export function setTimeConfig(text: string, changes: Partial<TimeConfig>, today: string): string {
   let out = text.trim() === '' ? defaultTimeConfigText(today) : text;
-  parseForEdit(out);
+  const before = parseForEdit(out).data;
+  const expected: Record<string, unknown> = { ...before };
   for (const key of Object.keys(KEYS) as (keyof TimeConfig)[]) {
     const value = changes[key];
     if (value === undefined) continue;
-    const name = KEYS[key];
-    const newText = valueText(key, value);
-    const pair = parseForEdit(out).items.find((p) => isScalar(p.key) && p.key.value === name);
-    const keyRange = isScalar(pair?.key) ? pair.key.range : null;
-    if (!pair || !keyRange) {
-      const eol = out.includes('\r\n') ? '\r\n' : '\n';
-      out = `${out}${out.endsWith('\n') ? '' : eol}${name}: ${newText}${eol}`;
-      continue;
+    out = spliceValue(out, KEYS[key], valueText(key, value));
+    expected[KEYS[key]] = value;
+  }
+  const after = parseForEdit(out).data;
+  const keys = new Set([...Object.keys(expected), ...Object.keys(after)]);
+  for (const k of keys) {
+    if (JSON.stringify(after[k]) !== JSON.stringify(expected[k])) {
+      throw new Error(`Could not change ${k} in config.yaml safely; edit the file as text`);
     }
-    const valueRange = isNode(pair.value) ? pair.value.range : null;
-    // An empty value (`week_start:`) ends at the colon.
-    const empty = !valueRange || (isScalar(pair.value) && pair.value.value === null);
-    const end = empty ? keyRange[1] + 1 : valueRange[1];
-    out = `${out.slice(0, keyRange[1])}: ${newText}${out.slice(end)}`;
   }
   return out;
 }
