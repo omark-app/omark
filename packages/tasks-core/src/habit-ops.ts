@@ -1,10 +1,10 @@
 import type { HabitConfig } from './config.ts';
 import { daysBetween } from './dates.ts';
-import { droppedLine, formedLine } from './done-file.ts';
+import { doneLines, droppedLine, formedLine } from './done-file.ts';
 import { habitCompletions, habitProgress, habitRules, walkHabit } from './habits.ts';
 import type { DoneDoc, ISODate, RepeatRule, State, Task, TasksDoc } from './model.ts';
 import { findTask, indexOf, updateTask, withItems } from './ops.ts';
-import { isUsableHabitRule, readBack } from './tasks-file.ts';
+import { isUsableHabitRule, noteLines, readBack } from './tasks-file.ts';
 import { allTasks } from './buckets.ts';
 
 /** The open habits, in file order. */
@@ -47,15 +47,23 @@ function withoutBlock(s: State, at: number): State['doc']['items'] {
 }
 
 /**
- * A habit that reached its goal leaves tasks.md, notes and all, and `done.md` gets its 🏆 line. Gives the task
- * as it was stored and its item index, for Undo and Keep as task (`restoreTask`); null for a non-habit.
+ * A habit that reached its goal leaves tasks.md, notes and all, and `done.md` gets its 🏆 line. The notes go
+ * under it, unless today's completion just above already carries them (a goal or config change forms with
+ * no completion). Gives the task as it was stored and its item index, for Undo and Keep as task
+ * (`restoreTask`); null for a non-habit.
  */
 export function formHabit(s: State, id: string, today: ISODate): { state: State; task: Task; at: number } | null {
   const found = habitAt(s, id);
   if (!found) return null;
-  const state = { ...withItems(s, withoutBlock(s, found.at)), done: { lines: [...s.done.lines, formedLine(found.task.title, today)] } };
-  return { state, ...found };
+  const completion = doneLines(found.task, today).map((l) => l.raw);
+  const tail = s.done.lines.slice(-completion.length).map((l) => l.raw);
+  const notes = sameLines(tail, completion) ? [] : noteLines(found.task).map((raw) => ({ entry: null, raw }));
+  const lines = [...s.done.lines, formedLine(found.task.title, today), ...notes];
+  return { state: { ...withItems(s, withoutBlock(s, found.at)), done: { lines } }, ...found };
 }
+
+const sameLines = (a: readonly string[], b: readonly string[]): boolean =>
+  a.length === b.length && a.every((x, i) => x === b[i]);
 
 /** Drops a habit: it leaves tasks.md and `done.md` gets its ❌ line. `s` for a non-habit. */
 export function dropHabit(s: State, id: string, today: ISODate): State {
@@ -114,6 +122,7 @@ export function habitHistory(done: DoneDoc, config: HabitConfig): { formed: Form
   done.lines.forEach((l, i) => {
     const end = l.end;
     if (!end) return;
+    // Done lines drop the habit's own goal, so a percentage `missesPerAttempt` is of the configured goal.
     const rules = { ...habitRules({ goal: null }, config), goal: Number.MAX_SAFE_INTEGER };
     const p = walkHabit(habitCompletions(end.title, done, i), ruleBefore(end.title, done, i), end.on, rules);
     if (end.kind === 'formed') {

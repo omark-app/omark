@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  allTasks, editTask, canStartHabit, completeTask, dropHabit, findTask, formedHabits, formHabit, habitHistory, habitsInProgress,
+  allTasks, editTask, canStartHabit, completeTask, doneBlocks, dropHabit, findTask, formedHabits, formHabit, habitHistory, habitsInProgress,
   parseDone, parseTasks, restoreTask, serializeDone, serializeTasks, setHabit, setHabitGoal, setRepeat,
   type HabitConfig, type State,
 } from '../src/index.ts';
@@ -75,9 +75,28 @@ describe('formHabit, dropHabit and restoreTask', () => {
     const s = make(tasks);
     const r = formHabit(s, idOf(s, 'Meditate'), TODAY)!;
     expect(text(r.state)).toBe('# Tasks\n- [ ] A\n- [ ] B\n');
-    expect(serializeDone(r.state.done)).toBe('- [x] Meditate 🌱 🏆 2026-10-20\n');
+    // Formed by a goal or config change, no completion line carries the notes: the 🏆 line does.
+    expect(serializeDone(r.state.done)).toBe('- [x] Meditate 🌱 🏆 2026-10-20\n    - ten minutes\n');
     expect(r.at).toBe(1);
     expect(r.task).toMatchObject({ title: 'Meditate', notes: ['ten minutes'], habit: { goal: null } });
+  });
+
+  it('formed by today\'s completion, the notes stay under the completion line only', () => {
+    const s = make(tasks);
+    const { state } = completeTask(s, idOf(s, 'Meditate'), TODAY);
+    const r = formHabit(state, idOf(state, 'Meditate'), TODAY)!;
+    expect(serializeDone(r.state.done)).toBe(`${tick('Meditate', TODAY)}\n    - ten minutes\n- [x] Meditate 🌱 🏆 2026-10-20\n`);
+  });
+
+  it('the notes under a 🏆 line read back as its block, and merge with it', () => {
+    const s = make(tasks);
+    const done = serializeDone(formHabit(s, idOf(s, 'Meditate'), TODAY)!.state.done);
+    const d = parseDone(done);
+    expect(d.lines.map((l) => [l.end?.kind ?? null, l.raw])).toEqual([
+      ['formed', '- [x] Meditate 🌱 🏆 2026-10-20'], [null, '    - ten minutes'],
+    ]);
+    expect(habitHistory(d, CONFIG).formed).toHaveLength(1);
+    expect(doneBlocks(done)).toEqual(['- [x] Meditate 🌱 🏆 2026-10-20\n    - ten minutes']);
   });
 
   it('restoreTask with the task minus its habit puts it back where it was', () => {
