@@ -1,4 +1,6 @@
 import 'fake-indexeddb/auto';
+import { createStore } from 'idb-keyval';
+import type { UseStore } from 'idb-keyval';
 import { describe, expect, it } from 'vitest';
 import { PreconditionFailedError } from '../src/errors.ts';
 import { IdbDrive } from '../src/idb-drive.ts';
@@ -43,6 +45,33 @@ describe('IdbDrive', () => {
     expect(await second.read('tasks.md')).toEqual({ text: 'y', etag: '"v2"' });
     expect(await second.peek('tasks.md')).toBe('y');
     expect(await second.peek('done.md')).toBeNull();
+  });
+
+  it('does not report a write whose transaction aborts after the put succeeded', async () => {
+    // Every readwrite transaction aborts as soon as its put request succeeds, so nothing commits.
+    const aborting = (dbName: string, storeName: string): UseStore => {
+      const real = createStore(dbName, storeName);
+      return (mode, callback) =>
+        real(mode, (objectStore) => {
+          if (mode !== 'readwrite') return callback(objectStore);
+          const put = objectStore.put.bind(objectStore);
+          objectStore.put = (value, key) => {
+            const request = put(value, key);
+            request.addEventListener('success', () => objectStore.transaction.abort());
+            return request;
+          };
+          return callback(objectStore);
+        });
+    };
+    const name = freshName();
+    await new IdbDrive(name).seed({ 'tasks.md': 'x' });
+    const drive = new IdbDrive(name, aborting);
+    const outcome = await drive.write('tasks.md', 'y', '"v1"').then(
+      () => 'resolved',
+      () => 'rejected',
+    );
+    expect(outcome).toBe('rejected');
+    expect(await drive.read('tasks.md')).toEqual({ text: 'x', etag: '"v1"' });
   });
 
   it('stores nothing when a write is rejected', async () => {

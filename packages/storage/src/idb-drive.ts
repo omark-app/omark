@@ -73,7 +73,9 @@ export class IdbDrive implements StorageAdapter {
         const f = await promisify<StoredFile | undefined>(objectStore.get(name));
         if (ifMatch !== undefined && !matches(f, ifMatch)) return null;
         const version = (f?.version ?? 0) + 1;
-        await promisify(objectStore.put({ text, version }, name));
+        objectStore.put({ text, version }, name);
+        // Report the new eTag only once the transaction commits (a put can succeed and still be rolled back).
+        await promisify(objectStore.transaction);
         return etagOf(version);
       }),
     );
