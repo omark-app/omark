@@ -1,4 +1,4 @@
-import { inWindow, type RowContext } from './rows.ts';
+import { hasRowTimes, inWindow, type RowContext } from './rows.ts';
 import type { CalendarEvent, ColourPatch, EventTime, TrackerColour } from './source.ts';
 import { parseTitle } from './title.ts';
 import { localDate, parseInstant, startOfDay } from './zone.ts';
@@ -21,7 +21,7 @@ function startMs(start: EventTime, tz: string): number {
 export function colourAction(event: CalendarEvent, ctx: ColourContext): ColourPatch | null {
   if (event.status === 'cancelled' || event.response === 'declined') return null;
   const date = startDate(event.start, ctx.timeZone);
-  if (date === null || !inWindow(date, ctx)) return null;
+  if (date === null || !inWindow(date, ctx) || !hasRowTimes(event, ctx.timeZone)) return null;
   const title = parseTitle(event.title, ctx.knownCodes);
   if (!title) return clearAction(event, ctx.ids);
   const want: TrackerColour = title.known ? 'green' : 'red';

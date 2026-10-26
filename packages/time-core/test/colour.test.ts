@@ -81,7 +81,7 @@ test('events outside the window are left alone', () => {
   expect(colourAction(ev({ start: before }), ctx)).toBeNull();
   expect(colourAction(ev({ start: { dateTime: '2027-01-24T09:00:00+01:00' } }), ctx)).toBeNull();
   expect(colourAction(ev({ start: { date: '2027-01-24' } }), ctx)).toBeNull();
-  expect(colourAction(ev({ start: { date: '2026-10-22' } }), ctx)).toEqual({ colorId: '10', marker: 'green' });
+  expect(colourAction(ev({ start: { date: '2026-10-22' }, end: { date: '2026-10-23' } }), ctx)).toEqual({ colorId: '10', marker: 'green' });
 });
 
 test('the start date is read in the calendar zone', () => {
@@ -111,7 +111,7 @@ test('colourPlan keeps events needing a patch, latest start first', () => {
   const b = ev({ start: { dateTime: '2026-10-22T09:00:00+02:00' } });
   const done = ev({ colorId: '10', marker: 'green' });
   const c = ev({ title: 'OOO', start: { dateTime: '2026-10-21T09:00:00+02:00' } });
-  const d = ev({ title: 'OOO; y', start: { date: '2026-10-23' } });
+  const d = ev({ title: 'OOO; y', start: { date: '2026-10-23' }, end: { date: '2026-10-24' } });
   const input = [a, done, b, c, d];
   const plan = colourPlan(input, ctx);
   expect(plan.map((p) => p.event)).toEqual([d, b, a]);
@@ -126,4 +126,13 @@ test('colourPlan breaks ties by calendar then id', () => {
   const y = ev({ calendarId: 'a', id: 'z', start });
   const z = ev({ calendarId: 'a', id: 'b', start });
   expect(colourPlan([x, y, z], ctx).map((p) => p.event)).toEqual([z, y, x]);
+});
+
+test('an event whose times give no rows is left alone', () => {
+  expect(colourAction(ev({ end: null }), ctx)).toBeNull();
+  expect(colourAction(ev({ end: { dateTime: '2026-10-22T08:00:00+02:00' } }), ctx)).toBeNull();
+  expect(colourAction(ev({ start: { date: '2026-10-22' }, end: { date: '2026-10-22' } }), ctx)).toBeNull();
+  // A zero-length event gives a 0-hour row, so it is coloured.
+  const zero = { dateTime: '2026-10-22T09:00:00+02:00' };
+  expect(colourAction(ev({ start: zero, end: zero }), ctx)).toEqual({ colorId: '10', marker: 'green' });
 });

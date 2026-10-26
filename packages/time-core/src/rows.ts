@@ -48,13 +48,26 @@ function toMs(t: EventTime, tz: string): number {
 }
 
 /**
+ * The event's times can give rows: it has a start and an end, a timed event
+ * does not end before it starts, and an all-day event ends after its first day.
+ */
+export function hasRowTimes(event: CalendarEvent, tz: string): boolean {
+  if (!event.start || !event.end) return false;
+  if ('date' in event.start) {
+    const endDate = 'date' in event.end ? event.end.date : localDate(toMs(event.end, tz), tz);
+    return endDate > event.start.date;
+  }
+  return toMs(event.end, tz) >= toMs(event.start, tz);
+}
+
+/**
  * The rows of one event; empty when it does not count. Rows stop at the
  * window end: nothing is dated on or after `windowEnd(ctx.today)`, so a very
  * long event cannot make a huge number of rows.
  */
 export function eventToRows(event: CalendarEvent, ctx: RowContext): EventRow[] {
   if (event.status === 'cancelled' || event.response === 'declined') return [];
-  if (!event.start || !event.end) return [];
+  if (!event.start || !event.end || !hasRowTimes(event, ctx.timeZone)) return [];
   const title = parseTitle(event.title, ctx.knownCodes);
   if (!title) return [];
 
@@ -91,7 +104,7 @@ export function eventToRows(event: CalendarEvent, ctx: RowContext): EventRow[] {
 
   const startMs = toMs(event.start, tz);
   const rawEndMs = toMs(event.end, tz);
-  if (rawEndMs < startMs || !inWindow(localDate(startMs, tz), ctx)) return [];
+  if (!inWindow(localDate(startMs, tz), ctx)) return [];
 
   const endMs = Math.min(rawEndMs, startOfDay(windowEnd(ctx.today), tz));
   const rows: EventRow[] = [];
