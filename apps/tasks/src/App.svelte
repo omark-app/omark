@@ -44,13 +44,14 @@
   let signInError = $state<string | null>(null);
   let sheet = $state<OpenSheet | null>(null);
   // Settings is its own page at #settings, so browser back leaves it.
-  let onSettings = $state(location.hash === '#settings');
+  const loadedOnSettings = location.hash === '#settings';
+  let onSettings = $state(loadedOnSettings);
   // A direct load of #settings has no list behind it, so its ‹ Tasks follows the link. The entry is
   // marked, so it is known when browser back or forward returns to it. Opened from the app (the gear,
   // `,`), ‹ Tasks goes back instead: a second entry would make browser back reopen Settings.
   const DIRECT = 'settingsLoadedDirect';
-  if (onSettings) history.replaceState({ ...history.state, [DIRECT]: true }, '');
-  let settingsDirect = $state(onSettings);
+  if (loadedOnSettings) history.replaceState({ ...history.state, [DIRECT]: true }, '');
+  let settingsDirect = $state(loadedOnSettings);
   // Phones always get the Task list (whatever the view), with the + button.
   const phone = createPhone();
   const search = createSearch();
