@@ -9,3 +9,6 @@ export * from './apply.ts';
 export * from './colour.ts';
 export * from './projects.ts';
 export * from './config.ts';
+export * from './categories.ts';
+export * from './summary.ts';
+export * from './charts.ts';
