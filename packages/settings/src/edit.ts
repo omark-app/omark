@@ -7,6 +7,9 @@ type KeyMap = Record<string, string[]>;
 
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
+/** What the page shows when the writer refuses a change. */
+const UNSAFE = "Can't change this safely here. Use Edit as text.";
+
 export const valueOf = (values: Values, field: Field): unknown => values[fieldId(field)];
 
 /**
@@ -32,10 +35,15 @@ export function applyField(schema: Schema, text: string, field: Field, value: un
     }
     const { error } = readSettings(schema, out);
     return error ? { error: error.message } : { text: out };
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : String(e) };
+  } catch {
+    // Only the writer throws here. Its message is for developers; the page says what to do.
+    return { error: UNSAFE };
   }
 }
+
+/** The key to bind for a key press. Caps Lock alone must not turn `c` into `C`. */
+export const capturedKey = (e: { key: string; shiftKey: boolean }): string =>
+  e.key.length === 1 && !e.shiftKey ? e.key.toLowerCase() : e.key;
 
 /**
  * Binds `key` to a command's slot. `keys` are the keys each command has now, so a yielding

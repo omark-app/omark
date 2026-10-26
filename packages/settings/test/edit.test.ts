@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { applyField, captureKey, displayKey, numberInput, readSettings, valueOf, writeOnInput } from '../src/index.ts';
+import { applyField, capturedKey, captureKey, displayKey, numberInput, readSettings, valueOf, writeOnInput } from '../src/index.ts';
 import type { NumberField } from '../src/index.ts';
 import { demo, keys } from './demo.ts';
 
 const theme = demo.sections[0]!.fields[0]!;
 const delay = demo.sections[0]!.fields[1]!;
+const goal = demo.sections[0]!.fields[3]!;
 
 describe('applyField', () => {
   it('writes a value and removes the key at its default', () => {
@@ -18,6 +19,12 @@ describe('applyField', () => {
 
   it('returns an error instead of throwing on a broken file', () => {
     expect('error' in applyField(demo, 'delay: [\n', theme, 'dark')).toBe(true);
+  });
+
+  it('says in plain words when the writer cannot change the file safely', () => {
+    const plain = { error: "Can't change this safely here. Use Edit as text." };
+    expect(applyField(demo, 'delay: [\n', theme, 'dark')).toEqual(plain);
+    expect(applyField(demo, 'habits:\n  goal: &g 5\n  misses: *g\n', goal, 6)).toEqual(plain);
   });
 
   it('writes only the keys command that changed', () => {
@@ -77,6 +84,20 @@ describe('captureKey', () => {
 describe('valueOf', () => {
   it('reads a field from the values', () => {
     expect(valueOf(readSettings(demo, 'theme: dark\n').values, theme)).toBe('dark');
+  });
+});
+
+describe('capturedKey', () => {
+  it('lowercases a letter typed without Shift, so Caps Lock does not change it', () => {
+    expect(capturedKey({ key: 'C', shiftKey: false })).toBe('c');
+    expect(capturedKey({ key: 'c', shiftKey: false })).toBe('c');
+  });
+
+  it('keeps a letter typed with Shift, and named keys, as they are', () => {
+    expect(capturedKey({ key: 'C', shiftKey: true })).toBe('C');
+    expect(capturedKey({ key: 'Enter', shiftKey: false })).toBe('Enter');
+    expect(capturedKey({ key: 'F2', shiftKey: false })).toBe('F2');
+    expect(capturedKey({ key: '?', shiftKey: true })).toBe('?');
   });
 });
 

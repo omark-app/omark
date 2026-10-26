@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { captureKey, displayKey } from './edit.ts';
+  import { capturedKey, captureKey, displayKey } from './edit.ts';
   import { fieldId } from './schema.ts';
   import type { KeysField } from './schema.ts';
 
@@ -52,7 +52,7 @@
       e.stopImmediatePropagation();
       // Also when the key is refused: Space or Enter must not click the armed chip and disarm it.
       swallowKeyup = e.key;
-      const r = captureKey(field, value, at.cmd, at.index, e.key);
+      const r = captureKey(field, value, at.cmd, at.index, capturedKey(e));
       const reason = 'error' in r ? r.error : write(r.keys);
       if (reason !== null) {
         error = reason;
