@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { SyncTokenExpiredError } from '@omark/time-core';
 import type { CalendarEvent, CalendarInfo } from '@omark/time-core';
 import { calendarContract } from '../src/contract.ts';
 import type { ContractHarness } from '../src/contract.ts';
@@ -80,6 +81,6 @@ test('a cancelled event comes back with no title or times', async () => {
 test('an unknown event or a bad token is an error', async () => {
   const fake = new FakeCalendar(CALENDARS, [EVENT]);
   await expect(fake.setColour('primary', 'nope', { colorId: null, marker: null })).rejects.toThrow(/nope/);
-  await expect(fake.readChanges('primary', 'garbage')).rejects.toThrow();
+  await expect(fake.readChanges('primary', 'garbage')).rejects.toBeInstanceOf(SyncTokenExpiredError);
   await expect(fake.readChanges('missing', null)).rejects.toThrow(/missing/);
 });

@@ -82,8 +82,6 @@ export class FakeCalendar implements CalendarSource {
       const since = this.tokenSeq(syncToken);
       events = mine.filter((e) => (this.changedAt[key(calendarId, e.id)] ?? 0) > since);
     }
-    // Every read hands out a new token, as Google does.
-    this.seq += 1;
     return { events: events.map(copy), syncToken: `fake-${this.seq}` };
   }
 

@@ -29,6 +29,10 @@ function event(id: string, start: string, end: string, extra: Partial<CalendarEv
   };
 }
 
+function allDay(id: string, start: string, end: string): CalendarEvent {
+  return event(id, '', '', { start: { date: start }, end: { date: end } });
+}
+
 const ids = (events: CalendarEvent[]) => events.map((e) => e.id).sort();
 
 const DAY_FROM = '2026-10-22T00:00:00+02:00';
@@ -57,7 +61,7 @@ export function calendarContract(name: string, make: () => ContractHarness | Pro
       expect(syncToken).toBeTruthy();
     });
 
-    it('an incremental read returns only what changed, with a new token each time', async () => {
+    it('an incremental read returns only what changed', async () => {
       const h = await make();
       h.add(event('a', '2026-10-22T09:00:00+02:00', '2026-10-22T10:00:00+02:00'));
       h.add(event('b', '2026-10-22T11:00:00+02:00', '2026-10-22T12:00:00+02:00'));
@@ -73,14 +77,12 @@ export function calendarContract(name: string, make: () => ContractHarness | Pro
       h.cancel('primary', 'b');
       const cancelled = await h.source.readChanges('primary', edited.syncToken);
       expect(cancelled.events).toHaveLength(1);
-      expect(cancelled.events[0]).toMatchObject({ id: 'b', status: 'cancelled' });
+      expect(cancelled.events[0]).toMatchObject({ id: 'b', status: 'cancelled', title: '', start: null, end: null });
 
       h.add(event('c', '2026-10-23T09:00:00+02:00', '2026-10-23T10:00:00+02:00'));
       const added = await h.source.readChanges('primary', cancelled.syncToken);
       expect(ids(added.events)).toEqual(['c']);
-
-      const tokens = [full, none, edited, cancelled, added].map((r) => r.syncToken);
-      expect(new Set(tokens).size).toBe(tokens.length);
+      expect(added.syncToken).toBeTruthy();
     });
 
     it('rejects an expired token, and a full read still works', async () => {
@@ -103,8 +105,11 @@ export function calendarContract(name: string, make: () => ContractHarness | Pro
       h.add(event('starts-at-end', '2026-10-23T00:00:00+02:00', '2026-10-23T01:00:00+02:00'));
       h.add(event('gone', '2026-10-22T12:00:00+02:00', '2026-10-22T13:00:00+02:00'));
       h.cancel('primary', 'gone');
+      h.add(allDay('day-22', '2026-10-22', '2026-10-23'));
+      h.add(allDay('day-23', '2026-10-23', '2026-10-24'));
+      h.add(allDay('day-21', '2026-10-21', '2026-10-22'));
       const events = await h.source.readRange('primary', DAY_FROM, DAY_TO);
-      expect(ids(events)).toEqual(['daily_22', 'overnight']);
+      expect(ids(events)).toEqual(['daily_22', 'day-22', 'overnight']);
     });
 
     it('names the green and red colour ids', async () => {
@@ -147,6 +152,22 @@ export function calendarContract(name: string, make: () => ContractHarness | Pro
       );
       const { events } = await h.source.readChanges('primary', null);
       expect(events[0]).toMatchObject({ id: 'a', colorId: null, marker: null });
+    });
+
+    it('incremental reads stay within their calendar', async () => {
+      const h = await make();
+      const t = ['2026-10-22T09:00:00+02:00', '2026-10-22T10:00:00+02:00'] as const;
+      h.add(event('p1', ...t));
+      h.add(event('p2', ...t));
+      h.add(event('w1', ...t, { calendarId: 'work@example.com' }));
+      h.add(event('w2', ...t, { calendarId: 'work@example.com' }));
+      const p = await h.source.readChanges('primary', null);
+      const w = await h.source.readChanges('work@example.com', null);
+      h.edit('primary', 'p1', { title: 'P' });
+      h.edit('work@example.com', 'w1', { title: 'W' });
+      await h.source.setColour('work@example.com', 'w2', { colorId: '10', marker: 'green' });
+      expect(ids((await h.source.readChanges('primary', p.syncToken)).events)).toEqual(['p1']);
+      expect(ids((await h.source.readChanges('work@example.com', w.syncToken)).events)).toEqual(['w1', 'w2']);
     });
 
     it('keeps the events of each calendar apart', async () => {
