@@ -71,6 +71,9 @@ export type StorageProvider = 'microsoft' | 'google';
 /** What the app calls each storage in its texts. */
 export const STORAGE_NAMES: Record<StorageProvider, string> = { microsoft: 'OneDrive', google: 'Google Drive' };
 
+/** The sign-in providers this app offers: id in the sign-in helper → its name. The first is the default. */
+export const SIGN_IN_NAMES: Record<StorageProvider, string> = { microsoft: 'Microsoft', google: 'Google' };
+
 /**
  * The offline cache's IndexedDB name. OneDrive keeps the name it has always had; Google Drive gets its own,
  * so one adapter never sees the other's cached files or version tags.

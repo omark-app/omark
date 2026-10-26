@@ -21,6 +21,7 @@
     onCommand = () => {},
     onDropPickDate = () => {},
     onSignIn,
+    storageName,
     onSearch,
     updates,
     onUpdate,
@@ -29,6 +30,8 @@
     onCommand?: OnCommand;
     onDropPickDate?: OnDropPickDate;
     onSignIn?: () => void;
+    /** What the sync banner calls the storage (OneDrive when not given). */
+    storageName?: string;
     onSearch?: () => void;
     updates?: Updates;
     onUpdate?: () => void;
@@ -55,7 +58,7 @@
 <svelte:window {onkeydown} />
 
 <div class="wrap">
-  <SyncBanner {store} onsignin={onSignIn} />
+  <SyncBanner {store} onsignin={onSignIn} {storageName} />
   {#if store.cacheWarning}<p class="warn" role="status">{store.cacheWarning}</p>{/if}
   {#if store.configError}<ConfigBanner error={store.configError} />{/if}
   <!-- Phones have no footer: the save status sits beside the stats (problems are in the sync banner above). -->

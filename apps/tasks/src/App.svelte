@@ -104,14 +104,15 @@
     else if (selectedId !== search.viewing) search.close(false);
   });
 
-  const loseEdits = (doing: string, storageName = 'OneDrive'): string =>
+  const loseEdits = (doing: string, storageName: string): string =>
     `You have changes that aren't saved to ${storageName} yet. ${doing} will lose them. Continue?`;
 
   /**
    * Signs in by redirect, which leaves the page. Pending edits go to the cache first; if some would
-   * still be lost (memory-only cache, or the cache write failed), the user decides.
+   * still be lost (memory-only cache, or the cache write failed), the user decides. Without `provider`,
+   * the account signed in last (signing in again).
    */
-  async function signIn(): Promise<void> {
+  async function signIn(provider?: string): Promise<void> {
     if (result === null || !result.auth) return;
     signInError = null;
     if (result.kind === 'ready') {
@@ -121,10 +122,10 @@
         signInError = `Could not save your changes before signing in: ${message(e)}`;
         return;
       }
-      if (result.store.wouldLoseEdits() && !window.confirm(loseEdits('Signing in again'))) return;
+      if (result.store.wouldLoseEdits() && !window.confirm(loseEdits('Signing in again', result.storageName))) return;
     }
     try {
-      await result.auth.signIn();
+      await result.auth.signIn(provider);
     } catch (e) {
       signInError = `Sign-in failed: ${message(e)}`;
     }
@@ -151,7 +152,8 @@
   /** The footer's "New version · tap to update": edits are saved first, or the user agrees to lose them. */
   function update(): void {
     if (result?.kind !== 'ready') return;
-    void result.updates.updateNow(() => window.confirm(loseEdits('Updating now')));
+    const storageName = result.storageName;
+    void result.updates.updateNow(() => window.confirm(loseEdits('Updating now', storageName)));
   }
 
   // While the page reloads into a newer build it takes no input, so no edit can miss the reload.
@@ -179,20 +181,22 @@
 {:else if result === null}
   <p class="notice">Loading…</p>
 {:else if result.kind === 'signin'}
-  <SignIn onsignin={signIn} error={signInError} />
+  <SignIn providers={result.providers} onsignin={signIn} error={signInError} />
 {:else}
   {@const store = result.store}
-  {@const onSignIn = result.auth ? signIn : undefined}
+  {@const onSignIn = result.auth ? () => signIn() : undefined}
+  {@const storageName = result.storageName}
   {@const updates = result.updates}
   {#if signInError}<p class="signin-error" role="alert">{signInError}</p>{/if}
   {#if store.view === 'board' && !phone.value}
-    <WeekBoardView {store} onCommand={openSheet} onDropPickDate={openDropDate} {onSignIn} {updates} onUpdate={update} />
+    <WeekBoardView {store} onCommand={openSheet} onDropPickDate={openDropDate} {onSignIn} {storageName} {updates} onUpdate={update} />
   {:else}
     <TaskListView
       {store}
       onCommand={openSheet}
       onDropPickDate={openDropDate}
       {onSignIn}
+      {storageName}
       onSearch={() => search.open()}
       {updates}
       onUpdate={update}
