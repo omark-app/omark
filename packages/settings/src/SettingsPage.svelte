@@ -55,8 +55,12 @@
     return null;
   }
 
+  // Reset starts the text editor afresh, so it shows the defaults even over unsaved text.
+  let resets = $state(0);
   function reset(): void {
-    if (window.confirm(RESET_QUESTION)) onwrite(defaultText);
+    if (!window.confirm(RESET_QUESTION)) return;
+    onwrite(defaultText);
+    resets++;
   }
 
   const navItems = $derived([...schema.sections.map((s) => ({ id: s.id, title: s.title })), { id: CONFIG_ID, title: 'config.yaml' }]);
@@ -123,7 +127,9 @@
       <section class="card" id="settings-{CONFIG_ID}">
         <h2>config.yaml</h2>
         {@render fileLine()}
-        <TextEditor {schema} {text} {onwrite} ondone={() => (editing = false)} actions={resetButton} />
+        {#key resets}
+          <TextEditor {schema} {text} {onwrite} ondone={() => (editing = false)} actions={resetButton} />
+        {/key}
       </section>
     {:else}
       <div class="layout">
@@ -187,7 +193,7 @@
   .seg { display: flex; gap: 2px; background: var(--chip); border-radius: 8px; padding: 3px; }
   .seg > * { border: 0; background: transparent; border-radius: 6px; padding: 5px 10px; font-family: var(--sans); font-size: 12.5px; color: var(--muted); text-decoration: none; line-height: normal; }
   .seg > a:hover { color: var(--ink); }
-  .seg > .on { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: 0 1px 2px rgba(16, 22, 34, .08); cursor: default; }
+  .seg > .on { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: var(--seg-shadow, 0 1px 2px rgba(16, 22, 34, .08)); cursor: default; }
 
   .note { font-size: 13px; color: var(--ink); background: var(--sel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
 

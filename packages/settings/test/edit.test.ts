@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyField, captureKey, displayKey, numberInput, readSettings, setCommands, valueOf } from '../src/index.ts';
+import { applyField, captureKey, displayKey, numberInput, readSettings, setCommands, valueOf, writeOnInput } from '../src/index.ts';
 import type { NumberField } from '../src/index.ts';
 import { demo, keys } from './demo.ts';
 
@@ -128,5 +128,23 @@ describe('numberInput', () => {
     expect(numberInput(misses, '3')).toEqual({ value: 3 });
     expect(numberInput(misses, '120%')).toEqual({ error: 'habits.misses must be a number from 0 to 100, or a percentage from 0% to 100%' });
     expect(numberInput(misses, 'ten')).toEqual({ error: 'habits.misses must be a number from 0 to 100, or a percentage from 0% to 100%' });
+  });
+});
+
+describe('writeOnInput', () => {
+  const d = delay as NumberField;
+
+  it('writes a value other than the default at once', () => {
+    expect(writeOnInput(d, 15, 3)).toBe(true);
+    expect(writeOnInput(d, 3, 1)).toBe(true);
+  });
+
+  it('waits with the default while the file sets another value, so its line and comment stay', () => {
+    // Typing 15 over "delay: 3  # slow phone" passes through 1, the default.
+    expect(writeOnInput(d, 1, 3)).toBe(false);
+  });
+
+  it('writes the default when the file has it already (nothing changes)', () => {
+    expect(writeOnInput(d, 1, 1)).toBe(true);
   });
 });

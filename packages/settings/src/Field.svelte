@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { numberInput } from './edit.ts';
+  import { numberInput, writeOnInput } from './edit.ts';
   import { fieldId } from './schema.ts';
   import type { ChoiceField, NumberField, SetField } from './schema.ts';
 
@@ -42,10 +42,18 @@
     draft = e.currentTarget.value;
     const r = numberInput(field as NumberField, draft);
     if ('error' in r) error = r.error;
-    else commit(r.value);
+    else if (writeOnInput(field, r.value, value)) commit(r.value);
+    else error = null;
+  }
+
+  /** Writes a valid value that waited (the default, see writeOnInput). */
+  function flush(): void {
+    const r = numberInput(field as NumberField, draft);
+    if ('value' in r && r.value !== value) commit(r.value);
   }
 
   function onblur(): void {
+    flush();
     focused = false;
     error = null;
   }
@@ -91,6 +99,7 @@
       aria-invalid={error !== null}
       aria-describedby={error ? `${inputId}-error` : undefined}
       oninput={ontype}
+      onchange={flush}
       onfocus={() => (focused = true)}
       {onblur}
     />
@@ -115,7 +124,7 @@
   .seg { display: flex; gap: 2px; background: var(--chip); border-radius: 8px; padding: 3px; flex-wrap: wrap; }
   .seg button { border: 0; background: transparent; border-radius: 6px; padding: 5px 10px; font-family: var(--sans); font-size: 12.5px; color: var(--muted); cursor: pointer; }
   .seg button:hover { color: var(--ink); }
-  .seg button.on { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: 0 1px 2px rgba(16, 22, 34, .08); }
+  .seg button.on { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: var(--seg-shadow, 0 1px 2px rgba(16, 22, 34, .08)); }
   select, .num { font-family: var(--sans); font-size: 13px; border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; background: var(--surface); color: var(--ink); }
   .num { width: 64px; }
   .num.bad { border-color: var(--danger); }

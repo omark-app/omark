@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { captureKey, displayKey } from './edit.ts';
   import { fieldId } from './schema.ts';
   import type { KeysField } from './schema.ts';
@@ -24,6 +25,7 @@
   let armed: { cmd: string; index: number } | null = $state(null);
   let error: string | null = $state(null);
   let showAll = $state(false);
+  let root: HTMLDivElement | undefined = $state();
   // A key bound by Space or Enter must not then click the chip it was pressed on.
   let swallowKeyup: string | null = null;
 
@@ -50,14 +52,17 @@
       if (MODIFIERS.has(e.key) || e.key === 'Tab' || e.ctrlKey || e.metaKey || e.altKey) return;
       e.preventDefault();
       e.stopImmediatePropagation();
+      // Also when the key is refused: Space or Enter must not click the armed chip and disarm it.
+      swallowKeyup = e.key;
       const r = captureKey(field, value, at.cmd, at.index, e.key, set);
       const reason = 'error' in r ? r.error : write(r.keys);
       if (reason !== null) {
         error = reason;
         return;
       }
-      swallowKeyup = e.key;
       disarm();
+      // A "+" chip is replaced by the new key's chip; keep the focus on it.
+      void tick().then(() => root?.querySelector<HTMLElement>(`[data-key-chip="${at.cmd}-${at.index}"]`)?.focus());
     };
     const onpointerdown = (e: PointerEvent): void => {
       const chip = (e.target as Element | null)?.closest?.('[data-key-chip]');
@@ -85,7 +90,7 @@
   });
 </script>
 
-{#snippet chip(cmd: string, index: number, key: string | null)}
+{#snippet chip(cmd: string, label: string, index: number, key: string | null)}
   <button
     type="button"
     class="key"
@@ -94,22 +99,22 @@
     data-testid="key-{cmd}-{index}"
     data-key-chip="{cmd}-{index}"
     aria-pressed={isArmed(cmd, index)}
-    aria-label={isArmed(cmd, index) ? 'Press the new key' : key === null ? 'Add a key' : `Change ${displayKey(key)}`}
+    aria-label="{label}: {isArmed(cmd, index) ? 'press a key' : key === null ? 'add a key' : displayKey(key)}"
     onclick={() => (isArmed(cmd, index) ? disarm() : arm(cmd, index))}
     onblur={() => { if (isArmed(cmd, index)) disarm(); }}
   >{isArmed(cmd, index) ? 'press a key' : key === null ? '+' : displayKey(key)}</button>
 {/snippet}
 
-<div class="keys" data-testid="field-{fieldId(field)}" role="group" aria-label={field.label}>
+<div class="keys" bind:this={root} data-testid="field-{fieldId(field)}" role="group" aria-label={field.label}>
   {#each shown as c (c.id)}
     {@const list = value[c.id] ?? []}
     <div class="f">
       <span>{c.label}</span>
       <span class="chips">
         {#each list as k, i (i)}
-          {@render chip(c.id, i, k)}
+          {@render chip(c.id, c.label, i, k)}
         {:else}
-          {@render chip(c.id, 0, null)}
+          {@render chip(c.id, c.label, 0, null)}
         {/each}
       </span>
       {#if error && armed?.cmd === c.id}

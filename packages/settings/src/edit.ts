@@ -93,3 +93,11 @@ export function numberInput(field: NumberField, typed: string): { value: unknown
   const raw = t === '' || (field.percent && t.endsWith('%')) ? t : Number(t);
   return checkValue(field, Number.isNaN(raw) ? t : raw);
 }
+
+/**
+ * Whether a value typed into a field may be written on each keystroke. Writing the default removes the
+ * key, with its comment; so while the file holds another value, the default waits for blur. Typing 15
+ * over "3  # slow phone" passes through 1, the default, and must not lose the line.
+ */
+export const writeOnInput = (field: Exclude<Field, KeysField>, value: unknown, current: unknown): boolean =>
+  !same(value, field.default) || same(current, field.default);
