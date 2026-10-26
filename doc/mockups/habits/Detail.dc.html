@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Habit detail</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59D6}a:hover{color:#1d3f9e}
+.lbl{font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#677084}
+.btn{font-family:'Geist',sans-serif;font-size:12.5px;border:1px solid #DCE0E7;background:#FFFFFF;color:#151A22;border-radius:7px;padding:7px 11px}
+.kv{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid #EEF1F5}
+.kv span:last-child{font-weight:500}
+</style>
+</helmet>
+<div style="width:560px;height:780px;box-sizing:border-box;background:#FFFFFF;border:1px solid #DCE0E7;border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;gap:14px;font-family:'Geist',sans-serif;color:#151A22">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <span class="lbl">Today · <span style="color:#4F33B3">Habit</span></span>
+    <button class="btn" style="padding:3px 8px;font-size:11.5px;color:#677084">esc</button>
+  </div>
+  <label style="display:flex;flex-direction:column;gap:4px">
+    <span class="lbl" style="position:absolute;left:-9999px">Title</span>
+    <input type="text" value="Meditate 10 min" style="border:0;outline:0;font-family:'IBM Plex Mono',monospace;font-size:17px;color:#4F33B3;padding:0">
+  </label>
+  <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#677084">- Headspace, morning, before coffee</div>
+
+  <div style="border:1px solid #DDD5F7;background:#FBFAFF;border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;justify-content:space-between">
+      <span style="font-size:26px;font-weight:600;color:#4F33B3">12 <span style="font-size:15px;color:#677084;font-weight:500">of 66</span></span>
+      <span style="font-size:12.5px;color:#677084">formed ~ 18 Dec if no misses</span>
+    </div>
+    <div style="height:6px;border-radius:3px;background:#E4DEFA"><div style="width:18%;height:6px;border-radius:3px;background:#6A48D7"></div></div>
+    <div style="font-size:12.5px;color:#C63B3B;font-weight:500">Missed yesterday. Miss today and the count restarts at 0.</div>
+
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <span class="lbl">Last 28 days</span>
+      <div style="display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:4px">
+        <sc-for list="{{cells}}" as="c" hint-placeholder-count="28">
+          <span title="{{c.tip}}" style="{{c.style}}"></span>
+        </sc-for>
+      </div>
+      <div style="display:flex;gap:14px;font-size:11.5px;color:#677084">
+        <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#6A48D7"></span> done</span>
+        <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;border:1.5px solid #C63B3B;box-sizing:border-box"></span> missed</span>
+        <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#C63B3B"></span> restart</span>
+        <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;border:1.5px dashed #6A48D7;box-sizing:border-box"></span> today</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="kv"><span>Misses in a row</span><span>1 of 1 allowed</span></div>
+      <div class="kv"><span>Misses this attempt</span><span>2 of 6 allowed</span></div>
+      <div class="kv"><span>Attempt</span><span>2 · best 9 (attempt 1)</span></div>
+      <div class="kv" style="border-bottom:0"><span>Counting since</span><span>12 Oct (first done after the restart)</span></div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <div style="display:flex;align-items:center;gap:10px;font-size:13px"><span class="lbl" style="width:70px">Due</span><button class="btn">Today</button><span style="color:#677084;font-size:12px">open until tomorrow</span></div>
+    <div style="display:flex;align-items:center;gap:10px;font-size:13px"><span class="lbl" style="width:70px">Repeat</span><button class="btn">every day</button></div>
+    <div style="display:flex;align-items:center;gap:10px;font-size:13px"><span class="lbl" style="width:70px">Goal</span><button class="btn">66 (default)</button><span style="color:#677084;font-size:12px">change for this habit</span></div>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-top:auto;flex-wrap:wrap">
+    <button class="btn" style="background:#2C8A55;border-color:#2C8A55;color:#FFFFFF">Complete</button>
+    <button class="btn" style="color:#4F33B3;border-color:#DDD5F7">Not a habit (h)</button>
+    <button class="btn">Flag</button>
+    <button class="btn" style="color:#C63B3B;margin-left:auto">Drop habit</button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":560,"height":780}}'>
+class Component extends DCLogic {
+renderVals() {
+var pattern = 'dddddmrxxxxxxdddddmdddddddmt';
+var base = 'display:block;aspect-ratio:1;border-radius:3px;box-sizing:border-box;';
+var styles = {
+d: base + 'background:#6A48D7',
+m: base + 'border:1.5px solid #C63B3B',
+r: base + 'background:#C63B3B',
+x: base + 'background:#EEF1F5',
+t: base + 'border:1.5px dashed #6A48D7'
+};
+var tips = { d: 'done', m: 'missed', r: 'second miss in a row: restart', x: 'no attempt running', t: 'today' };
+var cells = pattern.slice(-28).split('').map(function (k) { return { style: styles[k], tip: tips[k] }; });
+return { cells: cells };
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2B59D6}a:hover{color:#1d3f9e}
+.card{background:#FFFFFF;border:1px solid #DCE0E7;border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:2px}
+.h2{margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#677084}
+.f{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid #EEF1F5;font-size:14px}
+.f:last-child{border-bottom:0}
+.hint{display:block;font-size:12px;color:#677084;margin-top:2px}
+.seg{display:flex;gap:2px;background:#EEF1F5;border-radius:8px;padding:3px}
+.seg button{border:0;background:transparent;border-radius:6px;padding:5px 10px;font-family:'Geist',sans-serif;font-size:12.5px;color:#677084}
+.seg button.on{background:#FFFFFF;color:#151A22;font-weight:500;box-shadow:0 1px 2px rgba(16,22,34,.08)}
+select,.num{font-family:'Geist',sans-serif;font-size:13px;border:1px solid #DCE0E7;border-radius:7px;padding:6px 8px;background:#FFFFFF;color:#151A22}
+.num{width:64px}
+.key{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:12px;border:1px solid #DCE0E7;border-bottom-width:2px;border-radius:5px;padding:2px 7px;margin-left:4px;background:#FFFFFF}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{font-size:13.5px;color:#677084;text-decoration:none;padding:6px 10px;border-radius:6px}
+.nav a.on{background:#EAEEF4;color:#151A22;font-weight:500}
+</style>
+</helmet>
+<div style="min-height:1240px;box-sizing:border-box;background:#F2F4F7;font-family:'Geist',sans-serif;color:#151A22;padding:28px 16px">
+  <div style="max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <a href="Main.dc.html" style="font-size:13px;text-decoration:none">‹ Tasks</a>
+        <h1 style="margin:0;font-size:22px;font-weight:600">Settings</h1>
+      </div>
+      <div class="seg" role="tablist" aria-label="App">
+        <button class="on">Omark Tasks</button>
+        <button>Omark Time ↗</button>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">
+      <nav class="nav" style="flex:1 1 180px;max-width:220px" aria-label="Sections">
+        <a href="#" class="on">General</a>
+        <a href="#">Buckets</a>
+        <a href="#">Habits</a>
+        <a href="#">Keyboard</a>
+        <a href="#">config.yaml</a>
+      </nav>
+
+      <div style="flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:16px">
+        <div class="card">
+          <h2 class="h2">General</h2>
+          <div class="f"><span>Theme</span><div class="seg"><button class="on">System</button><button>Light</button><button>Dark</button></div></div>
+          <div class="f"><span>Desktop view on open</span><div class="seg"><button class="on">Task list</button><button>Week board</button></div></div>
+          <div class="f"><span>First day of the week</span><select aria-label="First day of the week"><option>Monday</option></select></div>
+          <div class="f"><span>Date labels</span><div class="seg"><button class="on">Thu · 12 Nov</button><button>2026-11-12</button></div></div>
+          <div class="f"><span>New tasks go to</span><select aria-label="New tasks go to"><option>Today</option></select></div>
+          <div class="f"><label for="sd">Save after typing stops<span class="hint">seconds</span></label><input id="sd" class="num" type="number" value="1"></div>
+        </div>
+
+        <div class="card">
+          <h2 class="h2">Buckets</h2>
+          <div class="f"><span>Folded when the app opens<span class="hint">Empty buckets start folded anyway.</span></span>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:13px">
+              <label><input type="checkbox"> Today</label><label><input type="checkbox"> Tomorrow</label><label><input type="checkbox"> This week</label><label><input type="checkbox"> Next week</label><label><input type="checkbox" checked> Later</label><label><input type="checkbox" checked> Someday</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="border-color:#DDD5F7">
+          <h2 class="h2" style="color:#4F33B3">Habits</h2>
+          <div class="f"><label for="mx">Habits in progress at most<span class="hint">A new habit waits until one is formed or dropped. 0 = no limit.</span></label><input id="mx" class="num" type="number" value="3"></div>
+          <div class="f"><label for="g">Repetitions to form a habit<span class="hint">Each habit can set its own. Research median: 66 days (Lally, 2010).</span></label><input id="g" class="num" type="number" value="66"></div>
+          <div class="f"><label for="r">Misses allowed in a row<span class="hint">1 = "never miss twice". One more restarts the count.</span></label><input id="r" class="num" type="number" value="1"></div>
+          <div class="f"><label for="t">Misses allowed per attempt<span class="hint">A number, or a share of the goal. 10% of 66 = 6.</span></label><input id="t" class="num" type="text" value="10%"></div>
+        </div>
+
+        <div class="card">
+          <h2 class="h2">Keyboard</h2>
+          <div class="f"><span>Complete</span><span><span class="key">x</span></span></div>
+          <div class="f"><span>Important on or off</span><span><span class="key">i</span></span></div>
+          <div class="f"><span>Habit on or off <b style="font-weight:600;color:#4F33B3">new</b></span><span><span class="key">h</span></span></div>
+          <div class="f"><span>Today · Tomorrow · This week · Next week</span><span><span class="key">t</span><span class="key">m</span><span class="key">w</span><span class="key">e</span></span></div>
+          <div class="f" style="color:#677084;font-size:13px"><span>14 more · click a key, then press the new one</span><a href="#" style="font-size:13px">Show all</a></div>
+        </div>
+
+        <div class="card">
+          <h2 class="h2">config.yaml</h2>
+          <div style="font-size:13px;color:#677084;margin-bottom:8px">This page writes <span style="font-family:'IBM Plex Mono',monospace">Apps/Omark Tasks/config.yaml</span> and keeps its comments. Only changed settings are written.</div>
+          <pre style="margin:0;background:#F7F8FA;border:1px solid #EEF1F5;border-radius:8px;padding:12px 14px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;line-height:1.55;color:#151A22;overflow-x:auto"># Omark Tasks settings.
+theme: dark
+habits:
+  maxInProgress: 3
+  goal: 66
+  missesInARow: 1
+  missesPerAttempt: 10%</pre>
+          <div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap">
+            <button style="font-family:'Geist',sans-serif;font-size:12.5px;border:1px solid #DCE0E7;background:#FFFFFF;border-radius:7px;padding:7px 11px">Edit as text</button>
+            <button style="font-family:'Geist',sans-serif;font-size:12.5px;border:1px solid #DCE0E7;background:#FFFFFF;border-radius:7px;padding:7px 11px">Reset to defaults</button>
+            <span style="font-size:12px;color:#2C8A55">saved · 2 s ago</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1240}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
