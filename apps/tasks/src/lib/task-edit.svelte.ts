@@ -11,7 +11,8 @@ type Field = 'title' | 'notes';
  * being typed in) is never overwritten with stale text. The store runs `commit` before every flush (the
  * page being hidden) and refresh, and unmounting the component commits too, so typing is never lost.
  * Shortcut words typed in the title (issue #19) move or flag the task when it saves, and then leave the
- * field; words the title already had when it was shown stay plain text. Call during component init.
+ * field; words the title already had when it was shown stay plain text. The commit before a flush is not
+ * final, so it holds back a habit rename; unmounting is. Call during component init.
  */
 export function createTaskEdit(
   store: AppStore,
@@ -40,17 +41,43 @@ export function createTaskEdit(
     if (!notesDirty && !holds('notes')) notes = storedNotes;
   });
 
-  /** Saves the typed fields now. `settle` puts the stored values back in the fields. */
-  function commit(settle = false): void {
+  /** True when saving `typed` would rename a habit that has progress, which restarts its count (habits spec 8). */
+  function restartsHabit(typed: string): boolean {
+    const t = findTask(store.state, id);
+    const p = store.habits.get(id);
+    const next = typed.trim();
+    return t?.habit !== undefined && p !== undefined && (p.count > 0 || p.best > 0) && next !== '' && next !== t.title;
+  }
+
+  /**
+   * Saves the typed fields now. `settle` puts the stored values back in the fields. A rename that restarts
+   * a habit waits for a `final` commit (Enter, blur, closing: Review Focus 5), so a save while typing never
+   * asks; the store asks then, and a no puts the stored title back.
+   */
+  function commit(settle = false, final = settle): void {
     const current = findTask(store.state, id);
     const typed = titleDirty ? readQuickAdd(title, store.ctx, dismissed) : null;
+    const renames = typed !== null && restartsHabit(typed.title);
+    if (current && renames && !final) {
+      if (notesDirty) store.edit(id, { title: current.title, notes: notes.split('\n') });
+      notesDirty = false;
+      return;
+    }
     if (current && (titleDirty || notesDirty)) {
-      store.edit(id, {
+      const patch = {
         title: typed ? typed.title : current.title,
         notes: notesDirty ? notes.split('\n') : current.notes,
         when: typed?.when ?? null,
         important: typed?.important ?? false,
-      });
+      };
+      store.edit(id, patch);
+      const after = findTask(store.state, id);
+      if (renames && after?.title === current.title) {
+        // Said no to the rename: the rest of what was typed still saves, and the field shows the stored title.
+        store.edit(id, { ...patch, title: current.title });
+        title = current.title;
+        dismissed = existing(title);
+      }
     }
     titleDirty = false;
     notesDirty = false;
@@ -77,7 +104,7 @@ export function createTaskEdit(
     const off = store.registerPending(() => commit());
     return () => {
       off();
-      commit();
+      commit(false, true);
     };
   });
 

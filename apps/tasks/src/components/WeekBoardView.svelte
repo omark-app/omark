@@ -66,7 +66,7 @@
         {/key}
       </div>
     {:else}
-      <HabitsGroup {store} variant="list" onopen={() => {}} onhistory={onHistory} />
+      <HabitsGroup {store} variant="list" onopen={(id) => store.select(id)} onhistory={onHistory} />
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div class="rblock group" {ondblclick}>
         <Bucket {store} key={IMPORTANT_GROUP.key} name={IMPORTANT_GROUP.name} onpickdate={pick} ondroppickdate={onDropPickDate} />

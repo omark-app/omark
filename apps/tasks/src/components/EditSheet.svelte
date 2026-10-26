@@ -4,6 +4,7 @@
   import { autogrow } from '../lib/autogrow.ts';
   import type { AppStore } from '../lib/store.svelte.ts';
   import { createTaskEdit } from '../lib/task-edit.svelte.ts';
+  import HabitBlock from './HabitBlock.svelte';
   import MoveOptions from './MoveOptions.svelte';
   import ShortcutField from './ShortcutField.svelte';
 
@@ -15,6 +16,7 @@
   }: { store: AppStore; taskId: string; oncommand: (command: 'pickDate' | 'repeat') => void; onclose: () => void } = $props();
 
   const task = $derived(findTask(store.state, taskId));
+  const progress = $derived(task?.habit ? store.habits.get(taskId) : undefined);
   $effect(() => {
     if (!task) onclose();
   });
@@ -25,31 +27,38 @@
   const edit = createTaskEdit(store, taskId);
 
   // Each action saves the typed text first, so the edit and its toast come before the action's (and Undo
-  // after a delete brings back the edited text).
+  // after a delete brings back the edited text). These saves are final: a habit rename asks then.
   function save(): void {
-    edit.commit();
+    edit.commit(false, true);
+    onclose();
+  }
+
+  /** A habit block action, run like the others. */
+  function act(run: () => void): void {
+    edit.commit(false, true);
+    run();
     onclose();
   }
 
   function important(): void {
-    edit.commit();
+    edit.commit(false, true);
     store.setImportant(taskId, !task?.important);
     onclose();
   }
 
   function move(bucket: ChoiceKey): void {
-    edit.commit();
+    edit.commit(false, true);
     store.moveTo(taskId, bucket);
     onclose();
   }
 
   function open(command: 'pickDate' | 'repeat'): void {
-    edit.commit();
+    edit.commit(false, true);
     oncommand(command);
   }
 
   function remove(): void {
-    edit.commit();
+    edit.commit(false, true);
     store.remove(taskId);
     onclose();
   }
@@ -82,6 +91,7 @@
     oninput={() => edit.typed('notes')}
   ></textarea>
   <div class="sub due">{dueText(task, store.ctx)}{task.repeat ? ` · ↻ ${describeRepeat(task.repeat)}` : ''}</div>
+  {#if task.habit && progress}<HabitBlock {store} {task} {progress} keys={false} {act} />{/if}
   <MoveOptions
     {task}
     ctx={store.ctx}

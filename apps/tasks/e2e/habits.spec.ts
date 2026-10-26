@@ -161,3 +161,144 @@ test.describe('phone cards', () => {
     await expect(page.getByTestId('habit-item')).toHaveCount(0);
   });
 });
+
+/** The habit block in the detail (desktop) and the edit sheet (phone) (#44). */
+
+const block = (page: Page) => page.getByTestId('habit-block');
+const doneOn = (title: string, dates: string[]) => dates.map((d) => `- [x] ${title} ${RULE} ✅ ${d}\n`).join('');
+/** Every date from `from` to `to`, both included. */
+const days = (from: string, to: string): string[] => {
+  const out: string[] = [];
+  for (let d = new Date(`${from}T12:00:00Z`); d <= new Date(`${to}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+};
+
+/** Opens the task: the detail on desktop, the edit sheet on the phone. */
+async function openTask(page: Page, isMobile: boolean, title: string) {
+  if (isMobile) await row(page, title).first().tap();
+  else await row(page, title).first().click();
+  await expect(block(page)).toBeVisible();
+}
+
+test('the detail shows 12 of 66, the warning and 28 squares', async ({ page, isMobile }) => {
+  // The mockup's pattern: attempt 1 counts 9, two misses restart it, then attempt 2 counts 12 with a miss
+  // on 7 Oct and yesterday.
+  const done = doneOn('Meditate', [...days('2026-09-15', '2026-09-23'), ...days('2026-10-02', '2026-10-06'), ...days('2026-10-08', '2026-10-14')]);
+  await openApp(page, { files: { 'tasks.md': line('Meditate', '2026-10-16'), 'done.md': done } });
+  await openTask(page, isMobile, 'Meditate');
+  await expect(block(page)).toContainText('12 of 66');
+  await expect(block(page)).toContainText('formed ~ 8 Dec if no misses');
+  await expect(block(page).getByTestId('habit-warning')).toHaveText('Missed yesterday. Miss today and the count restarts at 0.');
+  const squares = block(page).getByTestId('habit-period');
+  await expect(squares).toHaveCount(28);
+  await expect(squares.first()).toHaveAttribute('data-mark', 'done');
+  await expect(squares.nth(6)).toHaveAttribute('data-mark', 'restart');
+  await expect(squares.nth(7)).toHaveAttribute('data-mark', 'idle');
+  await expect(squares.nth(7)).toHaveAttribute('title', 'no attempt running');
+  await expect(squares.last()).toHaveAttribute('data-mark', 'today');
+  await expect(block(page)).toContainText('Misses in a row1 of 1 allowed');
+  await expect(block(page)).toContainText('Misses this attempt2 of 6 allowed');
+  await expect(block(page)).toContainText('Attempt2 · best 9 (attempt 1)');
+  await expect(block(page)).toContainText('Counting since2 Oct');
+  await expect(block(page).getByTestId('habit-goal')).toHaveText('66 (default)');
+});
+
+test('a restarted habit says when the next attempt starts', async ({ page, isMobile }) => {
+  await openApp(page, { files: { 'tasks.md': line('Meditate', '2026-10-16'), 'done.md': ticks('Meditate', '11', '12') } });
+  await openTask(page, isMobile, 'Meditate');
+  await expect(block(page).getByTestId('habit-warning')).toHaveText('Restarted · best 2. The next tick starts attempt 2.');
+});
+
+test('Drop habit writes the dropped line and History lists it', async ({ page, isMobile }) => {
+  await openApp(page, { files: { 'tasks.md': line('Meditate', '2026-10-16'), 'done.md': ticks('Meditate', '14', '15') } });
+  await openTask(page, isMobile, 'Meditate');
+  await block(page).getByRole('button', { name: 'Drop habit' }).click();
+  await expect(page.getByTestId('toast')).toContainText('Dropped habit · Meditate');
+  await expect(row(page, 'Meditate')).toHaveCount(0);
+  await expect.poll(() => driveFile(page, 'tasks.md')).toBe('# Tasks\n');
+  await expect.poll(() => driveFile(page, 'done.md')).toBe(`${ticks('Meditate', '14', '15')}- [-] Meditate 🌱 ❌ 2026-10-16\n`);
+  await group(page).getByTestId('habits-history').click();
+  await expect(history(page)).toContainText('Dropped 1');
+  await expect(history(page)).toContainText('best 2 · 1 attempt · dropped 16 Oct');
+});
+
+test('Not a habit removes only 🌱', async ({ page, isMobile }) => {
+  await openApp(page, { files: { 'tasks.md': line('Meditate', '2026-10-16'), 'done.md': ticks('Meditate', '15') } });
+  await openTask(page, isMobile, 'Meditate');
+  await block(page).getByRole('button', { name: /^Not a habit/ }).click();
+  await expect(page.getByTestId('toast')).toContainText('No longer a habit');
+  await expect.poll(() => driveFile(page, 'tasks.md')).toBe('# Tasks\n- [ ] Meditate 🔁 every day 📅 2026-10-16\n');
+  await expect(block(page)).toHaveCount(0);
+  await expect(row(page, 'Meditate')).toHaveAttribute('data-habit', 'false');
+});
+
+test('Goal 30 writes 🌱 30', async ({ page, isMobile }) => {
+  await openApp(page, { files: { 'tasks.md': line('Meditate', '2026-10-16') } });
+  await openTask(page, isMobile, 'Meditate');
+  await block(page).getByTestId('habit-goal').click();
+  const field = block(page).getByLabel('Goal');
+  await expect(field).toBeFocused();
+  await field.fill('30');
+  await field.press('Enter');
+  await expect.poll(() => driveFile(page, 'tasks.md')).toBe('# Tasks\n- [ ] Meditate 🌱 30 🔁 every day 📅 2026-10-16\n');
+  await expect(block(page).getByTestId('habit-goal')).toHaveText('30');
+  await expect(block(page)).toContainText('0 of 30');
+  // Empty goes back to the configured goal.
+  await block(page).getByTestId('habit-goal').click();
+  await block(page).getByLabel('Goal').fill('');
+  await block(page).getByLabel('Goal').press('Enter');
+  await expect.poll(() => driveFile(page, 'tasks.md')).toBe(line('Meditate', '2026-10-16'));
+  await expect(block(page).getByTestId('habit-goal')).toHaveText('66 (default)');
+});
+
+test('goal 3 forms on the third tick, Keep as task puts it back', async ({ page }) => {
+  await openApp(page, {
+    files: { 'tasks.md': line('Meditate', '2026-10-16'), 'done.md': ticks('Meditate', '14', '15'), 'config.yaml': 'habits:\n  goal: 3\n' },
+  });
+  await row(page, 'Meditate').getByTestId('task-check').click();
+  await expect(page.getByTestId('toast')).toContainText('Habit formed: Meditate · 3 in 3 days · moved to History');
+  await expect(row(page, 'Meditate')).toHaveCount(0);
+  await expect.poll(() => driveFile(page, 'done.md')).toBe(`${ticks('Meditate', '14', '15', '16')}- [x] Meditate 🌱 🏆 2026-10-16\n`);
+  await page.getByTestId('toast-action').click();
+  await expect(row(page, 'Meditate')).toHaveAttribute('data-habit', 'false');
+  await expect.poll(() => driveFile(page, 'tasks.md')).toBe('# Tasks\n- [ ] Meditate 🔁 every day 📅 2026-10-17\n');
+  await expect.poll(() => driveFile(page, 'done.md')).toContain('- [x] Meditate 🌱 🏆 2026-10-16\n');
+});
+
+test('renaming asks first', async ({ page, isMobile }) => {
+  await openApp(page, { files: { 'tasks.md': line('Meditate', '2026-10-16'), 'done.md': ticks('Meditate', '15') } });
+  const asked: string[] = [];
+  page.on('dialog', (d) => void asked.push(d.message()));
+  await openTask(page, isMobile, 'Meditate');
+  const title = isMobile ? page.getByTestId('sheet').getByLabel('Task title') : page.getByTestId('detail-title');
+  const save = () => (isMobile ? page.getByTestId('sheet').getByRole('button', { name: 'Save', exact: true }).tap() : title.press('Enter'));
+
+  await title.fill('Meditate 15 min');
+  // Typing alone never renames: the debounced save (1 s) waits for Enter, blur or close.
+  await page.waitForTimeout(1500);
+  expect(asked).toEqual([]);
+  page.once('dialog', (d) => void d.dismiss());
+  await save();
+  await expect.poll(() => asked).toEqual(['Renaming restarts Meditate at 0. Rename?']);
+  if (!isMobile) await expect(title).toHaveValue('Meditate');
+  expect(await driveFile(page, 'tasks.md')).toBe(line('Meditate', '2026-10-16'));
+
+  if (isMobile) await openTask(page, isMobile, 'Meditate');
+  await title.fill('Meditate 15 min');
+  page.once('dialog', (d) => void d.accept());
+  await save();
+  await expect.poll(() => driveFile(page, 'tasks.md')).toBe(line('Meditate 15 min', '2026-10-16'));
+  await expect(row(page, 'Meditate 15 min')).toHaveCount(1);
+});
+
+test('the board rail opens a habit from the Habits group', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'the board is a desktop view');
+  await openApp(page, { files: { 'tasks.md': line('Meditate', '2026-10-16') } });
+  await page.keyboard.press('v');
+  await expect(page.getByTestId('board')).toBeVisible();
+  await page.getByTestId('rail').getByTestId('habit-item').click();
+  await expect(page.getByTestId('rail').getByTestId('detail-title')).toHaveValue('Meditate');
+  await expect(page.getByTestId('rail').getByTestId('habit-block')).toBeVisible();
+});

@@ -30,3 +30,16 @@ export function habitStateLine(task: Task, p: HabitProgress, ctx: WeekCtx): stri
   }
   return parts.join(' · ');
 }
+
+/**
+ * The warning line of the habit block (habits spec 9.4): the last chance, or a restart waiting for its next
+ * tick; null otherwise. The last chance can come from the misses per attempt with none in a row.
+ */
+export function habitWarning(p: HabitProgress): string | null {
+  if (p.restarted) return `Restarted · best ${p.best}. The next tick starts attempt ${p.attempt}.`;
+  if (!p.lastChance) return null;
+  const day = p.period.start === p.period.end;
+  const restarts = day ? 'Miss today and the count restarts at 0.' : 'Miss this one and the count restarts at 0.';
+  if (p.missesInARow === 0) return restarts;
+  return `${day ? 'Missed yesterday.' : 'Missed last time.'} ${restarts}`;
+}
