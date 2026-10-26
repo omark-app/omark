@@ -4,6 +4,16 @@ import type { CalendarEvent, EventTime } from './source.ts';
 import { parseTitle } from './title.ts';
 import { addDays, formatLocal, localDate, parseInstant, startOfDay } from './zone.ts';
 
+/** Code-point order of two strings, for sorting. */
+export function compareText(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** One map key for an event: its calendar and event id. */
+export function keyOf(calendar: string, eventId: string): string {
+  return JSON.stringify([calendar, eventId]);
+}
+
 /** Days ahead of today that are tracked. */
 export const WINDOW_DAYS = 90;
 

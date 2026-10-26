@@ -2,7 +2,7 @@
 import { groupCategories } from './categories.ts';
 import type { WeekStart } from './config.ts';
 import { roundHours } from './hours.ts';
-import type { EventRow } from './rows.ts';
+import { compareText, type EventRow } from './rows.ts';
 import { addDays, parseInstant, weekday } from './zone.ts';
 
 export type RangeName = 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth';
@@ -85,8 +85,6 @@ function split(rows: EventRow[], nowMs: number): { done: number; planned: number
   return { done, planned };
 }
 
-const byText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
-
 /** Hours per project and category inside the range. */
 export function summarise(rows: EventRow[], range: DateRange, nowMs: number): Summary {
   const inside = rows.filter((r) => inRange(r, range));
@@ -106,12 +104,12 @@ export function summarise(rows: EventRow[], range: DateRange, nowMs: number): Su
       })
       .sort((a, b) => {
         if ((a.name === '') !== (b.name === '')) return a.name === '' ? 1 : -1;
-        return b.done + b.planned - (a.done + a.planned) || byText(a.name, b.name);
+        return b.done + b.planned - (a.done + a.planned) || compareText(a.name, b.name);
       });
     const s = split(list, nowMs);
     projects.push({ code, done: roundHours(s.done), planned: roundHours(s.planned), categories });
   }
-  projects.sort((a, b) => b.done + b.planned - (a.done + a.planned) || byText(a.code, b.code));
+  projects.sort((a, b) => b.done + b.planned - (a.done + a.planned) || compareText(a.code, b.code));
   const all = split(known, nowMs);
   const unknown = inside.filter((r) => !r.known).reduce((sum, r) => sum + r.hours, 0);
   return { projects, done: roundHours(all.done), planned: roundHours(all.planned), unknown: roundHours(unknown) };

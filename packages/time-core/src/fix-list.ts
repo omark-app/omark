@@ -1,7 +1,7 @@
 // The fix list: unknown codes and overlapping days.
 import { compareRows } from './events-file.ts';
 import { roundHours } from './hours.ts';
-import type { EventRow } from './rows.ts';
+import { compareText, keyOf, type EventRow } from './rows.ts';
 import { formatTitle } from './title.ts';
 import { parseInstant } from './zone.ts';
 
@@ -25,20 +25,18 @@ export interface FixList {
   count: number;
 }
 
-const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
-
 function unknownEvents(rows: EventRow[]): UnknownEvent[] {
   const groups = new Map<string, EventRow[]>();
   for (const r of rows) {
     if (r.known) continue;
-    const key = JSON.stringify([r.calendar, r.eventId]);
+    const key = keyOf(r.calendar, r.eventId);
     const list = groups.get(key);
     if (list) list.push(r);
     else groups.set(key, [r]);
   }
   const out: UnknownEvent[] = [];
   for (const list of groups.values()) {
-    const sorted = [...list].sort((a, b) => cmp(a.date, b.date));
+    const sorted = [...list].sort((a, b) => compareText(a.date, b.date));
     const first = sorted[0]!;
     out.push({
       calendar: first.calendar,
@@ -50,7 +48,7 @@ function unknownEvents(rows: EventRow[]): UnknownEvent[] {
     });
   }
   return out.sort(
-    (a, b) => cmp(b.dates[0]!, a.dates[0]!) || cmp(a.calendar, b.calendar) || cmp(a.eventId, b.eventId),
+    (a, b) => compareText(b.dates[0]!, a.dates[0]!) || compareText(a.calendar, b.calendar) || compareText(a.eventId, b.eventId),
   );
 }
 
@@ -70,7 +68,7 @@ function overlapDays(rows: EventRow[]): OverlapDay[] {
     const hit = list.filter((a) => list.some((b) => a !== b && a.start < b.end && b.start < a.end));
     if (hit.length > 0) out.push({ date, rows: hit.map((h) => h.row).sort(compareRows) });
   }
-  return out.sort((a, b) => cmp(b.date, a.date));
+  return out.sort((a, b) => compareText(b.date, a.date));
 }
 
 /** Unknown events and overlapping days, latest first. */

@@ -4,7 +4,7 @@ import { toCsv } from './csv.ts';
 import { compareRows, EVENT_COLUMNS } from './events-file.ts';
 import { formatHours, roundHours } from './hours.ts';
 import type { Project } from './projects.ts';
-import type { EventRow } from './rows.ts';
+import { compareText, type EventRow } from './rows.ts';
 import { inRange, isDone } from './summary.ts';
 import type { DateRange } from './summary.ts';
 import { parseInstant } from './zone.ts';
@@ -48,7 +48,6 @@ export interface Report {
   money: Money[];
 }
 
-const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const sum = (xs: number[]) => roundHours(xs.reduce((a, b) => a + b, 0));
 
 /**
@@ -91,7 +90,7 @@ function money(project: Project | undefined, hours: number): Money | null {
 
 function byCategoryName(a: ReportCategory, b: ReportCategory): number {
   if ((a.name === '') !== (b.name === '')) return a.name === '' ? 1 : -1;
-  return cmp(a.name, b.name);
+  return compareText(a.name, b.name);
 }
 
 export function buildReport(rows: EventRow[], projects: Project[], opts: ReportOptions): Report {
@@ -112,7 +111,7 @@ export function buildReport(rows: EventRow[], projects: Project[], opts: ReportO
         hours: roundUp(r.hours, opts.rounding),
         description: r.description,
       }));
-      lines.sort((a, b) => cmp(a.date, b.date) || parseInstant(a.start) - parseInstant(b.start));
+      lines.sort((a, b) => compareText(a.date, b.date) || parseInstant(a.start) - parseInstant(b.start));
       return {
         name: g.name,
         hours: sum(lines.map((l) => l.hours)),
@@ -130,7 +129,7 @@ export function buildReport(rows: EventRow[], projects: Project[], opts: ReportO
       categories,
     });
   }
-  out.sort((a, b) => cmp(a.code, b.code));
+  out.sort((a, b) => compareText(a.code, b.code));
 
   const perCurrency = new Map<string, number>();
   for (const p of out) {
@@ -140,7 +139,7 @@ export function buildReport(rows: EventRow[], projects: Project[], opts: ReportO
   }
   const totals = [...perCurrency]
     .map(([currency, cents]) => ({ amount: cents / 100, currency }))
-    .sort((a, b) => cmp(a.currency, b.currency));
+    .sort((a, b) => compareText(a.currency, b.currency));
   return { options: opts, projects: out, hours: sum(out.map((p) => p.hours)), money: totals };
 }
 

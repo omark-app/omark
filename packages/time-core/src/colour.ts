@@ -1,4 +1,4 @@
-import { hasRowTimes, inWindow, type RowContext } from './rows.ts';
+import { compareText, hasRowTimes, inWindow, type RowContext } from './rows.ts';
 import type { CalendarEvent, ColourPatch, EventTime, TrackerColour } from './source.ts';
 import { parseTitle } from './title.ts';
 import { localDate, parseInstant, startOfDay } from './zone.ts';
@@ -55,8 +55,8 @@ export function colourPlan(
   plan.sort(
     (a, b) =>
       b.at - a.at ||
-      (a.event.calendarId < b.event.calendarId ? -1 : a.event.calendarId > b.event.calendarId ? 1 : 0) ||
-      (a.event.id < b.event.id ? -1 : a.event.id > b.event.id ? 1 : 0),
+      compareText(a.event.calendarId, b.event.calendarId) ||
+      compareText(a.event.id, b.event.id),
   );
   return plan.map(({ event, patch }) => ({ event, patch }));
 }

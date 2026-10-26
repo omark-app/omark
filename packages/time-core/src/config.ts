@@ -1,5 +1,6 @@
 import { isMap, isNode, isScalar, LineCounter, parseDocument } from 'yaml';
 import type { Problem } from './projects.ts';
+import { isRealDate } from './zone.ts';
 
 export type WeekStart = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 
@@ -54,14 +55,6 @@ all_day_hours: 8
 week_start: monday
 colour_events: false  # set by the "Colour my events" setting
 `;
-}
-
-function isRealDate(s: string): boolean {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-  if (!m) return false;
-  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  const date = new Date(Date.UTC(y, mo - 1, d));
-  return date.getUTCFullYear() === y && date.getUTCMonth() === mo - 1 && date.getUTCDate() === d;
 }
 
 /** Returns the value, or null when it is not valid. */

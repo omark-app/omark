@@ -1,7 +1,7 @@
 // Reading and writing the events-YYYY.csv year files.
 import { parseCsv, toCsv } from './csv.ts';
 import { formatHours } from './hours.ts';
-import type { EventRow } from './rows.ts';
+import { compareText, type EventRow } from './rows.ts';
 import { isRealDate, parseInstant } from './zone.ts';
 
 /** The fixed columns, in file order. */
@@ -26,17 +26,13 @@ export function eventsFileName(year: string): string {
   return `events-${year}.csv`;
 }
 
-function cmp(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
 /** Sort order of a file: start instant, then calendar, event id, date. */
 export function compareRows(a: EventRow, b: EventRow): number {
   return (
     parseInstant(a.start) - parseInstant(b.start) ||
-    cmp(a.calendar, b.calendar) ||
-    cmp(a.eventId, b.eventId) ||
-    cmp(a.date, b.date)
+    compareText(a.calendar, b.calendar) ||
+    compareText(a.eventId, b.eventId) ||
+    compareText(a.date, b.date)
   );
 }
 

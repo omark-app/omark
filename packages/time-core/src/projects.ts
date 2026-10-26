@@ -2,6 +2,7 @@
 
 import { parseCsv, toCsv } from './csv.ts';
 import { isValidCode } from './title.ts';
+import { isRealDate } from './zone.ts';
 
 export const PROJECT_COLUMNS: readonly string[] = ['code', 'description', 'client', 'rate', 'currency', 'archived'];
 
@@ -43,13 +44,6 @@ function standardName(header: string): string | null {
 /** The key a header has in a project: the standard name, or the header itself. */
 function keyOf(header: string): string {
   return standardName(header) ?? header;
-}
-
-function isRealDate(s: string): boolean {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-  if (!m) return false;
-  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
-  return d.toISOString().slice(0, 10) === s;
 }
 
 /** The problems of a project, in order, against the projects before it. */

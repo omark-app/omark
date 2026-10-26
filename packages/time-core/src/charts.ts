@@ -2,7 +2,7 @@
 import { groupCategories } from './categories.ts';
 import type { WeekStart } from './config.ts';
 import { roundHours } from './hours.ts';
-import type { EventRow } from './rows.ts';
+import { compareText, type EventRow } from './rows.ts';
 import { inRange, isDone, weekStartOf, type DateRange } from './summary.ts';
 import { addDays, daysBetween } from './zone.ts';
 
@@ -31,7 +31,6 @@ function hoursPerWeek(rows: EventRow[], weeks: string[], weekStart: WeekStart): 
 }
 
 const total = (hours: number[]) => hours.reduce((a, b) => a + b, 0);
-const byText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 function counted(rows: EventRow[], range: DateRange, nowMs: number, includePlanned: boolean): EventRow[] {
   return rows.filter((r) => r.known && inRange(r, range) && (includePlanned || isDone(r, nowMs)));
@@ -57,7 +56,7 @@ export function weeklyByProject(
     label: code,
     hours: hoursPerWeek(list, weeks, weekStart),
   }));
-  series.sort((a, b) => total(b.hours) - total(a.hours) || byText(a.key, b.key));
+  series.sort((a, b) => total(b.hours) - total(a.hours) || compareText(a.key, b.key));
   return { weeks, series };
 }
 
@@ -80,7 +79,7 @@ export function weeklyByCategory(
   }));
   series.sort((a, b) => {
     if ((a.key === '') !== (b.key === '')) return a.key === '' ? 1 : -1;
-    return total(b.hours) - total(a.hours) || byText(a.key, b.key);
+    return total(b.hours) - total(a.hours) || compareText(a.key, b.key);
   });
   return { weeks, series };
 }
