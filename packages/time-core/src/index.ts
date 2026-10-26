@@ -12,3 +12,5 @@ export * from './config.ts';
 export * from './categories.ts';
 export * from './summary.ts';
 export * from './charts.ts';
+export * from './fix-list.ts';
+export * from './report.ts';
