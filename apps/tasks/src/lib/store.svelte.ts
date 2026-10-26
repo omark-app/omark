@@ -253,6 +253,8 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   let packed: { packs: number; columns: BucketKey[][] } | null = null;
   /** A start from the cache packs again when the first successful pull brings changes. */
   let repackOnPull = snap.fromCache;
+  /** A start from the cache forms outside progress only once a pull has succeeded (`settleOutside`). */
+  let settleOnPull = snap.fromCache;
   let toast = $state.raw<Toast | null>(null);
   let status = $state<SyncStatus>(workspace.status());
   // Opening without a cache pulled before this point, so a `saved` status here is a fresh sync.
@@ -447,9 +449,11 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   /**
    * Forms every open habit of `s` that has reached its goal (habits spec 7): it leaves tasks.md and done.md
    * gets its 🏆 line, after which the count starts again, so a habit is never formed twice. Null when none
-   * had. The toast is for the last one formed, and its Keep as task puts that one back without 🌱.
+   * had. The toast is for the last one formed, and its Keep as task puts that one back without 🌱. Nothing
+   * forms while config.yaml has an error: its defaults are not the goal the file asks for.
    */
   function settle(s: State): { state: State; message: string; keep: ToastAction } | null {
+    if (configError !== null) return null;
     let out = s;
     let formed: { message: string; keep: ToastAction } | null = null;
     for (const id of formedHabits(s, ctx.today, config.habits)) {
@@ -472,9 +476,11 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
 
   /**
    * Forms the habits that reached their goal outside the app (seen on open or in a refresh, Review Focus 4).
-   * There is no step to undo back to, so the toast offers only Keep as task.
+   * There is no step to undo back to, so the toast offers only Keep as task; so after a start from the cache
+   * nothing forms before a pull has brought in the goal as it is now.
    */
   function settleOutside(): void {
+    if (settleOnPull) return;
     const formed = settle(state);
     if (!formed) return;
     state = formed.state;
@@ -734,6 +740,12 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     await serial(async () => {
       adoptRemote();
       repackOnPull = false;
+      // The first pull that reached OneDrive: form what the files as they are now say, changed or not.
+      const reached = workspace.status() !== 'offline' && workspace.status() !== 'signin';
+      if (settleOnPull && reached) {
+        settleOnPull = false;
+        settleOutside();
+      }
     });
   }
 
@@ -741,7 +753,8 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   // During the first pull this can run before `refreshOnce` adopts, so it may pack the board too.
   workspace.onRemoteChange(() => void serial(async () => adoptRemote()).catch((e: unknown) => console.error(e)));
 
-  // Habits that reached their goal in Obsidian or by Claude are formed now.
+  // Habits that reached their goal in Obsidian or by Claude are formed now (after a start from the cache,
+  // after the first pull).
   settleOutside();
   // Lines ticked in Obsidian were swept on load: write them out.
   if (isDirty()) scheduleSave();

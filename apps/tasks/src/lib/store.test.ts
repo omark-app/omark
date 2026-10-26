@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { allTasks, DEFAULT_CONFIG, findTask, tasksInBucket } from '@omark/tasks-core';
+import { addDays, allTasks, DEFAULT_CONFIG, findTask, tasksInBucket } from '@omark/tasks-core';
 import type { BucketKey } from '@omark/tasks-core';
 import { FakeOneDrive, MemoryCache } from '@omark/storage';
 import type { CachedFile, LocalCache } from '@omark/storage';
@@ -1107,6 +1107,71 @@ describe('habits (#44)', () => {
     expect(store.toast).toMatchObject({ message: FORMED, undo: false });
     await vi.advanceTimersByTimeAsync(1000);
     await vi.waitFor(() => expect(drive.peek('done.md')).toBe(`${ticks('14', '15', '16')}- [x] Meditate 🌱 🏆 2026-10-16\n`));
+  });
+
+  it('a config.yaml with an error forms nothing, though its defaults would (Final 1)', async () => {
+    // 66 days in a row, ending today: enough for the default goal, not for the 100 that the file asks for.
+    const days = Array.from({ length: 66 }, (_, i) => addDays('2026-10-16', i - 65));
+    const done = days.map((d) => `- [x] Meditate 🌱 🔁 every day ✅ ${d}\n`).join('');
+    const config = 'habits:\n  goal: 100\nfoo: 1\n';
+    const { drive, store, synced } = await setup({ 'tasks.md': MEDITATE, 'done.md': done, 'config.yaml': config });
+    expect(store.configError).not.toBeNull();
+    expect(allTitles(store)).toEqual(['Meditate']);
+    expect(store.toast).toBeNull();
+    await synced();
+    await store.refresh();
+    expect(allTitles(store)).toEqual(['Meditate']);
+    expect(drive.peek('done.md')).toBe(done);
+    // Nor does a change in the app: the goal the file asks for is not known.
+    store.setHabitGoal(idOf(store, 'Meditate'), 50);
+    expect(allTitles(store)).toEqual(['Meditate']);
+    store.undo();
+
+    // Fixed in Obsidian: the goal is 100 and nothing forms; then lowered to 66, it does.
+    drive.externalWrite('config.yaml', 'habits:\n  goal: 100\n');
+    await store.refresh();
+    expect(allTitles(store)).toEqual(['Meditate']);
+    drive.externalWrite('config.yaml', 'habits:\n  goal: 66\n');
+    await store.refresh();
+    expect(allTitles(store)).toEqual([]);
+  });
+
+  describe('a start from the cache forms only after the first pull (Final 1)', () => {
+    /** A cache holding goal 3 and three ticks, written while no store was open to form them. */
+    async function cached(): Promise<{ drive: SlowDrive; cache: MemoryCache }> {
+      const drive = new SlowDrive({ 'tasks.md': MEDITATE, 'done.md': ticks('14', '15', '16'), 'config.yaml': GOAL_3 });
+      const cache = new MemoryCache();
+      const ws = createWorkspace(drive, cache);
+      await ws.open();
+      await ws.refresh();
+      return { drive, cache };
+    }
+
+    it('a goal raised elsewhere while the app was closed is the one that counts', async () => {
+      const { drive, cache } = await cached();
+      drive.externalWrite('config.yaml', 'habits:\n  goal: 10\n');
+      drive.holdReads = true;
+      const store = await createStore({ workspace: createWorkspace(drive, cache), clock, isPhone: () => false });
+      expect(allTitles(store)).toEqual(['Meditate']); // not on the cached goal of 3
+      expect(store.toast).toBeNull();
+      drive.release();
+      await vi.waitFor(() => expect(store.status).toBe('saved'));
+      expect(store.config.habits.goal).toBe(10);
+      expect(allTitles(store)).toEqual(['Meditate']);
+      expect(drive.peek('done.md')).toBe(ticks('14', '15', '16'));
+    });
+
+    it('a pull that brings nothing new forms it then; an offline start waits for the network', async () => {
+      const { drive, cache } = await cached();
+      drive.setOffline(true);
+      const store = await createStore({ workspace: createWorkspace(drive, cache), clock, isPhone: () => false });
+      await vi.waitFor(() => expect(store.status).toBe('offline'));
+      expect(allTitles(store)).toEqual(['Meditate']);
+      drive.setOffline(false);
+      await store.refresh();
+      expect(allTitles(store)).toEqual([]);
+      expect(store.toast).toMatchObject({ message: FORMED, undo: false });
+    });
   });
 
   it('setHabitGoal toasts the goal, and a goal the count already reached forms the habit', async () => {
