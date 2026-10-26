@@ -15,9 +15,11 @@ describe('e2ePort', () => {
     const worktree = e2ePort('C:/Projects/TaskApp/.claude/worktrees/habits-1a2b3c/apps/tasks', {});
     expect(main).not.toBe(worktree);
     expect(e2ePort('C:/Projects/TaskApp/apps/tasks', {})).toBe(main);
+    // Even, so no checkout's e2e port is another one's demo port (always odd: e2e port + 1).
     for (const port of [main, worktree]) {
       expect(port).toBeGreaterThanOrEqual(4200);
       expect(port).toBeLessThan(4900);
+      expect(port % 2).toBe(0);
     }
   });
 
