@@ -532,3 +532,18 @@ test('hab typed while editing the title makes a habit (desktop detail, phone edi
   await expect.poll(() => driveFile(page, 'tasks.md')).toBe('# Tasks\n- [ ] Stretch 🌱 🔁 every day 📅 2026-10-16\n');
   if (!isMobile) await expect(title).toHaveValue('Stretch');
 });
+
+test('a habit with an old date is never overdue (detail, edit sheet, search)', async ({ page, isMobile }) => {
+  await openApp(page, { files: { 'tasks.md': line('Meditate', '2026-10-14') } });
+  await openTask(page, isMobile, 'Meditate');
+  const due = isMobile ? page.getByTestId('sheet-due') : page.getByTestId('detail-due');
+  await expect(due).toContainText('Today · Fri 16 Oct');
+  await expect(due).not.toContainText('overdue');
+  await expect(due).not.toHaveClass(/over/);
+  if (isMobile) return;
+  await page.keyboard.press('f');
+  await page.getByTestId('search-input').fill('Medit');
+  const meta = page.getByTestId('search-result').locator('.meta');
+  await expect(meta).toHaveText('↻ Today');
+  await expect(meta).not.toHaveClass(/over/);
+});

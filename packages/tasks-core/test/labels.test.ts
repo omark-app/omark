@@ -37,6 +37,14 @@ test('dueText', () => {
   expect(dueText(mk('2027-11-12'), fri)).toBe("Fri 12 Nov '27");
 });
 
+test('a habit is never overdue: its old date reads as today (habits spec 3, 6)', () => {
+  const habit = (date: string): Task => ({ ...mk(date, { type: 'daily' }), habit: { goal: null } });
+  expect(dueText(habit('2026-10-14'), fri)).toBe('Today · Fri 16 Oct');
+  expect(dueText(habit('2026-10-20'), fri)).toBe('Tue 20 Oct');
+  expect(metaLabel(habit('2026-10-14'), fri, 'short')).toEqual({ text: null, overdue: false, repeat: true });
+  expect(metaLabel(habit('2026-10-14'), fri, 'iso')).toEqual({ text: null, overdue: false, repeat: true });
+});
+
 test('habitLabel', () => {
   const rules = { goal: 66, missesInARow: 1, missesPerAttempt: 6 };
   const prog = (over: Partial<HabitProgress>, end = '2026-10-16'): HabitProgress =>

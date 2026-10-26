@@ -96,7 +96,7 @@
     aria-label="Notes"
     oninput={() => edit.typed('notes')}
   ></textarea>
-  <div class="sub due">{dueText(task, store.ctx)}{task.repeat ? ` · ↻ ${describeRepeat(task.repeat)}` : ''}</div>
+  <div class="sub due" data-testid="sheet-due">{dueText(task, store.ctx)}{task.repeat ? ` · ↻ ${describeRepeat(task.repeat)}` : ''}</div>
   {#if task.habit && progress}<HabitBlock {store} {task} {progress} keys={false} {act} />{/if}
   <MoveOptions
     {task}

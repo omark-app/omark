@@ -22,7 +22,8 @@
 
   const bucket = $derived(bucketOf(task, store.ctx));
   const bucketName = $derived(nameOf(bucket));
-  const over = $derived(task.date !== null && task.date < store.ctx.today);
+  // A habit is never overdue (habits spec 3): its old date is a missed period, not a late task.
+  const over = $derived(!task.habit && task.date !== null && task.date < store.ctx.today);
   const chips = $derived(dateChoices(store.ctx));
   const current = $derived(currentChoice(task, store.ctx));
   const progress = $derived(task.habit ? store.habits.get(id) : undefined);
