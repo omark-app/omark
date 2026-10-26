@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import type { RepeatRule, Task } from '../src/index.ts';
-import { dayMonth, dueText, metaLabel, weekdayShort } from '../src/index.ts';
+import type { HabitProgress, RepeatRule, Task } from '../src/index.ts';
+import { dayMonth, dueText, habitLabel, metaLabel, weekdayShort } from '../src/index.ts';
 
 const fri = { today: '2026-10-16', weekStart: 0 };
 const mk = (date: string | null, repeat: RepeatRule | null = null): Task => ({ id: 'a', title: 'a', notes: [], date, repeat, raw: null, rawKey: null });
@@ -35,4 +35,26 @@ test('dueText', () => {
   expect(dueText(mk(null), fri)).toBe('Someday · no date');
   expect(dueText(mk('2026-10-22'), fri)).toBe('Thu 22 Oct');
   expect(dueText(mk('2027-11-12'), fri)).toBe("Fri 12 Nov '27");
+});
+
+test('habitLabel', () => {
+  const rules = { goal: 66, missesInARow: 1, missesPerAttempt: 6 };
+  const prog = (over: Partial<HabitProgress>, end = '2026-10-16'): HabitProgress =>
+    ({ rules, count: 4, best: 0, doneThisPeriod: false, restarted: false, lastChance: false, period: { start: end, end }, ...over }) as HabitProgress;
+  const daily: RepeatRule = { type: 'daily' };
+  const goal30 = (n: number) => prog({ count: n, rules: { ...rules, goal: 30 } });
+  // On track in Today: just the count.
+  expect(habitLabel(mk('2026-10-16', daily), goal30(4), fri, 'short')).toEqual({ count: '4/30', when: null, tag: null });
+  expect(habitLabel(mk('2026-10-16', daily), prog({ lastChance: true }), fri, 'short').tag).toBe('last chance');
+  expect(habitLabel(mk('2026-10-16', daily), prog({ restarted: true, best: 9, count: 0 }), fri, 'short')).toEqual({ count: '0/66', when: null, tag: 'restarted · best 9' });
+  // A restart with no earlier best says nothing.
+  expect(habitLabel(mk('2026-10-16', daily), prog({ restarted: true, best: 0 }), fri, 'short').tag).toBeNull();
+  // Done today: the next date shows.
+  expect(habitLabel(mk('2026-10-20', daily), prog({ count: 31, doneThisPeriod: true }), fri, 'short')).toEqual({ count: '31/66', when: 'Tue', tag: null });
+  expect(habitLabel(mk('2026-11-12', daily), prog({ doneThisPeriod: true }), fri, 'short').when).toBe('12 Nov');
+  // A weekly habit open all week.
+  expect(habitLabel(mk('2026-10-18', { type: 'weekly', days: [6] }), prog({ count: 3, rules: { ...rules, goal: 15 } }, '2026-10-18'), fri, 'short'))
+    .toEqual({ count: '3/15', when: 'by Sun', tag: null });
+  // A missed period's old date never reads as overdue.
+  expect(habitLabel(mk('2026-10-12', daily), prog({}), fri, 'short').when).toBeNull();
 });

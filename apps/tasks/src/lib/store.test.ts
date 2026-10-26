@@ -1028,6 +1028,25 @@ describe('habits (#44)', () => {
     expect(store.state.done.lines).toHaveLength(2);
   });
 
+  it('a habit on several days a week done today says Already done this period', async () => {
+    const tasks = '# Tasks\n- [ ] Run 🌱 🔁 every week on Monday, Wednesday, Friday 📅 2026-10-19\n';
+    const done = '- [x] Run 🌱 🔁 every week on Monday, Wednesday, Friday ✅ 2026-10-16\n';
+    const { store } = await setup({ 'tasks.md': tasks, 'done.md': done });
+    store.complete(idOf(store, 'Run'));
+    expect(store.toast?.message).toMatch(/^Already done this period · next /);
+  });
+
+  it('a rename that forms the habit moves the selection on, as complete does', async () => {
+    const tasks = '# Tasks\n- [ ] Meditate 🌱 🔁 every day 📅 2026-10-16\n- [ ] Send the invoice 📅 2026-10-16\n';
+    const done = ['14', '15', '16'].map((d) => `- [x] Sit 🌱 🔁 every day ✅ 2026-10-${d}\n`).join('');
+    const { store } = await setup({ 'tasks.md': tasks, 'done.md': done, 'config.yaml': GOAL_3 });
+    const id = idOf(store, 'Meditate');
+    store.select(id);
+    store.edit(id, { title: 'Sit', notes: [], confirmed: true });
+    expect(allTitles(store)).toEqual(['Send the invoice']);
+    expect(store.selectedId).toBe(idOf(store, 'Send the invoice'));
+  });
+
   it('the tick toast shows the count', async () => {
     const { store } = await setup({ 'tasks.md': MEDITATE, 'done.md': ticks('14', '15') });
     store.complete(idOf(store, 'Meditate'));

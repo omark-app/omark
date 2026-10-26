@@ -1,4 +1,5 @@
 import { dayOfWeek, daysBetween, endOfNextWeek } from './dates.ts';
+import type { HabitProgress } from './habits.ts';
 import type { ISODate, Task, WeekCtx } from './model.ts';
 
 export type DateLabelStyle = 'short' | 'iso';
@@ -47,4 +48,26 @@ export function dueText(t: Task, ctx: WeekCtx): string {
   if (diff === 0) return `Today · ${full}`;
   if (diff < 0) return `${full} · overdue`;
   return full;
+}
+
+export interface HabitLabel {
+  count: string;
+  when: string | null;
+  tag: 'last chance' | `restarted · best ${number}` | null;
+}
+
+/**
+ * The meta label of a habit row (habits spec 9.2): the count, a date when it is not for today (`by Sun`
+ * while a longer period is still open, else the date of a later bucket) and a tag. Never overdue: a missed
+ * period's old date says nothing.
+ */
+export function habitLabel(t: Task, p: HabitProgress, ctx: WeekCtx, style: DateLabelStyle): HabitLabel {
+  let when: string | null = null;
+  if (!p.doneThisPeriod && p.period.end > ctx.today) {
+    when = `by ${p.period.end > endOfNextWeek(ctx) ? dayMonth(p.period.end, ctx) : weekdayShort(p.period.end)}`;
+  } else if (t.date !== null && t.date > ctx.today) {
+    when = metaLabel(t, ctx, style).text;
+  }
+  const tag = p.lastChance ? 'last chance' : p.restarted && p.best > 0 ? (`restarted · best ${p.best}` as const) : null;
+  return { count: `${p.count}/${p.rules.goal}`, when, tag };
 }

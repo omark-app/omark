@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { describeRepeat, metaLabel } from '@omark/tasks-core';
-  import type { DateLabelStyle, Task, WeekCtx } from '@omark/tasks-core';
+  import { describeRepeat, habitLabel, metaLabel } from '@omark/tasks-core';
+  import type { DateLabelStyle, HabitProgress, Task, WeekCtx } from '@omark/tasks-core';
 
   let {
     task,
     ctx,
     labelStyle,
+    habit,
     selected = false,
     onselect,
     oncomplete,
@@ -17,6 +18,8 @@
     task: Task;
     ctx: WeekCtx;
     labelStyle: DateLabelStyle;
+    /** Given for a habit (#44): its row shows the count and a tag, never a date or `↻`. */
+    habit?: HabitProgress;
     selected?: boolean;
     onselect?: () => void;
     oncomplete?: () => void;
@@ -34,21 +37,31 @@
 
   const label = $derived(metaLabel(task, ctx, labelStyle));
   const empty = $derived(label.text === null && !label.repeat);
+  const hab = $derived(habit ? habitLabel(task, habit, ctx, labelStyle) : null);
   const tip = $derived(
-    (task.repeat ? `Repeats ${describeRepeat(task.repeat)} · ` : '') + 'Click to change the date',
+    (hab ? 'Habit · ' : '') + (task.repeat ? `Repeats ${describeRepeat(task.repeat)} · ` : '') + 'Click to change the date',
   );
 </script>
 
 <!-- Keyboard users select with j/k, so the click handler is a pointer convenience. -->
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div bind:this={el} class="task" class:sel={selected} class:imp={task.important} data-testid="task-row" data-id={task.id} data-important={task.important === true} {draggable} onclick={onselect} {ondragstart} {ondragend}>
+<div bind:this={el} class="task" class:sel={selected} class:imp={task.important} class:habit={hab !== null} data-testid="task-row" data-id={task.id} data-important={task.important === true} data-habit={hab !== null} {draggable} onclick={onselect} {ondragstart} {ondragend}>
   <button class="check" data-testid="task-check" aria-label="Complete {task.title}" onclick={(e) => { e.stopPropagation(); oncomplete?.(); }}></button>
   <div class="title">
     {task.title}{#if task.notes.length > 0}<span class="ni" title="{task.notes.length} note{task.notes.length > 1 ? 's' : ''}">≡</span>{/if}
+    {#if hab?.tag}<span class="htag" class:last={habit?.lastChance} data-testid="habit-tag" aria-label={hab.tag}><span class="htext">{hab.tag}</span></span>{/if}
   </div>
+  {#if hab && habit}
+    <button class="meta" data-testid="task-meta" title={tip} onclick={(e) => { e.stopPropagation(); onpickdate?.(); }}>
+      <span class="hcount" data-testid="habit-count">{hab.count}</span>
+      <span class="hbar" aria-hidden="true"><span style="width: {Math.min(100, (habit.count / habit.rules.goal) * 100)}%"></span></span>
+      {#if hab.when}<span class="hwhen">{hab.when}</span>{/if}
+    </button>
+  {:else}
   <button class="meta" class:empty class:over={label.overdue} data-testid="task-meta" title={tip} onclick={(e) => { e.stopPropagation(); onpickdate?.(); }}>
     {#if empty}{task.date ? 'today' : 'no date'}{:else}{#if label.repeat}<span class="rep">↻</span>{/if}{#if label.repeat && label.text}{' '}{/if}{label.text ?? ''}{/if}
   </button>
+  {/if}
 </div>
 
 <style>
@@ -68,6 +81,16 @@
   /* Important (issue #19): an amber circle and title. */
   .task.imp .check { border: 2px solid var(--imp); }
   .task.imp .title { color: var(--imp); font-weight: 500; }
+  /* Habits (issue #44): a violet circle and title, also when important. */
+  .task.habit .check { border: 2px solid var(--habit); }
+  .task.habit .check:hover { border-color: var(--habit); background: color-mix(in srgb, var(--habit) 15%, transparent); }
+  .task.habit .title { color: var(--habit-ink); font-weight: 500; }
+  .htag { margin-left: 8px; padding: 1px 6px; border-radius: 4px; font: 600 11px/1.45 var(--sans); color: var(--muted); white-space: nowrap; }
+  .htag.last { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, var(--surface)); }
+  .hcount { color: var(--habit-ink); }
+  .hbar { display: inline-block; width: 44px; height: 4px; margin: 0 6px; border-radius: 2px; background: color-mix(in srgb, var(--habit) 20%, var(--surface)); vertical-align: middle; overflow: hidden; }
+  .hbar span { display: block; height: 4px; background: var(--habit); }
+  .hwhen { margin-left: 4px; }
   .ni { margin-left: 6px; font-size: 12px; color: var(--faint); }
   .meta { margin-top: 1px; padding: 1px 5px; border: 0; border-radius: 5px; background: none; cursor: pointer; font: 12px/1.45 var(--mono); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .meta:hover { background: var(--chip); color: var(--ink); }
@@ -81,5 +104,12 @@
     .task { padding: 9px 4px 9px 8px; }
     .meta { font-size: 13px; }
     .meta.empty { display: none; }
+    /* On the phone: no bar; last chance is a red dot, restarted stays grey text. */
+    .hbar { display: none; }
+    .hwhen { margin-left: 6px; }
+    .htag { padding: 0; }
+    .htag.last { background: none; }
+    .htag.last .htext { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .htag.last::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); vertical-align: middle; }
   }
 </style>

@@ -21,7 +21,7 @@
       // Shortcut words typed in the title set the date and the flag (issue #19).
       const typed = readQuickAdd(value, store.ctx, dismissed);
       // A title of shortcut words only adds nothing; its text stays to be finished.
-      if (store.add(typed.title, typed.when ?? undefined, typed.important) || value.trim() === '') {
+      if (store.add(typed.title, typed.when ?? undefined, typed.important, typed.habit) || value.trim() === '') {
         value = '';
         dismissed = [];
       }

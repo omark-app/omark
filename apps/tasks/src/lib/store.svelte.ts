@@ -571,7 +571,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
       // One repetition per period: a second tick would look like progress (habits spec 6).
       const { start, end } = before.period;
       const days = daysBetween(start, end) + 1;
-      show(msg.alreadyDone(days === 1 ? 'today' : days <= 7 ? 'this week' : 'this period', addDays(end, 1), ctx), false);
+      show(msg.alreadyDone(days === 1 ? 'today' : days === 7 ? 'this week' : 'this period', addDays(end, 1), ctx), false);
       return;
     }
     const fallback = neighbour(id);
@@ -627,7 +627,11 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     // A typed `som` takes a task out of Important, not urgent without changing its date (#38).
     const moved = after?.date !== task.date || (after !== null && bucketOf(after, ctx) !== bucketOf(task, ctx));
     if (moved) commitMove(id, next);
-    else commit(next, flags ? msg.markedImportant() : msg.saved());
+    else {
+      // A rename onto a title with history can form the habit: the task leaves, as in `complete`.
+      const fallback = neighbour(id);
+      if (commit(next, flags ? msg.markedImportant() : msg.saved())) keepVisible(id, fallback);
+    }
   }
 
   function setRepeat(id: string, rule: RepeatRule | null): void {
