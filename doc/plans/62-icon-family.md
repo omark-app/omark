@@ -6,24 +6,27 @@
 
 **Architecture:** A new workspace package `@omark/brand` in `brand/` holds the family as data (tile, frame, glyphs, palette) and turns it into SVG strings (pure, unit-tested). A render script writes those SVGs to `brand/svg/`, rasterises them with Playwright's Chromium into PNGs, and copies each output to its targets (`brand/png/…`, `apps/tasks/public/icons/…`). PNGs are committed; CI does not render, it checks that every PNG exists at the right size and was made from the current source (a hash file).
 
-**Tech Stack:** TypeScript run with `node --experimental-strip-types`, Vitest, Playwright (already in the lockfile), `@fontsource/geist` and `@fontsource/ibm-plex-mono` (already in the lockfile) for the social preview.
+**Tech Stack:** TypeScript run with `node --experimental-strip-types`, Vitest, Playwright (already in the lockfile), `@fontsource/geist` (already in the lockfile) for the social preview.
 
 **Spec:** `doc/TaskApp open source launch spec.md` 6.6 (icon family), 6.3.1 (landing page); roadmap 2.4 in `doc/plans/open-source-launch-roadmap.md`. Directions mockup: `doc/mockups/icons/directions.html` (published at https://claude.ai/artifact/Pq9cP3JbfTNGe6nPAbMgRt).
 
+**Direction:** AL picked **B, Ring** (2026-10-26). The O of Omark is a thick white ring on a solid tile; each app has one tile colour and one white glyph inside the ring: Omark Tasks a tick on blue `#2B59D6`, Omark Time clock hands on green `#2C8A55`, the Omark brand mark the bare ring on ink `#151A22`. Wordmark: Geist Bold, "Omark" with the ring drawn as its O, letter-spacing −0.03em; an app name follows in Geist Regular ("Omark Tasks").
+
 ## What changes for AL
 
-- Omark Tasks gets a real icon from the picked direction: on the home screen, in the browser tab, and when installed on Windows. The old tick-on-blue square goes.
-- Staging gets its own icon on the cream staging colour, so the two home-screen icons are easy to tell apart.
+- Omark Tasks gets the Ring icon, a white tick in a white ring on blue: on the home screen, in the browser tab, and when installed on Windows. The old tick-on-blue square goes.
+- Staging gets its own icon, the blue ring and tick on the cream staging colour, so the two home-screen icons are easy to tell apart.
 - `brand/` holds everything else the launch needs: the Omark brand mark, a 500 px avatar for the GitHub org, the 1280×640 social preview, and the Omark Time icons ready for `apps/time`.
 - Changing or adding an icon later is: edit `brand/src/family.ts`, run `pnpm --filter @omark/brand render`, commit.
 
 ## Acceptance criteria
 
-- [ ] AL picked a direction; `brand/src/family.ts` draws it, and `brand/README.md` states its family rule.
+- [x] AL picked a direction (B, Ring).
+- [ ] `brand/src/family.ts` draws it, and `brand/README.md` states its family rule.
 - [ ] `brand/svg/` has `omark-mark.svg`, `tasks.svg`, `time.svg` (full-bleed 512 sources) and `favicon-omark.svg`, `favicon-tasks.svg`, `favicon-time.svg` (rounded tiles).
 - [ ] Omark Tasks, production: `icon-192.png`, `icon-512.png` (rounded, transparent corners, purpose `any`), `icon-512-maskable.png` (full-bleed, purpose `maskable`), `apple-touch-icon.png` (180, full-bleed, opaque), `favicon.svg`, `favicon-32.png`, all in `apps/tasks/public/icons/`.
 - [ ] Omark Tasks, staging: the same six files in `apps/tasks/public/icons/staging/`, on the `#F6E7C8` tile; `manifest-staging.webmanifest` and the staging page use them.
-- [ ] Omark Time: the same six files in `brand/png/time/`, not wired anywhere yet.
+- [ ] Omark Time: the same six files in `brand/png/time/`, not wired anywhere yet. The brand mark gets the same six in `brand/png/omark/` for the landing page.
 - [ ] Suite: `brand/png/omark-avatar-500.png` and `brand/png/social-preview.png` (1280×640).
 - [ ] Every glyph stays inside the maskable safe zone, uses only colours from `tokens.css` (plus `#FFFFFF` and `#F6E7C8`), and has 3:1 contrast or more against its tile.
 - [ ] Unit tests prove the above; a freshness test fails with "run pnpm --filter @omark/brand render" when a PNG is missing, the wrong size or older than its source.
@@ -68,7 +71,7 @@
 - **Staging and production installed side by side** must differ at a glance. Expect: staging tile is `#F6E7C8`, production is not. Pinned in Task 1.
 - **A source edited without re-rendering** ships stale PNGs. Expect: a failing test naming the command. Pinned in Task 2.
 - **The staging page on iPhone** reads `apple-touch-icon` from the DOM when added to the home screen, after boot. Expect: the staging link is set before mount. Pinned in Task 3 (unit test on `applyIcons`, e2e on desktop; the iPhone check is by hand on staging, as for the staging name today).
-- **A dark browser tab** with a dark tile hides the tile edge. Expect: the glyph still reads, since it is light on the tile. Pinned by the contrast test in Task 1 and the contact sheet in Task 2.
+- **A dark browser tab** with the ink brand tile hides the tile edge. Expect: the white ring still reads. Pinned by the contrast test in Task 1 and the contact sheet in Task 2.
 
 ---
 
@@ -87,8 +90,7 @@
   export type Shape = 'square' | 'rounded';                 // square = full bleed; rounded = radius 22.5%, transparent corners
   export type Mark =
     | { kind: 'line'; points: [number, number][]; width: number; color: string; cap: 'round' | 'square' }
-    | { kind: 'circle'; cx: number; cy: number; r: number; width: number | null; color: string } // width null = filled
-    | { kind: 'path'; d: string; bounds: [number, number, number, number]; color: string };       // filled shape, e.g. C's page
+    | { kind: 'circle'; cx: number; cy: number; r: number; width: number; color: string };   // a stroked ring
   export interface IconSpec { tile: string; marks: Mark[] }  // 512×512 space
   export function iconSpec(app: App, variant?: Variant, opts?: { small?: boolean }): IconSpec;
   export function iconSvg(app: App, opts?: { variant?: Variant; shape?: Shape; small?: boolean }): string;
@@ -97,13 +99,13 @@
 - `small: true` (favicons) multiplies line widths by 1.2.
 
 - [ ] **Step 1: Write the failing tests** in `brand/src/family.test.ts`:
-  - `every mark stays in the maskable safe zone`: for each app × variant × small, every `line` point and `circle` edge plus half its width, and every `path` bounds corner, is within 204.8 of (256, 256).
+  - `every mark stays in the maskable safe zone`: for each app × variant × small, every `line` point and `circle` edge, plus half its width, is within 204.8 of (256, 256).
   - `uses only token colours`: read `apps/tasks/src/styles/tokens.css`, collect every `#RRGGBB`; each `tile` and mark `color` (uppercased) is in that set ∪ {`#FFFFFF`, `#F6E7C8`}.
-  - `glyphs have 3:1 contrast with the tile`: WCAG relative-luminance ratio of every mark colour against its `tile` is ≥ 3 (a filled `path` the glyph sits on, like C's page, counts as the glyph's ground instead).
+  - `glyphs have 3:1 contrast with the tile`: WCAG relative-luminance ratio of every mark colour against its `tile` is ≥ 3.
   - `staging differs from production`: `iconSpec(app, 'staging').tile === '#F6E7C8'` and `iconSpec(app, 'production').tile !== '#F6E7C8'` for `tasks` and `time`.
   - `shapes`: `iconSvg('tasks', { shape: 'square' })` contains `<rect width="512" height="512"` with no `rx`; `shape: 'rounded'` has `rx="115.2"`; both start with `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"`.
 - [ ] **Step 2: Run** `pnpm vitest run --project brand`. Expected: FAIL, `Cannot find module './family.ts'`.
-- [ ] **Step 3: Implement `brand/src/family.ts`.** Port the picked direction's `icon(app)` from `doc/mockups/icons/directions.html` into `Mark` data (the mockup's `notes` glyph is not ported). Staging: tile `#F6E7C8`; any light frame or glyph colour becomes ink `#151A22`, and the app colour switches to its light-theme token (`#2B59D6`, `#A84C08`, `#2C8A55`) so the contrast test holds. `iconSvg` serialises the marks with `stroke-linejoin` matching the cap.
+- [ ] **Step 3: Implement `brand/src/family.ts`.** Port direction B's `icon(app)` from `doc/mockups/icons/directions.html` into `Mark` data (the mockup's `notes` glyph is not ported): ring `circle` at (256, 256), r 146, width 46; Tasks tick `line` (192,262)(236,304)(320,210), width 44; Time hands `line` (256,172)(256,256)(316,294), width 40; the brand mark has the ring only. All round caps. Production: tile in the app colour, marks `#FFFFFF`. Staging: tile `#F6E7C8`, marks in the app colour (contrast 5.1 for blue, 3.5 for green, 15 for ink). `iconSvg` serialises the marks with `stroke-linejoin` matching the cap.
 - [ ] **Step 4: Run** `pnpm vitest run --project brand`, then `pnpm typecheck`. Expected: PASS.
 - [ ] **Step 5: Commit** `Add the Omark icon family as data`.
 
@@ -113,7 +115,7 @@
 - Create: `brand/src/outputs.ts` (the registry), `brand/src/render.ts` (the script), `brand/src/social.html` (social preview template), `brand/src/outputs.test.ts`
 - Create (generated): `brand/svg/*.svg`, `brand/png/**`, `brand/png/sources.json`, `apps/tasks/public/icons/**`, `brand/contact-sheet.html`
 - Create: `brand/README.md`
-- Modify: `brand/package.json` (script `render`, devDependencies `playwright`, `@fontsource/geist`, `@fontsource/ibm-plex-mono` at the lockfile's versions)
+- Modify: `brand/package.json` (script `render`, devDependencies `playwright` and `@fontsource/geist` at the lockfile's versions)
 
 **Interfaces:**
 - Consumes: `iconSvg`, `App`, `Variant`, `Shape` from Task 1.
@@ -136,7 +138,7 @@
 | `favicon-32.png` | 32 | rounded, small |
 | `favicon.svg` | n/a, written as text | rounded, small |
 
-Sets: tasks/production → `apps/tasks/public/icons/`; tasks/staging → `apps/tasks/public/icons/staging/`; time/production → `brand/png/time/`. Suite: `brand/png/omark-avatar-500.png` (omark, square, 500); `brand/png/social-preview.png` (1280×640, from `social.html`: ink ground, the brand mark, the wordmark as the picked direction writes it, the line "Small plain-file tools you own.", and the Tasks and Time icons with their names); `brand/svg/{omark-mark,tasks,time}.svg` (square) and `brand/svg/favicon-{omark,tasks,time}.svg` (rounded, small).
+Sets: tasks/production → `apps/tasks/public/icons/`; tasks/staging → `apps/tasks/public/icons/staging/`; time/production → `brand/png/time/`; omark/production → `brand/png/omark/` (for the landing page). Suite: `brand/png/omark-avatar-500.png` (omark, square, 500); `brand/png/social-preview.png` (1280×640, from `social.html`: ink ground, the brand mark, the Ring wordmark, the line "Small plain-file tools you own.", and the Tasks and Time icons with their names); `brand/svg/{omark-mark,tasks,time}.svg` (square) and `brand/svg/favicon-{omark,tasks,time}.svg` (rounded, small).
 
 - [ ] **Step 1: Write the failing test** `brand/src/outputs.test.ts`:
   - `every PNG exists at its size`: for each PNG output, read bytes 16–23 (IHDR width and height, big-endian) and expect them to equal `size`.
@@ -146,7 +148,7 @@ Sets: tasks/production → `apps/tasks/public/icons/`; tasks/staging → `apps/t
 - [ ] **Step 2: Run** `pnpm vitest run --project brand`. Expected: FAIL with `ENOENT … brand/png/omark-avatar-500.png`; save the line for the PR.
 - [ ] **Step 3: Implement `render.ts`**: launch Chromium, for each output `page.setViewportSize(size)`, `page.setContent` with the SVG (or `social.html` with the fonts as `file://` URLs) and `screenshot({ path, omitBackground: true })` for rounded, `false` for square; write SVG files as text; write `sources.json`; write `contact-sheet.html` showing every PNG at 1× on light and dark grounds. Script: `"render": "node --experimental-strip-types --disable-warning=ExperimentalWarning src/render.ts"`.
 - [ ] **Step 4: Run** `pnpm --filter @omark/brand render`, then `pnpm vitest run --project brand`. Expected: PASS. Open `brand/contact-sheet.html` and look at 16 and 32 px on both grounds.
-- [ ] **Step 5: Write `brand/README.md`**: the family rule in three lines; the palette; a table of every file and where it goes; "Adding an app": add a glyph in `family.ts`, an `appSet` line in `outputs.ts`, run render; "For the landing page": take `svg/favicon-omark.svg`, `png/social-preview.png` and the `omark` apple-touch set from `brand/`, and write the text wordmark as the picked direction does (font, weight, case, letter-spacing); "For apps/time": point the time set at `apps/time/public/icons/`.
+- [ ] **Step 5: Write `brand/README.md`**: the family rule in three lines; the palette; a table of every file and where it goes; "Adding an app": add a glyph in `family.ts`, an `appSet` line in `outputs.ts`, run render; "For the landing page": take `png/omark/favicon.svg`, `png/omark/favicon-32.png`, `png/omark/apple-touch-icon.png`, `png/social-preview.png` and the app icons from `brand/`; write the text wordmark as Geist Bold "Omark", letter-spacing −0.03em, with `svg/omark-mark.svg`'s ring allowed as the O; "For apps/time": point the time set at `apps/time/public/icons/`.
 - [ ] **Step 6: Commit** `Render the icon set and check it is fresh`.
 
 ### Task 3: Wire the icons into Omark Tasks
