@@ -73,7 +73,7 @@ Builds [the Omark Time spec](../Omark%20Time%20spec.md). It runs alongside miles
 | # | Workstream | Spec | Size | Depends on |
 |---|---|---|---|---|
 | T.1 | AL: Google Cloud project "Omark Time Staging" (published, unverified) and a test Google account with a test calendar | Time 10.3, 17 | — | 3.9 |
-| T.2 | Spike (throwaway): colour patch on an invite with `calendar.events.owned`, invites on the primary calendar, recurring instances in incremental sync, the green and red ids; findings into the Time spec; then the milestone plan | Time 15 | small, then Plan | T.1 |
+| T.2 | Spike (throwaway): colour patch on an invite with `calendar.events.owned`, invites on the primary calendar, recurring instances in incremental sync, the green and red ids, read-only sync with `calendar.events.owned.readonly`; findings into the Time spec; then the milestone plan | Time 15 | small, then Plan | T.1 |
 | T.3 | `packages/time-core`: title parser, event → rows (window, midnight split, all-day, declined, overlaps, time zone), colour decision, CSV and YAML, projects and config models, summaries, chart series, reports | Time 5–7, 9 | large, Plan | T.2 |
 | T.4 | `packages/calendar`: `CalendarSource` interface, Google implementation (calendar list, incremental sync, colour patch with throttling), fake calendar, shared contract test | Time 8, 13 | large, Plan | T.2, 3.8 |
 | T.5 | `apps/time` shell: Google sign-in, first run, storage choice (Google Drive, OneDrive, local folder), sync and colouring loop, rebuild, offline cache; staging at `staging-time.omark.app` | Time 4, 7, 8, 10 | large, Plan | T.3, T.4, 3.1, 3.8 |
