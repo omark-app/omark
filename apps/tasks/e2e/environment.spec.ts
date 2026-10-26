@@ -6,17 +6,17 @@ import { test, expect } from '@playwright/test';
 test.skip(({ browserName }) => browserName !== 'chromium', 'needs --host-resolver-rules');
 test.use({ launchOptions: { args: ['--host-resolver-rules=MAP staging-tasks.example.test localhost'] } });
 
-const STAGING = 'http://staging-tasks.example.test:4173/';
-
-test('staging host gets the staging name, colour, manifest and label', async ({ page, request }) => {
-  await page.goto(STAGING);
+test('staging host gets the staging name, colour, manifest and label', async ({ page, request, baseURL }) => {
+  const staging = new URL(baseURL!);
+  staging.hostname = 'staging-tasks.example.test';
+  await page.goto(staging.toString());
   await expect(page).toHaveTitle('Omark Tasks Staging');
   await expect(page.getByTestId('env-label')).toHaveText('STAGING');
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#F6E7C8');
   await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute('content', 'Omark Tasks Staging');
 
   const href = await page.locator('link[rel="manifest"]').getAttribute('href');
-  const res = await request.get(new URL(href!, 'http://localhost:4173/').toString());
+  const res = await request.get(new URL(href!, baseURL).toString());
   expect(res.ok()).toBe(true);
   const manifest = await res.json();
   expect(manifest.name).toBe('Omark Tasks Staging');
