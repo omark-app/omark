@@ -8,3 +8,4 @@ export * from './events-file.ts';
 export * from './apply.ts';
 export * from './colour.ts';
 export * from './projects.ts';
+export * from './config.ts';
