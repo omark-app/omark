@@ -12,21 +12,23 @@ export interface Auth {
 const BASE = '/api/auth';
 /** Must match `CSRF_HEADER` in `packages/signin`. */
 const CSRF_HEADER = 'X-TaskApp-Auth';
-/** Set (readable, no secret in it) alongside the HttpOnly session cookie; cleared when the session is. */
-const SIGNED_IN_COOKIE = 'taskapp_signed_in';
 /** An access token is renewed this long before it expires. */
 const RENEW_BEFORE_MS = 60_000;
 const DEFAULT_TIMEOUT_MS = 15_000;
 
 /** What `/api/auth/callback` sends back as `?signin_error=`. */
-const SIGNIN_ERRORS: Record<string, string> = {
+const signinErrors = (provider: string): Record<string, string> => ({
   cancelled: 'Sign-in was cancelled',
   expired: 'The sign-in took too long or was started in another window; sign in again',
-  failed: 'Microsoft did not accept the sign-in',
-  unavailable: 'Microsoft could not be reached; check the connection and sign in again',
-};
+  failed: `${provider} did not accept the sign-in`,
+  unavailable: `${provider} could not be reached; check the connection and sign in again`,
+});
 
 export interface AuthOptions {
+  /** The app's cookie prefix in the sign-in helper; this reads `<cookiePrefix>_signed_in`. */
+  cookiePrefix: string;
+  /** Where the user signs in, for error texts, e.g. 'Microsoft'. */
+  providerName: string;
   fetch?: typeof fetch;
   /** Leaves the page for the sign-in (a top-level navigation). */
   navigate?: (url: string) => void;
@@ -44,7 +46,10 @@ export interface AuthOptions {
  * helper means sign in again (`AuthRequiredError`); no network, a timeout or a 503 means offline
  * (`OfflineError`), and the caller retries later.
  */
-export function createAuth(opts: AuthOptions = {}): Auth {
+export function createAuth(opts: AuthOptions): Auth {
+  /** Set (readable, no secret in it) alongside the HttpOnly session cookie; cleared when the session is. */
+  const signedInCookie = `${opts.cookiePrefix}_signed_in`;
+  const errors = signinErrors(opts.providerName);
   const fetchFn = opts.fetch ?? ((...args) => globalThis.fetch(...args));
   const navigate = opts.navigate ?? ((url: string) => window.location.assign(url));
   const cookies = opts.cookies ?? (() => document.cookie);
@@ -94,10 +99,10 @@ export function createAuth(opts: AuthOptions = {}): Auth {
       // Drop it from the address bar first, so "Try again" (a reload) starts clean.
       url.searchParams.delete('signin_error');
       window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
-      throw new Error(SIGNIN_ERRORS[reason] ?? 'Sign-in failed');
+      throw new Error(errors[reason] ?? 'Sign-in failed');
     },
     async signIn() {
-      // A top-level navigation: the helper redirects to Microsoft and back to /api/auth/callback, which
+      // A top-level navigation: the helper redirects to the provider and back to /api/auth/callback, which
       // returns to / (in an iOS home-screen app's scope). The helper adds the last account as login_hint.
       navigate(`${BASE}/login`);
     },
@@ -113,7 +118,7 @@ export function createAuth(opts: AuthOptions = {}): Auth {
       // The hint cookie can outlive a revoked session; then the first token call answers 401.
       return cookies()
         .split(';')
-        .some((c) => c.trim().startsWith(`${SIGNED_IN_COOKIE}=`));
+        .some((c) => c.trim().startsWith(`${signedInCookie}=`));
     },
   };
 }
