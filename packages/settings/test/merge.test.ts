@@ -51,4 +51,10 @@ describe('mergeSettings', () => {
     expect(mergeSettings(demo, 'delay: [\n', 'delay: 2\n', 'delay: 3\n').text).toBe('delay: 2\n');
     expect(mergeSettings(demo, 'delay: 1\n', 'delay: [\n', 'delay: 3\n').text).toBe('delay: [\n');
   });
+
+  it('returns local when the merged text would not read', () => {
+    const r = mergeSettings(demo, '', 'shortcuts:\n  a: q\n', 'shortcuts:\n  b: q\n');
+    expect(r).toEqual({ text: 'shortcuts:\n  a: q\n', conflicts: [keysField] });
+  });
 });
+

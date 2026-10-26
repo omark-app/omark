@@ -1,6 +1,8 @@
 import { isMap, isNode, parseDocument } from 'yaml';
+import type { Document } from 'yaml';
 import { allFields } from './schema.ts';
 import type { Field, Path, Schema } from './schema.ts';
+import { readSettings } from './read.ts';
 import { setSetting } from './write.ts';
 
 function parses(text: string): boolean {
@@ -8,17 +10,13 @@ function parses(text: string): boolean {
   return doc.errors.length === 0 && (doc.contents === null || isMap(doc.contents));
 }
 
-/** The raw YAML value at a path as plain JSON text; 'undefined' when the key is missing. */
-function rawAt(text: string, path: Path): string {
-  const node: unknown = parseDocument(text).getIn(path, true);
-  const value: unknown = isNode(node) ? node.toJSON() : node;
-  return JSON.stringify(value) ?? 'undefined';
-}
-
-function valueAt(text: string, path: Path): unknown {
-  const node: unknown = parseDocument(text).getIn(path, true);
+/** The value at a path as plain JSON data; undefined when the key is missing. */
+const valueAt = (doc: Document, path: Path): unknown => {
+  const node: unknown = doc.getIn(path, true);
   return isNode(node) ? node.toJSON() : node;
-}
+};
+
+const rawAt = (doc: Document, path: Path): string => JSON.stringify(valueAt(doc, path)) ?? 'undefined';
 
 /** Every path a form field can write: one per field, one per command for a keys field. */
 function leaves(field: Field): Path[] {
@@ -39,23 +37,36 @@ export function mergeSettings(
   if (remote === base) return { text: local, conflicts: [] };
   if (!parses(base) || !parses(local) || !parses(remote)) return { text: local, conflicts: [] };
 
+  const b = parseDocument(base);
+  const l = parseDocument(local);
+  const r = parseDocument(remote);
   let text = remote;
   const conflicts: Field[] = [];
+  const bothChanged: Field[] = [];
   try {
     for (const field of allFields(schema)) {
       let conflicted = false;
+      let localChanged = false;
+      let remoteChanged = false;
       for (const path of leaves(field)) {
-        const b = rawAt(base, path);
-        const l = rawAt(local, path);
-        if (l === b) continue;
-        const r = rawAt(remote, path);
-        if (r !== b && r !== l) conflicted = true;
-        if (r !== l) text = setSetting(text, path, valueAt(local, path));
+        const rb = rawAt(b, path);
+        const rl = rawAt(l, path);
+        const rr = rawAt(r, path);
+        if (rr !== rb) remoteChanged = true;
+        if (rl === rb) continue;
+        localChanged = true;
+        if (rr !== rb && rr !== rl) conflicted = true;
+        if (rr !== rl) text = setSetting(text, path, valueAt(l, path));
       }
       if (conflicted) conflicts.push(field);
+      if (localChanged && remoteChanged) bothChanged.push(field);
     }
   } catch {
     return { text: local, conflicts: [] };
+  }
+  // Two edits that are fine alone can clash together (one key on two commands).
+  if (readSettings(schema, text).error && !readSettings(schema, local).error) {
+    return { text: local, conflicts: bothChanged };
   }
   return { text, conflicts };
 }
