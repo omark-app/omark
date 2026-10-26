@@ -84,3 +84,21 @@ test('an unknown event or a bad token is an error', async () => {
   await expect(fake.readChanges('primary', 'garbage')).rejects.toBeInstanceOf(SyncTokenExpiredError);
   await expect(fake.readChanges('missing', null)).rejects.toThrow(/missing/);
 });
+
+test('every mutation shows up in the next incremental read', async () => {
+  const fake = new FakeCalendar(CALENDARS, [EVENT]);
+  let { syncToken } = await fake.readChanges('primary', null);
+  const steps: [string, () => void | Promise<void>][] = [
+    ['add', () => fake.add({ ...EVENT, id: 'b' })],
+    ['edit', () => fake.edit('primary', 'a', { title: 'X' })],
+    ['cancel', () => fake.cancel('primary', 'b')],
+    ['setColour', () => fake.setColour('primary', 'a', { colorId: '10', marker: 'green' })],
+  ];
+  const expected = ['b', 'a', 'b', 'a'];
+  for (const [i, [, run]] of steps.entries()) {
+    await run();
+    const next = await fake.readChanges('primary', syncToken);
+    expect(next.events.map((e) => e.id)).toEqual([expected[i]]);
+    syncToken = next.syncToken;
+  }
+});

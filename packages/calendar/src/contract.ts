@@ -91,7 +91,10 @@ export function calendarContract(name: string, make: () => ContractHarness | Pro
       const { syncToken } = await h.source.readChanges('primary', null);
       h.expireTokens();
       await expect(h.source.readChanges('primary', syncToken)).rejects.toBeInstanceOf(SyncTokenExpiredError);
-      expect(ids((await h.source.readChanges('primary', null)).events)).toEqual(['a']);
+      const fresh = await h.source.readChanges('primary', null);
+      expect(ids(fresh.events)).toEqual(['a']);
+      const after = await h.source.readChanges('primary', fresh.syncToken);
+      expect(after.events).toEqual([]);
     });
 
     it('readRange returns the instances overlapping the range', async () => {
