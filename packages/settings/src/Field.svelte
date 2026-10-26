@@ -52,8 +52,25 @@
     if ('value' in r && r.value !== value) commit(r.value);
   }
 
+  // A press elsewhere blurs the box on pointerdown. Clearing the error then would move the rows below
+  // under the pointer, and the press would miss what it aimed at, so the box settles once the press ends.
+  let pressing = false;
+  let box: HTMLInputElement | undefined = $state();
   function onblur(): void {
     flush();
+    if (!pressing) return settle();
+    const done = (): void => {
+      window.removeEventListener('pointerup', done, true);
+      window.removeEventListener('pointercancel', done, true);
+      setTimeout(settle);
+    };
+    window.addEventListener('pointerup', done, true);
+    window.addEventListener('pointercancel', done, true);
+  }
+
+  function settle(): void {
+    // The press may have put focus back (a click on the label).
+    if (document.activeElement === box) return;
     focused = false;
     error = null;
   }
@@ -65,6 +82,12 @@
     if (!commit(next)) box.checked = !on;
   }
 </script>
+
+<svelte:window
+  onpointerdowncapture={() => (pressing = true)}
+  onpointerupcapture={() => (pressing = false)}
+  onpointercancelcapture={() => (pressing = false)}
+/>
 
 <div class="f" data-testid="field-{id}">
   {#if field.type === 'number'}
@@ -87,6 +110,7 @@
     </select>
   {:else if field.type === 'number'}
     <input
+      bind:this={box}
       id={inputId}
       class="num"
       class:bad={error !== null}
