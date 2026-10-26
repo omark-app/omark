@@ -48,7 +48,14 @@ const cell = (o: Output) => {
   const src = relative(at('brand'), at(o.path)).replaceAll('\\', '/');
   return `<figure><img src="${src}" width="${o.size[0]}" height="${o.size[1]}" alt=""><figcaption>${o.path}</figcaption></figure>`;
 };
-const sheet = (cls: string) => `<section class="${cls}">${pngs.map(cell).join('')}</section>`;
+// Favicons at the size a browser tab shows them.
+const tabIcon = (o: Output) => {
+  const src = relative(at('brand'), at(o.path)).replaceAll('\\', '/');
+  return `<figure><img src="${src}" width="16" height="16" alt=""><figcaption>${o.path} at 16 px</figcaption></figure>`;
+};
+const tabIcons = OUTPUTS.filter((o) => /\/favicon(-32\.png|\.svg)$/.test(o.path) && o.path.startsWith('brand/png/'));
+const sheet = (cls: string) =>
+  `<section class="${cls}">${pngs.map(cell).join('')}</section><section class="${cls}">${tabIcons.map(tabIcon).join('')}</section>`;
 write(
   'brand/contact-sheet.html',
   `<!doctype html>

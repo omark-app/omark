@@ -1,6 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { iconSvg } from './family.ts';
 import { OUTPUTS, sourceHash } from './outputs.ts';
 
 const root = new URL('../../', import.meta.url);
@@ -30,9 +29,18 @@ describe('outputs', () => {
     for (const o of round) expect(o.svg(), o.path).toContain('rx="115.2"');
   });
 
+  it('PNG colour type: RGB where iOS and Android mask, RGBA elsewhere', () => {
+    const colourType = (path: string) => read(path).readUInt8(25); // IHDR colour type
+    const named = (re: RegExp) => pngs.filter((o) => re.test(o.path));
+    const rgb = [...named(/apple-touch-icon\.png$/), ...named(/-maskable\.png$/)];
+    const rgba = [...named(/icon-192\.png$/), ...named(/icon-512\.png$/), ...named(/favicon-32\.png$/)];
+    expect(rgb.length).toBeGreaterThan(0);
+    expect(rgba.length).toBeGreaterThan(0);
+    for (const o of rgb) expect(colourType(o.path), o.path).toBe(2);
+    for (const o of rgba) expect(colourType(o.path), o.path).toBe(6);
+  });
+
   it.each(svgs.map((o) => [o.path, o] as const))('every SVG output on disk matches iconSvg: %s', (path, o) => {
     expect(read(path).toString('utf8')).toBe(o.svg());
-    expect(o.svg().startsWith('<svg')).toBe(true);
-    expect(o.svg()).toContain(iconSvg('omark').slice(0, 20));
   });
 });

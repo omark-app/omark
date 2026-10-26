@@ -40,7 +40,10 @@ test('staging host gets the staging icons', async ({ page, request, baseURL }) =
   expect(urls.length).toBe(6);
   for (const url of urls) {
     expect(url).toMatch(/^\/icons\/staging\//);
-    expect((await request.get(new URL(url, baseURL).toString())).status(), url).toBe(200);
+    const res = await request.get(new URL(url, baseURL).toString());
+    expect(res.status(), url).toBe(200);
+    // vite preview answers a missing file with index.html and 200, so check the type too.
+    expect(res.headers()['content-type'], url).toMatch(/^image\//);
   }
 });
 

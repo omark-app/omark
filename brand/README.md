@@ -47,7 +47,7 @@ Rounded icons have transparent corners. The apple-touch and maskable icons are f
 
 Take `png/omark/favicon.svg`, `png/omark/favicon-32.png`, `png/omark/apple-touch-icon.png` and `png/social-preview.png`, plus the app icons from `apps/tasks/public/icons/` and `png/time/`.
 
-Write the text wordmark as Geist Bold "Omark" with letter-spacing -0.03em. The ring from `svg/omark-mark.svg` may stand in for the O.
+Write the text wordmark as Geist Bold "Omark" with letter-spacing -0.03em. The ring from `svg/omark-mark.svg` may stand in for the O. An app name follows in Geist Regular ("Omark Tasks"). The wordmark's O is a typographic ring drawn for the wordmark, thinner than the icon ring; it is not taken from `family.ts`.
 
 ## For apps/time
 
