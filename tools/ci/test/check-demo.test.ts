@@ -1,3 +1,5 @@
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { checkDemo } from '../check-demo.mjs';
 
@@ -84,5 +86,44 @@ describe('checkDemo', () => {
     const r = await checkDemo({ url: URL_, fetch: fake, attempts: 2, sleep: async () => {} });
     expect(r.ok).toBe(false);
     expect(r.message).toContain('ENOTFOUND');
+  });
+
+  it('gives every request a timeout and counts one that times out as a failed attempt', async () => {
+    const signals: (AbortSignal | null | undefined)[] = [];
+    let hang = true;
+    // The first request never answers; it ends only when its signal aborts. After that the site answers.
+    const fake = ((input: string | URL | Request, init?: RequestInit) => {
+      signals.push(init?.signal);
+      if (hang) {
+        hang = false;
+        return new Promise<Response>((_, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal!.reason)));
+      }
+      return Promise.resolve(String(input).endsWith('/api/auth/login') ? new Response('', { status: 404 }) : html());
+    }) as typeof fetch;
+    let sleeps = 0;
+    const r = await checkDemo({ url: URL_, fetch: fake, timeoutMs: 20, sleep: async () => void sleeps++ });
+    expect(r).toEqual({ ok: true, message: 'Demo OK' });
+    expect(sleeps).toBe(1);
+    expect(signals).toHaveLength(3);
+    for (const signal of signals) expect(signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('fails with a timeout message when the site never answers', async () => {
+    const fake = ((_: string | URL | Request, init?: RequestInit) =>
+      new Promise<Response>((_, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal!.reason)))) as typeof fetch;
+    const r = await checkDemo({ url: URL_, fetch: fake, attempts: 2, timeoutMs: 20, sleep: async () => {} });
+    expect(r.ok).toBe(false);
+    expect(r.message).toBe(`${URL_} did not answer within 0.02 s.`);
+  });
+});
+
+describe('check-demo.mjs run as a script', () => {
+  it('runs main (on every OS): without DEMO_URL it says so and exits 1', () => {
+    const script = fileURLToPath(new URL('../check-demo.mjs', import.meta.url));
+    const env = { ...process.env };
+    delete env.DEMO_URL;
+    const run = spawnSync(process.execPath, [script], { env, encoding: 'utf8' });
+    expect(run.stdout).toContain('::error::DEMO_URL must be set.');
+    expect(run.status).toBe(1);
   });
 });

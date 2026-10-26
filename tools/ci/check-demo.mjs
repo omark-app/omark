@@ -4,8 +4,10 @@
 // 404.html, with the app's page; both are fine. The helper would mean functions/ was deployed with the demo.
 // Run by CI with DEMO_URL (the workflow fills it from the repository variable TASKS_DEMO_URL).
 
+import { pathToFileURL } from 'node:url';
+
 /**
- * @param {{ url: string, fetch?: typeof fetch, attempts?: number, waitMs?: number,
+ * @param {{ url: string, fetch?: typeof fetch, attempts?: number, waitMs?: number, timeoutMs?: number,
  *   sleep?: (ms: number) => Promise<void> }} opts
  * @returns {Promise<{ ok: boolean, message: string }>}
  */
@@ -14,6 +16,7 @@ export async function checkDemo({
   fetch: f = fetch,
   attempts = 6,
   waitMs = 10_000,
+  timeoutMs = 15_000,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 }) {
   const base = url.replace(/\/+$/, '');
@@ -35,13 +38,16 @@ export async function checkDemo({
 
   /** @returns {Promise<string>} empty when both answers are right, else what is wrong */
   async function probe() {
+    // Each request gets its own time limit; one that runs out is a failed attempt like any other.
+    const get = (/** @type {string} */ u) => f(u, { redirect: 'manual', signal: AbortSignal.timeout(timeoutMs) });
     let res;
     try {
-      res = await f(home, { redirect: 'manual' });
+      res = await get(home);
       const type = res.headers.get('content-type') ?? '';
       if (res.status !== 200 || !type.startsWith('text/html')) return `${home} answers ${answer(res)}, not the app's page.`;
-      res = await f(login, { redirect: 'manual' });
+      res = await get(login);
     } catch (e) {
+      if (e instanceof Error && e.name === 'TimeoutError') return `${base} did not answer within ${timeoutMs / 1000} s.`;
       return `${base} could not be reached (${e instanceof Error ? e.message : String(e)}).`;
     }
     const type = res.headers.get('content-type') ?? '';
@@ -62,4 +68,4 @@ async function main() {
   return ok ? 0 : 1;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) process.exitCode = await main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = await main();
