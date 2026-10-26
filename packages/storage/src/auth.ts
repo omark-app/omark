@@ -8,7 +8,7 @@ export interface Auth {
   isSignedIn(): boolean;
   /** The provider of the session the hint cookie speaks of, or null when signed out. */
   signedInProvider(): string | null;
-  /** The providers the helper has set up, in order; just the default when it cannot be asked. */
+  /** The providers the helper has set up, in order; just the default when it cannot be asked within 3 s. */
   availableProviders(): Promise<string[]>;
   handleRedirect(): Promise<void>;
 }
@@ -20,6 +20,8 @@ const CSRF_HEADER = 'X-TaskApp-Auth';
 /** An access token is renewed this long before it expires. */
 const RENEW_BEFORE_MS = 60_000;
 const DEFAULT_TIMEOUT_MS = 15_000;
+/** The sign-in screen waits for the providers list, so it gets a shorter limit than a token call. */
+const PROVIDERS_TIMEOUT_MS = 3_000;
 
 /** What `/api/auth/callback` sends back as `?signin_error=`. */
 const signinErrors = (provider: string): Record<string, string> => ({
@@ -142,7 +144,7 @@ export function createAuth(opts: AuthOptions): Auth {
     signedInProvider,
     async availableProviders() {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      const timer = setTimeout(() => controller.abort(), PROVIDERS_TIMEOUT_MS);
       try {
         const res = await fetchFn(`${BASE}/providers`, { credentials: 'same-origin', signal: controller.signal });
         if (!res.ok) return [defaultProvider];

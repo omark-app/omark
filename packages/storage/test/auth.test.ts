@@ -183,6 +183,23 @@ describe('createAuth (sign-in helper)', () => {
     expect(await mk(undefined, BOTH).availableProviders()).toEqual(['microsoft']);
   });
 
+  it('availableProviders gives up after 3 s, not the token time limit, and falls back to the default', async () => {
+    vi.useFakeTimers();
+    try {
+      api.hang();
+      let result: string[] | undefined;
+      void mk(undefined, BOTH)
+        .availableProviders()
+        .then((r) => (result = r));
+      await vi.advanceTimersByTimeAsync(2_999);
+      expect(result).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(result).toEqual(['microsoft']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('isSignedIn reads the helper’s readable hint cookie', () => {
     expect(mk().isSignedIn()).toBe(true);
     cookie = 'other=1';
