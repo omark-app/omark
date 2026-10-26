@@ -40,8 +40,12 @@ export function updateTask(s: State, id: string, change: (t: Task) => Task): Sta
  */
 function takeTyped(t: Task): Task {
   const f = parseFields(t.title, false);
+  const repeat = f.repeat ?? t.repeat;
+  // A typed rule a habit can't have (`when done`) ends the habit, so no stray 🌱 is left (#44).
+  const { habit, ...rest } = t;
   return {
-    ...t, title: f.title, date: f.date ?? t.date, repeat: f.repeat ?? t.repeat, ...(f.important && { important: true }),
+    ...rest, title: f.title, date: f.date ?? t.date, repeat, ...(f.important && { important: true }),
+    ...(habit && isUsableHabitRule(repeat) && { habit }),
   };
 }
 

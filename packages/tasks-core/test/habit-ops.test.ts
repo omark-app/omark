@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  allTasks, canStartHabit, completeTask, dropHabit, findTask, formedHabits, formHabit, habitHistory, habitsInProgress,
+  allTasks, editTask, canStartHabit, completeTask, dropHabit, findTask, formedHabits, formHabit, habitHistory, habitsInProgress,
   parseDone, parseTasks, restoreTask, serializeDone, serializeTasks, setHabit, setHabitGoal, setRepeat,
   type HabitConfig, type State,
 } from '../src/index.ts';
@@ -55,6 +55,16 @@ describe('setRepeat drops the habit with an unusable rule', () => {
       expect(findTask(next, id)!.habit).toBeUndefined();
     }
     expect(text(setRepeat(s, id, { type: 'weekdays' }, TODAY))).toContain('Meditate 🌱 30 🔁 every weekday');
+  });
+});
+
+describe('editTask with a typed rule', () => {
+  it('a rule a habit cannot have, typed into the title, ends the habit and leaves no 🌱', () => {
+    const s = make('# Tasks\n- [ ] Meditate 🌱 30 🔁 every day 📅 2026-10-20\n');
+    const id = idOf(s, 'Meditate');
+    const next = editTask(s, id, { title: 'Meditate 🔁 every 2 days when done', notes: [] });
+    expect(findTask(next, id)!.habit).toBeUndefined();
+    expect(text(next)).not.toContain('🌱');
   });
 });
 
