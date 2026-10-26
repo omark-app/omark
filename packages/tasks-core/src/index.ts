@@ -16,3 +16,4 @@ export * from './board.ts';
 export * from './search.ts';
 export * from './quick-add.ts';
 export * from './habits.ts';
+export * from './habit-ops.ts';

@@ -3,13 +3,13 @@ import type { DateChoice } from './buckets.ts';
 import { doneLines } from './done-file.ts';
 import type { ISODate, Item, RepeatRule, State, Task, WeekCtx } from './model.ts';
 import { fitDate, nextDate } from './recurrence.ts';
-import { parseFields, readBack } from './tasks-file.ts';
+import { isUsableHabitRule, parseFields, readBack } from './tasks-file.ts';
 
 
 let lastId = 0;
 const defaultNewId = (): string => `n${++lastId}`;
 
-const indexOf = (s: State, id: string): number =>
+export const indexOf = (s: State, id: string): number =>
   s.doc.items.findIndex((i) => i.kind === 'task' && i.task.id === id);
 
 export function findTask(s: State, id: string): Task | null {
@@ -18,7 +18,7 @@ export function findTask(s: State, id: string): Task | null {
   return item && item.kind === 'task' ? item.task : null;
 }
 
-function withItems(s: State, items: Item[]): State {
+export function withItems(s: State, items: Item[]): State {
   return { ...s, doc: { ...s.doc, items } };
 }
 
@@ -26,7 +26,7 @@ function withItems(s: State, items: Item[]): State {
  * Replaces the task with `id` by `change(task)` as its line reads back, so the state always means what
  * the file says; unknown id returns `s`.
  */
-function updateTask(s: State, id: string, change: (t: Task) => Task): State {
+export function updateTask(s: State, id: string, change: (t: Task) => Task): State {
   const i = indexOf(s, id);
   if (i < 0) return s;
   const items = s.doc.items.slice();
@@ -145,11 +145,13 @@ export function editTask(s: State, id: string, patch: { title: string; notes: st
   return findTask(next, id)?.title === '' ? s : next;
 }
 
+/** Sets the rule. A rule a habit can't have (none, `when done`) also ends the habit, so no stray 🌱 is left (#44). */
 export function setRepeat(s: State, id: string, rule: RepeatRule | null, today: ISODate): State {
-  return updateTask(s, id, (t) => ({
+  return updateTask(s, id, ({ habit, ...t }) => ({
     ...t,
     repeat: rule,
     date: rule ? fitDate(rule, t.date, today) : t.date,
+    ...(habit && isUsableHabitRule(rule) && { habit }),
   }));
 }
 

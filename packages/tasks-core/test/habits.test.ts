@@ -154,9 +154,9 @@ describe('habitCompletions and habitProgress', () => {
       '- [x] Meditate 🌱 🏆 2026-09-02',
       tick('Meditate', '2026-09-20'),
       '- [-] Meditate 🌱 ❌ 2026-09-21',
-      '- [-] Read 🌱 ❌ 2026-10-01',
       tick('Meditate', '2026-10-02'),
       tick('Meditate', '2026-10-01'),
+      '- [-] Read 🌱 ❌ 2026-10-01',
       tick('Read', '2026-10-02'),
       '- [x] Meditate 🔁 every day ✅ 2026-10-03',
     );

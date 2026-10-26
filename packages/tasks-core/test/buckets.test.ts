@@ -64,6 +64,15 @@ test('tasksInBucket orders by date then file order', () => {
   expect(tasksInBucket(doc, 'someday', fri).map((t) => t.id)).toEqual(['s']);
 });
 
+test('tasksInBucket orders important, then habits, then date (#44)', () => {
+  const habit = { goal: null };
+  const doc = docOf([
+    mk('d1', '2026-10-16'), { ...mk('h1', '2026-10-16'), habit }, { ...mk('i1', '2026-10-16'), important: true },
+    { ...mk('h0', '2026-10-10'), habit }, mk('d0', '2026-10-10'), { ...mk('hi', '2026-10-16'), habit, important: true },
+  ]);
+  expect(tasksInBucket(doc, 'today', fri).map((t) => t.id)).toEqual(['hi', 'i1', 'h0', 'h1', 'd0', 'd1']);
+});
+
 test('bucketRange', () => {
   expect(bucketRange('next', fri)).toBe('19 Oct – 25 Oct');
   expect(bucketRange('week', tue)).toBe('Thu–Sun'); // tomorrow has its own bucket
