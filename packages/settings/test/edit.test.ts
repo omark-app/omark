@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { applyField, captureKey, readSettings, valueOf } from '../src/index.ts';
+import { applyField, captureKey, displayKey, numberInput, readSettings, setCommands, valueOf } from '../src/index.ts';
+import type { NumberField } from '../src/index.ts';
 import { demo, keys } from './demo.ts';
 
 const theme = demo.sections[0]!.fields[0]!;
@@ -72,5 +73,60 @@ describe('captureKey', () => {
 describe('valueOf', () => {
   it('reads a field from the values', () => {
     expect(valueOf(readSettings(demo, 'theme: dark\n').values, theme)).toBe('dark');
+  });
+});
+
+describe('displayKey', () => {
+  it('names the keys that have no printable face', () => {
+    expect(displayKey(' ')).toBe('Space');
+    expect(displayKey('ArrowDown')).toBe('↓');
+    expect(displayKey('ArrowUp')).toBe('↑');
+    expect(displayKey('ArrowLeft')).toBe('←');
+    expect(displayKey('ArrowRight')).toBe('→');
+    expect(displayKey('Escape')).toBe('Esc');
+    expect(displayKey('Backspace')).toBe('⌫');
+    expect(displayKey('Delete')).toBe('Del');
+    expect(displayKey('Enter')).toBe('↵ Enter');
+  });
+
+  it('shows any other key as it is', () => {
+    expect(displayKey('x')).toBe('x');
+    expect(displayKey(',')).toBe(',');
+    expect(displayKey('F2')).toBe('F2');
+  });
+});
+
+describe('setCommands', () => {
+  it('lists the commands the file sets', () => {
+    expect(setCommands(keys, 'theme: dark\nshortcuts:\n  c: q\n  a: [r, s]\n')).toEqual(new Set(['a', 'c']));
+  });
+
+  it('is empty when the file sets none or does not parse', () => {
+    expect(setCommands(keys, '')).toEqual(new Set());
+    expect(setCommands(keys, 'shortcuts: x\n')).toEqual(new Set());
+    expect(setCommands(keys, 'shortcuts: [\n')).toEqual(new Set());
+  });
+});
+
+describe('numberInput', () => {
+  const goal = demo.sections[0]!.fields[3] as NumberField;
+  const misses = demo.sections[0]!.fields[4] as NumberField;
+
+  it('reads a typed number', () => {
+    expect(numberInput(delay as NumberField, '1.5')).toEqual({ value: 1.5 });
+    expect(numberInput(goal, ' 66 ')).toEqual({ value: 66 });
+  });
+
+  it('gives the reader reason for a bad or empty value', () => {
+    expect(numberInput(delay as NumberField, '')).toEqual({ error: 'delay must be a number ≥ 0' });
+    expect(numberInput(delay as NumberField, '-1')).toEqual({ error: 'delay must be a number ≥ 0' });
+    expect(numberInput(goal, '1.5')).toEqual({ error: 'habits.goal must be a whole number from 1 to 999' });
+  });
+
+  it('keeps a percentage as text for a percent field', () => {
+    expect(numberInput(misses, '10%')).toEqual({ value: '10%' });
+    expect(numberInput(misses, '3')).toEqual({ value: 3 });
+    expect(numberInput(misses, '120%')).toEqual({ error: 'habits.misses must be a number from 0 to 100, or a percentage from 0% to 100%' });
+    expect(numberInput(misses, 'ten')).toEqual({ error: 'habits.misses must be a number from 0 to 100, or a percentage from 0% to 100%' });
   });
 });

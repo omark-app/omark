@@ -8,7 +8,7 @@
     "./SettingsPage.svelte": "./src/SettingsPage.svelte"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "typecheck": "svelte-check --tsconfig ./tsconfig.json && tsc --noEmit -p tsconfig.test.json",
     "test": "vitest run --root ../.. --project @omark/settings"
   },
   "dependencies": {

@@ -1,6 +1,7 @@
-import { readSettings } from './read.ts';
+import { parseDocument } from 'yaml';
+import { checkValue, readSettings } from './read.ts';
 import { fieldId } from './schema.ts';
-import type { Field, KeysField, Schema, Values } from './schema.ts';
+import type { Field, KeysField, NumberField, Schema, Values } from './schema.ts';
 import { setSetting } from './write.ts';
 
 type KeyMap = Record<string, string[]>;
@@ -59,4 +60,36 @@ export function captureKey(
   const list = [...mine];
   list[index] = key;
   return { keys: { ...keys, [cmd]: list } };
+}
+
+const KEY_FACES: Record<string, string> = {
+  ' ': 'Space',
+  ArrowDown: '↓',
+  ArrowUp: '↑',
+  ArrowLeft: '←',
+  ArrowRight: '→',
+  Escape: 'Esc',
+  Backspace: '⌫',
+  Delete: 'Del',
+  Enter: '↵ Enter',
+};
+
+/** How a key shows on its chip. */
+export const displayKey = (key: string): string => KEY_FACES[key] ?? key;
+
+/** The commands of a keys field that the file sets itself (the rest are at their defaults). */
+export function setCommands(field: KeysField, text: string): Set<string> {
+  try {
+    const doc = parseDocument(text);
+    return new Set(field.commands.filter((c) => doc.hasIn([...field.path, c.id])).map((c) => c.id));
+  } catch {
+    return new Set();
+  }
+}
+
+/** Reads what was typed into a number field: a number, or for a percent field also '10%'. */
+export function numberInput(field: NumberField, typed: string): { value: unknown } | { error: string } {
+  const t = typed.trim();
+  const raw = t === '' || (field.percent && t.endsWith('%')) ? t : Number(t);
+  return checkValue(field, Number.isNaN(raw) ? t : raw);
 }
