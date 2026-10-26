@@ -47,7 +47,11 @@ function toMs(t: EventTime, tz: string): number {
   return 'date' in t ? startOfDay(t.date, tz) : parseInstant(t.dateTime);
 }
 
-/** The rows of one event; empty when it does not count. */
+/**
+ * The rows of one event; empty when it does not count. Rows stop at the
+ * window end: nothing is dated on or after `windowEnd(ctx.today)`, so a very
+ * long event cannot make a huge number of rows.
+ */
 export function eventToRows(event: CalendarEvent, ctx: RowContext): EventRow[] {
   if (event.status === 'cancelled' || event.response === 'declined') return [];
   if (!event.start || !event.end) return [];
@@ -76,7 +80,8 @@ export function eventToRows(event: CalendarEvent, ctx: RowContext): EventRow[] {
   if ('date' in event.start) {
     const first = event.start.date;
     if (!inWindow(first, ctx)) return [];
-    const last = 'date' in event.end ? event.end.date : localDate(toMs(event.end, tz), tz);
+    const endDate = 'date' in event.end ? event.end.date : localDate(toMs(event.end, tz), tz);
+    const last = endDate < windowEnd(ctx.today) ? endDate : windowEnd(ctx.today);
     const rows: EventRow[] = [];
     for (let d = first; d < last; d = addDays(d, 1)) {
       rows.push(row(d, startOfDay(d, tz), startOfDay(addDays(d, 1), tz), ctx.allDayHours, true));
@@ -85,9 +90,10 @@ export function eventToRows(event: CalendarEvent, ctx: RowContext): EventRow[] {
   }
 
   const startMs = toMs(event.start, tz);
-  const endMs = toMs(event.end, tz);
-  if (endMs < startMs || !inWindow(localDate(startMs, tz), ctx)) return [];
+  const rawEndMs = toMs(event.end, tz);
+  if (rawEndMs < startMs || !inWindow(localDate(startMs, tz), ctx)) return [];
 
+  const endMs = Math.min(rawEndMs, startOfDay(windowEnd(ctx.today), tz));
   const rows: EventRow[] = [];
   let from = startMs;
   let date = localDate(startMs, tz);

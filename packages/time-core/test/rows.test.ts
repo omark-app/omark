@@ -115,12 +115,46 @@ test('an all-day event gives a row per day', () => {
   ]);
 });
 
-test('declined, cancelled, tentative, needsAction', () => {
+test('declined and cancelled events give nothing', () => {
   expect(eventToRows(ev({ response: 'declined' }), ctx)).toEqual([]);
   expect(eventToRows(ev({ status: 'cancelled' }), ctx)).toEqual([]);
+});
+
+test('needsAction and a tentative reply count', () => {
   expect(eventToRows(ev({ response: 'needsAction' }), ctx)).toHaveLength(1);
   expect(eventToRows(ev({ response: 'tentative' }), ctx)).toHaveLength(1);
+});
+
+test('a tentative status counts', () => {
   expect(eventToRows(ev({ status: 'tentative' }), ctx)).toHaveLength(1);
+});
+
+test('a 25-hour day keeps its real length', () => {
+  const rows = eventToRows(timed('2026-10-24T22:00:00+02:00', '2026-10-26T02:00:00+01:00'), ctx);
+  expect(rows.map((r) => [r.date, r.hours])).toEqual([
+    ['2026-10-24', 2],
+    ['2026-10-25', 25],
+    ['2026-10-26', 2],
+  ]);
+  expect(rows[1]!.start).toBe('2026-10-25T00:00+02:00');
+  expect(rows[1]!.end).toBe('2026-10-26T00:00+01:00');
+});
+
+test('a 23-hour day keeps its real length', () => {
+  const rows = eventToRows(timed('2026-03-28T22:00:00+01:00', '2026-03-30T02:00:00+02:00'), ctx);
+  expect(rows.map((r) => [r.date, r.hours])).toEqual([
+    ['2026-03-28', 2],
+    ['2026-03-29', 23],
+    ['2026-03-30', 2],
+  ]);
+});
+
+test('an all-day event over a DST change has offsets per day', () => {
+  const rows = eventToRows(ev({ start: { date: '2026-10-24' }, end: { date: '2026-10-27' } }), ctx);
+  expect(rows.map((r) => r.hours)).toEqual([8, 8, 8]);
+  expect(rows[1]!.date).toBe('2026-10-25');
+  expect(rows[1]!.start).toBe('2026-10-25T00:00+02:00');
+  expect(rows[1]!.end).toBe('2026-10-26T00:00+01:00');
 });
 
 test('missing times or end before start give nothing', () => {
@@ -153,4 +187,16 @@ test('instances of a series are separate rows with their own ids', () => {
   const b = ev({ recurringEventId: 's', id: 's_2' });
   expect(eventToRows(a, ctx)[0]!.eventId).toBe('s_1');
   expect(eventToRows(b, ctx)[0]!.eventId).toBe('s_2');
+});
+
+test('an all-day event stops at the window end', () => {
+  const rows = eventToRows(ev({ start: { date: '2026-10-26' }, end: { date: '9999-01-01' } }), ctx);
+  expect(rows).toHaveLength(90);
+  expect(rows.at(-1)!.date).toBe('2027-01-23');
+});
+
+test('a timed event stops at the window end', () => {
+  const rows = eventToRows(timed('2026-10-26T09:00:00+01:00', '9999-01-01T00:00:00Z'), ctx);
+  expect(rows.at(-1)!.date).toBe('2027-01-23');
+  expect(rows.at(-1)!.end).toBe('2027-01-24T00:00+01:00');
 });
