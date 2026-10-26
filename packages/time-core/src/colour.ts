@@ -1,3 +1,4 @@
+// Event colours: green for a known code, red for an unknown one.
 import { compareText, hasRowTimes, inWindow, type RowContext } from './rows.ts';
 import type { CalendarEvent, ColourPatch, EventTime, TrackerColour } from './source.ts';
 import { parseTitle } from './title.ts';
