@@ -36,6 +36,8 @@ const sources: Record<string, { files: string[]; re: RegExp }> = {
     files: [...files('apps/tasks/e2e-real', isSource), ...files('tools/todoist-import', isSource)],
     re: /process\.env\.(TASKAPP_E2E_[A-Z]+|TODOIST_[A-Z_]+)/g,
   },
+  // port.ts gets process.env passed in as `env`.
+  'e2e port': { files: ['apps/tasks/e2e/port.ts'], re: /\benv\.(TASKS_[A-Z0-9_]+)/g },
   // Only vars.* and secrets.* are listed. Names that just pass a value between CI steps (PREVIEW_URL, SIGNIN_URL,
   // DEMO_URL, CF_PROJECT, PAGES_DOMAIN, CF_ZONE_ID and so on, set in a step's `env:` from vars or secrets) stay out.
   'workflows (secrets.*)': { files: files('.github/workflows', (n) => /\.ya?ml$/.test(n)), re: /\bsecrets\.((?!GITHUB_TOKEN\b)[A-Z][A-Z0-9_]+)/g },
