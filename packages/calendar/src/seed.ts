@@ -1,16 +1,14 @@
 import { addDays, formatLocal, startOfDay, weekday } from '@omark/time-core';
-import type { CalendarEvent, CalendarInfo, ResponseStatus, TrackerColour } from '@omark/time-core';
+import type { CalendarEvent, CalendarInfo, ResponseStatus } from '@omark/time-core';
 
 const DAYS_BEFORE = 10;
 const DAYS_AFTER = 4;
 const MINUTE = 60_000;
-const GREEN = '10';
-const RED = '11';
 
 const PROJECTS_CSV = [
   'code,description,client,rate,currency,archived',
   'ACME,Acme Corp website rebuild,Acme Corp,120,EUR,',
-  'MYAPP,My app,product work,,,',
+  'MYAPP,My app - product work,,,,',
   'OLD,Old client,Old Co,90,PLN,2026-06-30',
   '',
 ].join('\n');
@@ -20,8 +18,6 @@ interface Item {
   /** Local wall time in minutes from midnight; absent for an all-day event. */
   at?: [start: number, end: number];
   response?: ResponseStatus;
-  /** Red when the title has a typo, so it is not tracked. */
-  red?: boolean;
 }
 
 const h = (hours: number, minutes = 0) => hours * 60 + minutes;
@@ -41,7 +37,7 @@ const DAYS: Item[][] = [
   [{ title: 'MYAPP; Design; Onboarding flow', at: [h(9), h(12)] }, { title: 'Lunch', at: [h(12, 30), h(13, 15)] }],
   // The overlap: both run from 10:30 to 11:00.
   [{ title: 'ACME; Coding; Checkout page', at: [h(9), h(11)] }, { title: 'ACME; Meetings; Client call', at: [h(10, 30), h(11, 30)] }],
-  [{ title: 'ACMEE; Coding; typo', at: [h(10), h(12)], red: true }, { title: 'Gym', at: [h(17), h(18)] }],
+  [{ title: 'ACMEE; Coding; typo', at: [h(10), h(12)] }, { title: 'Gym', at: [h(17), h(18)] }],
   [{ title: 'MYAPP; Conference' }],
   [{ title: 'ACME; Coding; Invoice export', at: [h(9), h(13)] }, { title: 'Lunch', at: [h(13), h(13, 45)] }],
   [
@@ -75,15 +71,13 @@ export function demoSeed(
   const events: CalendarEvent[] = [];
   for (const [i, date] of workDays.entries()) {
     for (const item of DAYS[i] ?? []) {
-      events.push(toEvent(`demo-${events.length + 1}`, item, date, today, timeZone));
+      events.push(toEvent(`demo-${events.length + 1}`, item, date, timeZone));
     }
   }
   return { calendars, events, projectsCsv: PROJECTS_CSV };
 }
 
-function toEvent(id: string, item: Item, date: string, today: string, tz: string): CalendarEvent {
-  const past = date < today;
-  const colour = !past || item.response ? null : item.red ? 'red' : isTracked(item.title) ? 'green' : null;
+function toEvent(id: string, item: Item, date: string, tz: string): CalendarEvent {
   return {
     calendarId: 'primary',
     id,
@@ -93,16 +87,11 @@ function toEvent(id: string, item: Item, date: string, today: string, tz: string
       ? { start: local(date, item.at[0], tz), end: local(date, item.at[1], tz) }
       : { start: { date }, end: { date: addDays(date, 1) } }),
     response: item.response ?? null,
-    colorId: colour === 'green' ? GREEN : colour === 'red' ? RED : null,
-    marker: colour satisfies TrackerColour | null,
+    colorId: null,
+    marker: null,
     recurringEventId: null,
     htmlLink: null,
   };
-}
-
-/** Everything but the untracked `Lunch` and `Gym`. */
-function isTracked(title: string): boolean {
-  return title !== 'Lunch' && title !== 'Gym';
 }
 
 /** A local wall time as an RFC 3339 instant with the zone's offset at that instant. */

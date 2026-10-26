@@ -28,9 +28,10 @@ test('the calendar and projects', () => {
   expect(seed.calendars).toEqual([{ id: 'primary', name: 'Demo calendar', primary: true, timeZone: TZ, owned: true }]);
   const file = parseProjects(seed.projectsCsv);
   expect(file.problems).toEqual([]);
+  expect(file.projects.find((p) => p.code === 'MYAPP')?.description).toBe('My app - product work');
   expect(file.projects.map((p) => [p.code, p.client, p.rate, p.currency, p.archived])).toEqual([
     ['ACME', 'Acme Corp', 120, 'EUR', ''],
-    ['MYAPP', 'product work', null, '', ''],
+    ['MYAPP', '', null, '', ''],
     ['OLD', 'Old Co', 90, 'PLN', '2026-06-30'],
   ]);
 });
@@ -63,8 +64,7 @@ test('the events: weekdays inside the window, unique ids, colours', () => {
   expect(events.every((e) => /^demo-\d+$/.test(e.id))).toBe(true);
   expect(events.find((e) => e.title === 'Lunch')).toBeDefined();
   expect(events.find((e) => e.title === 'Gym')).toBeDefined();
-  expect(events.find((e) => e.title.startsWith('ACMEE'))?.marker).toBe('red');
-  expect(events.some((e) => e.marker === 'green')).toBe(true);
+  expect(events.every((e) => e.colorId === null && e.marker === null)).toBe(true);
   expect(events.find((e) => e.title === 'ACME; Meetings; kickoff')?.response).toBe('needsAction');
   expect(events.find((e) => e.title === 'ACME; Meetings; skipped')?.response).toBe('declined');
   expect(events.find((e) => e.title === 'MYAPP; Conference')?.start).toHaveProperty('date');
