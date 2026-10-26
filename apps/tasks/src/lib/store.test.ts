@@ -1084,6 +1084,16 @@ describe('writing config.yaml (#45)', () => {
     expect(store.configNote).toBe(DROPPED);
   });
 
+  it('an upload that cannot merge into a file that reads does not blame the other device', async () => {
+    // The file had a mistake when this device read it, so its change can't be merged setting by setting.
+    const { drive, store, synced } = await setup({ 'tasks.md': SEED_TASKS, 'config.yaml': 'theme: [\n' });
+    store.writeConfig('theme: dark\n');
+    drive.externalWrite('config.yaml', 'theme: light\n');
+    await synced();
+    expect(drive.peek('config.yaml')).toBe('theme: light\n');
+    expect(store.configNote).toBe('config.yaml changed on another device; your change to Theme was not applied.');
+  });
+
   it('a refresh that brings a config.yaml with a mistake keeps it and says the unsaved change was not applied', async () => {
     const drive = new SlowDrive({ 'tasks.md': SEED_TASKS, 'config.yaml': 'theme: system\n' });
     const ws = createWorkspace(drive, new MemoryCache());

@@ -1,5 +1,6 @@
 import { untrack } from 'svelte';
 import { mergeSettings } from '@omark/settings';
+import type { Dropped } from '@omark/settings';
 import { BRAND } from '../brand.ts';
 import {
   addTask,
@@ -174,11 +175,12 @@ const byBucket = <T>(value: (key: BucketKey) => T): Record<BucketKey, T> =>
 const sameList = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((x, i) => x === b[i]);
 
-/** `dropped`: the other device's file has a mistake, so it was kept and the change made here was not. */
-const conflictNote = (labels: readonly string[], dropped: boolean): string => {
+/** When `dropped`, the other device's file was kept and the change made here was not. */
+const conflictNote = (labels: readonly string[], dropped: Dropped): string => {
   if (!dropped) return `Also changed on another device: ${labels.join(', ')}. Kept the change made here.`;
   const what = labels.length > 0 ? `your change to ${labels.join(', ')}` : 'your change';
-  return `config.yaml on another device has a mistake; ${what} was not applied.`;
+  const why = dropped === 'remote-broken' ? 'config.yaml on another device has a mistake' : 'config.yaml changed on another device';
+  return `${why}; ${what} was not applied.`;
 };
 
 /** Parsed files with any `- [x]` lines in tasks.md swept into done.md. */

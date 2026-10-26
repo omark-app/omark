@@ -174,13 +174,13 @@ describe('createWorkspace', () => {
   it('a 412 merge with a config.yaml that does not parse keeps it and reports the change as dropped', async () => {
     const drive = new FakeOneDrive({ 'config.yaml': 'theme: system\n' });
     const ws = createWorkspace(drive, new MemoryCache());
-    const seen: [string[], boolean][] = [];
+    const seen: [string[], unknown][] = [];
     ws.onConfigConflict((labels, dropped) => seen.push([labels, dropped]));
     await ws.open();
     drive.externalWrite('config.yaml', 'theme: [\n');
     await ws.save({ config: { text: 'theme: dark\n', base: 'theme: system\n' } });
     expect(drive.peek('config.yaml')).toBe('theme: [\n');
-    expect(seen).toEqual([[['Theme'], true]]);
+    expect(seen).toEqual([[['Theme'], 'remote-broken']]);
   });
 
   it('stage() still caches done.md when the tasks.md put fails, then rethrows', async () => {

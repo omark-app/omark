@@ -1,6 +1,7 @@
 import { FileSync } from '@omark/storage';
 import type { LocalCache, StorageAdapter, SyncStatus } from '@omark/storage';
 import { mergeSettings } from '@omark/settings';
+import type { Dropped } from '@omark/settings';
 import { DEFAULT_CONFIG_YAML, mergeDoneText, mergeTasksText, TASKS_SCHEMA } from '@omark/tasks-core';
 
 export type TaskFile = 'tasks.md' | 'done.md' | 'config.yaml';
@@ -56,10 +57,10 @@ export interface Workspace {
   /**
    * Calls `cb` when merging config.yaml found settings changed differently here and on another device
    * (when a staged edit meets a newer file, on a pull or a save). `labels` are the settings' labels;
-   * the change made here was kept. When `dropped`, the other device's file could not take the change
-   * (it has a mistake): that file was kept, and `labels` are the settings changed here.
+   * the change made here was kept. When `dropped` (it says why), the change could not go onto the other
+   * device's file: that file was kept, and `labels` are the settings changed here.
    */
-  onConfigConflict(cb: (labels: string[], dropped: boolean) => void): () => void;
+  onConfigConflict(cb: (labels: string[], dropped: Dropped) => void): () => void;
   /** Worst of the three files: signin > offline > syncing > saved. */
   status(): SyncStatus;
   onStatus(cb: (s: SyncStatus) => void): () => void;
@@ -68,7 +69,7 @@ export interface Workspace {
 const RANK: Record<SyncStatus, number> = { saved: 0, syncing: 1, offline: 2, signin: 3 };
 
 export function createWorkspace(adapter: StorageAdapter, cache: LocalCache): Workspace {
-  const conflictListeners = new Set<(labels: string[], dropped: boolean) => void>();
+  const conflictListeners = new Set<(labels: string[], dropped: Dropped) => void>();
   /** config.yaml merges one setting at a time; where both sides changed one, the local value wins. */
   const mergeConfig = (base: string, local: string, remote: string): string => {
     const { text, conflicts, dropped } = mergeSettings(TASKS_SCHEMA, base, local, remote);

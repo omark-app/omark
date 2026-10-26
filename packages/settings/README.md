@@ -15,7 +15,7 @@ Used by Omark Tasks (`TASKS_SCHEMA` in `packages/tasks-core/src/settings-schema.
 | `schema.ts` | `Schema`, `Section`, `Field` types; `defaults(schema)` |
 | `read.ts` | `readSettings(schema, text)` returns `{ values, error }` (the error has a 1-based `line`) |
 | `write.ts` | `setSetting(text, path, value)` changes one key by its node range and leaves every other byte alone |
-| `merge.ts` | `mergeSettings(schema, base, local, remote)` merges key by key onto the remote and returns `{ text, conflicts, dropped }`. On the same key the local write wins. If the merge itself would add an error, it returns local. If the remote does not parse (or local's change can't be written into it), it keeps the remote as it is: `dropped` is true and `conflicts` lists what local changed |
+| `merge.ts` | `mergeSettings(schema, base, local, remote)` merges key by key onto the remote and returns `{ text, conflicts, dropped }`. On the same key the local write wins. If the remote reads clean and the merge would add an error, it returns local; an error the remote already had stays in the merged text. If a side does not parse (or local's change can't be written into the remote), it keeps the remote as it is: `dropped` says why (`'remote-broken'` or `'unsafe'`) and `conflicts` lists what local changed |
 | `edit.ts` | what the form calls: `applyField`, `captureKey`, `capturedKey`, `writeOnInput`, `numberInput`, `displayKey` |
 | `SettingsPage.svelte` | the page |
 
