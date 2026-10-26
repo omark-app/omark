@@ -1239,6 +1239,14 @@ describe('habits (#44)', () => {
       expect(store.toast).toBeNull();
     });
 
+    it('at the limit a task with no usable rule is refused at once, not after the picker (Final 6)', async () => {
+      const { store } = await setup({ 'tasks.md': THREE });
+      const before = store.state;
+      expect(store.setHabit(idOf(store, 'Learn Polish sign language'), true)).toBe('limit');
+      expect(store.toast).toEqual({ message: LIMIT, undo: false });
+      expect(store.state).toBe(before);
+    });
+
     it('makeHabit sets the rule and 🌱 in one undo step, within the limit', async () => {
       const { drive, store, synced } = await setup({ 'tasks.md': '# Tasks\n- [ ] Learn Polish sign language\n' });
       const id = idOf(store, 'Learn Polish sign language');

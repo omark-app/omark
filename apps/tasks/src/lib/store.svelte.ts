@@ -144,9 +144,9 @@ export interface AppStore {
   /** Flags or unflags a task as Important (issue #19). */
   setImportant(id: string, important: boolean): void;
   /**
-   * Makes the task a habit or an ordinary repeating task again. Turning it on needs a usable rule
-   * (`needsRule`: nothing changes, so the UI can open the repeat picker) and room under the limit
-   * (`limit`: a toast says so).
+   * Makes the task a habit or an ordinary repeating task again. Turning it on needs room under the limit
+   * (`limit`: a toast says so, checked first) and a usable rule (`needsRule`: nothing changes, so the UI
+   * can open the repeat picker).
    */
   setHabit(id: string, on: boolean): 'ok' | 'limit' | 'needsRule';
   /** The repeat picker's habit mode: the rule and 🌱 in one undo step, within the limit. */
@@ -501,8 +501,9 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   function setHabit(id: string, on: boolean): 'ok' | 'limit' | 'needsRule' {
     const task = findTask(state, id);
     if (!task || (task.habit !== undefined) === on) return 'ok';
-    if (on && !isUsableHabitRule(task.repeat)) return 'needsRule';
+    // The limit first: at it, a missing rule is not worth picking (spec 10.1, "Nothing changes").
     if (on && !habitRoom()) return 'limit';
+    if (on && !isUsableHabitRule(task.repeat)) return 'needsRule';
     const fallback = neighbour(id);
     if (commit(setHabitOp(state, id, on), on ? msg.nowHabit() : msg.notHabit())) keepVisible(id, fallback);
     return 'ok';
