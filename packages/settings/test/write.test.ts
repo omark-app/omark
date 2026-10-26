@@ -144,6 +144,38 @@ describe('setSetting', () => {
     expect(set('theme:\nother: 1\n', ['theme'], 'dark')).toBe('theme: dark\nother: 1\n');
   });
 
+  it('fills an empty value that has a comment', () => {
+    expect(set('theme:   # c\nother: 1\n', ['theme'], 'dark')).toBe('theme: dark   # c\nother: 1\n');
+    expect(set('habits:   # c\n', ['habits', 'goal'], 30)).toBe('habits: {goal: 30}   # c\n');
+  });
+
+  it('replaces a block scalar', () => {
+    expect(set('theme: |\n  dark\nother: 1\n', ['theme'], 'light')).toBe('theme: light\nother: 1\n');
+  });
+
+  it('adds at a 4-space indent', () => {
+    expect(set('s:\n    a: q\nother: 1\n', ['s', 'b'], 'z')).toBe('s:\n    a: q\n    b: z\nother: 1\n');
+  });
+
+  it('replaces under a quoted key', () => {
+    expect(set("'theme': system\n", ['theme'], 'dark')).toBe("'theme': dark\n");
+  });
+
+  it('removes a key between comment lines', () => {
+    const text = 'a: 1\n# about b\nb: 2\n# about c\nc: 3\n';
+    expect(set(text, ['b'], undefined)).toBe('a: 1\n# about b\n# about c\nc: 3\n');
+  });
+
+  it('removes a key in a CRLF file', () => {
+    expect(set('a: 1\r\ntheme: x\r\nb: 2\r\n', ['theme'], undefined)).toBe('a: 1\r\nb: 2\r\n');
+  });
+
+  it('edits a nested parent followed by top-level keys', () => {
+    const text = 'habits:\n  goal: 3\ntheme: dark\n';
+    expect(set(text, ['habits', 'skip'], 'x')).toBe('habits:\n  goal: 3\n  skip: x\ntheme: dark\n');
+    expect(set(text, ['habits', 'goal'], undefined)).toBe('theme: dark\n');
+  });
+
   it('throws on a broken file', () => {
     expect(() => setSetting('theme: [\n', ['theme'], 'dark')).toThrow('config.yaml has a mistake; fix it as text first');
     expect(() => setSetting('- a\n', ['theme'], 'dark')).toThrow('config.yaml has a mistake; fix it as text first');

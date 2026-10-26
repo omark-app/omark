@@ -98,8 +98,13 @@ export function setSetting(text: string, path: Path, value: unknown): string {
       return splice(keyEnd, end, `: ${format(v)}${comment}${text[end - 1] === '\n' ? eol : ''}`);
     }
     const [start, end] = range(node);
-    // An empty value (`theme:`) sits right after the colon.
-    return splice(start, end, (start === end ? ' ' : '') + format(v));
+    if (start === end) {
+      // An empty value (`theme:`, `theme:   # c`): write it right after the colon.
+      const colon = text.indexOf(':', range(pair.key)[1]) + 1;
+      return splice(colon, colon, ` ${format(v)}`);
+    }
+    // A block scalar (`|`, `>`) ends past its last newline; keep one.
+    return splice(start, end, format(v) + (text[end - 1] === '\n' ? eol : ''));
   };
 
   // maps[i] holds path[i]; pairs[i] is that key's pair, when present.
