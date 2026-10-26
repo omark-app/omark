@@ -226,3 +226,55 @@ code {
 .site-footer nav { display: flex; flex-wrap: wrap; gap: 8px 24px; }
 .site-footer nav a { color: var(--ink); text-decoration: none; }
 .site-footer nav a:hover { color: var(--accent); text-decoration: underline; }
+
+/* Long-form pages: privacy policy and terms. A reading measure, clear sections, tables that wrap on a phone. */
+.doc { max-width: 720px; padding-block: 32px 64px; }
+@media (min-width: 720px) { .doc { padding-block: 56px 96px; } }
+.doc-head { padding-bottom: 28px; border-bottom: 1px solid var(--line); }
+.doc h1 { font-size: clamp(2rem, 1.5rem + 2vw, 2.75rem); letter-spacing: -.035em; line-height: 1.08; }
+.doc-date { margin-top: 10px; color: var(--muted); font-size: .9375rem; }
+.doc section { padding-top: 36px; scroll-margin-top: 16px; }
+.doc h2 { font-size: clamp(1.3125rem, 1.15rem + .6vw, 1.5rem); letter-spacing: -.02em; margin-bottom: 12px; }
+.doc h3 { font-size: 1.0625rem; margin: 28px 0 10px; }
+.doc p + p, .doc ul + p, .doc p + ul, .doc .table-wrap + p, .doc p + .table-wrap, .doc .table-wrap + .table-wrap { margin-top: 14px; }
+.doc ul { margin: 0; padding-left: 1.2em; display: grid; gap: 8px; }
+.doc li::marker { color: var(--faint); }
+
+.table-wrap { max-width: 100%; }
+.doc table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  font-size: .9375rem;
+  line-height: 1.5;
+}
+.doc caption { caption-side: top; text-align: left; font-weight: 600; padding-bottom: 8px; }
+/* Words wrap whole; only code (scope names, paths) may break anywhere. */
+.doc th, .doc td { text-align: left; vertical-align: top; padding: 10px 12px; overflow-wrap: break-word; }
+.doc th { font-size: .8125rem; font-weight: 600; color: var(--muted); background: var(--chip); }
+.doc tbody td { border-top: 1px solid var(--line); }
+/* Round the corner cells instead of clipping the table, so the caption is never cut. */
+.doc thead th:first-child { border-top-left-radius: 13px; }
+.doc thead th:last-child { border-top-right-radius: 13px; }
+.doc th:nth-child(1) { width: 36%; }
+.doc th:nth-child(3) { width: 24%; }
+.doc td:last-child { color: var(--muted); }
+.doc td code { font-size: .8125rem; }
+@media (max-width: 480px) {
+  .doc table { font-size: .875rem; }
+  .doc th, .doc td { padding: 8px 8px; hyphens: auto; }
+  .doc td code { hyphens: none; }
+  .doc th:nth-child(1) { width: 38%; }
+  .doc th:nth-child(3) { width: 26%; }
+  .doc td code { font-size: .75rem; padding-inline: .2em; }
+}
+
+/* 404. */
+.not-found { padding-block: 64px 96px; }
+.not-found h1 { font-size: clamp(2rem, 1.5rem + 2vw, 2.75rem); letter-spacing: -.035em; }
+.not-found .lead { margin-top: 16px; }
+.not-found p:last-child { margin-top: 28px; }

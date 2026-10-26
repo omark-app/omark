@@ -5,6 +5,8 @@ const page = (path: string) => fileURLToPath(new URL(`./src/${path}`, import.met
 
 // A plain multi-page build: hand-written HTML and one stylesheet, no JavaScript shipped.
 export default defineConfig({
+  // 'mpa': an unknown path is a 404, as on Cloudflare Pages, not the home page.
+  appType: 'mpa',
   root: 'src',
   publicDir: '../public',
   build: {
@@ -15,6 +17,9 @@ export default defineConfig({
     rollupOptions: {
       input: {
         home: page('index.html'),
+        privacy: page('privacy/index.html'),
+        terms: page('terms/index.html'),
+        notFound: page('404.html'),
       },
     },
   },
