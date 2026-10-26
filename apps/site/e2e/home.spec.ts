@@ -12,6 +12,12 @@ test('shows the sections in order', async ({ page }) => {
   await expectNoSideScroll(page);
 });
 
+test('shows the Omark Tasks buttons as coming soon, with no links', async ({ page }) => {
+  const tasks = page.locator('.card').filter({ has: page.locator('h2', { hasText: 'Omark Tasks' }) });
+  await expect(tasks.locator('.button.coming')).toHaveCount(2);
+  await expect(tasks.locator('a')).toHaveCount(0);
+});
+
 test('marks Omark Time as coming', async ({ page }) => {
   const time = page.locator('.card').filter({ has: page.locator('h2', { hasText: 'Omark Time' }) });
   await expect(time).toContainText('Coming');
