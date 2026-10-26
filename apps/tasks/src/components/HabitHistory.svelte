@@ -45,7 +45,7 @@
 {#snippet body()}
   <div class="hist" data-testid="habit-history">
     <div class="head">
-      <h3>Habits</h3>
+      <h3 id="habit-history-title">Habits</h3>
       <button class="btn" onclick={onclose}>Close</button>
     </div>
     <span class="lbl">In progress {habits.length}{store.habitCount.max > 0 ? ` of ${store.habitCount.max}` : ''}</span>
@@ -91,7 +91,7 @@
 {:else}
   <!-- Esc is the dialog's own; a click on the backdrop (the dialog element itself) closes it too. -->
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
-  <dialog use:modal {onclose} onclick={backdrop}>{@render body()}</dialog>
+  <dialog use:modal aria-labelledby="habit-history-title" {onclose} onclick={backdrop}>{@render body()}</dialog>
 {/if}
 
 <style>

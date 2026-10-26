@@ -124,6 +124,21 @@ test('History lists formed and dropped habits', async ({ page, isMobile }) => {
 test.describe('desktop board', () => {
   test.skip(({ isMobile }) => isMobile, 'the board is a desktop view');
 
+  test('the rail has no empty block without habits', async ({ page }) => {
+    await openApp(page, { files: { 'tasks.md': '# Tasks\n- [ ] Plain task 📅 2026-10-16\n' } });
+    await page.keyboard.press('v');
+    await expect(page.getByTestId('board')).toBeVisible();
+    const blocks = page.getByTestId('rail').locator('.rblock');
+    await expect(blocks).toHaveCount(1);
+    await expect(blocks.first()).toContainText('Important');
+  });
+
+  test('the rail group is a single box', async ({ page }) => {
+    await openApp(page, { files: { 'tasks.md': `# Tasks\n${habit('Meditate', '2026-10-16')}` } });
+    await page.keyboard.press('v');
+    await expect(page.getByTestId('rail').locator('.rblock')).toHaveCount(1);
+  });
+
   test('the board rail shows the group', async ({ page }) => {
     await openApp(page, { files: { 'tasks.md': `# Tasks\n${habit('Meditate', '2026-10-16')}` } });
     await page.keyboard.press('v');

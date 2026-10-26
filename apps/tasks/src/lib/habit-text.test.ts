@@ -42,4 +42,16 @@ describe('habitStateLine', () => {
     const rule = '🌱 🔁 every week on Monday, Wednesday, Friday';
     expect(line(`- [ ] Meditate ${rule} 📅 ${TODAY}`)).toMatch(/^Mon, Wed, Fri · misses 0\/\d+$/);
   });
+
+  it('a missed longer period says last time', () => {
+    const rule = '🌱 🔁 every week on Monday';
+    expect(line(`- [ ] Meditate ${rule} 📅 ${TODAY}`, `- [x] Meditate ${rule} ✅ 2026-09-21
+- [x] Meditate ${rule} ✅ 2026-09-28
+`)).toBe('Mon · missed last time · one more miss restarts · misses 1/6');
+  });
+
+  it('done in a longer period says this period', () => {
+    const rule = '🌱 🔁 every week on Monday';
+    expect(line(`- [ ] Meditate ${rule} 📅 ${TODAY}`, ticks(rule, '12'))).toBe("Mon · done this period · misses 0/6 · formed ~ 10 Jan '28");
+  });
 });
