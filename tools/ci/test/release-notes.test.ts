@@ -30,7 +30,8 @@ describe('tagPatterns', () => {
   });
 });
 
-describe('release-notes.mjs in a repository', () => {
+// These spawn git and node many times: well past Vitest's default 5 s on a busy machine or a CI runner.
+describe('release-notes.mjs in a repository', { timeout: 30_000 }, () => {
   const script = fileURLToPath(new URL('../release-notes.mjs', import.meta.url));
   let dir = '';
   let day = 0;
@@ -47,13 +48,13 @@ describe('release-notes.mjs in a repository', () => {
       env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.com', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.com', GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date },
     }).trim();
   };
+  /** A PR's commit and its merge into main, as GitHub makes them; built with plumbing, without touching files. */
   const merge = (n: number, title: string) => {
     day++;
-    git('checkout', '-q', '-b', `pr-${n}`);
-    git('commit', '-q', '--allow-empty', '-m', `Work for #${n}`);
-    git('checkout', '-q', 'main');
-    git('merge', '-q', '--no-ff', '-m', `Merge pull request #${n} from owner/pr-${n}`, '-m', title, `pr-${n}`);
-    return git('rev-parse', 'HEAD');
+    const work = git('commit-tree', 'main^{tree}', '-p', 'main', '-m', `Work for #${n}`);
+    const merged = git('commit-tree', 'main^{tree}', '-p', 'main', '-p', work, '-m', `Merge pull request #${n} from owner/pr-${n}`, '-m', title);
+    git('update-ref', 'refs/heads/main', merged);
+    return merged;
   };
   const run = (sha: string, app: string) => {
     const out = join(dir, 'github-output');
