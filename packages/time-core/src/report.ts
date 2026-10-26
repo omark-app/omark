@@ -49,13 +49,16 @@ export interface Report {
 }
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
-const round2 = (n: number) => Math.round(n * 100) / 100;
 const sum = (xs: number[]) => roundHours(xs.reduce((a, b) => a + b, 0));
 
-/** Hours rounded up to the next `minutes`; 0 leaves them alone. */
+/**
+ * Hours rounded up to the next `minutes`; 0 leaves them alone. Hours are
+ * stored at 4 decimals (error under 0.003 minutes), so 0.005 minutes of slack
+ * stops an exact 10 minutes from billing as 15.
+ */
 export function roundUp(hours: number, minutes: Rounding): number {
   if (minutes === 0) return hours;
-  return roundHours((Math.ceil((hours * 60) / minutes - 1e-9) * minutes) / 60);
+  return roundHours((Math.ceil((hours * 60 - 0.005) / minutes) * minutes) / 60);
 }
 
 function codesOf(opts: ReportOptions): string[] {
@@ -82,7 +85,8 @@ function select(rows: EventRow[], projects: Project[], opts: ReportOptions): Eve
 
 function money(project: Project | undefined, hours: number): Money | null {
   if (!project || project.rate === null || project.currency === '') return null;
-  return { amount: round2(project.rate * hours), currency: project.currency };
+  const cents = Math.round(Number((project.rate * hours * 100).toPrecision(12)));
+  return { amount: cents / 100, currency: project.currency };
 }
 
 function byCategoryName(a: ReportCategory, b: ReportCategory): number {
@@ -130,12 +134,19 @@ export function buildReport(rows: EventRow[], projects: Project[], opts: ReportO
 
   const perCurrency = new Map<string, number>();
   for (const p of out) {
-    if (p.money) perCurrency.set(p.money.currency, (perCurrency.get(p.money.currency) ?? 0) + p.money.amount);
+    if (p.money) {
+      perCurrency.set(p.money.currency, (perCurrency.get(p.money.currency) ?? 0) + Math.round(p.money.amount * 100));
+    }
   }
   const totals = [...perCurrency]
-    .map(([currency, amount]) => ({ amount: round2(amount), currency }))
+    .map(([currency, cents]) => ({ amount: cents / 100, currency }))
     .sort((a, b) => cmp(a.currency, b.currency));
   return { options: opts, projects: out, hours: sum(out.map((p) => p.hours)), money: totals };
+}
+
+/** Text from calendar events or files, safe inside one Markdown line. */
+function md(text: string): string {
+  return text.replace(/[\r\n]+/g, ' ').replace(/[\\<>[\]|`]/g, (c) => `\\${c}`);
 }
 
 const amountText = (m: Money) => `${m.amount.toFixed(2)} ${m.currency}`;
@@ -149,17 +160,17 @@ function titleOf(opts: ReportOptions): string {
 /** The report as Markdown, ending with a single newline. */
 export function reportToMarkdown(report: Report): string {
   const o = report.options;
-  const lines: string[] = [`# ${titleOf(o)}: ${o.range.from} to ${o.range.to}`, ''];
+  const lines: string[] = [`# ${md(titleOf(o))}: ${o.range.from} to ${o.range.to}`, ''];
   let intro = o.includePlanned ? 'Done and planned time.' : 'Done time only.';
   if (o.rounding !== 0) intro += ` Rounded up to ${o.rounding} minutes per event.`;
   lines.push(intro, '');
 
   for (const p of report.projects) {
-    lines.push(p.description ? `## ${p.code}: ${p.description}` : `## ${p.code}`, '');
+    lines.push(p.description ? `## ${p.code}: ${md(p.description)}` : `## ${p.code}`, '');
     for (const c of p.categories) {
-      lines.push(`### ${c.name === '' ? '(no category)' : c.name}: ${formatHours(c.hours)} h`, '');
+      lines.push(`### ${c.name === '' ? '(no category)' : md(c.name)}: ${formatHours(c.hours)} h`, '');
       for (const l of c.lines) {
-        lines.push(`- ${l.date}: ${formatHours(l.hours)} h${l.description ? `, ${l.description}` : ''}`);
+        lines.push(`- ${l.date}: ${formatHours(l.hours)} h${l.description ? `, ${md(l.description)}` : ''}`);
       }
       lines.push('');
     }
