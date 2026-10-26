@@ -2,7 +2,7 @@
 
 Status: approved by AL, 2026-10-26, including section 2 (one shared page design, each app edits its own file). Issue #45.
 Source: AL in the habits brainstorm of 2026-10-26: "move the yaml config of tasks into one single editable webpage for both omark tasks and time apps". Related: [v1 spec](TaskApp%20v1%20spec.md) section 10, [Omark Time spec](Omark%20Time%20spec.md) sections 7.2 and 9, [habits spec](TaskApp%20habits%20spec.md) section 11.
-Mockup: artboard 6 in https://claude.ai/artifact/VwN7ULDERA3tsd2JoMatWt
+Mockup: artboard 6 in https://claude.ai/artifact/VwN7ULDERA3tsd2JoMatWt (source: `doc/mockups/habits/Settings.dc.html`)
 
 ## 1. Intent
 
