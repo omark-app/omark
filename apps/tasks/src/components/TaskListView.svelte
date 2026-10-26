@@ -69,7 +69,7 @@
         {#if onSearch}<button class="find" data-testid="search-open" aria-label="Search" onclick={onSearch}>🔍</button>{/if}
       </span>
       <!-- Too wide to sit beside the status on a phone. -->
-      {#if STORAGE_MODE === 'demo'}<span class="demor"><DemoControls /></span>{/if}
+      {#if STORAGE_MODE === 'demo'}<span class="demo-row"><DemoControls /></span>{/if}
     </div>
   {/if}
   <!-- Phone gestures cover both panes: Important, not urgent sits in the side pane (#38). -->
@@ -148,7 +148,7 @@
     .frame { overflow-x: clip; }
   }
   .top { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 14px; flex-wrap: wrap; }
-  .demor { flex-basis: 100%; display: flex; justify-content: flex-end; }
+  .demo-row { flex-basis: 100%; display: flex; justify-content: flex-end; }
   .topr { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; }
   .find { width: 36px; height: 32px; margin: -8px -6px -8px 0; padding: 0; border: 0; border-radius: 8px; background: none; font-size: 16px; filter: grayscale(1); opacity: .7; cursor: pointer; }
   .find:active { background: var(--sel); }
