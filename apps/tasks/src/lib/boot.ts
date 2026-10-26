@@ -9,7 +9,7 @@ import {
 import type { Auth, LocalCache, StorageAdapter } from '@omark/storage';
 import { toISODate } from '@omark/tasks-core';
 import { BRAND } from '../brand.ts';
-import { APP_ENV, HOSTS, ONEDRIVE_FOLDER, ONEDRIVE_ROOT, STORAGE_MODE } from '../env.ts';
+import { HOSTS, ONEDRIVE_FOLDER, ONEDRIVE_ROOT, STORAGE_MODE } from '../env.ts';
 import { createAuthStub, tokenGated } from './auth-stub.ts';
 import { createWorkspace, TASK_FILES } from './workspace.ts';
 import type { TaskFile, Workspace } from './workspace.ts';
@@ -20,6 +20,7 @@ import { installLifecycle } from './lifecycle.ts';
 import { createStore } from './store.svelte.ts';
 import type { AppStore } from './store.svelte.ts';
 import { fakeSeed } from './sample-files.ts';
+import { openDemo, takeDemoReset } from './demo.ts';
 import { installUpdates } from './updates.svelte.ts';
 import type { UpdateDeps, Updates } from './updates.svelte.ts';
 
@@ -41,7 +42,7 @@ declare global {
 }
 
 /**
- * `ready`: the store is open; `auth` (null in fake mode) lets the UI sign in again when the status reads
+ * `ready`: the store is open; `auth` (null in demo and fake mode) lets the UI sign in again when the status reads
  * `sign in needed`; `updates` loads newer builds. `signin`: no signed-in account; the UI calls `auth.signIn()`.
  */
 export type BootResult =
@@ -64,16 +65,21 @@ const MEMORY: CacheInfo = { cacheWarning: null, durableCache: false };
 const isPhone = (): boolean => window.matchMedia(PHONE_QUERY).matches;
 
 /**
- * Builds the store for this build's storage mode. Fake mode (`VITE_STORAGE=fake`) runs on an in-memory
- * drive seeded from `window.__TASKAPP_SEED__` (sample files on a PR preview) and exposes it as `window.__taskappFake`; with
+ * Builds the store for this build's storage mode. Demo mode (`VITE_STORAGE=demo`) runs on a drive in
+ * IndexedDB seeded with sample files (src/lib/demo.ts) and never signs in. Fake mode (`VITE_STORAGE=fake`)
+ * runs on an in-memory drive seeded from `window.__TASKAPP_SEED__` and exposes it as `window.__taskappFake`; with
  * `window.__TASKAPP_AUTH_STUB__` set it goes through the sign-in path too, with a stubbed account.
  * OneDrive mode signs in through the sign-in helper (`/api/auth`) and caches in IndexedDB, falling back to
  * memory (with `store.cacheWarning`) when IndexedDB is unusable. Rejects if the sign-in redirect or the cache fails;
  * the UI shows the error with a way to try again.
  */
 export async function boot(): Promise<BootResult> {
+  if (STORAGE_MODE === 'demo') {
+    const demo = await openDemo(toISODate(new Date()), { reset: takeDemoReset() });
+    return ready(createWorkspace(demo.drive, demo.cache), demo, null);
+  }
   if (STORAGE_MODE === 'fake') {
-    const drive = new FakeOneDrive(fakeSeed(APP_ENV, window.__TASKAPP_SEED__, toISODate(new Date())));
+    const drive = new FakeOneDrive(fakeSeed(window.__TASKAPP_SEED__));
     window.__taskappFake = drive;
     if (window.__TASKAPP_FAKE_DURABLE__) {
       drive.setOffline(!navigator.onLine);

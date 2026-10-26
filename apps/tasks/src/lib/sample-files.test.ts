@@ -5,14 +5,12 @@ import { fakeSeed, sampleFiles } from './sample-files.ts';
 const WEDNESDAY = '2026-10-21';
 
 describe('fakeSeed', () => {
-  it('a preview with no test seed gets the sample files', () => {
-    expect(fakeSeed('preview', undefined, WEDNESDAY)).toEqual(sampleFiles(WEDNESDAY));
+  it('a test seed is used as it is', () => {
+    expect(fakeSeed({ 'tasks.md': '# Tasks\n' })).toEqual({ 'tasks.md': '# Tasks\n' });
   });
-  it('a test seed always wins', () => {
-    expect(fakeSeed('preview', { 'tasks.md': '# Tasks\n' }, WEDNESDAY)).toEqual({ 'tasks.md': '# Tasks\n' });
-  });
-  it('locally the drive starts empty', () => {
-    expect(fakeSeed('local', undefined, WEDNESDAY)).toEqual({});
+  // Previews are demo builds now, so a fake build is only for tests and never gets the samples.
+  it('without one the drive starts empty', () => {
+    expect(fakeSeed(undefined)).toEqual({});
   });
 });
 

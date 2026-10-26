@@ -14,7 +14,8 @@ Node 22 or newer and pnpm 10, then `pnpm i`.
 
 | name | used for |
 | --- | --- |
-| `VITE_STORAGE` | `onedrive` (default) or `fake` (in-memory drive, used by the tests) |
+| `VITE_STORAGE` | `onedrive` (default), `demo` (sample tasks kept in this browser's IndexedDB, no sign-in; Reset demo in the footer) or `fake` (in-memory drive, used by the tests) |
+| `VITE_REAL_USE_URL` | where the demo's "Use it for real" link goes; default `https://omark.app` |
 | `VITE_ONEDRIVE_FOLDER` | OneDrive folder holding the files; default `''` (the app folder's root) |
 | `VITE_PROD_HOST`, `VITE_STAGING_HOST` | the hosts that are production and staging; with neither set every host is `local` |
 | `VITE_PREVIEW_HOST_SUFFIXES` | comma-separated host suffixes that are previews (a host matches itself or any subdomain) |

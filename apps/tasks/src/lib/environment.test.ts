@@ -106,4 +106,11 @@ describe('lookFor', () => {
     expect(lookFor('production')).toEqual(plain);
     expect(lookFor('local')).toEqual(plain);
   });
+  it('a demo build says DEMO, except on a preview', () => {
+    expect(lookFor('local', 'demo')).toEqual({ title: null, themeColor: null, manifest: null, label: 'DEMO' });
+    expect(lookFor('production', 'demo').label).toBe('DEMO');
+    expect(lookFor('preview', 'demo').label).toBe('PREVIEW');
+    expect(lookFor('local', 'fake').label).toBe(null);
+    expect(lookFor('local', 'onedrive').label).toBe(null);
+  });
 });
