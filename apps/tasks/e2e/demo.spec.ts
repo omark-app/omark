@@ -150,11 +150,20 @@ test('every request goes to the demo origin, and none to /api/', async ({ page, 
 });
 
 test('the demo bundle has no sign-in path', async ({ request }) => {
+  // The entry scripts, plus every JS file the service worker precaches (all the JS the build ships, so a
+  // lazy chunk can't hide one), plus the service worker itself.
   const html = await (await request.get('/')).text();
-  const scripts = [...html.matchAll(/<script[^>]+src="([^"]+\.js)"/g)].map((m) => m[1]!);
-  expect(scripts.length).toBeGreaterThan(0);
+  const entries = [...html.matchAll(/<script[^>]+src="([^"]+\.js)"/g)].map((m) => m[1]!);
+  expect(entries.length).toBeGreaterThan(0);
+  const sw = await (await request.get('/sw.js')).text();
+  const precached = [...sw.matchAll(/\burl:\s*"([^"]+\.js)"/g)].map((m) => `/${m[1]!}`);
+  expect(precached.length).toBeGreaterThan(0);
+  const scripts = new Set([...entries, ...precached, '/sw.js']);
   for (const src of scripts) {
-    const js = await (await request.get(src)).text();
+    const res = await request.get(src);
+    // A missing file would come back as the SPA's index.html and pass unread.
+    expect(res.headers()['content-type'], `${src} is JavaScript`).toContain('javascript');
+    const js = await res.text();
     expect(js.includes('api/auth'), `${src} contains api/auth`).toBe(false);
   }
 });
