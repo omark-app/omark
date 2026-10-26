@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
+import { PreconditionFailedError } from '../src/errors.ts';
 import { IdbDrive } from '../src/idb-drive.ts';
 import { adapterContract } from './adapter-contract.ts';
 
@@ -42,5 +43,11 @@ describe('IdbDrive', () => {
     expect(await second.read('tasks.md')).toEqual({ text: 'y', etag: '"v2"' });
     expect(await second.peek('tasks.md')).toBe('y');
     expect(await second.peek('done.md')).toBeNull();
+  });
+
+  it('stores nothing when a write is rejected', async () => {
+    const drive = new IdbDrive(freshName());
+    await expect(drive.write('x', 'a', '"v1"')).rejects.toBeInstanceOf(PreconditionFailedError);
+    expect(await drive.isEmpty()).toBe(true);
   });
 });

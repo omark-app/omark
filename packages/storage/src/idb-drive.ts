@@ -1,4 +1,4 @@
-import { clear, createStore, get, keys, set, update } from 'idb-keyval';
+import { clear, createStore, get, keys, promisifyRequest as promisify, set } from 'idb-keyval';
 import type { UseStore } from 'idb-keyval';
 import type { RemoteFile, StorageAdapter } from './adapter.ts';
 import { ReopeningStore } from './cache.ts';
@@ -67,23 +67,16 @@ export class IdbDrive implements StorageAdapter {
    * stores nothing and returns null when it does not match.
    */
   private async put(name: string, text: string, ifMatch?: string | null): Promise<string | null> {
-    return this.db.run(async (store) => {
-      let etag: string | null = null;
-      await update<StoredFile>(
-        name,
-        (f) => {
-          etag = null;
-          if (ifMatch !== undefined && (ifMatch === null ? f !== undefined : f === undefined || etagOf(f.version) !== ifMatch)) {
-            return f as StoredFile; // unchanged
-          }
-          const version = (f?.version ?? 0) + 1;
-          etag = etagOf(version);
-          return { text, version };
-        },
-        store,
-      );
-      return etag;
-    });
+    return this.db.run((store) =>
+      // One readwrite transaction: the get and the set see no other writer in between.
+      store('readwrite', async (objectStore) => {
+        const f = await promisify<StoredFile | undefined>(objectStore.get(name));
+        if (ifMatch !== undefined && !matches(f, ifMatch)) return null;
+        const version = (f?.version ?? 0) + 1;
+        await promisify(objectStore.put({ text, version }, name));
+        return etagOf(version);
+      }),
+    );
   }
 
   private assertOnline(): void {
@@ -93,4 +86,10 @@ export class IdbDrive implements StorageAdapter {
 
 function etagOf(version: number): string {
   return `"v${version}"`;
+}
+
+/** Does the file satisfy an If-Match? null means the file must not exist. */
+function matches(f: StoredFile | undefined, ifMatch: string | null): boolean {
+  if (ifMatch === null) return f === undefined;
+  return f !== undefined && etagOf(f.version) === ifMatch;
 }
