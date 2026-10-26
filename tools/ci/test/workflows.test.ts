@@ -52,7 +52,7 @@ describe('workflows', () => {
         (j.steps ?? []).filter((s) => /^pnpm --filter .+ build$/.test(s.run ?? '')).map((s) => ({ name, run: s.run, env: (s.env ?? {}) as Record<string, string> })),
       );
     const ci = builds('ci.yml');
-    expect(ci.map((b) => b.name).sort()).toEqual(['tasks-preview', 'tasks-staging']);
+    expect(ci.map((b) => b.name).sort()).toEqual(['tasks-demo', 'tasks-preview', 'tasks-staging']);
     for (const b of ci) expect(b.run, b.name).toBe('pnpm --filter tasks build');
     for (const b of ci) expect(b.env.BUILD_NUMBER, b.name).toBe('${{ github.run_number }}');
     const promote = builds('promote.yml');
@@ -68,10 +68,12 @@ describe('workflows', () => {
     for (const f of FILES) expect(forkProblems(parse(text(f)) as Workflow), f).toEqual([]);
   });
 
-  it('lets CI be started by hand, deploying staging only from main', () => {
+  it('lets CI be started by hand, deploying staging and the demo only from main', () => {
     expect('workflow_dispatch' in ((parse(text('ci.yml')) as { on: object }).on ?? {})).toBe(true);
-    const deploy = jobsOf('ci.yml').find(([n]) => n === 'tasks-staging')![1];
-    expect(deploy.if!.startsWith(MAIN_ONLY)).toBe(true);
+    for (const name of ['tasks-staging', 'tasks-demo']) {
+      const deploy = jobsOf('ci.yml').find(([n]) => n === name)![1];
+      expect(deploy.if!.startsWith(MAIN_ONLY), name).toBe(true);
+    }
   });
 
   it('the fork check does not take a widened main-only condition as safe', () => {
@@ -99,6 +101,7 @@ describe('workflows', () => {
       ['promote.yml', 'promote', ['CF_TASKS_PROD_PROJECT', 'TASKS_PROD_HOST', 'TASKS_PROD_URL']],
       ['ci.yml', 'tasks-staging', ['CF_TASKS_STAGING_PROJECT', 'TASKS_STAGING_HOST', 'TASKS_STAGING_URL']],
       ['ci.yml', 'tasks-preview', ['CF_TASKS_STAGING_PROJECT']],
+      ['ci.yml', 'tasks-demo', ['CF_TASKS_DEMO_PROJECT', 'TASKS_DEMO_URL']],
     ];
     for (const [f, job, vars] of expected) {
       const step = first(f, job);
@@ -117,6 +120,7 @@ describe('workflows', () => {
       'TASKS_PROD_HOST', 'TASKS_PROD_URL',
       'TASKS_PROD_FOLDER', 'TASKS_STAGING_FOLDER', 'TASKS_PREVIEW_HOST_SUFFIXES',
       'TASKS_ONEDRIVE_SCOPE', 'TASKS_MSAL_TENANT',
+      'CF_TASKS_DEMO_PROJECT', 'TASKS_DEMO_URL', 'TASKS_REAL_USE_URL',
     ];
     const used = new Set(FILES.flatMap((f) => [...text(f).matchAll(/\bvars\.(\w+)/g)].map((m) => m[1]!)));
     expect(used.size).toBeGreaterThan(1);
@@ -155,6 +159,68 @@ describe('workflows', () => {
     expect(script).toContain("'<!-- taskapp-preview -->'");
   });
 
+  it('builds PR previews as demo builds', () => {
+    const preview = jobsOf('ci.yml').find(([n]) => n === 'tasks-preview')![1];
+    const build = preview.steps!.find((s) => s.run === 'pnpm --filter tasks build')!;
+    expect(build.env).toMatchObject({
+      VITE_STORAGE: 'demo',
+      VITE_REAL_USE_URL: '${{ vars.TASKS_REAL_USE_URL }}',
+      // Still PREVIEW in the footer.
+      VITE_PREVIEW_HOST_SUFFIXES: '${{ vars.TASKS_PREVIEW_HOST_SUFFIXES }}',
+    });
+  });
+
+  it('deploys the demo build from apps/tasks, so functions/ (the sign-in helper) is left out', () => {
+    const wf = parse(text('ci.yml')) as { jobs: Record<string, Job & { concurrency?: unknown }> };
+    const demo = wf.jobs['tasks-demo']!;
+    expect(demo.concurrency).toEqual({ group: 'demo', 'cancel-in-progress': false });
+    const steps = demo.steps!;
+    const build = steps.find((s) => s.run === 'pnpm --filter tasks build')!;
+    expect(build.env).toEqual({
+      VITE_STORAGE: 'demo',
+      VITE_REAL_USE_URL: '${{ vars.TASKS_REAL_USE_URL }}',
+      BUILD_NUMBER: '${{ github.run_number }}',
+    });
+    // The project only: the domain and its DNS record were set up once by hand.
+    const ensure = steps.find((s) => s.run === 'node tools/ci/ensure-pages-project.mjs')!;
+    expect(ensure.env).toEqual({
+      CLOUDFLARE_API_TOKEN: '${{ secrets.CLOUDFLARE_API_TOKEN }}',
+      CLOUDFLARE_ACCOUNT_ID: '${{ secrets.CLOUDFLARE_ACCOUNT_ID }}',
+      CF_PROJECT: '${{ vars.CF_TASKS_DEMO_PROJECT }}',
+    });
+    const deploys = steps.filter((s) => s.uses?.startsWith('cloudflare/wrangler-action@'));
+    expect(deploys).toHaveLength(1);
+    expect(deploys[0]!.with).toMatchObject({
+      workingDirectory: 'apps/tasks',
+      command: 'pages deploy dist --project-name=${{ vars.CF_TASKS_DEMO_PROJECT }} --branch=main',
+    });
+    const check = steps.find((s) => s.run === 'node tools/ci/check-demo.mjs')!;
+    expect(check.env).toEqual({ DEMO_URL: '${{ vars.TASKS_DEMO_URL }}' });
+    expect(steps.indexOf(check)).toBeGreaterThan(steps.indexOf(deploys[0]!));
+    // Staging, by contrast, deploys from the repo root so its sign-in helper ships.
+    const staging = wf.jobs['tasks-staging']!.steps!.find((s) => s.uses?.startsWith('cloudflare/wrangler-action@'))!;
+    expect((staging.with as Record<string, string>).workingDirectory).toBeUndefined();
+    expect((staging.with as Record<string, string>).command).toMatch(/^pages deploy apps\/tasks\/dist /);
+  });
+
+  it('uses the same pinned wrangler action and version for every deploy', () => {
+    const deploys = allSteps().filter((s) => s.uses?.startsWith('cloudflare/wrangler-action@'));
+    expect(deploys.length).toBeGreaterThan(3);
+    expect(new Set(deploys.map((s) => s.uses)).size).toBe(1);
+    expect(new Set(deploys.map((s) => (s.with as Record<string, string>).wranglerVersion)).size).toBe(1);
+  });
+
+  it('calls ensure-pages-project with the generic variable names', () => {
+    expect(FILES.some((f) => text(f).includes('ensure-staging'))).toBe(false);
+    const calls = allSteps().filter((s) => s.run === 'node tools/ci/ensure-pages-project.mjs');
+    expect(calls.length).toBeGreaterThan(1);
+    for (const c of calls) {
+      const env = Object.keys((c.env ?? {}) as Record<string, string>);
+      expect(env).toContain('CF_PROJECT');
+      for (const k of env) expect(['CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_ACCOUNT_ID', 'CF_PROJECT', 'PAGES_DOMAIN', 'CF_ZONE_ID']).toContain(k);
+    }
+  });
+
   it('gives the e2e job no write permission', () => {
     const e2e = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1];
     expect(e2e.permissions).toEqual({ contents: 'read' });
@@ -181,7 +247,7 @@ describe('workflows', () => {
   });
 
   it('deploys only after check and every e2e job', () => {
-    for (const name of ['tasks-preview', 'tasks-staging']) {
+    for (const name of ['tasks-preview', 'tasks-staging', 'tasks-demo']) {
       expect(jobsOf('ci.yml').find(([n]) => n === name)![1].needs, name).toEqual(['check', 'e2e']);
     }
   });
@@ -201,7 +267,7 @@ describe('workflows', () => {
 
   it('gives every job a time limit', () => {
     const limits = Object.fromEntries(FILES.flatMap((f) => jobsOf(f).map(([n, j]) => [n, j['timeout-minutes']])));
-    expect(limits).toEqual({ check: 10, 'stop-on-check-failure': 5, e2e: 20, 'tasks-preview': 15, 'tasks-staging': 15, promote: 15 });
+    expect(limits).toEqual({ check: 10, 'stop-on-check-failure': 5, e2e: 20, 'tasks-preview': 15, 'tasks-staging': 15, 'tasks-demo': 15, promote: 15 });
   });
 
   it('never uses pull_request_target', () => {

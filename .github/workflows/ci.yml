@@ -1,10 +1,11 @@
 name: CI
-# PRs: check, e2e, and (same-repo PRs, once DEPLOY_ENABLED is set) a preview of the fake build. Merges to main:
-# the same checks, then a deploy to staging when DEPLOY_ENABLED is set. A fork has no secrets, so only check
-# and e2e run for it. Names, hosts and folders are repository variables (README, Environment variables), one
-# set per app: the deploy jobs are named after the app (tasks-preview, tasks-staging) and read TASKS_* ones.
-# CI can also be started by hand (Actions → CI → Run workflow) for when GitHub misses a push; on main that
-# deploys staging too. Production only changes through promote.yml. (doc/TaskApp factory spec.md, section 6)
+# PRs: check, e2e, and (same-repo PRs, once DEPLOY_ENABLED is set) a preview of the demo build. Merges to main:
+# the same checks, then a deploy to staging and to the public demo when DEPLOY_ENABLED is set. A fork has no
+# secrets, so only check and e2e run for it. Names, hosts and folders are repository variables (README,
+# Environment variables), one set per app: the deploy jobs are named after the app (tasks-preview,
+# tasks-staging, tasks-demo) and read TASKS_* ones. CI can also be started by hand (Actions → CI → Run
+# workflow) for when GitHub misses a push; on main that deploys staging and the demo too. Production only
+# changes through promote.yml; the demo has no Promote step. (doc/TaskApp factory spec.md, section 6)
 on:
   pull_request:
     paths-ignore: ['doc/**', '**/*.md']
@@ -102,19 +103,21 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # The fake build e2e tested, built again here so e2e needs nothing from the repository's settings.
+      # The demo build: sample tasks kept in this browser, Reset demo in the footer, no sign-in. It still
+      # says PREVIEW, from the host.
       - run: pnpm --filter tasks build
         env:
-          VITE_STORAGE: fake
+          VITE_STORAGE: demo
+          VITE_REAL_USE_URL: ${{ vars.TASKS_REAL_USE_URL }}
           BUILD_NUMBER: ${{ github.run_number }}
           VITE_PREVIEW_HOST_SUFFIXES: ${{ vars.TASKS_PREVIEW_HOST_SUFFIXES }}
       - name: Make sure the staging project exists
-        run: node tools/ci/ensure-staging.mjs
+        run: node tools/ci/ensure-pages-project.mjs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CF_STAGING_PROJECT: ${{ vars.CF_TASKS_STAGING_PROJECT }}
-          STAGING_DOMAIN: ${{ vars.TASKS_STAGING_DOMAIN }}
+          CF_PROJECT: ${{ vars.CF_TASKS_STAGING_PROJECT }}
+          PAGES_DOMAIN: ${{ vars.TASKS_STAGING_DOMAIN }}
           CF_ZONE_ID: ${{ vars.CF_TASKS_ZONE_ID }}
       - name: Deploy the preview
         id: preview
@@ -135,7 +138,7 @@ jobs:
             const marker = '<!-- tasks-preview -->';
             const markers = [marker, '<!-- taskapp-preview -->'];
             const sha = context.payload.pull_request.head.sha.slice(0, 7);
-            const body = `${marker}\n**Preview:** ${process.env.PREVIEW_URL}\n\nFake drive with sample tasks, build v${context.runNumber} (\`${sha}\`). Sign-in is stubbed.`;
+            const body = `${marker}\n**Preview:** ${process.env.PREVIEW_URL}\n\nDemo build v${context.runNumber} (\`${sha}\`): sample tasks kept in this browser, Reset demo in the footer, no sign-in.`;
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
             const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
@@ -191,12 +194,12 @@ jobs:
           path: apps/tasks/dist
           retention-days: 30
       - name: Make sure the staging project exists
-        run: node tools/ci/ensure-staging.mjs
+        run: node tools/ci/ensure-pages-project.mjs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CF_STAGING_PROJECT: ${{ vars.CF_TASKS_STAGING_PROJECT }}
-          STAGING_DOMAIN: ${{ vars.TASKS_STAGING_DOMAIN }}
+          CF_PROJECT: ${{ vars.CF_TASKS_STAGING_PROJECT }}
+          PAGES_DOMAIN: ${{ vars.TASKS_STAGING_DOMAIN }}
           CF_ZONE_ID: ${{ vars.CF_TASKS_ZONE_ID }}
       - uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
@@ -213,3 +216,55 @@ jobs:
           SIGNIN_URL: ${{ vars.TASKS_STAGING_URL }}
           MSAL_TENANT: ${{ vars.TASKS_MSAL_TENANT }}
           ONEDRIVE_SCOPE: ${{ vars.TASKS_ONEDRIVE_SCOPE }}
+  tasks-demo:
+    # The public demo (README, Deploy): its own Pages project and build, deployed from main with staging.
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    needs: [check, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: demo
+      cancel-in-progress: false
+    steps:
+      - name: Check the repository variables
+        run: |
+          if [ -z "$CF_TASKS_DEMO_PROJECT" ] || [ -z "$TASKS_DEMO_URL" ]; then
+            echo "::error::Set the repository variables CF_TASKS_DEMO_PROJECT and TASKS_DEMO_URL (README, Environment variables)."
+            exit 1
+          fi
+        env:
+          CF_TASKS_DEMO_PROJECT: ${{ vars.CF_TASKS_DEMO_PROJECT }}
+          TASKS_DEMO_URL: ${{ vars.TASKS_DEMO_URL }}
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter tasks build
+        env:
+          VITE_STORAGE: demo
+          VITE_REAL_USE_URL: ${{ vars.TASKS_REAL_USE_URL }}
+          BUILD_NUMBER: ${{ github.run_number }}
+      # The project only: its custom domain and DNS record were set up once by hand, so the CI token needs no
+      # permission on that zone. The live check below catches a broken domain.
+      - name: Make sure the demo project exists
+        run: node tools/ci/ensure-pages-project.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_PROJECT: ${{ vars.CF_TASKS_DEMO_PROJECT }}
+      - uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: '4.151.1'
+          # Run from apps/tasks, not the repo root, so wrangler leaves out functions/: the demo has no sign-in
+          # helper and no /api/auth at all. The workspace's wrangler is still found from here.
+          workingDirectory: apps/tasks
+          command: pages deploy dist --project-name=${{ vars.CF_TASKS_DEMO_PROJECT }} --branch=main
+      - name: Check the demo is live, without the sign-in helper
+        run: node tools/ci/check-demo.mjs
+        env:
+          DEMO_URL: ${{ vars.TASKS_DEMO_URL }}

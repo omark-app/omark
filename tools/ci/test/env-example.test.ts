@@ -37,13 +37,10 @@ const sources: Record<string, { files: string[]; re: RegExp }> = {
     re: /process\.env\.(TASKAPP_E2E_[A-Z]+|TODOIST_[A-Z_]+)/g,
   },
   // Only vars.* and secrets.* are listed. Names that just pass a value between CI steps (PREVIEW_URL, SIGNIN_URL,
-  // CF_STAGING_PROJECT, STAGING_DOMAIN, CF_ZONE_ID and so on, set in a step's `env:` from vars or secrets) stay out.
+  // DEMO_URL, CF_PROJECT, PAGES_DOMAIN, CF_ZONE_ID and so on, set in a step's `env:` from vars or secrets) stay out.
   'workflows (secrets.*)': { files: files('.github/workflows', (n) => /\.ya?ml$/.test(n)), re: /\bsecrets\.((?!GITHUB_TOKEN\b)[A-Z][A-Z0-9_]+)/g },
   'workflows (vars.*)': { files: files('.github/workflows', (n) => /\.ya?ml$/.test(n)), re: /\bvars\.([A-Z][A-Z0-9_]+)/g },
 };
-
-/** Variables Task 4 adds to the workflows; listed here until the workflows read them. */
-const demoVars = ['CF_TASKS_DEMO_PROJECT', 'TASKS_DEMO_URL', 'TASKS_REAL_USE_URL'];
 
 describe('.env.example', () => {
   it('exists at the repo root', () => {
@@ -58,7 +55,6 @@ describe('.env.example', () => {
       expect(names.size, `found no variables in ${where}`).toBeGreaterThan(0);
       for (const name of names) if (!listed.has(name)) missing.push(`${name} (${where})`);
     }
-    for (const name of demoVars) if (!listed.has(name)) missing.push(`${name} (demo)`);
     expect(missing, 'missing from .env.example').toEqual([]);
   });
 });
