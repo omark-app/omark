@@ -60,7 +60,7 @@ test('fromJSON keeps events, tokens and readOnly', async () => {
   const { events } = await copy.readChanges('primary', syncToken);
   expect(events.map((e) => e.title)).toEqual(['B']);
   copy.expireTokens();
-  await expect(copy.readChanges('primary', syncToken)).rejects.toThrow();
+  await expect(copy.readChanges('primary', syncToken)).rejects.toBeInstanceOf(SyncTokenExpiredError);
 });
 
 test('readChanges returns copies, not the internal events', async () => {

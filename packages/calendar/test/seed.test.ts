@@ -6,6 +6,7 @@ import {
   eventToRows,
   knownCodes,
   parseProjects,
+  weekday,
 } from '@omark/time-core';
 import type { CalendarEvent, EventRow } from '@omark/time-core';
 import { FakeCalendar } from '../src/fake.ts';
@@ -88,10 +89,18 @@ test('another day gives the same shape, moved', () => {
   }
 });
 
-test('after the spring DST change the wall times stay the same', () => {
+const ZONES = [
+  // [today, zone, first date with the new offset, offset before, offset after]
+  ['2026-03-30', 'Europe/Warsaw', '2026-03-29', '+01:00', '+02:00'],
+  ['2026-03-30', 'Asia/Jerusalem', '2026-03-27', '+02:00', '+03:00'],
+  ['2026-04-27', 'Africa/Cairo', '2026-04-24', '+02:00', '+03:00'],
+] as const;
+
+test.each(ZONES)('around a DST change (%s %s) the wall times stay the same', (today, zone, from, before, after) => {
   const base = demoSeed(TODAY, TZ).events;
-  const spring = demoSeed('2026-03-30', TZ).events;
+  const spring = demoSeed(today, zone).events;
   expect(spring.map((e) => e.id)).toEqual(base.map((e) => e.id));
+  let changeDay = false;
   for (const [i, e] of base.entries()) {
     const s = spring[i]!;
     if ('date' in e.start!) continue;
@@ -99,9 +108,28 @@ test('after the spring DST change the wall times stay the same', () => {
     const en = s.end as { dateTime: string };
     expect(st.dateTime.slice(11, 19)).toBe((e.start as { dateTime: string }).dateTime.slice(11, 19));
     expect(en.dateTime.slice(11, 19)).toBe((e.end as { dateTime: string }).dateTime.slice(11, 19));
-    // 2026-03-29 is the change; the 27th (and before) is +01:00, the 30th on is +02:00.
-    const offset = st.dateTime.slice(0, 10) < '2026-03-29' ? '+01:00' : '+02:00';
+    const offset = st.dateTime.slice(0, 10) < from ? before : after;
     expect(st.dateTime.endsWith(offset)).toBe(true);
     expect(en.dateTime.endsWith(offset)).toBe(true);
+    if (st.dateTime.slice(0, 10) === from) changeDay = true;
+  }
+  if (weekday(from) <= 4) expect(changeDay).toBe(true);
+});
+
+test('Gym is at 17:00 local on the Jerusalem change day', () => {
+  const gym = demoSeed('2026-03-30', 'Asia/Jerusalem').events.find(
+    (e) => e.title === 'Gym' && (e.start as { dateTime: string }).dateTime.startsWith('2026-03-27'),
+  );
+  expect((gym?.start as { dateTime: string }).dateTime).toBe('2026-03-27T17:00:00+03:00');
+});
+
+test('another day gives the same shape, moved, in Jerusalem too', () => {
+  const a = demoSeed('2026-03-23', 'Asia/Jerusalem').events;
+  const b = demoSeed('2026-03-30', 'Asia/Jerusalem').events;
+  expect(b.map((e) => e.title)).toEqual(a.map((e) => e.title));
+  for (const [i, e] of a.entries()) {
+    expect(daysBetween(startDate(e), startDate(b[i]!))).toBe(7);
+    if ('date' in e.start!) continue;
+    expect((b[i]!.start as { dateTime: string }).dateTime.slice(11, 19)).toBe((e.start as { dateTime: string }).dateTime.slice(11, 19));
   }
 });

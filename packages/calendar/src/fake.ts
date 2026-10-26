@@ -26,7 +26,7 @@ const copy = (e: CalendarEvent): CalendarEvent => structuredClone(e);
 
 /** An in-memory calendar that behaves like Google's (see the CalendarSource contract). */
 export class FakeCalendar implements CalendarSource {
-  /** Every setColour call, in order. */
+  /** Every setColour call, in order; per instance, not kept by toJSON. */
   readonly patches: { calendarId: string; eventId: string; patch: ColourPatch }[] = [];
   /** When true, setColour throws EditAccessRequiredError. */
   readOnly = false;
