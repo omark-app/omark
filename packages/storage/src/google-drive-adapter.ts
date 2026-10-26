@@ -28,7 +28,7 @@ interface Metadata {
  * (by `createdTime`) is the one in use, for the folder too. Writes go through API v2, the only one that
  * honours `If-Match` (v3 overwrites whatever the etag). Folder and file ids are kept in memory; when one
  * turns out gone or trashed, both are forgotten and looked up again. One adapter serves several files at
- * once, so concurrent calls share one folder lookup, and one folder creation.
+ * once, so concurrent calls share one folder lookup, and one "look up, else create" step for a new file.
  */
 export class GoogleDriveAdapter implements StorageAdapter {
   private folder: string;
@@ -36,8 +36,8 @@ export class GoogleDriveAdapter implements StorageAdapter {
   private folderId: string | null = null;
   /** A folder lookup in progress, shared by concurrent calls. */
   private lookingUpFolder: Promise<string | null> | null = null;
-  /** A folder creation in progress, shared the same way. */
-  private creatingFolder: Promise<string> | null = null;
+  /** A "look up, else create" step in progress, shared the same way. */
+  private ensuringFolder: Promise<string> | null = null;
   private fileIds = new Map<string, string>();
 
   constructor(opts: GoogleDriveAdapterOptions) {
@@ -117,7 +117,8 @@ export class GoogleDriveAdapter implements StorageAdapter {
         headers: { 'Content-Type': 'application/json; charset=utf-8' },
         body: JSON.stringify({ trashed: true }),
       });
-      if (!trash.ok) throw new Error(`Google Drive trash failed: ${trash.status}`);
+      // A 404: our copy is gone already, with the folder, deleted for good meanwhile.
+      if (!trash.ok && trash.status !== 404) throw new Error(`Google Drive trash failed: ${trash.status}`);
       throw new PreconditionFailedError(`${name} already exists`);
     }
     this.fileIds.set(name, made.id);
@@ -141,13 +142,14 @@ export class GoogleDriveAdapter implements StorageAdapter {
 
   /**
    * The folder for a new file, looked up afresh: Drive accepts a file into a trashed folder, so the cached
-   * id could put it in the trash, out of the user's sight. The lookup skips trashed folders.
+   * id could put it in the trash, out of the user's sight. The lookup skips trashed folders. A create that
+   * starts while another one is in this step joins it, rather than miss a folder still being made.
    */
-  private async ensureFolder(): Promise<string> {
-    const found = await this.findFolder(true);
-    if (found !== null) return found;
-    this.creatingFolder ??= this.createFolder().finally(() => (this.creatingFolder = null));
-    return this.creatingFolder;
+  private ensureFolder(): Promise<string> {
+    this.ensuringFolder ??= this.findFolder(true)
+      .then((found) => found ?? this.createFolder())
+      .finally(() => (this.ensuringFolder = null));
+    return this.ensuringFolder;
   }
 
   /** Two devices may create the folder at once; both then use the oldest. */

@@ -70,6 +70,37 @@ describe('GoogleDriveAdapter (Drive specifics)', () => {
     expect((await a.read('tasks.md'))?.text).toBe('x');
   });
 
+  it('a create that starts while another is making the folder waits for that folder', async () => {
+    const fake = new FakeGoogleDrive();
+    // Holds a's folder creation at the door, before the fake sees it.
+    let creating!: () => void;
+    let letCreate!: () => void;
+    const creatingP = new Promise<void>((r) => (creating = r));
+    const gate = new Promise<void>((r) => (letCreate = r));
+    const fetchFn = (async (input, init) => {
+      if (init?.method === 'POST' && String(input).includes('/drive/v3/files?fields=id')) {
+        creating();
+        await gate;
+      }
+      return fake.fetch(input, init);
+    }) as typeof fetch;
+    const adapter = setup(fake, fetchFn);
+    const first = adapter.write('tasks.md', 'a', null);
+    await creatingP; // a found no folder and is about to make one
+    // A lookup of b's own, sent now, sees no folder; its reply is held until a's folder exists.
+    let gated = true;
+    const held = fake.holdReply((c) => gated && decodeURIComponent(c.url).includes(FOLDER_MIME_Q));
+    const second = adapter.write('done.md', 'b', null);
+    await new Promise((r) => setTimeout(r, 0));
+    gated = false;
+    letCreate();
+    await first;
+    held.release();
+    await second;
+    expect(fake.folders()).toEqual(['Omark Tasks']);
+    expect([fake.peek('tasks.md'), fake.peek('done.md')]).toEqual(['a', 'b']);
+  });
+
   it('concurrent reads share one folder lookup', async () => {
     const fake = new FakeGoogleDrive({ 'tasks.md': 'a', 'done.md': 'b', 'config.yaml': 'c' });
     const a = setup(fake);
@@ -209,6 +240,21 @@ describe('GoogleDriveAdapter (Drive specifics)', () => {
     await expect(writing).rejects.toBeInstanceOf(PreconditionFailedError);
     expect(fake.calls.at(-1)).toMatchObject({ method: 'POST', url: expect.stringContaining(INSERT) });
     await adapter.write('done.md', 'd', null);
+    expect(fake.peek('done.md')).toBe('d');
+  });
+
+  it('a folder deleted between the create and the look after it also reads as a 412, once', async () => {
+    const fake = new FakeGoogleDrive({ 'tasks.md': 'a' });
+    const adapter = setup(fake);
+    const held = fake.holdReply((c) => c.url.includes(INSERT));
+    const writing = adapter.write('done.md', 'd', null);
+    await held.reached; // done.md now exists in the folder
+    fake.deleteFolder();
+    held.release();
+    await expect(writing).rejects.toBeInstanceOf(PreconditionFailedError);
+    expect(fake.calls.at(-1)?.method).toBe('PATCH'); // trashing our copy found it already gone
+    await adapter.write('done.md', 'd', null);
+    expect(fake.folders()).toEqual(['Omark Tasks']);
     expect(fake.peek('done.md')).toBe('d');
   });
 
