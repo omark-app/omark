@@ -162,3 +162,37 @@ test('merge: remote column survives a local edit', () => {
   const m = parseProjects(mergeProjects(base, local, remote));
   expect(m.projects[0]).toMatchObject({ description: 'b', extra: { owner: 'ann' } });
 });
+
+test.each(['abc', '12,5', '-5'])('invalid rate %s is kept as typed', (raw) => {
+  const text = `code,description,client,rate,currency,archived\nBAD,x,,"${raw}",EUR,\nOK,y,,,,\n`;
+  const f = parseProjects(text);
+  expect(f.projects[0]!.rate).toBeNull();
+  expect(f.problems).toEqual([{ line: 2, message: 'Rate must be a number' }]);
+  expect(serializeProjects(f)).toBe(text.replace(`"${raw}"`, raw.includes(',') ? `"${raw}"` : raw));
+  const g = updateProject(f, 'OK', { description: 'z' });
+  expect(g.problems.map((p) => p.message)).toEqual(['Rate must be a number']);
+  expect(serializeProjects(g)).toContain(raw);
+  const remote = text.replace('OK,y,', 'OK,w,');
+  const m = mergeProjects(text, text, remote);
+  expect(m).toContain(raw);
+  expect(parseProjects(m).projects[1]!.description).toBe('w');
+});
+
+test('a row with an old problem can still be archived and edited', () => {
+  const f = parseProjects('code,description,rate,currency\nACME,x,5,\n');
+  expect(archiveProject(f, 'ACME', '2026-10-01').projects[0]!.archived).toBe('2026-10-01');
+  expect(updateProject(f, 'ACME', { description: 'y' }).projects[0]!.description).toBe('y');
+  expect(() => archiveProject(f, 'ACME', 'soon')).toThrow('Archived must be a date');
+});
+
+test('an edit that adds a problem still throws', () => {
+  const f = parseProjects('code,rate,currency\nACME,5,EUR\n');
+  expect(() => updateProject(f, 'ACME', { currency: 'EURO' })).toThrow('Currency must be a 3-letter code like EUR');
+});
+
+test('setting a rate replaces an invalid one', () => {
+  const f = parseProjects('code,rate,currency\nACME,abc,EUR\n');
+  const g = updateProject(f, 'ACME', { rate: 7 });
+  expect(g.problems).toEqual([]);
+  expect(serializeProjects(g)).toContain('ACME,7,EUR');
+});

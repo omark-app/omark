@@ -10,6 +10,7 @@ export interface Project {
   description: string;
   client: string;
   rate: number | null; // per hour
+  rateText?: string; // an invalid rate as typed; `rate` is null
   currency: string; // upper case
   archived: string; // '' or YYYY-MM-DD
   extra: Record<string, string>; // unknown columns, keyed by header
@@ -52,11 +53,11 @@ function isRealDate(s: string): boolean {
 }
 
 /** The problems of a project, in order, against the projects before it. */
-function problemsOf(p: Project, others: Project[], rateBad = false): string[] {
+function problemsOf(p: Project, others: Project[]): string[] {
   const out: string[] = [];
   if (!isValidCode(p.code)) out.push(CODE_MESSAGE);
   else if (others.some((o) => o.code === p.code)) out.push(`${p.code} already exists`);
-  if (rateBad || (p.rate !== null && (!Number.isFinite(p.rate) || p.rate < 0))) out.push(RATE_NUMBER_MESSAGE);
+  if (p.rateText || (p.rate !== null && (!Number.isFinite(p.rate) || p.rate < 0))) out.push(RATE_NUMBER_MESSAGE);
   else if (p.rate !== null && p.currency === '') out.push(RATE_CURRENCY_MESSAGE);
   if (p.currency !== '' && !/^[A-Z]{3}$/.test(p.currency)) out.push(CURRENCY_MESSAGE);
   if (p.archived !== '' && !isRealDate(p.archived)) out.push(ARCHIVED_MESSAGE);
@@ -101,11 +102,12 @@ export function parseProjects(text: string): ProjectsFile {
       description: std.description ?? '',
       client: std.client ?? '',
       rate: rateBad ? null : rate,
+      ...(rateBad ? { rateText } : {}),
       currency: (std.currency ?? '').toUpperCase(),
       archived: std.archived ?? '',
       extra,
     };
-    for (const message of problemsOf(project, projects, rateBad)) problems.push({ line: lines[r]!, message });
+    for (const message of problemsOf(project, projects)) problems.push({ line: lines[r]!, message });
     projects.push(project);
   }
   return { projects, columns, problems };
@@ -117,7 +119,7 @@ function flat(p: Project): Record<string, string> {
     code: p.code,
     description: p.description,
     client: p.client,
-    rate: p.rate === null ? '' : String(p.rate),
+    rate: p.rateText ?? (p.rate === null ? '' : String(p.rate)),
     currency: p.currency,
     archived: p.archived,
   };
@@ -160,6 +162,13 @@ export function addProject(file: ProjectsFile, p: Project): ProjectsFile {
   return withProjects(file, [...file.projects, project]);
 }
 
+function replaceProject(file: ProjectsFile, key: string, edit: (old: Project) => Project): ProjectsFile {
+  const i = file.projects.findIndex((p) => p.code === key);
+  if (i < 0) throw new Error(`${key} not found`);
+  return withProjects(file, file.projects.map((p, j) => (j === i ? edit(p) : p)));
+}
+
+/** Change fields of a row. Throws only for a problem the change adds to that row. */
 export function updateProject(
   file: ProjectsFile,
   code: string,
@@ -168,15 +177,20 @@ export function updateProject(
   const key = code.toUpperCase();
   const i = file.projects.findIndex((p) => p.code === key);
   if (i < 0) throw new Error(`${key} not found`);
-  const project = normalise({ ...file.projects[i]!, ...changes, code: key });
+  const old = file.projects[i]!;
+  const { rateText, ...rest } = normalise({ ...old, ...changes, code: key });
+  const project: Project = 'rate' in changes || changes.rateText !== undefined ? { ...rest, ...(changes.rateText ? { rateText: changes.rateText } : {}) } : { ...rest, ...(rateText ? { rateText } : {}) };
   const others = file.projects.filter((_, j) => j !== i);
-  const message = validateProject(project, others);
-  if (message) throw new Error(message);
-  return withProjects(file, file.projects.map((p, j) => (j === i ? project : p)));
+  const before = problemsOf(old, others);
+  const added = problemsOf(project, others).find((m) => !before.includes(m));
+  if (added) throw new Error(added);
+  return replaceProject(file, key, () => project);
 }
 
 export function archiveProject(file: ProjectsFile, code: string, date: string): ProjectsFile {
-  return updateProject(file, code, { archived: date });
+  const key = code.toUpperCase();
+  if (!isRealDate(date)) throw new Error(ARCHIVED_MESSAGE);
+  return replaceProject(file, key, (p) => ({ ...p, archived: date }));
 }
 
 /** Remove the row. A missing code changes nothing. */
