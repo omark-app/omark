@@ -12,7 +12,7 @@ import { summarise } from '../src/summary.ts';
 
 const SAMPLE = `date,start,end,hours,project,category,description,all_day,known,calendar,event_id
 2026-10-22,2026-10-22T09:00+02:00,2026-10-22T10:30+02:00,1.5,ACME,Coding,new featureX,false,true,primary,abc123
-2026-10-22,2026-10-22T11:00+02:00,2026-10-22T11:30+02:00,0.5,OOO,,away,false,false,primary,def456
+2026-10-22,2026-10-22T11:00+02:00,2026-10-22T11:30+02:00,0.5,OOO,away,,false,false,primary,def456
 `;
 
 function row(p: Partial<EventRow>): EventRow {
@@ -45,7 +45,7 @@ test('the spec sample round-trips byte for byte', () => {
   expect(badLines).toEqual([]);
   expect(rows).toHaveLength(2);
   expect(rows[0]).toMatchObject({ hours: 1.5, project: 'ACME', known: true, allDay: false, eventId: 'abc123' });
-  expect(rows[1]).toMatchObject({ category: '', known: false });
+  expect(rows[1]).toMatchObject({ category: 'away', description: '', known: false });
   expect(serializeEventsFile(rows)).toBe(SAMPLE);
 });
 
