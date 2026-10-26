@@ -15,8 +15,8 @@ export class NeedsHuman extends Error {}
  * @returns {Promise<{ subdomain: string, warnings: string[] }>}
  */
 export async function ensureStaging({ token, accountId, project: PROJECT, domain: DOMAIN, zone: ZONE, fetch: f = fetch, log = console.log }) {
-  if (DOMAIN && !ZONE) throw new Error('A custom domain needs the Cloudflare zone ID (CF_ZONE_ID).');
-  if (ZONE && !DOMAIN) throw new Error('A Cloudflare zone ID needs the custom domain (STAGING_DOMAIN).');
+  if (DOMAIN && !ZONE) throw new Error('A custom domain needs the Cloudflare zone ID (set CF_TASKS_ZONE_ID and TASKS_STAGING_DOMAIN together).');
+  if (ZONE && !DOMAIN) throw new Error('A Cloudflare zone ID needs the custom domain (set CF_TASKS_ZONE_ID and TASKS_STAGING_DOMAIN together).');
   const PROJECT_STEPS = `Create it by hand in the Cloudflare dashboard:
 1. Workers & Pages → Create → Pages → Upload assets. Name it ${PROJECT}, production branch main (upload any small file).
 2. Re-run this CI job.`;

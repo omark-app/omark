@@ -1,4 +1,3 @@
-
 export interface RemoteFile {
   text: string;
   etag: string;

@@ -4,10 +4,10 @@ A PWA that keeps AL's tasks in plain Markdown files on his OneDrive. Specs: `doc
 
 ## Layout
 
-- `packages/core`: parsing and logic, pure (no DOM, network or storage).
+- `packages/tasks-core`: parsing and logic, pure (no DOM, network or storage).
 - `packages/storage`: OneDrive, the offline cache, sync.
 - `packages/signin` + `functions/`: the sign-in helper (`/api/auth/*`, Cloudflare Pages Functions).
-- `apps/web`: the Svelte 5 app and its Playwright e2e (`desktop` = Chrome, `iphone` = WebKit).
+- `apps/tasks`: the Svelte 5 app and its Playwright e2e (`desktop` = Chrome, `iphone` = WebKit).
 - `tools/`: Todoist import, the Claude guard hook, CI helper scripts.
 - `doc/`: specs, plans (`doc/plans/<issue>-<slug>.md`), backlog.
 
@@ -18,7 +18,7 @@ A PWA that keeps AL's tasks in plain Markdown files on his OneDrive. Specs: `doc
 | `pnpm typecheck` | all packages |
 | `pnpm test` | all Vitest projects |
 | `pnpm e2e` | fake-drive build + Playwright, both projects |
-| `pnpm --filter web build` | the production build |
+| `pnpm --filter tasks build` | the production build |
 
 ## Definition of done
 
@@ -39,7 +39,7 @@ Follow the `taskapp-factory` skill: pick up, size (`size:small` / `size:large`),
 
 - Never push to `main`, never merge, never force-push.
 - Never run Promote to production unless AL asks for it in this conversation.
-- Never delete or rewrite task lines in AL's real files (`ALAI/TaskApp`). For anything real use `ALAI/TaskApp-e2e` or `ALAI/TaskApp-staging`.
+- Never delete or rewrite task lines in AL's real files (`ALAI/TaskApp`). For anything real use `TaskApp-e2e` (in the app folder, which the real e2e uses) or `ALAI/TaskApp-staging`.
 - Never ask for a secret in chat. The cloud session has none and needs none.
 - Steps only AL can do (Entra, his PC, dashboards, billing) get the `needs-human` label and short numbered instructions.
 

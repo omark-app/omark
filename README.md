@@ -2,7 +2,7 @@
 
 A small task app that keeps your tasks in plain Markdown files on your own OneDrive (`tasks.md`, `done.md`, `config.yaml`). It is a Svelte 5 + TypeScript PWA with a list view and a week board, works offline, and the files stay editable in Obsidian or by Claude Code.
 
-Monorepo: `packages/core` (parsing and logic), `packages/storage` (OneDrive and the sign-in client), `packages/signin` (the sign-in helper, served from `functions/` as Cloudflare Pages Functions), `apps/web` (the app), `tools/todoist-import`, `tools/claude-guard` (the guard hook), `tools/ci` (CI helper scripts).
+Monorepo: `packages/tasks-core` (parsing and logic), `packages/storage` (OneDrive and the sign-in client), `packages/signin` (the sign-in helper, served from `functions/` as Cloudflare Pages Functions), `apps/tasks` (the Tasks app), `tools/todoist-import`, `tools/claude-guard` (the guard hook), `tools/ci` (CI helper scripts).
 
 Work on the app runs through GitHub issues and pull requests, mostly done by Claude in cloud sessions: see `CLAUDE.md` and [the factory spec](doc/TaskApp%20factory%20spec.md).
 
@@ -82,7 +82,7 @@ The SPA platform with `https://tasks.alipka.com/` and `http://localhost:5173/` c
 
 | command | what it does |
 | --- | --- |
-| `pnpm dev` (in `apps/web`) | dev server on http://localhost:5173 (no sign-in; use `VITE_STORAGE=fake`) |
+| `pnpm dev` (in `apps/tasks`) | dev server on http://localhost:5173 (no sign-in; use `VITE_STORAGE=fake`) |
 | `pnpm dev:signin` | build and serve the app with the sign-in helper on http://localhost:5173 (needs `.dev.vars`) |
 | `pnpm test` | unit tests |
 | `pnpm typecheck` | type checks |
@@ -98,7 +98,9 @@ The SPA platform with `https://tasks.alipka.com/` and `http://localhost:5173/` c
 | Staging | every merge to `main`, once `DEPLOY_ENABLED` is `true` | https://tasks-staging.alipka.com | OneDrive `ALAI/TaskApp-staging`, "STAGING" in the footer |
 | Production | by hand, once `DEPLOY_ENABLED` is `true`: Actions → **Promote to production** → Run workflow | https://tasks.alipka.com | OneDrive `ALAI/TaskApp` |
 
-Staging and production run the same build: the app picks its OneDrive folder and look from the host name (`apps/web/src/lib/environment.ts`). Promote takes a commit (empty = what staging runs now), refuses it unless it is on `main` with a passing CI run, deploys the build staging ran (or rebuilds it once that build has expired after 30 days), and tags it `tasks-prod-YYYY-MM-DD-n` with a release listing the PRs merged since the last one. Promote asks which app; only `tasks` exists so far.
+Staging and production run the same build: the app picks its OneDrive folder and look from the host name (`apps/tasks/src/lib/environment.ts`). Promote takes a commit (empty = what staging runs now), refuses it unless it is on `main` with a passing CI run, deploys the build staging ran (or rebuilds it once that build has expired after 30 days), and tags it `tasks-prod-YYYY-MM-DD-n` with a release listing the PRs merged since the last one. Promote asks which app; only `tasks` exists so far.
+
+The Pages Function in `functions/` serves every app. It picks the app from the Pages variable `OMARK_APP`; unset means `tasks`. Each app's Pages project sets its own value.
 
 **Rollback:** run Promote with an older `tasks-prod-` tag, or a `prod-` tag from before the monorepo move. Cloudflare's dashboard rollback also works.
 

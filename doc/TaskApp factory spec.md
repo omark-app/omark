@@ -100,7 +100,7 @@ Remote Control (driving the local PC session from the phone) is not used for fac
 A PR is ready for me when:
 
 1. The new behaviour, or the bug, has a test that was written first and failed before the change. The PR body quotes the failing line.
-2. `pnpm typecheck`, `pnpm test`, `pnpm e2e` and `pnpm --filter web build` pass in the session, then in CI.
+2. `pnpm typecheck`, `pnpm test`, `pnpm e2e` and `pnpm --filter tasks build` pass in the session, then in CI.
 3. The PR body follows the template, links the issue, and has the preview link.
 4. Claude has reviewed its own diff fresh (a review subagent with no memory of writing it) against the issue or the approved plan, and fixed what it found.
 5. For large work: every acceptance criterion in the plan is met or explicitly moved out.
@@ -162,7 +162,7 @@ Today every push to a PR branch runs CI twice (`push` and `pull_request`), about
 - `paths-ignore` for `doc/**` and `**/*.md`: doc-only changes skip CI.
 - e2e runs in Playwright's image, so no browsers or Linux packages are installed in a run.
 - Claude runs the suite in its session before pushing, so CI confirms rather than debugs.
-- Rough budget (each job rounds up to a whole minute): ~9 minutes per PR push (check 1, e2e desktop 3, e2e iPhone 4, preview 1) and ~9 per merge (deploy instead of preview). 2,000 minutes is about 220 PR pushes a month. A merge reaches deploy-staging in about 3.5 minutes.
+- Rough budget (each job rounds up to a whole minute): ~9 minutes per PR push (check 1, e2e desktop 3, e2e iPhone 4, preview 1) and ~9 per merge (deploy instead of preview). 2,000 minutes is about 220 PR pushes a month. A merge reaches tasks-staging in about 3.5 minutes.
 
 ## 7. Repo setup for Claude
 

@@ -41,8 +41,8 @@ export interface AuthOptions {
 
 /**
  * Sign-in through the app's own sign-in helper. The refresh token lives in an HttpOnly cookie that only
- * `/api/auth/token` receives, so it lasts 90 days (rolling) instead of an SPA's 24 hours and needs no
- * hidden iframe. The access token is kept in memory until a minute before it expires. A 401 from the
+ * `/api/auth/token` receives, so it lasts as long as the provider allows (Microsoft: 90 days, rolling)
+ * instead of an SPA's 24 hours, and needs no hidden iframe. The access token is kept in memory until a minute before it expires. A 401 from the
  * helper means sign in again (`AuthRequiredError`); no network, a timeout or a 503 means offline
  * (`OfflineError`), and the caller retries later.
  */

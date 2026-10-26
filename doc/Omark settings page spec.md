@@ -35,7 +35,7 @@ The alternative, one shared settings file for the suite, would need both apps to
 
 - A shared, schema-driven component: each app describes its settings (key, label, hint, type, allowed values, default) and the component draws the form, validates and writes. The reader's validation and the form use the same schema, so they can't disagree.
 - Omark Tasks gets it first. Omark Time uses it in milestone T (roadmap T.6 already lists a settings screen).
-- Where it lives (`packages/settings` now, or inside `apps/web` until the monorepo move) is the builder's call.
+- Where it lives (`packages/settings` now, or inside `apps/tasks` until the monorepo move) is the builder's call.
 
 ## 5. Acceptance criteria
 
