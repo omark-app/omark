@@ -48,7 +48,8 @@ for (const path of PAGES) {
 
 test('privacy lists every scope', async ({ page }) => {
   await page.goto('/privacy/');
-  const text = await page.locator('main').innerText();
+  // Exact code texts, so a scope that is a prefix of another (calendar.events.owned) can fail on its own.
+  const codes = (await page.locator('main code').allTextContents()).map((t) => t.trim());
   for (const scope of [
     'Files.ReadWrite.AppFolder',
     'offline_access',
@@ -58,10 +59,12 @@ test('privacy lists every scope', async ({ page }) => {
     'calendar.events.owned.readonly',
     'calendar.events.owned',
   ]) {
-    expect(text, scope).toContain(scope);
+    expect(codes, scope).toContain(scope);
   }
   const google = page.locator('section#google');
-  await expect(google).toContainText('Limited Use');
+  await expect(google).toContainText(
+    "Omark Tasks' and Omark Time's use and transfer to any other app of information received from Google APIs will adhere to the Google API Services User Data Policy, including the Limited Use requirements.",
+  );
   await expect(google.locator('a[href="https://developers.google.com/terms/api-services-user-data-policy"]')).not.toHaveCount(0);
   await expectNoSideScroll(page);
 });

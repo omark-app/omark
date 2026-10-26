@@ -267,10 +267,9 @@ code {
 @media (max-width: 480px) {
   .doc table { font-size: .875rem; }
   .doc th, .doc td { padding: 8px 8px; hyphens: auto; }
-  .doc td code { hyphens: none; }
   .doc th:nth-child(1) { width: 38%; }
   .doc th:nth-child(3) { width: 26%; }
-  .doc td code { font-size: .75rem; padding-inline: .2em; }
+  .doc td code { font-size: .75rem; padding-inline: .2em; hyphens: none; }
 }
 
 /* 404. */
