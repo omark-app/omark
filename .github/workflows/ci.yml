@@ -4,7 +4,8 @@ name: CI
 # and e2e run for it. Names, hosts and folders are repository variables (README, Environment variables), one
 # set per app: the deploy jobs are named after the app (tasks-preview, tasks-staging) and read TASKS_* ones.
 # CI can also be started by hand (Actions → CI → Run workflow) for when GitHub misses a push; on main that
-# deploys staging too. Production only changes through promote.yml. (doc/TaskApp factory spec.md, section 6)
+# deploys staging too. The Tasks app reaches production only through promote.yml. The site (omark.app) deploys
+# from main via site-production, and PRs get a site-preview. (doc/TaskApp factory spec.md, section 6)
 on:
   pull_request:
     paths-ignore: ['doc/**', '**/*.md']
@@ -325,11 +326,12 @@ jobs:
           workingDirectory: apps/site
           command: pages deploy dist --project-name=${{ vars.CF_SITE_PROJECT }} --branch=main
       - name: Check the site is live
-        # The privacy policy must name the Microsoft and Google Limited Use terms. The custom domain can take a
-        # moment to serve the new deploy, so try a few times.
+        # The privacy policy must carry Google's Limited Use text, and the site must send its CSP header. The custom
+        # domain can take a moment to serve the new deploy, so try a few times.
         run: |
           for try in 1 2 3 4 5; do
-            if curl -fsSL "$SITE_URL/privacy/" | grep -q "Limited Use"; then
+            if curl -fsSL --max-time 20 "$SITE_URL/privacy/" | grep -q "Limited Use" \r
+              && curl -sSI --max-time 20 "$SITE_URL/" | grep -qi '^content-security-policy:'; then
               echo "The site is live."
               exit 0
             fi

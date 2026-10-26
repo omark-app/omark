@@ -37,7 +37,7 @@
         <section id="who">
           <h2>Who we are</h2>
           <p>Omark is run by Andrzej Lipka, an individual in Poland. "We" and "us" on this page mean him. You can reach him at <a href="mailto:hello@omark.app">hello@omark.app</a>.</p>
-          <p>This policy covers the copies of Omark that we run on <code>omark.app</code> and its subdomains: this site, <code>tasks.omark.app</code>, <code>demo-tasks.omark.app</code>, <code>time.omark.app</code>, <code>demo-time.omark.app</code> and the <code>staging-*</code> test sites. Omark is open source, so anyone can run their own copy. Those copies are run by whoever hosts them, and this policy doesn't cover them.</p>
+          <p>This policy covers the copies of Omark that we run on <code>omark.app</code> and its subdomains: this site, <code>tasks.omark.app</code>, <code>demo-tasks.omark.app</code>, <code>time.omark.app</code>, <code>demo-time.omark.app</code> and the <code>staging-*</code> test sites. Omark's code will be published under the MIT licence at launch, so anyone will be able to run their own copy. Those copies are run by whoever hosts them, and this policy doesn't cover them.</p>
         </section>
 
         <section id="data">
@@ -63,18 +63,18 @@
               <tbody>
                 <tr><td>Session</td><td>Your refresh token, encrypted. It may be split across a few cookies. Your browser sends it only to <code>/api/auth/token</code>, and scripts on the page can't read it.</td><td>Up to 90 days</td></tr>
                 <tr><td>Sign-in in progress</td><td>Encrypted data that protects the sign-in from tampering. Scripts on the page can't read it.</td><td>Up to 10 minutes</td></tr>
-                <tr><td>Last account</td><td>The name of the account you used, encrypted, so the sign-in page can suggest it. Scripts on the page can't read it.</td><td>Up to 400 days</td></tr>
+                <tr><td>Last account</td><td>The email address or username of the account you used, encrypted, so the sign-in page can suggest it. Scripts on the page can't read it.</td><td>Up to 400 days</td></tr>
                 <tr><td>Signed in</td><td>Just "1", no personal data. The page can read it, so the app knows to fetch a token.</td><td>As long as the session</td></tr>
               </tbody>
             </table>
           </div>
-          <p>All of them are sent only over HTTPS, only to the app's own site, and not with requests from other sites (Secure, host-only, SameSite=Lax). They are strictly necessary for signing in, so there is no cookie banner. Signing out removes the session, last account and signed-in cookies.</p>
+          <p>All of them are sent only over HTTPS, only to the app's own site, and not with requests that other sites make in the background (Secure, host-only, SameSite=Lax). They are strictly necessary for signing in, so there is no cookie banner. Signing out removes the session, last account and signed-in cookies.</p>
           <p>There are no analytics, advertising or tracking cookies, and no third-party scripts.</p>
         </section>
 
         <section id="device">
           <h2>On your device</h2>
-          <p>So the apps work offline, they keep a copy of your files (in your browser's IndexedDB) and a few settings on your device. This copy stays in your browser. Signing out, or clearing the site's data in your browser, removes it.</p>
+          <p>So the apps work offline, they keep a copy of your files (in your browser's IndexedDB) and a few settings on your device. This copy stays in your browser. Clearing the site's data in your browser removes it.</p>
         </section>
 
         <section id="demo">
@@ -139,7 +139,7 @@
             </table>
           </div>
 
-          <p>Omark Time keeps the hours it works out from your events in your own files and in your browser's offline copy.</p>
+          <p>For each event that counts, Omark Time keeps this in your own files and in your browser's offline copy: the event id, date, start and end times (with time zone offset), hours, and the title parts (project code, category, description). Events whose titles don't follow <code>CODE; Category; what</code> are read but not stored.</p>
 
           <h3>What we do with your Google data</h3>
           <ul>
@@ -189,7 +189,7 @@
       <div class="wrap">
         <p class="footer-name">Omark · plain files you own</p>
         <nav aria-label="Footer">
-          <a href="/privacy/">Privacy</a>
+          <a href="/privacy/">Privacy policy</a>
           <a href="/terms/">Terms</a>
           <a href="mailto:hello@omark.app">hello@omark.app</a>
           <a href="https://opensource.org/license/mit">MIT licence</a>

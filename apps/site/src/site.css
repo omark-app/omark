@@ -105,7 +105,7 @@ code {
   font-size: .8125rem;
   font-weight: 600;
   letter-spacing: .02em;
-  color: var(--muted);
+  color: var(--ink);
   background: var(--chip);
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -255,7 +255,7 @@ code {
 .doc caption { caption-side: top; text-align: left; font-weight: 600; padding-bottom: 8px; }
 /* Words wrap whole; only code (scope names, paths) may break anywhere. */
 .doc th, .doc td { text-align: left; vertical-align: top; padding: 10px 12px; overflow-wrap: break-word; }
-.doc th { font-size: .8125rem; font-weight: 600; color: var(--muted); background: var(--chip); }
+.doc th { font-size: .8125rem; font-weight: 600; color: var(--ink); background: var(--chip); }
 .doc tbody td { border-top: 1px solid var(--line); }
 /* Round the corner cells instead of clipping the table, so the caption is never cut. */
 .doc thead th:first-child { border-top-left-radius: 13px; }

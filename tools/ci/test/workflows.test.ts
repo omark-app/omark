@@ -47,14 +47,15 @@ function forkProblems(wf: Workflow): string[] {
 
 describe('workflows', () => {
   it('gives every deployed build the CI run number; a Promote rebuild gets the promoted run’s', () => {
-    // Only the app builds: the site has no build number, so its builds are not looked at here.
+    // The site has no build number, so it is listed in the set of builds but left out of the BUILD_NUMBER check.
     const builds = (f: string, re = /^pnpm --filter .+ build$/) =>
       jobsOf(f).flatMap(([name, j]) =>
         (j.steps ?? []).filter((s) => re.test(s.run ?? '')).map((s) => ({ name, run: s.run, env: (s.env ?? {}) as Record<string, string> })),
       );
-    const ci = builds('ci.yml', /^pnpm --filter tasks build$/);
-    expect(ci.map((b) => b.name).sort()).toEqual(['tasks-preview', 'tasks-staging']);
-    for (const b of ci) expect(b.run, b.name).toBe('pnpm --filter tasks build');
+    const all = builds('ci.yml');
+    expect(all.map((b) => b.name).sort()).toEqual(['site-preview', 'site-production', 'tasks-preview', 'tasks-staging']);
+    const ci = all.filter((b) => !b.name.startsWith('site-'));
+    for (const b of all) expect(b.run, b.name).toBe(`pnpm --filter ${b.name.startsWith('site-') ? 'site' : 'tasks'} build`);
     for (const b of ci) expect(b.env.BUILD_NUMBER, b.name).toBe('${{ github.run_number }}');
     const promote = builds('promote.yml');
     expect(promote).toHaveLength(1);
@@ -217,6 +218,8 @@ describe('workflows', () => {
       // From apps/site, so wrangler bundles only its functions, never the sign-in helper at the root.
       expect(w.workingDirectory, name).toBe('apps/site');
       expect(w.command, name).toMatch(/^pages deploy dist --project-name=\$\{\{ vars\.CF_SITE_PROJECT \}\} /);
+      const branch = name === 'site-production' ? '--branch=main' : '--branch=pr-${{ github.event.number }}';
+      expect(w.command, name).toContain(` ${branch}`);
     }
   });
 
