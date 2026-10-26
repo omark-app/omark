@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Habit row states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.row{display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:13.5px;color:#4F33B3;background:#FFFFFF;border:1px solid #EEF1F5}
+.dot{width:15px;height:15px;border-radius:50%;border:1.5px solid #6A48D7;box-sizing:border-box;flex:none;background:transparent;padding:0}
+.t{flex:1}
+.hbar{width:44px;height:4px;border-radius:2px;background:#E4DEFA;overflow:hidden;flex:none}
+.hbar>div{height:4px;background:#6A48D7}
+.hmeta{font-family:'Geist',sans-serif;font-size:12px;font-weight:500;white-space:nowrap}
+.cap{font-family:'Geist',sans-serif;font-size:12px;color:#677084;width:210px;flex:none;line-height:1.35}
+.line{display:flex;align-items:center;gap:20px}
+</style>
+</helmet>
+<div style="width:880px;height:680px;box-sizing:border-box;background:#F2F4F7;padding:32px 40px;display:flex;flex-direction:column;gap:14px;font-family:'Geist',sans-serif;color:#151A22">
+  <h1 style="margin:0 0 6px;font-size:18px;font-weight:600">One habit row, six states</h1>
+
+  <div class="line">
+    <span class="cap"><b style="color:#151A22">On track</b><br>due today, no recent miss</span>
+    <div class="row" style="flex:1"><button class="dot" aria-label="Complete"></button><span class="t">Stretch 15 min</span><span class="hbar"><div style="width:13%"></div></span><span class="hmeta" style="color:#4F33B3">4/30</span></div>
+  </div>
+  <div class="line">
+    <span class="cap"><b style="color:#151A22">Last chance</b><br>missed the last one; another miss in a row restarts</span>
+    <div class="row" style="flex:1;background:#F7F5FE"><button class="dot" aria-label="Complete"></button><span class="t">Meditate 10 min</span><span style="font-family:'Geist',sans-serif;font-size:11px;font-weight:600;color:#C63B3B;background:#FBEAEA;border-radius:4px;padding:1px 6px">last chance</span><span class="hbar"><div style="width:18%"></div></span><span class="hmeta" style="color:#4F33B3">12/66</span></div>
+  </div>
+  <div class="line">
+    <span class="cap"><b style="color:#151A22">Done for this period</b><br>moved to its next date like any repeat</span>
+    <div class="row" style="flex:1"><button class="dot" aria-label="Complete"></button><span class="t">Read 20 pages</span><span class="hbar"><div style="width:47%"></div></span><span class="hmeta" style="color:#4F33B3">31/66</span><span class="hmeta" style="color:#677084">Tue</span></div>
+  </div>
+  <div class="line">
+    <span class="cap"><b style="color:#151A22">Open all week</b><br>a weekly habit can be done any day until its next date</span>
+    <div class="row" style="flex:1"><button class="dot" aria-label="Complete"></button><span class="t">Weekly review</span><span class="hbar"><div style="width:20%"></div></span><span class="hmeta" style="color:#4F33B3">3/15</span><span class="hmeta" style="color:#677084">by Sun</span></div>
+  </div>
+  <div class="line">
+    <span class="cap"><b style="color:#151A22">Restarted</b><br>a rule was broken; the label says so for one day</span>
+    <div class="row" style="flex:1"><button class="dot" aria-label="Complete"></button><span class="t">Cold shower</span><span style="font-family:'Geist',sans-serif;font-size:11px;font-weight:600;color:#677084;background:#EEF1F5;border-radius:4px;padding:1px 6px">restarted · best 9</span><span class="hbar"><div style="width:0%"></div></span><span class="hmeta" style="color:#4F33B3">0/30</span></div>
+  </div>
+  <div class="line">
+    <span class="cap"><b style="color:#151A22">Important habit</b><br>violet wins over amber; still sorts first</span>
+    <div class="row" style="flex:1"><button class="dot" aria-label="Complete"></button><span class="t">No phone before 9:00</span><span class="hmeta" style="color:#A84C08">⏫</span><span class="hbar"><div style="width:62%"></div></span><span class="hmeta" style="color:#4F33B3">41/66</span></div>
+  </div>
+
+  <div class="line" style="margin-top:10px">
+    <span class="cap"><b style="color:#151A22">Formed</b><br>toast when the goal is reached; the task leaves the list</span>
+    <div style="flex:1;display:flex;align-items:center;gap:12px;background:#151A22;color:#FFFFFF;border-radius:10px;padding:12px 16px;font-size:13px">
+      <span style="width:22px;height:22px;border-radius:50%;background:#6A48D7;display:flex;align-items:center;justify-content:center;flex:none">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="3" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg>
+      </span>
+      <span style="flex:1">Habit formed: <b>Read 20 pages</b> · 66 in 71 days · moved to History</span>
+      <a href="#" style="color:#87A4FF;text-decoration:none;font-weight:600">Keep as task</a>
+      <a href="#" style="color:#87A4FF;text-decoration:none;font-weight:600">Undo</a>
+    </div>
+  </div>
+  <div class="line">
+    <span class="cap"><b style="color:#151A22">Limit reached</b><br>a 4th habit is added as a plain repeating task</span>
+    <div style="flex:1;display:flex;align-items:center;gap:12px;background:#151A22;color:#FFFFFF;border-radius:10px;padding:12px 16px;font-size:13px">
+      <span style="flex:1">3 habits in progress already. <b>Journal 5 lines</b> added as a repeating task; make it a habit when one is formed or dropped.</span>
+      <a href="#" style="color:#87A4FF;text-decoration:none;font-weight:600">Undo</a>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":880,"height":680}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

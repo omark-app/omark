@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Habits history</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.lbl{font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#677084}
+.item{display:flex;flex-direction:column;gap:3px;padding:10px 0;border-bottom:1px solid #EEF1F5}
+.ti{font-family:'IBM Plex Mono',monospace;font-size:13.5px}
+.sub{font-size:12px;color:#677084}
+.tab{font-family:'Geist',sans-serif;font-size:12.5px;border:0;border-radius:6px;padding:6px 10px;background:transparent;color:#677084}
+</style>
+</helmet>
+<div style="width:560px;height:780px;box-sizing:border-box;background:#FFFFFF;border:1px solid #DCE0E7;border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;gap:12px;font-family:'Geist',sans-serif;color:#151A22">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <h1 style="margin:0;font-size:17px;font-weight:600">Habits</h1>
+    <button class="tab" style="border:1px solid #DCE0E7;font-size:11.5px">esc</button>
+  </div>
+  <div style="display:flex;gap:4px;background:#EEF1F5;border-radius:8px;padding:3px;align-self:flex-start">
+    <button class="tab" style="background:#FFFFFF;color:#151A22;font-weight:500">In progress 3 of 3</button>
+    <button class="tab">Formed 2</button>
+    <button class="tab">Dropped 1</button>
+  </div>
+
+  <div>
+    <div class="item"><span class="ti" style="color:#4F33B3">Read 20 pages</span><span class="sub">31 of 66 · every day · misses 1/6 · formed ~ 30 Nov</span></div>
+    <div class="item"><span class="ti" style="color:#4F33B3">Meditate 10 min</span><span class="sub"><span style="color:#C63B3B">last chance</span> · 12 of 66 · every day · attempt 2 (best 9)</span></div>
+    <div class="item"><span class="ti" style="color:#4F33B3">Gym: strength</span><span class="sub">9 of 30 · Mon, Wed, Fri · misses 0/3</span></div>
+  </div>
+
+  <span class="lbl" style="margin-top:8px">Formed</span>
+  <div>
+    <div class="item">
+      <span class="ti">No phone in bed</span>
+      <span class="sub">66 times · 1 Aug → 14 Oct (75 days) · 2 attempts</span>
+    </div>
+    <div class="item">
+      <span class="ti">Weekly review</span>
+      <span class="sub">15 times · every week on Sunday · 3 Jun → 16 Sep</span>
+    </div>
+  </div>
+
+  <span class="lbl" style="margin-top:8px">Dropped</span>
+  <div>
+    <div class="item">
+      <span class="ti" style="color:#677084">Cold shower</span>
+      <span class="sub">best 9 · 3 attempts · dropped 20 Jul</span>
+    </div>
+  </div>
+
+  <div style="margin-top:auto;font-size:12px;color:#677084;line-height:1.5">Formed and dropped habits live in <span style="font-family:'IBM Plex Mono',monospace">done.md</span>. Restarting a dropped one is just adding it again.</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":560,"height":780}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
