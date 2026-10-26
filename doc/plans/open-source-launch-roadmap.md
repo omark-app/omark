@@ -40,7 +40,7 @@ Each row is one issue and one PR; rows marked Plan get a detailed plan first.
 | # | Workstream | Spec | Size | Depends on |
 |---|---|---|---|---|
 | 2.1 | Demo storage mode (seeded, IndexedDB-durable, "Reset demo"), `pnpm demo`, `.env.example`, demo deployment at `demo-tasks.omark.app` | 6.3 | large, Plan | M1 |
-| 2.8 | *Done 2026-10-26 (#47).* **Monorepo move** (right after 2.1 merges): `apps/web` → `apps/tasks`, `packages/core` → `packages/tasks-core`, storage and sign-in made app-neutral, CI and Promote per app, paths, hooks and docs re-pointed; no behaviour change. AL: rename the repo to `omark` and the repository variables | 6.12 | large, Plan | 2.1 |
+| 2.8 | *Built 2026-10-26 (#47); after-merge steps pending.* **Monorepo move** (right after 2.1 merges): `apps/web` → `apps/tasks`, `packages/core` → `packages/tasks-core`, storage and sign-in made app-neutral, CI and Promote per app, paths, hooks and docs re-pointed; no behaviour change. AL: rename the repo to `omark` | 6.12 | large, Plan | 2.1 |
 | 2.2 | Landing page at `omark.app` with a card per app (Tasks, Time), privacy policy covering Google data (Limited Use) and terms; live early for Google's review | 6.3.1 | large, Plan | 2.8, 2.4 |
 | 2.3 | Docs set, suite-wide: README, PHILOSOPHY (principles), AGENTS.md (+ `CLAUDE.md` import), CONTRIBUTING, GOVERNANCE, SECURITY, CODE_OF_CONDUCT, LICENSE, `doc/tasks/spec.md`, `doc/format.md`, `doc/architecture.md`, `doc/self-hosting.md`, `doc/factory.md`, `doc/history/` (Omark Time's own docs come in T.8) | 6.7 | large, Plan | 2.8 |
 | 2.4 | Icon family: 2–3 directions shown with both the Tasks and Time glyphs → AL picks → full set for both apps in `brand/`, wired into the apps and manifests | 6.6 | large, Plan | 2.8 |

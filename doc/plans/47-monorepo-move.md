@@ -216,6 +216,8 @@
 5. **AL:** rename the repo: GitHub → `omark-app/tasks` → Settings → General → Repository name `omark` → Rename. (Claude tries `gh api -X PATCH repos/omark-app/tasks -f name=omark` first; the guard may block it.) Old URLs redirect.
 6. **Claude:** `git remote set-url origin https://github.com/omark-app/omark.git` in each checkout; a small docs PR points CLAUDE.md's `gh api` example and other `omark-app/tasks` mentions at `omark-app/omark`; update the memory notes.
 
+Note: re-running a CI run from before the move, after the old variables are deleted, fails at its variable check. This is expected.
+
 ## Out of scope
 
 - Anything of Omark Time (milestone T), the Google provider (3.8), demo mode (#31), the landing page (2.2).

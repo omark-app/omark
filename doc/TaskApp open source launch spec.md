@@ -340,7 +340,7 @@ AGENTS.md's task router names the app as well as the kind of task. The table bel
 | `doc/architecture.md` | The packages, the data flow (core → workspace and file sync → cache → adapter), three-way merge and eTags, the sign-in helper, how to add a storage adapter (with the contract test) | v1 spec §14–15, storage package, README |
 | `doc/self-hosting.md` | Your own Entra app, Cloudflare Pages projects, secrets, variables, Promote, rollback | README "Sign-in", "Deploy", "Later" |
 | `doc/factory.md` | The factory for maintainers and contributors (6.8), the Claude cloud environment | Factory spec, `TaskApp cloud environment.md` |
-| `doc/plans/` | Kept as is; `19-quick-dates-important.md` is generalised as the example plan | |
+| `doc/plans/` | Kept as is; `doc/history/19-quick-dates-important.md` is generalised as the example plan | |
 | `doc/history/` | The v1 build plan, factory build plan, spike findings and acceptance checklist, each with a one-line "historical, may be out of date" note at the top. Cloudflare account and zone IDs are removed from them. | Existing |
 
 **Removed:** `TaskApp ideation.md` (its spirit goes into PHILOSOPHY.md) and `TaskApp backlog.md` (its items become issues or Discussions ideas).

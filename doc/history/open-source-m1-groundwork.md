@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript, Svelte 5, Vite 8, Vitest, Playwright, Cloudflare Pages Functions, GitHub Actions, pnpm 10 workspaces.
 
-**Spec:** [doc/TaskApp open source launch spec.md](../TaskApp%20open%20source%20launch%20spec.md), sections 6.1, 6.2, 6.6. Roadmap: [open-source-launch-roadmap.md](open-source-launch-roadmap.md), items 1.1–1.6.
+**Spec:** [doc/TaskApp open source launch spec.md](../TaskApp%20open%20source%20launch%20spec.md), sections 6.1, 6.2, 6.6. Roadmap: [open-source-launch-roadmap.md](../plans/open-source-launch-roadmap.md), items 1.1–1.6.
 
 **Branch and PR:** one issue ("Milestone 1: groundwork", `size:large`, `plan-approved` once AL approves this file), one branch, one PR. The tasks land together because the build variables (Task 1) only take effect once CI passes them (Task 3). Commit per task.
 

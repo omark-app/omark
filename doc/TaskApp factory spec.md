@@ -172,7 +172,7 @@ Short and factual:
 - What TaskApp is and where things live; points to the specs.
 - Commands and the definition of done (section 5).
 - How work flows: sizing, plans, labels, PRs (sections 3–5).
-- Hard rules: never push to `main`, never merge, never run Promote unless I ask in that conversation, never delete or rewrite task lines in my real files, and use `ALAI/TaskApp-e2e` or `ALAI/TaskApp-staging` for anything real.
+- Hard rules: never push to `main`, never merge, never run Promote unless I ask in that conversation, never delete or rewrite task lines in my real files, and use `TaskApp-e2e` (in the app folder, which the real e2e uses) or `ALAI/TaskApp-staging` for anything real.
 - In cloud sessions, `gh issue` and `gh pr` (GraphQL) are blocked by the proxy: use the GitHub tools or `gh api` (REST).
 
 ### 7.2 Skills

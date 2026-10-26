@@ -2,7 +2,8 @@
 // Checks that a deployed site's sign-in helper is live and set up the way the build expects: /api/auth/login
 // must redirect to Microsoft for the right tenant, asking for the right OneDrive scope. A helper that grants
 // another scope than the app expects would make every read fail with 403, so this fails the deploy first.
-// Run by CI with SIGNIN_URL, MSAL_TENANT and ONEDRIVE_SCOPE (CI fills them from the repository variables TASKS_STAGING_URL, TASKS_MSAL_TENANT and TASKS_ONEDRIVE_SCOPE).
+// Run by CI with SIGNIN_URL, MSAL_TENANT and ONEDRIVE_SCOPE (the workflows fill them from the app's repository variables:
+// TASKS_STAGING_URL (CI) or TASKS_PROD_URL (Promote), TASKS_MSAL_TENANT and TASKS_ONEDRIVE_SCOPE).
 
 const APP_FOLDER = 'Files.ReadWrite.AppFolder';
 const FULL = 'Files.ReadWrite';

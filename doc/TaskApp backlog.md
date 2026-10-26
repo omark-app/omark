@@ -52,7 +52,7 @@ Ideas deliberately left out of v1 ([[TaskApp v1 spec]]). Grouped by theme; not o
 
 ## Testing
 
-- **Nightly real-OneDrive smoke in CI**: v1 runs it by hand; nightly needs a long-lived refresh token stored as a GitHub secret for the smoke, which uses the owner's own account and the `ALAI/TaskApp-e2e` folder.
+- **Nightly real-OneDrive smoke in CI**: v1 runs it by hand; nightly needs a long-lived refresh token stored as a GitHub secret for the smoke, which uses the owner's own account and the `TaskApp-e2e` folder in the app folder.
 - **tester.army e2e** agent-driven smoke tests once it reaches 1.0. Today it is pre-1.0, has no real mobile Safari or PWA support, and its natural-language assertions call a model on every run.
 
 ## Factory

@@ -39,7 +39,7 @@ Follow the `taskapp-factory` skill: pick up, size (`size:small` / `size:large`),
 
 - Never push to `main`, never merge, never force-push.
 - Never run Promote to production unless AL asks for it in this conversation.
-- Never delete or rewrite task lines in AL's real files (`ALAI/TaskApp`). For anything real use `TaskApp-e2e` (in the app folder, which the real e2e uses) or `ALAI/TaskApp-staging`.
+- Never delete or rewrite task lines in AL's real files (`ALAI/TaskApp`). For anything real use `TaskApp-e2e` (in the app folder, as the real e2e does) or `ALAI/TaskApp-staging`.
 - Never ask for a secret in chat. The cloud session has none and needs none.
 - Steps only AL can do (Entra, his PC, dashboards, billing) get the `needs-human` label and short numbered instructions.
 
