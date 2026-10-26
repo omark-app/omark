@@ -157,6 +157,11 @@ describe('createAuth (sign-in helper)', () => {
     expect(mk(undefined, BOTH).signedInProvider()).toBeNull();
   });
 
+  it.each(['nope', 'constructor', 'toString'])('signedInProvider reads a cookie value that is no provider (%s) as the default', (value) => {
+    cookie = `taskapp_signed_in=${value}`;
+    expect(mk(undefined, BOTH).signedInProvider()).toBe('microsoft');
+  });
+
   it('isSignedIn is true for a signed-in Google session too', () => {
     cookie = 'taskapp_signed_in=google';
     expect(mk(undefined, BOTH).isSignedIn()).toBe(true);
@@ -235,6 +240,16 @@ describe('createAuth (sign-in helper)', () => {
       await expect(mk(undefined, BOTH).handleRedirect()).rejects.toThrow('Microsoft could not be reached');
       at('https://tasks.example/?signin_error=unavailable&provider=nope');
       await expect(mk(undefined, BOTH).handleRedirect()).rejects.toThrow('Microsoft could not be reached');
+    });
+
+    it.each(['constructor', 'toString', '__proto__'])('uses the default provider for ?provider=%s', async (provider) => {
+      at(`https://tasks.example/?signin_error=failed&provider=${provider}`);
+      await expect(mk(undefined, BOTH).handleRedirect()).rejects.toThrow(new Error('Microsoft did not accept the sign-in'));
+    });
+
+    it.each(['constructor', 'toString', '__proto__', 'nope'])('gives the plain "Sign-in failed" for ?signin_error=%s', async (reason) => {
+      at(`https://tasks.example/?signin_error=${reason}`);
+      await expect(mk().handleRedirect()).rejects.toThrow(new Error('Sign-in failed'));
     });
 
     it('explains the scope error: sign in again and allow Drive access', async () => {

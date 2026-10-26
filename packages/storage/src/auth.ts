@@ -104,8 +104,9 @@ export function createAuth(opts: AuthOptions): Auth {
       .find((c) => c.startsWith(`${signedInCookie}=`));
     if (cookie === undefined) return null;
     const value = cookie.slice(signedInCookie.length + 1);
-    // Sessions from before there were providers have `1`: the default.
-    return value === '' ? null : value === '1' ? defaultProvider : value;
+    if (value === '') return null;
+    // Sessions from before there were providers have `1`: the default. hasOwn, so `constructor` is not a provider.
+    return Object.hasOwn(opts.providers, value) ? value : defaultProvider;
   }
 
   return {
@@ -118,8 +119,10 @@ export function createAuth(opts: AuthOptions): Auth {
       url.searchParams.delete('signin_error');
       url.searchParams.delete('provider');
       window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
-      const name = (provider !== null && opts.providers[provider]) || opts.providers[defaultProvider] || '';
-      throw new Error(signinErrors(name)[reason] ?? 'Sign-in failed');
+      // hasOwn, so `?provider=constructor` or `?signin_error=toString` read as unknown.
+      const id = provider !== null && Object.hasOwn(opts.providers, provider) ? provider : defaultProvider;
+      const errors = signinErrors(opts.providers[id] ?? '');
+      throw new Error(Object.hasOwn(errors, reason) ? errors[reason] : 'Sign-in failed');
     },
     async signIn(provider) {
       // A top-level navigation: the helper redirects to the provider and back to /api/auth/callback, which
