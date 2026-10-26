@@ -1,4 +1,3 @@
-import { parseDocument } from 'yaml';
 import { checkValue, readSettings } from './read.ts';
 import { fieldId } from './schema.ts';
 import type { Field, KeysField, NumberField, Schema, Values } from './schema.ts';
@@ -39,8 +38,8 @@ export function applyField(schema: Schema, text: string, field: Field, value: un
 }
 
 /**
- * Binds `key` to a command's slot. `set` lists the commands the file sets; a yielding
- * command still at its default gives way, as the reader does. Without it all count as set.
+ * Binds `key` to a command's slot. `keys` are the keys each command has now, so a yielding
+ * default counts as held, set in the file or not: the page never takes a key that shows elsewhere.
  */
 export function captureKey(
   field: KeysField,
@@ -48,13 +47,11 @@ export function captureKey(
   cmd: string,
   index: number,
   key: string,
-  set?: ReadonlySet<string>,
 ): { keys: KeyMap } | { error: string } {
   const mine = keys[cmd] ?? [];
   if (mine.includes(key) && mine[index] !== key) return { keys };
   for (const c of field.commands) {
     if (c.id === cmd || !(keys[c.id] ?? []).includes(key)) continue;
-    if (set && !set.has(c.id) && (field.yielding ?? []).includes(c.id)) continue;
     return { error: `\`${key}\` is already ${c.label}` };
   }
   const list = [...mine];
@@ -76,16 +73,6 @@ const KEY_FACES: Record<string, string> = {
 
 /** How a key shows on its chip. */
 export const displayKey = (key: string): string => KEY_FACES[key] ?? key;
-
-/** The commands of a keys field that the file sets itself (the rest are at their defaults). */
-export function setCommands(field: KeysField, text: string): Set<string> {
-  try {
-    const doc = parseDocument(text);
-    return new Set(field.commands.filter((c) => doc.hasIn([...field.path, c.id])).map((c) => c.id));
-  } catch {
-    return new Set();
-  }
-}
 
 /** Reads what was typed into a number field: a number, or for a percent field also '10%'. */
 export function numberInput(field: NumberField, typed: string): { value: unknown } | { error: string } {

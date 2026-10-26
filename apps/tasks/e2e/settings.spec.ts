@@ -41,7 +41,7 @@ async function captureKey(page: Page, cmd: string, key: string) {
 }
 
 test('the footer gear opens Settings with every setting', async ({ page, isMobile }) => {
-  await start(page, 'theme: dark\n');
+  await start(page, 'theme: dark\nsaveDelaySeconds: 2\n');
   const gear = page.getByTestId('open-settings');
   await expect(gear).toBeVisible();
   if (isMobile) {
@@ -63,6 +63,7 @@ test('the footer gear opens Settings with every setting', async ({ page, isMobil
   const keys = allFields(TASKS_SCHEMA).find((f): f is KeysField => f.type === 'keys')!;
   for (const c of keys.commands) await expect(page.getByTestId(`key-${c.id}-0`)).toBeVisible();
   await expect(themeButton(page, 'Dark')).toHaveAttribute('aria-pressed', 'true');
+  await expect(saveDelay(page)).toHaveValue('2');
 
   // The list's keys do nothing here: no search, no view switch.
   await page.locator('h1').click();
@@ -82,6 +83,11 @@ test('the footer gear opens Settings with every setting', async ({ page, isMobil
     // Browser back returns to the list.
     await page.goBack();
     await expect(page.getByTestId('bucket-today')).toBeVisible();
+    // In a field the comma is just typed.
+    await page.getByTestId('add-input').focus();
+    await page.keyboard.press(',');
+    await expect(settings(page)).toHaveCount(0);
+    await expect(page.getByTestId('add-input')).toHaveValue(',');
   }
 });
 
@@ -110,8 +116,7 @@ test('back to the default removes the key', async ({ page }) => {
 });
 
 test('invalid input is refused with a reason', async ({ page }) => {
-  // The file sets Important's key, so Important holds it (left unset, it would give its key way).
-  const seed = 'theme: dark\nshortcuts:\n  important: i\n';
+  const seed = 'theme: dark\n';
   await start(page, seed);
   await openSettings(page);
 

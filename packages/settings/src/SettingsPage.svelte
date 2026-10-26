@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import type { Snippet } from 'svelte';
-  import { applyField, setCommands, valueOf } from './edit.ts';
+  import { applyField, valueOf } from './edit.ts';
   import Field from './Field.svelte';
   import KeysCard from './KeysCard.svelte';
   import { readSettings } from './read.ts';
@@ -154,7 +154,6 @@
                   <KeysCard
                     {field}
                     value={valueOf(read.values, field) as Record<string, string[]>}
-                    set={setCommands(field, text)}
                     write={(keys) => write(field, keys)}
                   />
                 {:else}

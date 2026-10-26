@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyField, captureKey, displayKey, numberInput, readSettings, setCommands, valueOf, writeOnInput } from '../src/index.ts';
+import { applyField, captureKey, displayKey, numberInput, readSettings, valueOf, writeOnInput } from '../src/index.ts';
 import type { NumberField } from '../src/index.ts';
 import { demo, keys } from './demo.ts';
 
@@ -63,10 +63,14 @@ describe('captureKey', () => {
     expect(captureKey(keys, cur, 'a', 0, 'y')).toEqual({ error: '`y` is already B' });
   });
 
-  it('lets a yielding default give way unless it is set in the file', () => {
-    expect(captureKey(keys, cur, 'a', 0, ',', new Set(['b']))).toEqual({ keys: { a: [','], b: ['y'], c: [','] } });
-    expect(captureKey(keys, cur, 'a', 0, ',', new Set(['c']))).toEqual({ error: '`,` is already C' });
+  it('refuses a key a yielding default shows, even when the file does not set it', () => {
     expect(captureKey(keys, cur, 'a', 0, ',')).toEqual({ error: '`,` is already C' });
+  });
+
+  it('names the command that took a yielding default, not the one that gave way', () => {
+    // The reader leaves a yielding command no keys once the file gives its key to another.
+    const gaveWay = { a: ['x'], b: [','], c: [] };
+    expect(captureKey(keys, gaveWay, 'a', 0, ',')).toEqual({ error: '`,` is already B' });
   });
 });
 
@@ -93,18 +97,6 @@ describe('displayKey', () => {
     expect(displayKey('x')).toBe('x');
     expect(displayKey(',')).toBe(',');
     expect(displayKey('F2')).toBe('F2');
-  });
-});
-
-describe('setCommands', () => {
-  it('lists the commands the file sets', () => {
-    expect(setCommands(keys, 'theme: dark\nshortcuts:\n  c: q\n  a: [r, s]\n')).toEqual(new Set(['a', 'c']));
-  });
-
-  it('is empty when the file sets none or does not parse', () => {
-    expect(setCommands(keys, '')).toEqual(new Set());
-    expect(setCommands(keys, 'shortcuts: x\n')).toEqual(new Set());
-    expect(setCommands(keys, 'shortcuts: [\n')).toEqual(new Set());
   });
 });
 

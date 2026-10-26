@@ -6,17 +6,15 @@
 
   /**
    * The rows of a keys field: one per command, a chip per key. Click a chip, then press the new key.
-   * `set` lists the commands the file sets; `write` saves the whole map and returns the reason when it can't.
+   * `value` holds the keys each command has now; `write` saves the whole map and returns the reason when it can't.
    */
   let {
     field,
     value,
-    set,
     write,
   }: {
     field: KeysField;
     value: Record<string, string[]>;
-    set: ReadonlySet<string>;
     write: (keys: Record<string, string[]>) => string | null;
   } = $props();
 
@@ -54,7 +52,7 @@
       e.stopImmediatePropagation();
       // Also when the key is refused: Space or Enter must not click the armed chip and disarm it.
       swallowKeyup = e.key;
-      const r = captureKey(field, value, at.cmd, at.index, e.key, set);
+      const r = captureKey(field, value, at.cmd, at.index, e.key);
       const reason = 'error' in r ? r.error : write(r.keys);
       if (reason !== null) {
         error = reason;

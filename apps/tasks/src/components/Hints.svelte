@@ -1,7 +1,7 @@
 <div class="hints" data-testid="hints">
   <span><kbd>/</kbd> add</span><span><kbd>j</kbd><kbd>k</kbd> move</span><span><kbd>↵</kbd> edit</span>
   <span><kbd>t</kbd><kbd>m</kbd><kbd>w</kbd><kbd>e</kbd> today · tomorrow · week · next</span><span><kbd>d</kbd> date</span><span><kbd>s</kbd> someday</span>
-  <span><kbd>r</kbd> repeat</span><span><kbd>i</kbd> important</span><span><kbd>x</kbd> done</span><span><kbd>del</kbd> delete</span><span><kbd>z</kbd> undo</span><span><kbd>f</kbd> search</span><span><kbd>esc</kbd> close</span><span><kbd>v</kbd> view</span>
+  <span><kbd>r</kbd> repeat</span><span><kbd>i</kbd> important</span><span><kbd>x</kbd> done</span><span><kbd>del</kbd> delete</span><span><kbd>z</kbd> undo</span><span><kbd>f</kbd> search</span><span><kbd>esc</kbd> close</span><span><kbd>v</kbd> view</span><span><kbd>,</kbd> settings</span>
 </div>
 
 <style>
