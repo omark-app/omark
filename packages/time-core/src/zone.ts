@@ -31,11 +31,14 @@ function offsetMs(ms: number, tz: string): number {
   return asUtc - Math.floor(ms / 1000) * 1000;
 }
 
+const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/i;
+
 const pad = (n: number, width = 2) => String(n).padStart(width, '0');
 
 /** An RFC 3339 instant to epoch milliseconds. */
 export function parseInstant(rfc3339: string): number {
-  const ms = Date.parse(rfc3339);
+  // Without an offset Date.parse would read the string in the machine's zone.
+  const ms = INSTANT.test(rfc3339) ? Date.parse(rfc3339) : NaN;
   if (Number.isNaN(ms)) throw new Error(`Not an RFC 3339 instant: ${rfc3339}`);
   return ms;
 }
