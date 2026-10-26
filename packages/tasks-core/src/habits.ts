@@ -37,7 +37,9 @@ function strideDates(rule: RepeatRule, anchor: ISODate, d: ISODate): ISODate[] {
     const n = rule.n ?? 1;
     const monday = addDays(anchor, -dayOfWeek(anchor));
     const week = Math.floor(daysBetween(monday, d) / 7);
-    around(Math.floor(week / n), (j) => rule.days.forEach((day) => out.push(addDays(monday, j * n * 7 + day))));
+    // Sorted here too: a rule built by hand may list its days out of order.
+    const days = [...rule.days].sort((a, b) => a - b);
+    around(Math.floor(week / n), (j) => days.forEach((day) => out.push(addDays(monday, j * n * 7 + day))));
   } else {
     // Calendar months: `every n months`, `yearly`, or the rule day every n-th month.
     const n = rule.type === 'every' ? rule.n : rule.type === 'yearly' ? 12 : rule.type === 'monthly' ? (rule.n ?? 1) : 1;

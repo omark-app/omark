@@ -99,6 +99,11 @@ describe('periods', () => {
     expect(periodOf(fortnight, '2026-10-01', '2026-10-01')).toEqual({ start: '2026-09-28', end: '2026-10-01' });
     expect(periodOf(fortnight, '2026-10-01', '2026-10-08')).toEqual({ start: '2026-10-02', end: '2026-10-11' });
     expect(periodOf(fortnight, '2026-10-01', '2026-09-25')).toEqual({ start: '2026-09-18', end: '2026-09-27' });
+    // Days out of order (a rule built by hand) give the same periods.
+    const unsorted: RepeatRule = { type: 'weekly', days: [4, 0], n: 2 };
+    for (const d of ['2026-10-01', '2026-10-08', '2026-09-25', '2026-10-13']) {
+      expect(periodOf(unsorted, '2026-10-01', d)).toEqual(periodOf(fortnight, '2026-10-01', d));
+    }
     const quarterly: RepeatRule = { type: 'monthly', day: 10, n: 3 };
     expect(periodOf(quarterly, '2026-10-20', '2026-12-01')).toEqual({ start: '2026-10-10', end: '2027-01-09' });
     expect(periodOf(quarterly, '2026-10-20', '2026-10-05')).toEqual({ start: '2026-07-10', end: '2026-10-09' });
