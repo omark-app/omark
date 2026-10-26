@@ -91,6 +91,33 @@ test('the footer gear opens Settings with every setting', async ({ page, isMobil
   }
 });
 
+test('‹ Tasks goes back in history, so browser back then does not reopen Settings', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'desktop only');
+  await start(page, '');
+  // An entry behind the list, so browser back stays in the app.
+  await page.evaluate(() => history.pushState(null, '', '/'));
+  await openSettings(page);
+  await page.getByTestId('settings-back').click();
+  await expect(page.getByTestId('bucket-today')).toBeVisible();
+  await page.goBack();
+  await expect(page.getByTestId('bucket-today')).toBeVisible();
+  await expect(settings(page)).toHaveCount(0);
+});
+
+test('on a direct load of #settings, ‹ Tasks links to the list', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'desktop only');
+  await start(page, '');
+  await page.goto('about:blank');
+  await page.goto('/#settings');
+  await expect(settings(page)).toBeVisible();
+  await expect(page.getByTestId('settings-back')).toHaveAttribute('href', '#');
+  await page.getByTestId('settings-back').click();
+  await expect(page.getByTestId('bucket-today')).toBeVisible();
+  // The link added an entry: back is Settings again, not the page before the app.
+  await page.goBack();
+  await expect(settings(page)).toBeVisible();
+});
+
 test('the theme applies at once and only that key is written', async ({ page }) => {
   await start(page, DEFAULT_CONFIG_YAML);
   await openSettings(page);

@@ -45,6 +45,12 @@
   let sheet = $state<OpenSheet | null>(null);
   // Settings is its own page at #settings, so browser back leaves it.
   let onSettings = $state(location.hash === '#settings');
+  // A direct load of #settings has no list behind it, so its ‹ Tasks follows the link. The entry is
+  // marked, so it is known when browser back or forward returns to it. Opened from the app (the gear,
+  // `,`), ‹ Tasks goes back instead: a second entry would make browser back reopen Settings.
+  const DIRECT = 'settingsLoadedDirect';
+  if (onSettings) history.replaceState({ ...history.state, [DIRECT]: true }, '');
+  let settingsDirect = $state(onSettings);
   // Phones always get the Task list (whatever the view), with the + button.
   const phone = createPhone();
   const search = createSearch();
@@ -77,10 +83,16 @@
     sheet = { kind: 'date', id, suggested, beforeId: beforeId ?? undefined };
   }
 
+  function backToTasks(e: MouseEvent): void {
+    e.preventDefault();
+    history.back();
+  }
+
   /** Settings replaces the views; whatever was open over them closes. */
   function onhashchange(): void {
     onSettings = location.hash === '#settings';
     if (!onSettings) return;
+    settingsDirect = (history.state as Record<string, unknown> | null)?.[DIRECT] === true;
     window.scrollTo(0, 0);
     sheet = null;
     if (search.mode !== 'closed') search.close(false);
@@ -214,7 +226,7 @@
         schema={TASKS_SCHEMA}
         text={store.configText}
         onwrite={(text) => store.writeConfig(text)}
-        back={{ label: '‹ Tasks', href: '#' }}
+        back={{ label: '‹ Tasks', href: '#', onclick: settingsDirect ? undefined : backToTasks }}
         apps={{ current: 'Omark Tasks', other: { label: 'Omark Time', href: timeSettingsUrl(location.host) } }}
         note={store.configNote}
         defaultText={DEFAULT_CONFIG_YAML}

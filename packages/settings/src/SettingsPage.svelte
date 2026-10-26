@@ -26,7 +26,8 @@
     schema: Schema;
     text: string;
     onwrite: (text: string) => void;
-    back: { label: string; href: string };
+    /** The back link; `onclick` may go back in history instead of following `href`. */
+    back: { label: string; href: string; onclick?: (e: MouseEvent) => void };
     apps: { current: string; other: { label: string; href: string } };
     /** A message above the cards, e.g. that a change made elsewhere won. */
     note?: string | null;
@@ -110,7 +111,7 @@
   <div class="page">
     <header>
       <div class="title">
-        <a class="back" data-testid="settings-back" href={back.href}>{back.label}</a>
+        <a class="back" data-testid="settings-back" href={back.href} onclick={back.onclick}>{back.label}</a>
         <h1>Settings</h1>
       </div>
       <div class="seg" role="group" aria-label="App">
