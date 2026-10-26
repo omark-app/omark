@@ -15,7 +15,8 @@ on:
     paths-ignore: ['doc/**', '**/*.md']
 concurrency:
   # PRs: a newer push replaces the older run. main: one group per commit, so no merge's checks are dropped.
-  # (Its tasks-staging job still queues in the `staging` group, where only the newest waiting deploy runs.)
+  # (Its tasks-staging and tasks-demo jobs still queue in their own `staging` and `demo` groups, where only the
+  # newest waiting deploy runs.)
   group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
