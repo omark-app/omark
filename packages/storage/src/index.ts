@@ -6,6 +6,7 @@ export type { DriveRoot, OneDriveAdapterOptions } from './onedrive-adapter.ts';
 export { createAuth } from './auth.ts';
 export type { Auth, AuthOptions } from './auth.ts';
 export { IdbCache, MemoryCache, migrateCache } from './cache.ts';
+export { IdbDrive } from './idb-drive.ts';
 export type { CachedFile, LocalCache } from './cache.ts';
 export { FileSync } from './file-sync.ts';
 export type { FileSyncOptions, SyncStatus } from './file-sync.ts';
