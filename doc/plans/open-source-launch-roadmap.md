@@ -10,6 +10,22 @@ Updated 2026-10-22 for the suite:
 
 The launch waits for both apps. Row numbers already in use are unchanged.
 
+## Running in parallel (2026-10-26)
+
+The rows below keep their numbers, but work now runs in waves: each item in a wave is its own session in its own worktree, with its own issue, plan and PR. AL's part is batched per wave: one sitting to approve the wave's plans, one to check staging and Promote once for the wave.
+
+The longest chain is Omark Time: 3.8 → T.4 → T.5 → T.6/T.7 → a week of AL's own use (T.11). So 3.8 and T.3 start first. The second chain is Google: 2.2 must be live before both Google projects can leave Testing.
+
+| Wave | Items (parallel) | AL |
+|---|---|---|
+| 1 | 2.2 landing and privacy policy (`apps/site`, wordmark until 2.4 lands); 3.8 Google Drive and the Google sign-in provider; T.2 milestone plan, then T.3 `time-core`; 2.1 demo mode (#31, rebased onto `apps/tasks`); 2.4 icon directions (shown as a page) | approve 4 plans, pick an icon direction, read the privacy policy |
+| 2 | 3.1 local folder; T.4 `calendar` (the interface and fake can start in wave 1, the Google part needs 3.8's provider); 2.3 docs; 2.4 full icon set; publish both Google projects once 2.2 is live | approve plans, approve PHILOSOPHY (2.7), consent clicks with `hello@omark.app` |
+| 3 | 3.2 first-run choice; T.5 `apps/time` shell; T.8 Time skill and format docs; 2.5 factory; 3.3/3.4 Omark Entra, Pages and CI | Entra registrations, staging checks |
+| 4 | T.6 screens; T.7 Time demo; T.9 Time production; 3.6 cutover, then 3.7 | T.11 a week on his own calendar, cutover |
+| 5 | 4.1 seeded issues, 2.6 pilot developers, 4.3, milestone 5 | the launch steps |
+
+Clashes to watch: 2.1 and 2.2 both add a deploy job to `ci.yml`, and 3.1 and 3.8 both add an adapter to `packages/storage`. New files keep these small; whichever PR merges second rebases.
+
 Legend: **AL** = a step only AL can do (`needs-human`). **Plan** = a detailed TDD plan in `doc/plans/` is written and approved before the work starts.
 
 ## Milestone 0: name and home (AL, before any code) — done 2026-10-21
@@ -40,7 +56,7 @@ Each row is one issue and one PR; rows marked Plan get a detailed plan first.
 | # | Workstream | Spec | Size | Depends on |
 |---|---|---|---|---|
 | 2.1 | Demo storage mode (seeded, IndexedDB-durable, "Reset demo"), `pnpm demo`, `.env.example`, demo deployment at `demo-tasks.omark.app` | 6.3 | large, Plan | M1 |
-| 2.8 | *Built 2026-10-26 (#47); after-merge steps pending.* **Monorepo move** (right after 2.1 merges): `apps/web` → `apps/tasks`, `packages/core` → `packages/tasks-core`, storage and sign-in made app-neutral, CI and Promote per app, paths, hooks and docs re-pointed; no behaviour change. AL: rename the repo to `omark` | 6.12 | large, Plan | 2.1 |
+| 2.8 | *Done 2026-10-26 (#47, PR #48; repo renamed `omark-app/omark`).* **Monorepo move** (right after 2.1 merges): `apps/web` → `apps/tasks`, `packages/core` → `packages/tasks-core`, storage and sign-in made app-neutral, CI and Promote per app, paths, hooks and docs re-pointed; no behaviour change. AL: rename the repo to `omark` | 6.12 | large, Plan | 2.1 |
 | 2.2 | Landing page at `omark.app` with a card per app (Tasks, Time), privacy policy covering Google data (Limited Use) and terms; live early for Google's review | 6.3.1 | large, Plan | 2.8, 2.4 |
 | 2.3 | Docs set, suite-wide: README, PHILOSOPHY (principles), AGENTS.md (+ `CLAUDE.md` import), CONTRIBUTING, GOVERNANCE, SECURITY, CODE_OF_CONDUCT, LICENSE, `doc/tasks/spec.md`, `doc/format.md`, `doc/architecture.md`, `doc/self-hosting.md`, `doc/factory.md`, `doc/history/` (Omark Time's own docs come in T.8) | 6.7 | large, Plan | 2.8 |
 | 2.4 | Icon family: 2–3 directions shown with both the Tasks and Time glyphs → AL picks → full set for both apps in `brand/`, wired into the apps and manifests | 6.6 | large, Plan | 2.8 |
