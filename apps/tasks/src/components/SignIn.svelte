@@ -4,13 +4,14 @@
   import type { StorageProvider } from '../lib/environment.ts';
   /**
    * First run, or signed out: the only way in is an account with one of `providers` (the files live in its
-   * storage: OneDrive for Microsoft, Google Drive for Google).
+   * storage: OneDrive for Microsoft, Google Drive for Google). With one provider the sign-in names none,
+   * so its request stays `/api/auth/login` as before.
    */
   let {
     providers,
     onsignin,
     error = null,
-  }: { providers: string[]; onsignin: (provider: string) => void; error?: string | null } = $props();
+  }: { providers: string[]; onsignin: (provider?: string) => void; error?: string | null } = $props();
 
   const storages = $derived(providers.map((p) => STORAGE_NAMES[p as StorageProvider] ?? p).join(' or '));
 </script>
@@ -20,7 +21,7 @@
   <p>Your tasks live in plain files in your {storages}. Sign in to open them.</p>
   <div class="buttons">
     {#each providers as provider (provider)}
-      <button type="button" class="btn" onclick={() => onsignin(provider)}>
+      <button type="button" class="btn" onclick={() => onsignin(providers.length > 1 ? provider : undefined)}>
         Sign in with {SIGN_IN_NAMES[provider as StorageProvider] ?? provider}
       </button>
     {/each}

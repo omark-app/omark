@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   cacheName,
+  syncedAtKey,
   envForHost,
   folderFor,
   googleFolderFor,
@@ -113,6 +114,13 @@ describe('cacheName', () => {
   });
   it('names each storage', () => {
     expect(STORAGE_NAMES).toEqual({ microsoft: 'OneDrive', google: 'Google Drive' });
+  });
+});
+
+describe('syncedAtKey', () => {
+  it('keeps the OneDrive key of today and gives Google Drive its own', () => {
+    expect(syncedAtKey('microsoft', 'Dev/Tasks')).toBe('taskapp:synced-at:Dev/Tasks');
+    expect(syncedAtKey('google', 'Dev/Tasks')).toBe('taskapp:synced-at:google:Dev/Tasks');
   });
 });
 

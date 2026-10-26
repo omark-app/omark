@@ -31,6 +31,8 @@ test('with Google set up, the sign-in screen offers both, and the Google button 
   await expect(page.getByRole('button', { name: 'Sign in with Microsoft' })).toBeVisible();
   await page.getByRole('button', { name: 'Sign in with Google' }).click();
   await expect.poll(() => signInWith(page)).toEqual(['google']);
+  await page.getByRole('button', { name: 'Sign in with Microsoft' }).click();
+  await expect.poll(() => signInWith(page)).toEqual(['google', 'microsoft']);
 });
 
 test('without Google set up, the sign-in screen has only Microsoft', async ({ page }) => {
@@ -38,6 +40,17 @@ test('without Google set up, the sign-in screen has only Microsoft', async ({ pa
   await expect(page.getByText('Your tasks live in plain files in your OneDrive. Sign in to open them.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Sign in with Microsoft' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Sign in with Google' })).toHaveCount(0);
+  // with one provider the sign-in asks for none, so the request stays `/api/auth/login` as before
+  await page.getByRole('button', { name: 'Sign in with Microsoft' }).click();
+  await expect.poll(() => signInWith(page)).toEqual([null]);
+});
+
+test('a Google session that needs signing in again signs in with Google, not the default', async ({ page }) => {
+  // The helper clears the signed-in cookie on a failed token request, so the app must remember the provider.
+  await openApp(page, { auth: 'google-expired', files: { 'tasks.md': SPEC_TASKS } });
+  await expect(page.getByTestId('sync-banner')).toContainText('Sign in again to reach Google Drive — showing your last saved copy');
+  await page.getByTestId('sync-banner').getByRole('button', { name: 'Sign in' }).click();
+  await expect.poll(() => signInWith(page)).toEqual(['google']);
 });
 
 test('signed in with Google on an empty drive, the first task creates the folder and tasks.md', async ({ page, isMobile }) => {

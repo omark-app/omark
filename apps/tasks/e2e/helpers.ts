@@ -35,7 +35,7 @@ export async function openApp(
     files?: Partial<Record<FileName, string>>;
     now?: string;
     fakeTimers?: boolean;
-    auth?: 'signed-out' | 'google';
+    auth?: 'signed-out' | 'google' | 'google-expired';
     providers?: string[];
   } = {},
 ): Promise<void> {

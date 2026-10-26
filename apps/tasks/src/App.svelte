@@ -110,7 +110,7 @@
   /**
    * Signs in by redirect, which leaves the page. Pending edits go to the cache first; if some would
    * still be lost (memory-only cache, or the cache write failed), the user decides. Without `provider`,
-   * the account signed in last (signing in again).
+   * the helper's default. Signing in again passes the provider the open storage belongs to.
    */
   async function signIn(provider?: string): Promise<void> {
     if (result === null || !result.auth) return;
@@ -184,7 +184,8 @@
   <SignIn providers={result.providers} onsignin={signIn} error={signInError} />
 {:else}
   {@const store = result.store}
-  {@const onSignIn = result.auth ? () => signIn() : undefined}
+  {@const provider = result.provider}
+  {@const onSignIn = result.auth ? () => signIn(provider) : undefined}
   {@const storageName = result.storageName}
   {@const updates = result.updates}
   {#if signInError}<p class="signin-error" role="alert">{signInError}</p>{/if}

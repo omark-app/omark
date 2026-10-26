@@ -9,9 +9,11 @@ import type { TaskFile } from './workspace.ts';
  * - `expired`: signed in, but every token refresh needs a fresh sign-in;
  * - `redirect-error`: returning from the sign-in page fails, so the app cannot start;
  * - `stalled-start`: the sign-in library never finishes starting (a hung library), and tokens need a sign-in;
- * - `google`: signed in with Google, with Drive access granted (tokens always come).
+ * - `google`: signed in with Google, with Drive access granted (tokens always come);
+ * - `google-expired`: signed in with Google, but every token refresh needs a fresh sign-in, and the first
+ *   failed one clears the signed-in cookie (as the helper does), so `signedInProvider()` turns null.
  */
-export type AuthStubState = 'signed-out' | 'expired' | 'redirect-error' | 'stalled-start' | 'google';
+export type AuthStubState = 'signed-out' | 'expired' | 'redirect-error' | 'stalled-start' | 'google' | 'google-expired';
 
 /**
  * A stand-in for the sign-in helper. `signIns` counts sign-in attempts (the real one would leave the page);
@@ -24,6 +26,7 @@ export interface AuthStub extends Auth {
 
 export function createAuthStub(state: AuthStubState, providers: string[] = ['microsoft']): AuthStub {
   const signInWith: (string | null)[] = [];
+  let cookieCleared = false;
   return {
     get signIns() {
       return signInWith.length;
@@ -34,13 +37,17 @@ export function createAuthStub(state: AuthStubState, providers: string[] = ['mic
       if (state === 'stalled-start') await new Promise<never>(() => {});
     },
     isSignedIn: () => state !== 'signed-out',
-    signedInProvider: () => (state === 'signed-out' ? null : state === 'google' ? 'google' : 'microsoft'),
+    signedInProvider: () => {
+      if (state === 'signed-out' || cookieCleared) return null;
+      return state.startsWith('google') ? 'google' : 'microsoft';
+    },
     availableProviders: async () => providers,
     async signIn(provider?: string) {
       signInWith.push(provider ?? null);
     },
     async getToken() {
       if (state === 'google') return 'fake-google-token';
+      if (state === 'google-expired') cookieCleared = true;
       throw new AuthRequiredError('Sign in needed');
     },
   };

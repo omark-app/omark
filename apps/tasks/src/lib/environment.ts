@@ -82,6 +82,11 @@ export function cacheName(provider: StorageProvider, folder: string): string {
   return provider === 'google' ? `taskapp:google:${folder}` : `taskapp:${folder}`;
 }
 
+/** The localStorage key for when that cache last synced: one per cache, OneDrive's as it has always been. */
+export function syncedAtKey(provider: StorageProvider, folder: string): string {
+  return provider === 'google' ? `taskapp:synced-at:google:${folder}` : `taskapp:synced-at:${folder}`;
+}
+
 /** The old offline copy was made for the production folder only, so only that folder migrates it. */
 export function legacyCacheApplies(folder: string, cfg: HostConfig): boolean {
   return cfg.prodFolder !== '' && folder === cfg.prodFolder;

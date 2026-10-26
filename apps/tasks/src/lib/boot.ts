@@ -17,7 +17,7 @@ import { createWorkspace, TASK_FILES } from './workspace.ts';
 import type { TaskFile, Workspace } from './workspace.ts';
 import type { AuthStub, AuthStubState } from './auth-stub.ts';
 import { systemClock } from './clock.ts';
-import { cacheName, legacyCacheApplies, SIGN_IN_NAMES, STORAGE_NAMES } from './environment.ts';
+import { cacheName, legacyCacheApplies, SIGN_IN_NAMES, STORAGE_NAMES, syncedAtKey } from './environment.ts';
 import type { StorageProvider } from './environment.ts';
 import { installLifecycle } from './lifecycle.ts';
 import { createStore } from './store.svelte.ts';
@@ -47,11 +47,13 @@ declare global {
 
 /**
  * `ready`: the store is open; `auth` (null in fake mode) lets the UI sign in again when the status reads
- * `sign in needed`; `updates` loads newer builds; `storageName` is what the texts call the storage.
+ * `sign in needed`; `updates` loads newer builds; `provider` is the sign-in the storage belongs to, so
+ * signing in again keeps to it (the helper forgets it on a failed token request); `storageName` is what
+ * the texts call the storage.
  * `signin`: no signed-in account; the UI offers `providers` and calls `auth.signIn(provider)`.
  */
 export type BootResult =
-  | { kind: 'ready'; store: AppStore; auth: Auth | null; updates: Updates; storageName: string }
+  | { kind: 'ready'; store: AppStore; auth: Auth | null; updates: Updates; provider: StorageProvider; storageName: string }
   | { kind: 'signin'; auth: Auth; providers: string[] };
 
 const PHONE_QUERY = '(max-width: 719.98px)';
@@ -90,7 +92,7 @@ const isPhone = (): boolean => window.matchMedia(PHONE_QUERY).matches;
 export async function boot(): Promise<BootResult> {
   if (STORAGE_MODE === 'fake') {
     const seed = fakeSeed(APP_ENV, window.__TASKAPP_SEED__, toISODate(new Date()));
-    if (window.__TASKAPP_AUTH_STUB__ === 'google') return fakeGoogle(seed);
+    if (window.__TASKAPP_AUTH_STUB__?.startsWith('google')) return fakeGoogle(seed, window.__TASKAPP_AUTH_STUB__);
     const drive = new FakeOneDrive(seed);
     window.__taskappFake = drive;
     if (window.__TASKAPP_FAKE_DURABLE__) {
@@ -118,11 +120,11 @@ export async function boot(): Promise<BootResult> {
   );
 }
 
-/** Fake builds with the `google` stub: signed in with Google, the real adapter over a fake Google Drive. */
-function fakeGoogle(seed: Partial<Record<TaskFile, string>>): Promise<BootResult> {
+/** Fake builds with a `google` stub: signed in with Google, the real adapter over a fake Google Drive. */
+function fakeGoogle(seed: Partial<Record<TaskFile, string>>, stub: AuthStubState): Promise<BootResult> {
   const drive = new FakeGoogleDrive(seed, GOOGLE_FOLDER);
   window.__taskappFake = drive;
-  const auth = (window.__taskappAuth = createAuthStub('google', window.__TASKAPP_PROVIDERS__));
+  const auth = (window.__taskappAuth = createAuthStub(stub, window.__TASKAPP_PROVIDERS__));
   const adapter = new GoogleDriveAdapter({ folder: GOOGLE_FOLDER, getToken: () => auth.getToken(), fetch: drive.fetch });
   return signedIn(auth, () => ({ place: GOOGLE, adapter }), inMemory);
 }
@@ -177,12 +179,9 @@ export function settlesWithin(p: Promise<unknown>, ms: number): Promise<boolean>
   });
 }
 
-/**
- * `syncedAt` in localStorage, so a reopened app can say since when it has not synced. One key per cache
- * (`taskapp:synced-at:<folder>` for OneDrive, as before; `taskapp:synced-at:google:<folder>`).
- */
+/** `syncedAt` in localStorage, so a reopened app can say since when it has not synced. One key per cache. */
 function syncedAtStore(place: Place) {
-  const key = cacheName(place.provider, place.folder).replace(/^taskapp:/, 'taskapp:synced-at:');
+  const key = syncedAtKey(place.provider, place.folder);
   return {
     load(): Date | null {
       try {
@@ -207,7 +206,7 @@ async function ready(workspace: Workspace, cache: CacheInfo, auth: Auth | null, 
   installLifecycle(store);
   const timing = STORAGE_MODE === 'fake' ? window.__TASKAPP_UPDATE_TIMING__ : undefined;
   const updates = installUpdates(store, { ...timing });
-  return { kind: 'ready', store, auth, updates, storageName: STORAGE_NAMES[place.provider] };
+  return { kind: 'ready', store, auth, updates, provider: place.provider, storageName: STORAGE_NAMES[place.provider] };
 }
 
 /** The cache's IndexedDB database before it was keyed by folder (it only ever held the default folder's files on the deployed origin). */
