@@ -20,6 +20,10 @@ export interface ProviderConfig {
   signinScope: string;
   /** Rolling session cookie lifetime, seconds. */
   sessionMaxAge: number;
+  /** Extra query parameters on the authorize redirect. */
+  authorizeParams?: Record<string, string>;
+  /** Scopes that must all be in the `scope` the token endpoint reports as granted; otherwise the sign-in fails. */
+  requiredScopes?: readonly string[];
 }
 
 const DAY = 24 * 60 * 60;
@@ -52,3 +56,29 @@ export const microsoft: Provider = {
     };
   },
 };
+
+/**
+ * A Google account, for Drive. Reads `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. `scopes` are the full
+ * scope URLs the app needs; the user can untick them on the consent screen, so all are required back.
+ */
+export const google = ({ scopes }: { scopes: readonly string[] }): Provider => ({
+  name: 'Google',
+  configure(env) {
+    if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) return 'GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET is not set';
+    const scope = scopes.join(' ');
+    return {
+      clientId: env.GOOGLE_CLIENT_ID,
+      clientSecret: env.GOOGLE_CLIENT_SECRET,
+      authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+      tokenUrl: 'https://oauth2.googleapis.com/token',
+      scope,
+      // The ID token is asked for only to read the email for the next `login_hint`.
+      signinScope: `openid email ${scope}`,
+      // Google does not rotate refresh tokens; this is how long an unused session cookie lasts.
+      sessionMaxAge: 180 * DAY,
+      // `prompt=consent` because Google sends a refresh token only when the user consents.
+      authorizeParams: { access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true' },
+      requiredScopes: scopes,
+    };
+  },
+});
