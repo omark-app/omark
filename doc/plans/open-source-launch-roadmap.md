@@ -28,7 +28,7 @@ Clashes to watch: 2.1 and 2.2 both add a deploy job to `ci.yml`, and 3.1 and 3.8
 
 Legend: **AL** = a step only AL can do (`needs-human`). **Plan** = a detailed TDD plan in `doc/plans/` is written and approved before the work starts.
 
-## Milestone 0: name and home (AL, before any code)
+## Milestone 0: name and home (AL, before any code) — done 2026-10-21
 
 | # | Step | Spec |
 |---|---|---|
@@ -36,7 +36,7 @@ Legend: **AL** = a step only AL can do (`needs-human`). **Plan** = a detailed TD
 | 0.2 | AL: buy `omark.app`, add it to Cloudflare, set up Email Routing for `hello@` and `security@`. | 6.10 |
 | 0.3 | AL: create the GitHub org (`omarkhq`, `omark-app` or `getomark`); transfer the repo (still private), rename it `tasks`; check that old URLs redirect and that CI and Promote still work. | 6.10 |
 
-## Milestone 1: groundwork (one PR, detailed plan ready)
+## Milestone 1: groundwork — done 2026-10-22 (PRs #29, #30)
 
 | # | Workstream | Spec | Depends on |
 |---|---|---|---|
@@ -59,7 +59,7 @@ Each row is one issue and one PR; rows marked Plan get a detailed plan first.
 | 2.8 | *Done 2026-10-26 (#47, PR #48; repo renamed `omark-app/omark`).* **Monorepo move** (right after 2.1 merges): `apps/web` → `apps/tasks`, `packages/core` → `packages/tasks-core`, storage and sign-in made app-neutral, CI and Promote per app, paths, hooks and docs re-pointed; no behaviour change. AL: rename the repo to `omark` | 6.12 | large, Plan | 2.1 |
 | 2.2 | Landing page at `omark.app` with a card per app (Tasks, Time), privacy policy covering Google data (Limited Use) and terms; live early for Google's review | 6.3.1 | large, Plan | 2.8, 2.4 |
 | 2.3 | Docs set, suite-wide: README, PHILOSOPHY (principles), AGENTS.md (+ `CLAUDE.md` import), CONTRIBUTING, GOVERNANCE, SECURITY, CODE_OF_CONDUCT, LICENSE, `doc/tasks/spec.md`, `doc/format.md`, `doc/architecture.md`, `doc/self-hosting.md`, `doc/factory.md`, `doc/history/` (Omark Time's own docs come in T.8) | 6.7 | large, Plan | 2.8 |
-| 2.4 | Icon family: 2–3 directions shown with both the Tasks and Time glyphs → AL picks → full set for both apps in `brand/`, wired into the apps and manifests | 6.6 | large, Plan | 2.8 |
+| 2.4 | *Built 2026-10-26 (#62, PR #64; direction B, Ring).* Icon family: 2–3 directions shown with both the Tasks and Time glyphs → AL picks → full set for both apps in `brand/`, wired into the apps and manifests | 6.6 | large, Plan | 2.8 |
 | 2.5 | Factory generalised: roles, maintainer check by repo role, role-neutral skills (`omark-factory`), guard and templates, labels script (with `app:`, `task`, `needs-info`, `in-progress`), issue forms (Bug, Feature, Task), the Ideas Discussion form, security and Q&A contact links, the skill's "missing required field → `needs-info`" rule, PR template; one factory for both apps | 6.8 | large, Plan | 2.3 |
 | 2.6 | AL: give 2–3 pilot developers Read or Triage; one runs the contributor dry run from a private fork | 6.2, 6.8 | — | 2.5 |
 | 2.7 | AL: approve the PHILOSOPHY principles and wording | 6.7.1 | — | 2.3 |

@@ -18,9 +18,12 @@ Node 22 or newer and pnpm 10, then `pnpm i`.
 
 ## Environment variables
 
+`.env.example` at the repo root lists every variable below (a test keeps it complete).
+
 | name | used for |
 | --- | --- |
-| `VITE_STORAGE` | `onedrive` (default) or `fake` (in-memory drive, used by the tests) |
+| `VITE_STORAGE` | `onedrive` (default), `demo` (sample tasks kept in this browser's IndexedDB, no sign-in; Reset demo in the footer) or `fake` (in-memory drive, used by the tests) |
+| `VITE_REAL_USE_URL` | where the demo's "Use it for real" link goes; default `https://omark.app` |
 | `VITE_GOOGLE_FOLDER` | the Google Drive folder (in My Drive) for preview and local builds; default `Omark Tasks Dev`. Production uses `Omark Tasks` and staging `Omark Tasks Staging`, chosen by host |
 | `VITE_ONEDRIVE_FOLDER` | OneDrive folder holding the files; default `''` (the app folder's root) |
 | `VITE_PROD_HOST`, `VITE_STAGING_HOST` | the hosts that are production and staging; with neither set every host is `local` |
@@ -28,7 +31,7 @@ Node 22 or newer and pnpm 10, then `pnpm i`.
 | `VITE_PROD_FOLDER`, `VITE_STAGING_FOLDER` | the OneDrive folders production and staging read |
 | `VITE_ONEDRIVE_SCOPE` | `full` asks for the whole drive; anything else (the default) is the app folder |
 | `ONEDRIVE_SCOPE`, `MSAL_TENANT` | Pages secrets, optional. `full` makes the sign-in helper ask for `Files.ReadWrite`, else `Files.ReadWrite.AppFolder` (default `appfolder`); the Entra tenant to sign in through (default `consumers`). They must match the build: CI fails the deploy when the helper grants another scope |
-| Repository variables | read by the workflows (Settings → Secrets and variables → Actions → Variables): `DEPLOY_ENABLED` (`true` turns on every deploy job), and per app, named after it (`TASKS_*` for Tasks): `CF_TASKS_STAGING_PROJECT`, `CF_TASKS_PROD_PROJECT` (Cloudflare Pages projects), `TASKS_STAGING_URL`, `TASKS_PROD_URL` (sign-in checks), `TASKS_STAGING_DOMAIN` with `CF_TASKS_ZONE_ID` (optional: staging's custom domain and DNS), and `TASKS_PROD_HOST`, `TASKS_STAGING_HOST`, `TASKS_PREVIEW_HOST_SUFFIXES`, `TASKS_PROD_FOLDER`, `TASKS_STAGING_FOLDER`, `TASKS_ONEDRIVE_SCOPE`, `TASKS_MSAL_TENANT`, which become the `VITE_*` build variables and the sign-in check. The site has two: `CF_SITE_PROJECT` (its Pages project, `omark-site`) and `SITE_URL` (`https://omark.app`, for the check after a deploy). Forks have no secrets, so for them only the checks and e2e run |
+| Repository variables | read by the workflows (Settings → Secrets and variables → Actions → Variables): `DEPLOY_ENABLED` (`true` turns on every deploy job), and per app, named after it (`TASKS_*` for Tasks): `CF_TASKS_STAGING_PROJECT`, `CF_TASKS_PROD_PROJECT` (Cloudflare Pages projects), `TASKS_STAGING_URL`, `TASKS_PROD_URL` (sign-in checks), `TASKS_STAGING_DOMAIN` with `CF_TASKS_ZONE_ID` (optional: staging's custom domain and DNS), `CF_TASKS_DEMO_PROJECT` and `TASKS_DEMO_URL` (the demo's Pages project and address, checked after each deploy), `TASKS_REAL_USE_URL` (becomes `VITE_REAL_USE_URL` in the demo and preview builds), and `TASKS_PROD_HOST`, `TASKS_STAGING_HOST`, `TASKS_PREVIEW_HOST_SUFFIXES`, `TASKS_PROD_FOLDER`, `TASKS_STAGING_FOLDER`, `TASKS_ONEDRIVE_SCOPE`, `TASKS_MSAL_TENANT`, which become the `VITE_*` build variables and the sign-in check. The site has two: `CF_SITE_PROJECT` (its Pages project, `omark-site`) and `SITE_URL` (`https://omark.app`, for the check after a deploy). Forks have no secrets, so for them only the checks and e2e run |
 | `OMARK_APP` | Pages variable, one per app's Pages project: which app the sign-in helper serves; unset means `tasks` |
 | `MSAL_CLIENT_ID`, `MSAL_CLIENT_SECRET`, `COOKIE_KEY` | the sign-in helper's secrets: Entra app (client) ID, its client secret, and 32 random bytes (base64) that encrypt the session cookie. Set on Cloudflare Pages with `wrangler pages secret put` (see Sign-in); for local runs put them in `.dev.vars` at the repo root (git-ignored), one `NAME=value` per line |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Pages secrets, optional: the Google OAuth client for the sign-in helper. Only a Pages project that has both lists Google at `/api/auth/providers`, so only there the app offers "Sign in with Google" (production has neither). For local runs put them in `.dev.vars` too |
@@ -39,7 +42,7 @@ Node 22 or newer and pnpm 10, then `pnpm i`.
 ## One-time setup already done
 
 - Entra app registration "TaskApp" (client ID `1fa03c5b-4275-490e-8e71-2aa7a405e310`) in my own tenant, personal Microsoft accounts only. It was registered as a single-page app with redirect URIs `https://tasks.alipka.com/` and `http://localhost:5173/`; the sign-in helper needs a **Web** platform as well (see Sign-in). Scopes used: `Files.ReadWrite.AppFolder offline_access` by default, `Files.ReadWrite offline_access` for the whole drive with `ONEDRIVE_SCOPE=full` (plus `openid profile` at sign-in, for the account name).
-- Cloudflare Pages project `taskapp` with the custom domain `tasks.alipka.com` (production), and `taskapp-staging` with `tasks-staging.alipka.com` (staging and PR previews; CI creates it if missing, `tools/ci/ensure-staging.mjs`). GitHub Actions deploys both using the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+- Cloudflare Pages project `taskapp` with the custom domain `tasks.alipka.com` (production), and `taskapp-staging` with `tasks-staging.alipka.com` (staging and PR previews; CI creates it if missing, `tools/ci/ensure-pages-project.mjs`). The demo has its own project, `omark-tasks-demo`, with the custom domain `demo-tasks.omark.app`; its domain and DNS record were set up by hand, and CI only makes sure the project exists. GitHub Actions deploys all three using the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 
 ## Sign-in
 
@@ -103,13 +106,13 @@ The SPA platform with `https://tasks.alipka.com/` and `http://localhost:5173/` c
 - **Client secret expiry.** When the secret expires, the token refresh fails with `invalid_client`: the app reads "offline" and the Pages Functions log shows `invalid_client`. Make a new secret (step 2), set it (step 3, `MSAL_CLIENT_SECRET` only) and redeploy (run Promote to production again with the current `tasks-prod-` tag; for staging, re-run the last `main` CI run); nobody needs to sign in again.
 - **Changing `COOKIE_KEY`** signs every device out.
 - **Signing out** a device: `fetch('/api/auth/logout', { method: 'POST', headers: { 'X-TaskApp-Auth': '1' } })` in its console, or clear the site's cookies.
-- **Local sign-in:** `pnpm dev:signin` builds the app and serves it with the helper on http://localhost:5173 (`wrangler pages dev`, secrets from `.dev.vars`, and the localhost Web redirect URI from step 1). `pnpm dev` (plain Vite) has no `/api/auth`, so use it with `VITE_STORAGE=fake`.
+- **Local sign-in:** `pnpm dev:signin` builds the app and serves it with the helper on http://localhost:5173 (`wrangler pages dev`, secrets from `.dev.vars`, and the localhost Web redirect URI from step 1). `pnpm dev` (plain Vite) has no `/api/auth`: it runs the demo (`apps/tasks/.env.development`), which needs no sign-in.
 
 ## Commands
 
 | command | what it does |
 | --- | --- |
-| `pnpm dev` (in `apps/tasks`) | dev server on http://localhost:5173 (no sign-in; use `VITE_STORAGE=fake`) |
+| `pnpm demo` (or `pnpm dev`) | dev server on http://localhost:5173 with the demo: sample tasks, no sign-in. For OneDrive instead, put `VITE_STORAGE=onedrive` in `apps/tasks/.env.development.local` (or set it in the shell), and use `pnpm dev:signin` to sign in |
 | `pnpm dev:signin` | build and serve the app with the sign-in helper on http://localhost:5173 (needs `.dev.vars`) |
 | `pnpm test` | unit tests |
 | `pnpm typecheck` | type checks |
@@ -121,11 +124,14 @@ The SPA platform with `https://tasks.alipka.com/` and `http://localhost:5173/` c
 
 | | when | where | data |
 | --- | --- | --- | --- |
-| Preview | every push to a PR from this repository, once `DEPLOY_ENABLED` is `true` | `pr-<n>.taskapp-staging…pages.dev`, linked in a PR comment | fake drive with sample tasks, "PREVIEW" in the footer |
+| Preview | every push to a PR from this repository, once `DEPLOY_ENABLED` is `true` | `pr-<n>.taskapp-staging…pages.dev`, linked in a PR comment | the demo build: sample tasks kept in this browser, no sign-in, "PREVIEW" and Reset demo in the footer |
 | Staging | every merge to `main`, once `DEPLOY_ENABLED` is `true` | https://tasks-staging.alipka.com | OneDrive `ALAI/TaskApp-staging`, "STAGING" in the footer |
 | Production | by hand, once `DEPLOY_ENABLED` is `true`: Actions → **Promote to production** → Run workflow | https://tasks.alipka.com | OneDrive `ALAI/TaskApp` |
+| Demo | every merge to `main`, with staging, once `DEPLOY_ENABLED` is `true`; no Promote step | https://demo-tasks.omark.app (Pages project `omark-tasks-demo`) | sample tasks kept in the visitor's browser, no sign-in, "DEMO", Reset demo and "Use it for real" in the footer |
 
 Staging and production run the same build: the app picks its OneDrive folder and look from the host name (`apps/tasks/src/lib/environment.ts`). Promote takes a commit (empty = what staging runs now), refuses it unless it is on `main` with a passing CI run, deploys the build staging ran (or rebuilds it once that build has expired after 30 days), and tags it `tasks-prod-YYYY-MM-DD-n` with a release listing the PRs merged since the last one. Promote asks which app; only `tasks` exists so far.
+
+The demo is its own build (`VITE_STORAGE=demo`), deployed by the `tasks-demo` CI job from `apps/tasks`, so the sign-in helper in `functions/` is not deployed with it and the demo has no `/api/auth`. After each deploy CI checks that the demo page loads and that the sign-in helper is not there (`tools/ci/check-demo.mjs`).
 
 The Pages Function in `functions/` serves every app. It picks the app from the Pages variable `OMARK_APP`; unset means `tasks`. Each app's Pages project sets its own value.
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Makes sure the Cloudflare Pages project exists and, when a domain is given, that its custom domain and DNS
 // record do too. Idempotent: it only creates what is missing and never changes what is there. Run by CI with
-// CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID, and CF_STAGING_PROJECT (required), STAGING_DOMAIN and
-// CF_ZONE_ID (both or neither); prints the project's pages.dev subdomain to $GITHUB_OUTPUT as `subdomain`.
+// CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID, and CF_PROJECT (required), PAGES_DOMAIN and CF_ZONE_ID (both
+// or neither; the workflows fill them from the app's repository variables, e.g. CF_TASKS_STAGING_PROJECT or
+// CF_TASKS_DEMO_PROJECT); prints the project's pages.dev subdomain to $GITHUB_OUTPUT as `subdomain`.
 import { appendFileSync } from 'node:fs';
 
 const API = 'https://api.cloudflare.com/client/v4';
@@ -14,9 +15,9 @@ export class NeedsHuman extends Error {}
  * @param {{ token: string, accountId: string, project: string, domain?: string, zone?: string, fetch?: typeof fetch, log?: (line: string) => void }} opts
  * @returns {Promise<{ subdomain: string, warnings: string[] }>}
  */
-export async function ensureStaging({ token, accountId, project: PROJECT, domain: DOMAIN, zone: ZONE, fetch: f = fetch, log = console.log }) {
-  if (DOMAIN && !ZONE) throw new Error('A custom domain needs the Cloudflare zone ID (set CF_TASKS_ZONE_ID and TASKS_STAGING_DOMAIN together).');
-  if (ZONE && !DOMAIN) throw new Error('A Cloudflare zone ID needs the custom domain (set CF_TASKS_ZONE_ID and TASKS_STAGING_DOMAIN together).');
+export async function ensurePagesProject({ token, accountId, project: PROJECT, domain: DOMAIN, zone: ZONE, fetch: f = fetch, log = console.log }) {
+  if (DOMAIN && !ZONE) throw new Error('A custom domain needs the Cloudflare zone ID (set PAGES_DOMAIN and CF_ZONE_ID together).');
+  if (ZONE && !DOMAIN) throw new Error('A Cloudflare zone ID needs the custom domain (set PAGES_DOMAIN and CF_ZONE_ID together).');
   const PROJECT_STEPS = `Create it by hand in the Cloudflare dashboard:
 1. Workers & Pages → Create → Pages → Upload assets. Name it ${PROJECT}, production branch main (upload any small file).
 2. Re-run this CI job.`;
@@ -89,21 +90,21 @@ export async function ensureStaging({ token, accountId, project: PROJECT, domain
 async function main() {
   const token = process.env.CLOUDFLARE_API_TOKEN;
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-  const project = process.env.CF_STAGING_PROJECT;
+  const project = process.env.CF_PROJECT;
   if (!token || !accountId || !project) {
-    console.log('::error::CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID and the CF_STAGING_PROJECT variable must be set.');
+    console.log('::error::CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID and CF_PROJECT must be set.');
     return 1;
   }
   try {
-    const { subdomain, warnings } = await ensureStaging({
+    const { subdomain, warnings } = await ensurePagesProject({
       token,
       accountId,
       project,
-      domain: process.env.STAGING_DOMAIN || undefined,
+      domain: process.env.PAGES_DOMAIN || undefined,
       zone: process.env.CF_ZONE_ID || undefined,
     });
     for (const w of warnings) console.log(`::warning::${w}`);
-    console.log(`Staging project ready: ${subdomain}`);
+    console.log(`Pages project ${project} ready: ${subdomain}`);
     if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `subdomain=${subdomain}\n`);
     return 0;
   } catch (e) {

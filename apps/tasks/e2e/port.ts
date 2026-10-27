@@ -6,5 +6,11 @@ export function e2ePort(dir: string, env: Record<string, string | undefined>): n
   if (env.CI) return 4173;
   let hash = 0;
   for (const c of dir.replaceAll('\\', '/').toLowerCase()) hash = (hash * 31 + c.charCodeAt(0)) >>> 0;
-  return 4200 + (hash % 700);
+  // Even ports only: the demo build takes the odd one after (demoPort), so checkouts never share one.
+  return 4200 + 2 * (hash % 350);
+}
+
+/** The demo build's preview port (e2e/demo.spec.ts): the one after the e2e port. */
+export function demoPort(dir: string, env: Record<string, string | undefined>): number {
+  return e2ePort(dir, env) + 1;
 }

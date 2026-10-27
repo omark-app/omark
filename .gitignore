@@ -7,9 +7,11 @@ test-results
 .dev.vars
 .wrangler
 dist-real
+dist-demo
 .env
 .env.*
 !.env.example
+!apps/tasks/.env.development
 .secrets/
 .superpowers/
 *e2e-state*.json

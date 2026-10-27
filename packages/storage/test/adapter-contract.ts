@@ -4,7 +4,7 @@ import type { StorageAdapter } from '../src/adapter.ts';
 
 export interface ContractHarness {
   adapter: StorageAdapter;
-  external(name: string, text: string): void;
+  external(name: string, text: string): void | Promise<void>;
   offline(on: boolean): void;
 }
 
@@ -34,13 +34,13 @@ export function adapterContract(make: () => ContractHarness): void {
     it('rejects a stale etag after an external write', async () => {
       const { adapter, external } = make();
       const { etag } = await adapter.write('tasks.md', 'a', null);
-      external('tasks.md', 'other device');
+      await external('tasks.md', 'other device');
       await expect(adapter.write('tasks.md', 'b', etag)).rejects.toBeInstanceOf(PreconditionFailedError);
     });
 
     it('reads externally written text', async () => {
       const { adapter, external } = make();
-      external('config.yaml', 'from elsewhere');
+      await external('config.yaml', 'from elsewhere');
       expect((await adapter.read('config.yaml'))?.text).toBe('from elsewhere');
     });
 

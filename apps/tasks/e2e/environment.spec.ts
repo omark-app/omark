@@ -24,6 +24,29 @@ test('staging host gets the staging name, colour, manifest and label', async ({ 
   expect(manifest.display).toBe('standalone');
 });
 
+// `request` ignores the host-resolver rule, so the files are fetched from the local server.
+test('staging host gets the staging icons', async ({ page, request, baseURL }) => {
+  const staging = new URL(baseURL!);
+  staging.hostname = 'staging-tasks.example.test';
+  await page.goto(staging.toString());
+  const hrefs = [
+    await page.locator('link[rel="icon"][type="image/svg+xml"]').getAttribute('href'),
+    await page.locator('link[rel="icon"][sizes="32x32"]').getAttribute('href'),
+    await page.locator('link[rel="apple-touch-icon"]').getAttribute('href'),
+  ];
+  const manifestHref = await page.locator('link[rel="manifest"]').getAttribute('href');
+  const manifest = await (await request.get(new URL(manifestHref!, baseURL).toString())).json();
+  const urls = [...hrefs, ...manifest.icons.map((i: { src: string }) => i.src)];
+  expect(urls.length).toBe(6);
+  for (const url of urls) {
+    expect(url).toMatch(/^\/icons\/staging\//);
+    const res = await request.get(new URL(url, baseURL).toString());
+    expect(res.status(), url).toBe(200);
+    // vite preview answers a missing file with index.html and 200, so check the type too.
+    expect(res.headers()['content-type'], url).toMatch(/^image\//);
+  }
+});
+
 test('localhost has no environment label', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByTestId('build')).toBeVisible();

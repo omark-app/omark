@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import type { Plugin } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
 import { BRAND } from './src/brand.ts';
+import { storageMode } from './src/storage-mode.ts';
 
 /** The short commit hash shown beside the save status, so it is clear which build a device runs. */
 function buildId(): string {
@@ -40,8 +41,11 @@ function versionFile(build: string, number: number | null): Plugin {
 const BUILD_ID = buildId();
 const BUILD_NUMBER = buildNumber();
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   define: {
+    // The storage mode as a literal (from the shell or a .env file, as Vite reads them), so each build
+    // keeps only its own mode's code (src/env.ts).
+    __STORAGE_MODE__: JSON.stringify(storageMode(loadEnv(mode, import.meta.dirname, 'VITE_').VITE_STORAGE)),
     __BUILD_ID__: JSON.stringify(BUILD_ID),
     __BUILD_NUMBER__: JSON.stringify(BUILD_NUMBER),
     // BUILD_TIME: Promote rebuilding an older commit keeps the date of the build staging ran.
@@ -54,7 +58,7 @@ export default defineConfig({
     versionFile(BUILD_ID, BUILD_NUMBER),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icons/apple-touch-icon.png'],
+      includeAssets: ['icons/apple-touch-icon.png', 'icons/staging/apple-touch-icon.png'],
       // The app shell, fonts and icons are precached; there is deliberately no runtimeCaching, so Graph,
       // the sign-in helper (/api/auth), OneDrive download URLs and version.json always go straight to the
       // network. Navigations are served from the precache, so a page opened after a deploy starts on the
@@ -85,10 +89,11 @@ export default defineConfig({
         theme_color: '#F2F4F7',
         background_color: '#F2F4F7',
         icons: [
-          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
     }),
   ],
-});
+}));

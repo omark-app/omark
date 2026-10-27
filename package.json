@@ -9,6 +9,8 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "pnpm -r --if-present typecheck",
+    "dev": "pnpm --filter tasks dev",
+    "demo": "pnpm --filter tasks dev",
     "e2e": "pnpm -r --if-present e2e",
     "dev:signin": "pnpm --filter tasks build && wrangler pages dev apps/tasks/dist --port 5173",
     "e2e:real:login": "pnpm --filter tasks e2e:real:login",

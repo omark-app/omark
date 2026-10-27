@@ -1,0 +1,275 @@
+<title>Omark Icon Directions</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one column of direction sheets; each sheet runs pair → home screen → sizes → tabs → wordmark. */
+:root {
+  --bg: #F2F4F7; --surface: #FFFFFF; --ink: #151A22; --muted: #677084; --line: #DCE0E7; --accent: #2B59D6;
+  /* Specimen grounds: fixed in both themes, since the point is to see the icons on each. */
+  --spec-light: #F2F4F7; --spec-light-ink: #151A22; --spec-light-muted: #677084;
+  --spec-dark: #0D1015; --spec-dark-ink: #E3E6EB; --spec-dark-muted: #8B94A5;
+  --wall-light: linear-gradient(160deg, #D9E1EE, #F2F4F7 70%);
+  --wall-dark: linear-gradient(160deg, #222A3A, #0D1015 70%);
+  --sans: "Geist", ui-sans-serif, "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #0D1015; --surface: #141820; --ink: #E3E6EB; --muted: #8B94A5; --line: #252B36; --accent: #87A4FF; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #0D1015; --surface: #141820; --ink: #E3E6EB; --muted: #8B94A5; --line: #252B36; --accent: #87A4FF; color-scheme: dark; }
+
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); }
+.wrap { max-width: 880px; margin: 0 auto; padding-block: 28px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 28px; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+h1 { font-size: 28px; line-height: 1.15; font-weight: 600; letter-spacing: -0.01em; }
+h2 { font-size: 22px; font-weight: 600; }
+h3 { font: 500 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+p { margin: 0; max-width: 62ch; }
+.eyebrow { font: 500 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.lead { color: var(--muted); }
+code { font: 13px var(--mono); }
+
+/* At a glance */
+.glance { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.glance a { display: grid; gap: 8px; justify-items: center; padding: 14px 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: inherit; text-decoration: none; }
+.glance a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.glance .icons { display: flex; gap: 8px; }
+.glance .icons img { width: 44px; height: 44px; border-radius: 22.5%; }
+.glance b { font-weight: 600; font-size: 14px; }
+
+/* A direction sheet */
+.sheet { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 20px; display: grid; gap: 22px; scroll-margin-top: 12px; }
+.sheet header { display: grid; gap: 6px; }
+.sheet header .letter { font: 600 12px var(--mono); color: var(--accent); }
+.rule { font-size: 14px; color: var(--muted); }
+.rule b { color: var(--ink); font-weight: 600; }
+.block { display: grid; gap: 10px; }
+
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.pair figure { margin: 0; display: grid; gap: 8px; justify-items: center; padding: 16px 8px 12px; border-radius: 14px; background: var(--bg); }
+.pair img { width: min(150px, 100%); aspect-ratio: 1; border-radius: 22.5%; box-shadow: 0 1px 2px rgba(16,22,34,.12), 0 8px 24px rgba(16,22,34,.12); }
+.pair figcaption { font-size: 14px; font-weight: 500; }
+
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.home { border-radius: 18px; padding: 18px 10px 14px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 4px; }
+.home.light { background: var(--wall-light); color: var(--spec-light-ink); }
+.home.dark { background: var(--wall-dark); color: var(--spec-dark-ink); }
+.app { display: grid; justify-items: center; gap: 5px; font-size: 11px; line-height: 1.2; text-align: center; }
+.app img, .app i { width: min(56px, 100%); aspect-ratio: 1; border-radius: 22.5%; display: block; }
+.app i { background: currentColor; opacity: .12; }
+.app.ghost { opacity: .55; }
+
+.sizes { display: grid; gap: 12px; }
+.size-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px 18px; padding: 14px; border-radius: 14px; background: var(--bg); }
+.size { display: grid; justify-items: center; gap: 6px; }
+.size span { font: 11px var(--mono); color: var(--muted); white-space: nowrap; }
+.size .safe { position: relative; width: 112px; height: 112px; }
+.size .safe img { width: 100%; height: 100%; display: block; }
+.size .safe::after { content: ""; position: absolute; inset: 10%; border-radius: 50%; border: 1.5px dashed rgba(255,255,255,.85); box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
+.size canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+.size .real { width: 16px; height: 16px; display: block; }
+
+.tabs { display: grid; gap: 8px; }
+.tabbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 8px 0; border-radius: 12px 12px 0 0; }
+.tabbar.light { background: #DDE2EA; color: var(--spec-light-ink); }
+.tabbar.dark { background: #1B2029; color: var(--spec-dark-ink); }
+.tab { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 9px 9px 0 0; font-size: 12px; min-width: 0; }
+.tabbar.light .tab { background: var(--spec-light); }
+.tabbar.dark .tab { background: var(--spec-dark); }
+.tab img { width: 16px; height: 16px; flex: none; }
+.tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.marks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.spec { border-radius: 14px; padding: 18px 16px; display: grid; gap: 14px; align-content: start; min-width: 0; }
+.spec.light { background: var(--spec-light); color: var(--spec-light-ink); --sub: var(--spec-light-muted); box-shadow: inset 0 0 0 1px #DCE0E7; }
+.spec.dark { background: var(--spec-dark); color: var(--spec-dark-ink); --sub: var(--spec-dark-muted); }
+.wm { display: flex; align-items: center; gap: .35em; font-size: 30px; line-height: 1; white-space: nowrap; }
+.wm img { height: 1.1em; width: 1.1em; border-radius: 22.5%; }
+.wm.small { font-size: 18px; }
+.wm small { font-size: inherit; color: var(--sub); }
+.wm-a { font-family: var(--mono); font-weight: 600; letter-spacing: -0.02em; }
+.wm-a small { font-weight: 400; }
+.wm-b { font-family: var(--sans); font-weight: 700; letter-spacing: -0.03em; gap: 0; }
+.wm-b svg { height: .74em; width: .74em; margin-right: .03em; }
+.wm-b .app-name { margin-left: .28em; font-weight: 400; color: var(--sub); }
+.wm-c { font-family: var(--sans); font-weight: 600; letter-spacing: -0.02em; }
+.wm-c small { font-weight: 400; }
+.avatar { width: 64px; height: 64px; border-radius: 14px; }
+
+.pick { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 20px; display: grid; gap: 12px; }
+.pick ul { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; max-width: 62ch; }
+.note { font-size: 13px; color: var(--muted); }
+
+@media (max-width: 520px) {
+  .two, .marks { grid-template-columns: minmax(0, 1fr); }
+  .sheet { padding: 16px; }
+  .wm { font-size: 26px; }
+}
+</style>
+
+<div class="wrap">
+  <header style="display:grid; gap:10px">
+    <div class="eyebrow">Roadmap 2.4 · launch spec 6.6</div>
+    <h1>Pick an Omark icon direction</h1>
+    <p class="lead">Three families, each shown with the Omark Tasks and Omark Time glyphs, on light and dark, at real sizes, and with the wordmark. Colours come from the app's <code>tokens.css</code>. A Notes icon appears only as a greyed example of how a later sibling would look.</p>
+  </header>
+
+  <nav class="glance" id="glance" aria-label="Directions at a glance"></nav>
+  <div id="sheets" style="display:grid; gap:28px"></div>
+
+  <section class="pick">
+    <h2>My pick: A, Brackets</h2>
+    <ul>
+      <li><b>A</b> is the one only Omark could have. A task in a Markdown file is literally <code>- [x]</code>, so the brackets carry the "own + markdown" idea, and every later app just puts a new glyph between them.</li>
+      <li><b>B</b> is the friendliest and the boldest on a home screen, but a tick in a ring is close to many other to-do icons.</li>
+      <li><b>C</b> says "plain files you own" most clearly, but the page and fold leave the glyph small, so it is the weakest at 16 px.</li>
+    </ul>
+    <p class="note">Reply in the session with a letter. Mixes are fine, for example "A, but with B's coloured tiles". After the pick, the full set is made in <code>brand/</code>: SVG sources, PNGs (512, 192, maskable 512, 180, 32, favicon SVG), a 500 px avatar and a 1280×640 social preview.</p>
+  </section>
+</div>
+
+<script>
+const C = { ink: '#151A22', paper: '#F2F4F7', white: '#FFFFFF', blue: '#2B59D6', blueL: '#87A4FF', amber: '#A84C08', amberL: '#F2A33A', green: '#2C8A55', greenL: '#5DC78C', fold: '#C9D0DC' };
+const svg = (bg, inner) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="${bg}"/>${inner}</svg>`;
+const stroke = (d, color, w, cap = 'round') => `<path d="${d}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="${cap}" stroke-linejoin="${cap === 'round' ? 'round' : 'miter'}"/>`;
+const ring = (cx, cy, r, color, w) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="${w}"/>`;
+
+const DIRS = [
+  {
+    id: 'a', name: 'Brackets',
+    idea: 'A Markdown checkbox, <code>[ ]</code>, on the ink tile. The brackets are the family; the glyph inside is the app.',
+    rule: '<b>Family rule:</b> ink tile, light square brackets, one glyph between them in the app’s colour (Tasks blue, Time amber).',
+    icon(app) {
+      const fg = { tasks: C.blueL, time: C.amberL, notes: C.greenL, brand: C.paper }[app];
+      const brackets = stroke('M180 136H132V376H180M332 136H380V376H332', C.paper, 34, 'square');
+      const glyph = {
+        tasks: stroke('M200 262L240 300L314 218', fg, 38),
+        time: ring(256, 256, 66, fg, 26) + stroke('M256 222V256H286', fg, 24),
+        notes: stroke('M196 216H316M196 256H316M196 296H268', fg, 26),
+        brand: ring(256, 256, 48, fg, 32),
+      }[app];
+      return svg(C.ink, brackets + glyph);
+    },
+    wordmark(app) {
+      const mark = `<img alt="" src="${uri(this.icon('brand'))}">`;
+      return `<div class="wm wm-a${app ? ' small' : ''}">${mark}<span>omark${app ? ` <small>${app.toLowerCase()}</small>` : ''}</span></div>`;
+    },
+  },
+  {
+    id: 'b', name: 'Ring',
+    idea: 'The O of Omark as a white ring on a coloured tile. The ring is the family; the glyph inside is the app.',
+    rule: '<b>Family rule:</b> one solid tile colour per app, a white ring, one white glyph inside (Tasks blue, Time green).',
+    icon(app) {
+      const bg = { tasks: C.blue, time: C.green, notes: C.amber, brand: C.ink }[app];
+      const glyph = {
+        tasks: stroke('M192 262L236 304L320 210', C.white, 44),
+        time: stroke('M256 172V256L316 294', C.white, 40),
+        notes: stroke('M198 214H314M198 256H314M198 298H266', C.white, 30),
+        brand: '',
+      }[app];
+      return svg(bg, ring(256, 256, 146, C.white, 46) + glyph);
+    },
+    wordmark(app) {
+      const o = `<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="38" fill="none" stroke="currentColor" stroke-width="20"/></svg>`;
+      return `<div class="wm wm-b${app ? ' small' : ''}">${o}<span>mark</span>${app ? `<span class="app-name">${app}</span>` : ''}</div>`;
+    },
+  },
+  {
+    id: 'c', name: 'Page',
+    idea: 'A plain file: a white page with a folded corner on a coloured tile. The page is the family; what is written on it is the app.',
+    rule: '<b>Family rule:</b> one tile colour per app, a white page with a fold, one glyph on the page in the tile colour (Tasks blue, Time amber).',
+    icon(app) {
+      const bg = { tasks: C.blue, time: C.amber, notes: C.green, brand: C.ink }[app];
+      const page = `<path d="M168 112H300L364 176V380Q364 400 344 400H168Q148 400 148 380V132Q148 112 168 112Z" fill="${C.white}"/>`
+        + `<path d="M300 112V164Q300 176 312 176H364Z" fill="${app === 'brand' ? C.blueL : C.fold}"/>`;
+      const glyph = {
+        tasks: stroke('M204 274L240 308L308 232', bg, 34),
+        time: ring(256, 276, 58, bg, 24) + stroke('M256 246V276H280', bg, 22),
+        notes: stroke('M196 240H316M196 280H316M196 320H268', bg, 24),
+        brand: '',
+      }[app];
+      return svg(bg, page + glyph);
+    },
+    wordmark(app) {
+      const mark = `<img alt="" src="${uri(this.icon('brand'))}">`;
+      return `<div class="wm wm-c${app ? ' small' : ''}">${mark}<span>Omark${app ? ` <small>${app}</small>` : ''}</span></div>`;
+    },
+  },
+];
+
+function uri(s) { return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s); }
+function img(src, alt, cls = '') { return `<img${cls ? ` class="${cls}"` : ''} alt="${alt}" src="${src}">`; }
+
+/** Draws the icon into a canvas of `px` real pixels, shown `zoom` times larger, so small sizes are judged honestly. */
+function pixels(src, px, zoom, label) {
+  const c = document.createElement('canvas');
+  c.width = px; c.height = px;
+  c.style.width = c.style.height = px * zoom + 'px';
+  c.setAttribute('role', 'img'); c.setAttribute('aria-label', label);
+  const im = new Image();
+  im.onload = () => { const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(im, 0, 0, px, px); };
+  im.src = src;
+  return c;
+}
+
+function sheet(d) {
+  const t = uri(d.icon('tasks')), m = uri(d.icon('time')), n = uri(d.icon('notes'));
+  const home = (cls) => `<div class="home ${cls}">
+      ${'<div class="app"><i></i><span>&nbsp;</span></div>'.repeat(4)}
+      <div class="app">${img(t, '')}<span>Tasks</span></div>
+      <div class="app">${img(m, '')}<span>Time</span></div>
+      <div class="app ghost">${img(n, '')}<span>Notes (example)</span></div>
+    </div>`;
+  const tabbar = (cls) => `<div class="tabbar ${cls}">
+      <div class="tab">${img(t, '')}<span>Omark Tasks</span></div>
+      <div class="tab">${img(m, '')}<span>Omark Time</span></div>
+    </div>`;
+  const sizeRow = (app, src) => `<div class="size-row" data-app="${app}">
+      <div class="size"><div class="safe">${img(src, `${app} 512 source with the maskable safe zone`)}</div><span>512 · safe zone</span></div>
+      <div class="size">${img(src, `${app} 192`, '')}<span>192</span></div>
+      <div class="size" data-px="32"><span>32 px ×2</span></div>
+      <div class="size" data-px="16"><span>16 px ×3</span></div>
+      <div class="size">${img(src, `${app} at 16 px`, 'real')}<span>16, actual</span></div>
+    </div>`;
+
+  const el = document.createElement('section');
+  el.className = 'sheet'; el.id = d.id;
+  el.innerHTML = `
+    <header>
+      <div class="letter">${d.id.toUpperCase()}</div>
+      <h2>${d.name}</h2>
+      <p>${d.idea}</p>
+      <p class="rule">${d.rule}</p>
+    </header>
+    <div class="pair">
+      <figure>${img(t, 'Omark Tasks icon')}<figcaption>Omark Tasks</figcaption></figure>
+      <figure>${img(m, 'Omark Time icon')}<figcaption>Omark Time</figcaption></figure>
+    </div>
+    <div class="block"><h3>Home screen, iOS mask, light and dark</h3><div class="two">${home('light')}${home('dark')}</div></div>
+    <div class="block"><h3>Sizes: 512 maskable, 192, 32 favicon, 16</h3><div class="sizes">${sizeRow('Tasks', t)}${sizeRow('Time', m)}</div></div>
+    <div class="block"><h3>Browser tabs</h3><div class="tabs">${tabbar('light')}${tabbar('dark')}</div></div>
+    <div class="block"><h3>Wordmark and brand mark</h3>
+      <div class="marks">
+        ${['light', 'dark'].map((k) => `<div class="spec ${k}">${d.wordmark()}${d.wordmark('Tasks')}${d.wordmark('Time')}${img(uri(d.icon('brand')), 'Brand mark as the GitHub avatar', 'avatar')}</div>`).join('')}
+      </div>
+    </div>`;
+  el.querySelectorAll('.size-row').forEach((row) => {
+    const src = row.dataset.app === 'Tasks' ? t : m;
+    row.querySelectorAll('[data-px]').forEach((cell) => {
+      const px = Number(cell.dataset.px);
+      cell.prepend(pixels(src, px, px === 32 ? 2 : 3, `${row.dataset.app} at ${px} pixels, enlarged`));
+    });
+  });
+  return el;
+}
+
+const glance = document.getElementById('glance');
+const sheets = document.getElementById('sheets');
+for (const d of DIRS) {
+  glance.insertAdjacentHTML('beforeend', `<a href="#${d.id}"><div class="icons">${img(uri(d.icon('tasks')), 'Tasks')}${img(uri(d.icon('time')), 'Time')}</div><b>${d.id.toUpperCase()}. ${d.name}</b></a>`);
+  sheets.append(sheet(d));
+}
+if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
+</script>

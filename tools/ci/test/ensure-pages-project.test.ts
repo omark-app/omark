@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ensureStaging, NeedsHuman } from '../ensure-staging.mjs';
+import { ensurePagesProject, NeedsHuman } from '../ensure-pages-project.mjs';
 
 const ACCOUNT = 'acc1';
 const ZONE = 'zone1';
@@ -8,6 +8,8 @@ const DOMAIN = 'staging-tasks.example.test';
 const TOKEN = 'secret-token-value';
 
 interface FakeCf {
+  /** The Pages project the fake knows about. */
+  name: string;
   project: { subdomain: string } | null;
   domains: string[];
   records: { name: string; type: string; content: string; proxied: boolean }[];
@@ -15,7 +17,7 @@ interface FakeCf {
   calls: string[];
 }
 
-/** A tiny in-memory Cloudflare API: just the calls ensureStaging makes. */
+/** A tiny in-memory Cloudflare API: just the calls ensurePagesProject makes. */
 function fakeFetch(cf: FakeCf): typeof fetch {
   const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
   const ok = (result: unknown) => json(200, { success: true, errors: [], result });
@@ -30,16 +32,16 @@ function fakeFetch(cf: FakeCf): typeof fetch {
     }
     const body = init?.body ? JSON.parse(String(init.body)) : null;
     const projects = `/accounts/${ACCOUNT}/pages/projects`;
-    if (method === 'GET' && path === `${projects}/tasks-staging`) {
-      return cf.project ? ok({ name: 'tasks-staging', ...cf.project }) : json(404, { success: false, errors: [{ code: 8000007, message: 'Project not found' }] });
+    if (method === 'GET' && path === `${projects}/${cf.name}`) {
+      return cf.project ? ok({ name: cf.name, ...cf.project }) : json(404, { success: false, errors: [{ code: 8000007, message: 'Project not found' }] });
     }
     if (method === 'POST' && path === projects) {
-      expect(body).toEqual({ name: 'tasks-staging', production_branch: 'main' });
-      cf.project = { subdomain: 'tasks-staging-x1y.pages.dev' };
-      return ok({ name: 'tasks-staging', ...cf.project });
+      expect(body).toEqual({ name: cf.name, production_branch: 'main' });
+      cf.project = { subdomain: `${cf.name}-x1y.pages.dev` };
+      return ok({ name: cf.name, ...cf.project });
     }
-    if (method === 'GET' && path === `${projects}/tasks-staging/domains`) return ok(cf.domains.map((name) => ({ name })));
-    if (method === 'POST' && path === `${projects}/tasks-staging/domains`) {
+    if (method === 'GET' && path === `${projects}/${cf.name}/domains`) return ok(cf.domains.map((name) => ({ name })));
+    if (method === 'POST' && path === `${projects}/${cf.name}/domains`) {
       cf.domains.push(body.name);
       return ok({ name: body.name });
     }
@@ -55,14 +57,14 @@ function fakeFetch(cf: FakeCf): typeof fetch {
 }
 
 function setup(cf: Partial<FakeCf> = {}) {
-  const state: FakeCf = { project: null, domains: [], records: [], calls: [], ...cf };
+  const state: FakeCf = { name: PROJECT, project: null, domains: [], records: [], calls: [], ...cf };
   const lines: string[] = [];
-  const run = () => ensureStaging({ token: TOKEN, accountId: ACCOUNT, project: PROJECT, domain: DOMAIN, zone: ZONE, fetch: fakeFetch(state), log: (l: string) => lines.push(l) });
+  const run = () => ensurePagesProject({ token: TOKEN, accountId: ACCOUNT, project: PROJECT, domain: DOMAIN, zone: ZONE, fetch: fakeFetch(state), log: (l: string) => lines.push(l) });
   return { state, lines, run };
 }
 const writes = (calls: string[]) => calls.filter((c) => c.startsWith('POST'));
 
-describe('ensureStaging', () => {
+describe('ensurePagesProject', () => {
   it('creates the project, custom domain and DNS record on a fresh account', async () => {
     const { state, run } = setup();
     const result = await run();
@@ -110,18 +112,38 @@ describe('ensureStaging', () => {
   });
 
   it('only makes sure the project exists when no domain is given', async () => {
-    const state: FakeCf = { project: { subdomain: 'tasks-staging-x1y.pages.dev' }, domains: [], records: [], calls: [] };
-    const result = await ensureStaging({ token: TOKEN, accountId: ACCOUNT, project: PROJECT, fetch: fakeFetch(state), log: () => {} });
+    const state: FakeCf = { name: PROJECT, project: { subdomain: 'tasks-staging-x1y.pages.dev' }, domains: [], records: [], calls: [] };
+    const result = await ensurePagesProject({ token: TOKEN, accountId: ACCOUNT, project: PROJECT, fetch: fakeFetch(state), log: () => {} });
     expect(result.subdomain).toBe('tasks-staging-x1y.pages.dev');
     expect(state.calls).toEqual([`GET /accounts/${ACCOUNT}/pages/projects/tasks-staging`]);
   });
 
   it('rejects a domain without a zone', async () => {
-    const state: FakeCf = { project: null, domains: [], records: [], calls: [] };
+    const state: FakeCf = { name: PROJECT, project: null, domains: [], records: [], calls: [] };
     await expect(
-      ensureStaging({ token: TOKEN, accountId: ACCOUNT, project: PROJECT, domain: DOMAIN, fetch: fakeFetch(state), log: () => {} }),
+      ensurePagesProject({ token: TOKEN, accountId: ACCOUNT, project: PROJECT, domain: DOMAIN, fetch: fakeFetch(state), log: () => {} }),
     ).rejects.toThrow(/zone/);
     expect(state.calls).toEqual([]);
+  });
+
+  it('creates the demo project when missing and touches no zone', async () => {
+    const state: FakeCf = { name: 'omark-tasks-demo', project: null, domains: [], records: [], calls: [] };
+    const result = await ensurePagesProject({ token: TOKEN, accountId: ACCOUNT, project: 'omark-tasks-demo', fetch: fakeFetch(state), log: () => {} });
+    expect(result).toEqual({ subdomain: 'omark-tasks-demo-x1y.pages.dev', warnings: [] });
+    expect(state.calls).toEqual([
+      `GET /accounts/${ACCOUNT}/pages/projects/omark-tasks-demo`,
+      `POST /accounts/${ACCOUNT}/pages/projects`,
+    ]);
+  });
+
+  it('names the generic variables, not staging ones, when the domain and zone do not match', async () => {
+    const state: FakeCf = { name: PROJECT, project: null, domains: [], records: [], calls: [] };
+    for (const half of [{ domain: DOMAIN }, { zone: ZONE }]) {
+      const err = await ensurePagesProject({ token: TOKEN, accountId: ACCOUNT, project: PROJECT, ...half, fetch: fakeFetch(state), log: () => {} }).catch((e: unknown) => e);
+      expect(String((err as Error).message)).toMatch(/PAGES_DOMAIN/);
+      expect(String((err as Error).message)).toMatch(/CF_ZONE_ID/);
+      expect(String((err as Error).message)).not.toMatch(/STAGING/);
+    }
   });
 
   it('never prints the token', async () => {

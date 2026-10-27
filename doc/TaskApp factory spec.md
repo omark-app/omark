@@ -119,12 +119,13 @@ The real-OneDrive smoke (`pnpm e2e:real`) stays manual, since its sign-in lasts 
 | Built from | Each PR | `main`, on every merge | A promoted `main` commit |
 | URL | `pr-<n>.taskapp-staging.pages.dev` | `tasks-staging.alipka.com` | `tasks.alipka.com` (as today) |
 | Cloudflare Pages project | `taskapp-staging` (preview branches) | `taskapp-staging` (production branch) | `taskapp` |
-| Storage | Fake drive, seeded with sample tasks | Real OneDrive, `ALAI/TaskApp-staging` | Real OneDrive, `ALAI/TaskApp` |
-| Sign-in | Stubbed (fake build) | Same Entra app: its own Web redirect URI, client secret and Pages secrets | As today |
+| Storage | The demo build: sample tasks kept in this browser | Real OneDrive, `ALAI/TaskApp-staging` | Real OneDrive, `ALAI/TaskApp` |
+| Sign-in | None (demo build) | Same Entra app: its own Web redirect URI, client secret and Pages secrets | As today |
 | Looks | "PREVIEW" in the footer | Name "TaskApp Staging", "STAGING" in the footer, different theme colour | Unchanged |
 
 - `staging` gets its own Pages project so its "production" branch is staging and `tasks-staging` can be a plain custom domain. A one-level subdomain (`tasks-staging`, not `staging.tasks`) stays inside Cloudflare's free certificate.
-- Previews use the fake drive because Entra doesn't accept wildcard redirect URIs. The fake build gets sample tasks (all buckets, a repeat, notes, ALWAYS lines) when no test seed is set, so a preview is worth opening on the phone.
+- Previews are demo builds because Entra doesn't accept wildcard redirect URIs. The demo starts with sample tasks (all buckets, a repeat, notes, ALWAYS lines) and keeps edits in the browser, so a preview is worth opening on the phone.
+- The public demo (`demo-tasks.omark.app`, Pages project `omark-tasks-demo`) is the same demo build, deployed from `main` with staging by the `tasks-demo` job. It has no Promote step and no sign-in helper.
 - The staging folder starts as a copy of `ALAI/TaskApp`. "Refresh staging" means copying the production files over it again. Staging is throwaway, and production files are never touched by staging.
 - Staging and production are different origins, so their offline caches and sign-ins are separate. Both can sit on the iPhone home screen, told apart by name and colour.
 - **One build for staging and production.** The app picks its environment at run time from the host name: `tasks-staging.alipka.com` uses `ALAI/TaskApp-staging` and the staging look, `tasks.alipka.com` uses `ALAI/TaskApp`, anything else (localhost, previews) follows the build variables as today. Promote then uploads the exact files staging ran, with no rebuild.
@@ -134,14 +135,14 @@ The real-OneDrive smoke (`pnpm e2e:real`) stays manual, since its sign-in lasts 
 
 | Workflow | When | Does |
 |---|---|---|
-| `ci.yml` | PR opened or updated | check; e2e, one job per Playwright project (`e2e (desktop)`, `e2e (iphone)`) in parallel; then a preview job that deploys the fake build and comments the link |
-| `ci.yml` | Push to `main` | check; both e2e jobs; then a small deploy job that builds once for staging and production, deploys to staging, and keeps the files as a workflow artifact |
+| `ci.yml` | PR opened or updated | check; e2e, one job per Playwright project (`e2e (desktop)`, `e2e (iphone)`) in parallel; then a preview job that deploys the demo build and comments the link |
+| `ci.yml` | Push to `main` | check; both e2e jobs; then a small deploy job that builds once for staging and production, deploys to staging, and keeps the files as a workflow artifact; beside it `tasks-demo` builds and deploys the demo |
 | `promote.yml` | By hand (`workflow_dispatch`) | Production deploy (below) |
 
-- The preview and staging deploys wait for check and both e2e jobs. The preview builds the fake app again, so e2e needs nothing from the repository's settings.
+- The preview, staging and demo deploys wait for check and both e2e jobs.
 - e2e runs in Playwright's own container image (`mcr.microsoft.com/playwright`), whose version must match `@playwright/test`; `workflows.test.ts` checks it. It keeps Playwright's default workers: 4 made the iPhone job slower (#35).
 - check and e2e start together, so a green run doesn't wait for check. If check fails, a small job after it (`stop-on-check-failure`) cancels the run, so the e2e jobs stop early and check still shows as failed.
-- Every job has a time limit (`timeout-minutes`): check 10, stop-on-check-failure 5, e2e 20, preview, staging deploy and Promote 15.
+- Every job has a time limit (`timeout-minutes`): check 10, stop-on-check-failure 5, e2e 20, preview, staging deploy, demo deploy and Promote 15.
 - The staging build is a separate build from the e2e one, because e2e tests the fake drive and staging needs the real one.
 
 **Promote to production**, one tap from the GitHub app (Actions → Promote to production → Run workflow):

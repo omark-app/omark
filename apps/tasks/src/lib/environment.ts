@@ -1,4 +1,5 @@
 import { BRAND } from '../brand.ts';
+import type { StorageMode } from '../storage-mode.ts';
 
 /**
  * Which environment this page runs in, from its host name (doc/TaskApp factory spec.md, 6.1). The hosts and
@@ -101,11 +102,13 @@ export interface Look {
   label: string | null;
 }
 
-export function lookFor(env: AppEnv): Look {
+/** A demo build says DEMO, except on a PR preview (previews are demo builds), which keeps PREVIEW. */
+export function lookFor(env: AppEnv, mode: StorageMode = 'onedrive'): Look {
   if (env === 'staging') {
     return { title: BRAND.stagingApp, themeColor: '#F6E7C8', manifest: '/manifest-staging.webmanifest', label: 'STAGING' };
   }
-  return { title: null, themeColor: null, manifest: null, label: env === 'preview' ? 'PREVIEW' : null };
+  const label = env === 'preview' ? 'PREVIEW' : mode === 'demo' ? 'DEMO' : null;
+  return { title: null, themeColor: null, manifest: null, label };
 }
 
 /** Applies `look` to the page before the app mounts, so the home-screen name and colour come from it. */
