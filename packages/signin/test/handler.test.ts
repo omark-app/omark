@@ -566,9 +566,13 @@ describe('adding access later (Google, incremental consent)', () => {
   const sendTime = (path: string) => send(path, {}, ENV, TIME);
   const postTime = () =>
     send('/api/auth/token', { method: 'POST', headers: { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' } }, ENV, TIME);
-  const granted = (...scopes: string[]) => ({ access_token: 'gat0', expires_in: 3600, refresh_token: 'grt-new', scope: ['openid', 'https://www.googleapis.com/auth/userinfo.email', ...scopes].join(' ') });
+  let rts = 0;
+  beforeEach(() => {
+    rts = 0;
+  });
+  const granted = (...scopes: string[]) => ({ access_token: 'gat0', expires_in: 3600, refresh_token: rts++ === 0 ? 'grt1' : 'grt-new', scope: ['openid', 'https://www.googleapis.com/auth/userinfo.email', ...scopes].join(' ') });
 
-  async function signInTime(tokens: Record<string, unknown>, add?: string) {
+  async function signInTime(tokens: Record<string, unknown> & { refresh_token?: string }, add?: string) {
     const login = await sendTime(`/api/auth/login?provider=google${add ? `&add=${add}` : ''}`);
     const state = new URL(login.headers.get('Location')!).searchParams.get('state')!;
     gg.ok(tokens);
@@ -603,7 +607,30 @@ describe('adding access later (Google, incremental consent)', () => {
     expect((await postTime()).status).toBe(200);
     const refresh = gg.calls.at(-1)!;
     expect(refresh.get('refresh_token')).toBe('grt-new');
-    expect(refresh.get('scope')!.split(' ').sort()).toEqual([EDIT, READ].sort());
+    // Only the app's scopes: not openid or email, which Google also reports as granted.
+    expect(refresh.get('scope')).toBe(`${READ} ${EDIT}`);
+    // The rolling cookie the token call writes keeps them for the next call.
+    gg.ok({ access_token: 'gat3', expires_in: 3600 });
+    await postTime();
+    expect(gg.calls.at(-1)!.get('scope')).toBe(`${READ} ${EDIT}`);
+  });
+
+  it('a refused add leaves the existing session as it was, and names the access in the error', async () => {
+    await signInTime(granted(READ));
+    const res = await signInTime({ ...granted(READ), refresh_token: 'grt-other' }, 'edit');
+    expect(res.headers.get('Location')).toBe('/?signin_error=scope&provider=google&add=edit');
+    gg.ok({ access_token: 'gat1', expires_in: 3600 });
+    expect((await postTime()).status).toBe(200);
+    expect(gg.calls.at(-1)!.get('refresh_token')).toBe('grt1');
+    expect(gg.calls.at(-1)!.get('scope')).toBe(READ);
+  });
+
+  it('a session whose scopes Google no longer grants must sign in again, not stay "unavailable"', async () => {
+    await signInTime(granted(READ, EDIT), 'edit');
+    gg.fail(400, 'invalid_scope');
+    const res = await postTime();
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ signin: true });
   });
 
   it('keeps access granted on another device: a plain sign-in that Google answers with Drive refreshes with it', async () => {
@@ -615,7 +642,7 @@ describe('adding access later (Google, incremental consent)', () => {
 
   it('fails the sign-in when the added access was not granted', async () => {
     const res = await signInTime(granted(READ), 'edit');
-    expect(res.headers.get('Location')).toBe('/?signin_error=scope&provider=google');
+    expect(res.headers.get('Location')).toBe('/?signin_error=scope&provider=google&add=edit');
     expect(jar.cookies.has('omarktime_session0')).toBe(false);
   });
 });

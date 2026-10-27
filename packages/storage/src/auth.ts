@@ -29,7 +29,7 @@ const PROVIDERS_TIMEOUT_MS = 3_000;
 /** What `/api/auth/callback` sends back as `?signin_error=`. */
 const signinErrors = (provider: string, appName: string, scopeError?: string): Record<string, string> => ({
   scope:
-    scopeError ??
+    scopeError ||
     `${provider} didn't give ${appName} access to its files. Sign in again and tick the box that lets it see, edit, create and delete its own ${provider} Drive files.`,
   cancelled: 'Sign-in was cancelled',
   expired: 'The sign-in took too long or was started in another window; sign in again',
@@ -44,8 +44,11 @@ export interface AuthOptions {
   providers: Record<string, string>;
   /** The app's name for error texts; "the app" when not given. */
   appName?: string;
-  /** The text for a sign-in that lacks a permission the app needs; by default one about Drive files. */
-  scopeError?: string;
+  /**
+   * The text for a sign-in that lacks a permission the app needs, by the access being added (`signIn`'s `add`), with
+   * `''` for the first sign-in; by default one about Drive files.
+   */
+  scopeErrors?: Record<string, string>;
   fetch?: typeof fetch;
   /** Leaves the page for the sign-in (a top-level navigation). */
   navigate?: (url: string) => void;
@@ -127,12 +130,17 @@ export function createAuth(opts: AuthOptions): Auth {
       if (reason === null) return;
       // Drop it from the address bar first, so "Try again" (a reload) starts clean.
       const provider = url.searchParams.get('provider');
+      const add = url.searchParams.get('add') ?? '';
       url.searchParams.delete('signin_error');
       url.searchParams.delete('provider');
+      url.searchParams.delete('add');
       window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
       // hasOwn, so `?provider=constructor` or `?signin_error=toString` read as unknown.
       const id = provider !== null && Object.hasOwn(opts.providers, provider) ? provider : defaultProvider;
-      const errors = signinErrors(opts.providers[id] ?? '', opts.appName ?? 'the app', opts.scopeError);
+      const own = opts.scopeErrors ?? {};
+      // hasOwn, so `?add=toString` falls back to the first sign-in's text.
+      const scopeError = Object.hasOwn(own, add) ? own[add] : own[''];
+      const errors = signinErrors(opts.providers[id] ?? '', opts.appName ?? 'the app', scopeError);
       throw new Error(Object.hasOwn(errors, reason) ? errors[reason] : 'Sign-in failed');
     },
     async signIn(provider, o) {

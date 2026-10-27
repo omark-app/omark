@@ -82,7 +82,8 @@ interface Tokens {
   /** Space-separated granted scopes (Google sends it on every grant). */
   scope?: string;
 }
-type Redeemed = { kind: 'ok'; tokens: Tokens } | { kind: 'signin' } | { kind: 'unavailable' };
+/** `error` is the provider's error code, when it sent one. */
+type Redeemed = { kind: 'ok'; tokens: Tokens } | { kind: 'signin' } | { kind: 'unavailable'; error?: string };
 
 interface Base {
   request: Request;
@@ -146,6 +147,9 @@ export async function handleAuth(request: Request, env: Env, options: AuthOption
 }
 
 const defaultProvider = (options: AuthOptions): string => Object.keys(options.providers)[0]!;
+/** The scopes of an access the app can add (`login?add=`); null when it has no such access. hasOwn, so `toString` is none. */
+const extraFor = (provider: ProviderConfig, name: string): readonly string[] | null =>
+  provider.extraScopes && Object.hasOwn(provider.extraScopes, name) ? provider.extraScopes[name]! : null;
 /** hasOwn, so `constructor` or `toString` are not providers. */
 const hasProvider = (options: AuthOptions, id: string): boolean => Object.hasOwn(options.providers, id);
 
@@ -171,9 +175,8 @@ async function login(base: Base): Promise<Response> {
   const ctx = withProvider(base, id);
   if (ctx instanceof Response) return ctx;
   const add = base.url.searchParams.get('add');
-  const extra = ctx.provider.extraScopes ?? {};
-  // hasOwn, so `toString` is not an access.
-  if (add !== null && !Object.hasOwn(extra, add)) return json(400, { error: 'unknown_access' });
+  const extra = add === null ? [] : extraFor(ctx.provider, add);
+  if (extra === null) return json(400, { error: 'unknown_access' });
   const state = randomToken();
   const verifier = randomToken();
   const params = new URLSearchParams({
@@ -181,7 +184,7 @@ async function login(base: Base): Promise<Response> {
     response_type: 'code',
     response_mode: 'query',
     redirect_uri: redirectUri(ctx),
-    scope: add === null ? ctx.provider.signinScope : [ctx.provider.signinScope, ...extra[add]!].join(' '),
+    scope: [ctx.provider.signinScope, ...extra].join(' '),
     state,
     code_challenge: await pkceChallenge(verifier),
     code_challenge_method: 'S256',
@@ -206,7 +209,8 @@ async function login(base: Base): Promise<Response> {
 async function callback(base: Base): Promise<Response> {
   const { hint: HINT, login: LOGIN } = base.names;
   const clearLogin = serializeCookie(LOGIN.name, '', { path: LOGIN.path, maxAge: 0 });
-  const back = (reason: string, id?: string) => redirect(`/?signin_error=${reason}${id ? `&provider=${id}` : ''}`, [clearLogin]);
+  const back = (reason: string, id?: string, add?: string) =>
+    redirect(`/?signin_error=${reason}${id ? `&provider=${id}` : ''}${add ? `&add=${add}` : ''}`, [clearLogin]);
   const q = base.url.searchParams;
   const login = await unseal<LoginState>(base.key, LOGIN.name, base.cookies.get(LOGIN.name));
   const id = login?.p ?? defaultProvider(base.options);
@@ -223,7 +227,7 @@ async function callback(base: Base): Promise<Response> {
   const code = q.get('code');
   if (!code) return back('failed', id);
 
-  const added = login.a !== undefined && Object.hasOwn(ctx.provider.extraScopes ?? {}, login.a) ? ctx.provider.extraScopes![login.a]! : [];
+  const added = login.a === undefined ? [] : (extraFor(ctx.provider, login.a) ?? []);
   const redeemed = await redeem(ctx, {
     grant_type: 'authorization_code',
     code,
@@ -237,7 +241,8 @@ async function callback(base: Base): Promise<Response> {
   const granted = typeof scope === 'string' ? scope.split(' ') : [];
   if ([...(ctx.provider.requiredScopes ?? []), ...added].some((required) => !granted.includes(required))) {
     console.warn('Omark sign-in: the grant lacks a required scope');
-    return back('scope', id);
+    // Named when the missing one was an access being added, so the app can say which.
+    return back('scope', id, added.length > 0 ? login.a : undefined);
   }
   if (!rt) return back('failed', id);
 
@@ -267,15 +272,19 @@ async function token(base: Base): Promise<Response> {
   if (!hasProvider(base.options, id)) return json(401, { signin: true }, clearSession(base));
   const ctx = withProvider(base, id);
   if (ctx instanceof Response) return ctx;
-  const redeemed = await redeem(ctx, { grant_type: 'refresh_token', refresh_token: session.rt, scope: session.sc ?? ctx.provider.scope });
-  if (redeemed.kind === 'signin') return json(401, { signin: true }, clearSession(ctx));
+  // Re-filtered on each call, so a scope the app no longer has is not asked for.
+  const sc = session.sc === undefined ? undefined : grantedScope(ctx.provider, session.sc.split(' '));
+  const redeemed = await redeem(ctx, { grant_type: 'refresh_token', refresh_token: session.rt, scope: sc ?? ctx.provider.scope });
+  // Asking a refresh token for more than it was granted is `invalid_scope` (Time spec 15.1): only a new sign-in helps.
+  const stale = sc !== undefined && redeemed.kind === 'unavailable' && redeemed.error === 'invalid_scope';
+  if (redeemed.kind === 'signin' || stale) return json(401, { signin: true }, clearSession(ctx));
   if (redeemed.kind === 'unavailable') return json(503, { error: 'unavailable' });
   const { access_token, expires_in, refresh_token } = redeemed.tokens;
   // Microsoft sends a new refresh token on every use; keep the old one if a provider does not.
   return json(
     200,
     { accessToken: access_token, expiresAt: ctx.now + expires_in * 1000 },
-    await sessionCookies(ctx, refresh_token ?? session.rt, session.sc),
+    await sessionCookies(ctx, refresh_token ?? session.rt, sc),
   );
 }
 
@@ -348,7 +357,7 @@ async function redeem(ctx: Context, grant: Record<string, string>): Promise<Rede
   }
   const error = typeof body.error === 'string' ? body.error : 'none';
   console.warn(`Omark sign-in: token endpoint answered ${res.status} (${error})`);
-  return SIGN_IN_ERRORS.includes(error) ? { kind: 'signin' } : { kind: 'unavailable' };
+  return SIGN_IN_ERRORS.includes(error) ? { kind: 'signin' } : { kind: 'unavailable', error };
 }
 
 /**

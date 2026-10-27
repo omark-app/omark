@@ -36,8 +36,16 @@ let cookie: string;
 const navigate = vi.fn();
 const TASKS = { cookiePrefix: 'taskapp', providers: { microsoft: 'Microsoft' } };
 const BOTH = { cookiePrefix: 'taskapp', providers: { microsoft: 'Microsoft', google: 'Google' } };
-const TIME = { cookiePrefix: 'omarktime', providers: { google: 'Google' }, appName: 'Omark Time', scopeError: 'Tick every box' };
-const mk = (timeoutMs?: number, app: { cookiePrefix: string; providers: Record<string, string>; appName?: string; scopeError?: string } = TASKS) =>
+const TIME = {
+  cookiePrefix: 'omarktime',
+  providers: { google: 'Google' },
+  appName: 'Omark Time',
+  scopeErrors: { '': 'Tick every box', edit: 'Tick the box for editing events' },
+};
+const mk = (
+  timeoutMs?: number,
+  app: { cookiePrefix: string; providers: Record<string, string>; appName?: string; scopeErrors?: Record<string, string> } = TASKS,
+) =>
   createAuth({ ...app, fetch: api.fetch as typeof fetch, navigate, cookies: () => cookie, now: () => now, timeoutMs });
 
 beforeEach(() => {
@@ -243,8 +251,13 @@ describe('createAuth (sign-in helper)', () => {
       expect(replaceState).toHaveBeenCalledWith(null, '', '/?x=1#h');
     });
 
-    it('gives an app its own text for a missing permission', async () => {
+    it('gives an app its own text for a missing permission, per added access', async () => {
       at('https://time.example/?signin_error=scope&provider=google');
+      await expect(mk(undefined, TIME).handleRedirect()).rejects.toThrow('Tick every box');
+      at('https://time.example/?signin_error=scope&provider=google&add=edit&x=1');
+      await expect(mk(undefined, TIME).handleRedirect()).rejects.toThrow('Tick the box for editing events');
+      expect(replaceState).toHaveBeenLastCalledWith(null, '', '/?x=1');
+      at('https://time.example/?signin_error=scope&provider=google&add=toString');
       await expect(mk(undefined, TIME).handleRedirect()).rejects.toThrow('Tick every box');
     });
 
