@@ -86,7 +86,7 @@ test('the demo bundle has no Google and no sign-in path', async ({ request }) =>
   const entries = [...html.matchAll(/<script[^>]+src="([^"]+\.js)"/g)].map((m) => m[1]!);
   expect(entries.length).toBeGreaterThan(0);
   const sw = await (await request.get('/sw.js')).text();
-  const precached = [...sw.matchAll(/url:\s*"([^"]+\.js)"/g)].map((m) => `/${m[1]!}`);
+  const precached = [...sw.matchAll(/\burl:\s*"([^"]+\.js)"/g)].map((m) => `/${m[1]!}`);
   expect(precached.length).toBeGreaterThan(0);
   for (const src of new Set([...entries, ...precached, '/sw.js'])) {
     const res = await request.get(src);
