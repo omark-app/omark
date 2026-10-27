@@ -50,6 +50,9 @@ describe('sampleFiles', () => {
       const p = habitProgress(t, done, WEDNESDAY, habits);
       expect(p.count, t.title).toBeGreaterThan(0);
       expect(p.formedOn, t.title).toBeNull();
+      // Tickable today, and no miss so far.
+      expect(p.doneThisPeriod, t.title).toBe(false);
+      expect(p.missesThisAttempt, t.title).toBe(0);
     }
   });
 
