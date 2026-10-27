@@ -11,13 +11,14 @@ import {
   parseProjects,
   parseTimeConfig,
   recheckKnown,
+  keyOf,
   removeCalendar,
   serializeEventsFile,
   startOfDay,
   SyncTokenExpiredError,
   windowEnd,
 } from '@omark/time-core';
-import type { CalendarEvent, CalendarSource, RowContext, TimeConfig, YearFiles } from '@omark/time-core';
+import type { CalendarEvent, CalendarSource, EventRow, ProjectsFile, RowContext, TimeConfig, YearFiles } from '@omark/time-core';
 import { CONFIG, PROJECTS, PROJECTS_HEADER } from './files.ts';
 import type { TextFiles } from './files.ts';
 import type { DeviceState, StateStore } from './state.ts';
@@ -34,8 +35,10 @@ export interface SyncResult {
   /** Every event read in this sync (changes, full reads and ranges), for colouring. */
   events: CalendarEvent[];
   changedYears: string[];
-  /** Rows in the files after the sync. */
+  /** Rows in the files after the sync, and how many. */
+  allRows: EventRow[];
   rows: number;
+  projects: ProjectsFile;
   fixCount: number;
   config: TimeConfig;
   context: RowContext;
@@ -72,7 +75,8 @@ export async function sync(deps: SyncDeps, opts: { rebuild?: boolean } = {}): Pr
   const today = localDate(deps.now(), timeZone);
 
   const config = parseTimeConfig(await files.read(CONFIG, defaultTimeConfigText(today)), today).config;
-  const known = knownCodes(parseProjects(await files.read(PROJECTS, PROJECTS_HEADER)).projects);
+  const projects = parseProjects(await files.read(PROJECTS, PROJECTS_HEADER));
+  const known = knownCodes(projects.projects);
   const context: RowContext = { knownCodes: known, timeZone, allDayHours: config.allDayHours, trackFrom: config.trackFrom, today };
 
   const bases = new Map<string, string>();
@@ -135,15 +139,18 @@ export async function sync(deps: SyncDeps, opts: { rebuild?: boolean } = {}): Pr
     else changed.delete(year);
   }
 
+  const allRows = [...yearFiles.values()].flat();
+  const links = keepLinks(opts.rebuild ? {} : state.links, events, allRows);
   // Only the sync's own fields, onto the state as it is now: the colour queues are colouring's.
-  const own = { tokens, lastToday: today, knownCodes: codes, timeZone };
+  const own = { tokens, lastToday: today, knownCodes: codes, timeZone, links };
   const next: DeviceState = opts.rebuild ? { ...state, ...own } : { ...(await deps.state.load()), ...own };
   await deps.state.save(next);
-  const allRows = [...yearFiles.values()].flat();
   return {
     events,
     changedYears: [...changed].sort(),
+    allRows,
     rows: allRows.length,
+    projects,
     fixCount: buildFixList(allRows).count,
     config,
     context,
@@ -151,14 +158,33 @@ export async function sync(deps: SyncDeps, opts: { rebuild?: boolean } = {}): Pr
   };
 }
 
-/** Rows and the fix count from the files as this device has them, without the calendar (offline). */
-export async function readSummary(files: TextFiles, state: StateStore, now: () => number): Promise<{ rows: number; fixCount: number }> {
+/** The links of the events just read, kept while their rows are unknown; the others' links stay as they were. */
+function keepLinks(old: Record<string, string>, events: CalendarEvent[], rows: EventRow[]): Record<string, string> {
+  const unknown = new Set(rows.filter((r) => !r.known).map((r) => keyOf(r.calendar, r.eventId)));
+  const links = { ...old };
+  for (const e of events) {
+    const key = keyOf(e.calendarId, e.id);
+    if (e.htmlLink && unknown.has(key)) links[key] = e.htmlLink;
+    else delete links[key];
+  }
+  // A row that is no longer unknown (a project added) needs no link.
+  for (const key of Object.keys(links)) if (!unknown.has(key)) delete links[key];
+  return links;
+}
+
+/** The rows, projects and fix count from the files as this device has them, without the calendar (offline). */
+export async function readSummary(
+  files: TextFiles,
+  state: StateStore,
+  now: () => number,
+): Promise<{ allRows: EventRow[]; rows: number; fixCount: number; projects: ProjectsFile }> {
   const timeZone = (await state.load()).timeZone ?? 'UTC';
   const today = localDate(now(), timeZone);
   const config = parseTimeConfig(await files.read(CONFIG, defaultTimeConfigText(today)), today).config;
-  const rows = [];
+  const projects = parseProjects(await files.read(PROJECTS, PROJECTS_HEADER));
+  const allRows: EventRow[] = [];
   for (const year of years(config.trackFrom, windowEnd(today))) {
-    rows.push(...parseEventsFile(await files.read(eventsFileName(year), EMPTY_YEAR)).rows);
+    allRows.push(...parseEventsFile(await files.read(eventsFileName(year), EMPTY_YEAR)).rows);
   }
-  return { rows: rows.length, fixCount: buildFixList(rows).count };
+  return { allRows, rows: allRows.length, fixCount: buildFixList(allRows).count, projects };
 }
