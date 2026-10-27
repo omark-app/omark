@@ -2,8 +2,12 @@
   import type { AppStore } from '../lib/store.svelte.ts';
   import { bannerText, QUIET_SYNC_MS } from '../lib/sync-banner.ts';
 
-  /** `onsignin` adds a Sign in button while a sign-in is needed. */
-  let { store, onsignin }: { store: AppStore; onsignin?: () => void } = $props();
+  /** `onsignin` adds a Sign in button while a sign-in is needed. `storageName` is what the texts call the storage. */
+  let {
+    store,
+    onsignin,
+    storageName = 'OneDrive',
+  }: { store: AppStore; onsignin?: () => void; storageName?: string } = $props();
 
   // A sync that is quick stays quiet; one still running after a few seconds gets the banner too.
   let slow = $state(false);
@@ -16,7 +20,7 @@
     return () => clearTimeout(timer);
   });
 
-  const text = $derived(bannerText(store.status, slow, store.syncedAt, new Date()));
+  const text = $derived(bannerText(store.status, slow, store.syncedAt, new Date(), storageName));
 </script>
 
 {#if text}

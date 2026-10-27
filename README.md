@@ -2,7 +2,7 @@
 
 A small task app that keeps your tasks in plain Markdown files on your own OneDrive (`tasks.md`, `done.md`, `config.yaml`). It is a Svelte 5 + TypeScript PWA with a list view and a week board, works offline, and the files stay editable in Obsidian or by Claude Code.
 
-Monorepo: `packages/tasks-core` (parsing and logic), `packages/settings` (the schema-driven Settings page), `packages/storage` (OneDrive and the sign-in client), `packages/signin` (the sign-in helper, served from `functions/` as Cloudflare Pages Functions), `apps/tasks` (the Tasks app), `apps/site` (the omark.app landing page, privacy policy and terms), `tools/todoist-import`, `tools/claude-guard` (the guard hook), `tools/ci` (CI helper scripts).
+Monorepo: `packages/tasks-core` (parsing and logic), `packages/settings` (the schema-driven Settings page), `packages/storage` (OneDrive, Google Drive and the sign-in client), `packages/signin` (the sign-in helper, served from `functions/` as Cloudflare Pages Functions), `apps/tasks` (the Tasks app), `apps/site` (the omark.app landing page, privacy policy and terms), `tools/todoist-import`, `tools/claude-guard` (the guard hook), `tools/ci` (CI helper scripts).
 
 Settings: the gear in the footer, or the `,` key, opens a Settings page that edits `config.yaml`. It writes only the keys that differ from the defaults and keeps your comments. The page is the shared `@omark/settings` package ([how to use it](packages/settings/README.md)).
 
@@ -21,6 +21,7 @@ Node 22 or newer and pnpm 10, then `pnpm i`.
 | name | used for |
 | --- | --- |
 | `VITE_STORAGE` | `onedrive` (default) or `fake` (in-memory drive, used by the tests) |
+| `VITE_GOOGLE_FOLDER` | the Google Drive folder (in My Drive) for preview and local builds; default `Omark Tasks Dev`. Production uses `Omark Tasks` and staging `Omark Tasks Staging`, chosen by host |
 | `VITE_ONEDRIVE_FOLDER` | OneDrive folder holding the files; default `''` (the app folder's root) |
 | `VITE_PROD_HOST`, `VITE_STAGING_HOST` | the hosts that are production and staging; with neither set every host is `local` |
 | `VITE_PREVIEW_HOST_SUFFIXES` | comma-separated host suffixes that are previews (a host matches itself or any subdomain) |
@@ -30,6 +31,7 @@ Node 22 or newer and pnpm 10, then `pnpm i`.
 | Repository variables | read by the workflows (Settings → Secrets and variables → Actions → Variables): `DEPLOY_ENABLED` (`true` turns on every deploy job), and per app, named after it (`TASKS_*` for Tasks): `CF_TASKS_STAGING_PROJECT`, `CF_TASKS_PROD_PROJECT` (Cloudflare Pages projects), `TASKS_STAGING_URL`, `TASKS_PROD_URL` (sign-in checks), `TASKS_STAGING_DOMAIN` with `CF_TASKS_ZONE_ID` (optional: staging's custom domain and DNS), and `TASKS_PROD_HOST`, `TASKS_STAGING_HOST`, `TASKS_PREVIEW_HOST_SUFFIXES`, `TASKS_PROD_FOLDER`, `TASKS_STAGING_FOLDER`, `TASKS_ONEDRIVE_SCOPE`, `TASKS_MSAL_TENANT`, which become the `VITE_*` build variables and the sign-in check. The site has two: `CF_SITE_PROJECT` (its Pages project, `omark-site`) and `SITE_URL` (`https://omark.app`, for the check after a deploy). Forks have no secrets, so for them only the checks and e2e run |
 | `OMARK_APP` | Pages variable, one per app's Pages project: which app the sign-in helper serves; unset means `tasks` |
 | `MSAL_CLIENT_ID`, `MSAL_CLIENT_SECRET`, `COOKIE_KEY` | the sign-in helper's secrets: Entra app (client) ID, its client secret, and 32 random bytes (base64) that encrypt the session cookie. Set on Cloudflare Pages with `wrangler pages secret put` (see Sign-in); for local runs put them in `.dev.vars` at the repo root (git-ignored), one `NAME=value` per line |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Pages secrets, optional: the Google OAuth client for the sign-in helper. Only a Pages project that has both lists Google at `/api/auth/providers`, so only there the app offers "Sign in with Google" (production has neither). For local runs put them in `.dev.vars` too |
 | `TODOIST_TOKEN` | Todoist API token for the import; read from the environment, never written anywhere |
 | `TASKAPP_E2E_STATE` | where the real-OneDrive smoke keeps its signed-in browser state; default `C:\Users\<you>\.secrets\taskapp-e2e-state.json` (outside the repo, it holds tokens) |
 | `TASKAPP_E2E_FOLDER` | the folder the real-OneDrive smoke uses, inside the app folder; default `TaskApp-e2e` |
@@ -45,12 +47,30 @@ The app signs in with your personal Microsoft account through a small sign-in he
 
 | endpoint | what it does |
 | --- | --- |
+| `GET /api/auth/providers` | `{ providers: [...] }`, the providers whose secrets are set, in order; the sign-in screen offers these |
 | `GET /api/auth/login` | redirects to Microsoft (authorization code + PKCE, `login_hint` from the last sign-in); state and verifier wait in a 10-minute encrypted cookie |
+| `GET /api/auth/login?provider=google` | the same for Google (`microsoft` is the default without `provider`) |
 | `GET /api/auth/callback` | checks the state, redeems the code with the client secret, sets the session cookie, returns to `/` (on failure `/?signin_error=…`, which the app shows) |
-| `POST /api/auth/token` | `{ accessToken, expiresAt }`, rotating the session cookie; 401 `{ signin: true }` means sign in again, 503 means Microsoft could not be reached |
+| `POST /api/auth/token` | `{ accessToken, expiresAt }`, rotating the session cookie; 401 `{ signin: true }` means sign in again, 503 means the provider could not be reached |
 | `POST /api/auth/logout` | deletes the cookies |
 
 The POST endpoints need the header `X-TaskApp-Auth: 1` and an `Origin` of the app itself.
+
+### Google as a second provider
+
+The helper serves more than one provider per app. Tasks offers `microsoft` (the default) and `google`, with the scope `https://www.googleapis.com/auth/drive.file` (the app sees only files it created; `openid email` is added at sign-in). `GET /api/auth/login?provider=google` starts a Google sign-in; `GET /api/auth/providers` returns `{ providers: [...] }` and lists only the providers whose secrets are set, which is how the app decides whether to show "Sign in with Google". The Google session lasts 180 days, rolling. Google's consent screen starts with the Drive box unticked, so a sign-in without it is refused (`signin_error=scope`). The readable cookie `taskapp_signed_in` holds the provider id (the old value `1` means Microsoft). Google Drive keeps the files in one My Drive folder (`Omark Tasks`, `Omark Tasks Staging` on staging).
+
+To set up a Google client (OAuth client type "Web application"):
+
+1. Redirect URIs: `https://<host>/api/auth/callback` for each host that offers Google, and `http://localhost:8788/api/auth/callback` for local runs. `wrangler pages dev` listens on 8788 by default, but `pnpm dev:signin` passes `--port 5173`, so for it add `http://localhost:5173/api/auth/callback` as well.
+2. Set the secrets from the client's JSON file without printing it (the file has the `web` object; adjust the path and project):
+
+   ```
+   node -p "require('./google-client.json').web.client_id" | pnpm exec wrangler pages secret put GOOGLE_CLIENT_ID --project-name=taskapp-staging
+   node -p "require('./google-client.json').web.client_secret" | pnpm exec wrangler pages secret put GOOGLE_CLIENT_SECRET --project-name=taskapp-staging
+   ```
+
+   `COOKIE_KEY` is shared with Microsoft (step 3 below). Secrets apply to the next deployment.
 
 ### Before the first deploy with the sign-in helper
 
@@ -114,6 +134,8 @@ The Pages Function in `functions/` serves every app. It picks the app from the P
 **Refresh staging:** copy the files from `ALAI/TaskApp` over `ALAI/TaskApp-staging` on the PC.
 
 ## Real-OneDrive smoke
+
+`pnpm e2e:real` covers Microsoft only. Google Drive is checked by hand on staging: sign in with Google (Drive box ticked), add a task, look in `My Drive/Omark Tasks Staging`, then edit `tasks.md` through Google Drive for desktop and check the app merges it.
 
 `pnpm e2e:real` builds the app with `VITE_STORAGE=onedrive` and `VITE_ONEDRIVE_FOLDER=TaskApp-e2e` (inside the app folder), serves it with the sign-in helper on http://localhost:5173 (`wrangler pages dev`, secrets from `.dev.vars` at the repo root; stop `pnpm dev` first, the port must be free), adds and completes one task and adds and deletes another, and reads `tasks.md` and `done.md` back through Graph. It removes its own lines afterwards. The saved sign-in (the helper's cookies) lasts 90 days from its last use. The smoke leaves the `TaskApp-e2e` folder and its files behind (only the task lines are removed). Without the saved state it stops with a message to run `pnpm e2e:real:login`. The first run after the move to the app folder needs `pnpm e2e:real:login` again, because the sign-in asks for new consent.
 
