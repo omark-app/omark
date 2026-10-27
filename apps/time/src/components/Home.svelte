@@ -30,6 +30,17 @@
   <button class="secondary" disabled={store.sync === 'syncing'} onclick={() => store.syncNow()}>Sync now</button>
 </section>
 
+{#if store.signOutPending}
+  <section class="card" role="alert">
+    <h2>Some changes are not saved yet</h2>
+    <p>A settings change has not reached your storage yet. Signing out now drops it from this device.</p>
+    <div class="row">
+      <button class="primary" onclick={() => store.syncNow()}>Sync now</button>
+      <button class="secondary" onclick={() => store.signOut({ anyway: true })}>Sign out anyway</button>
+    </div>
+  </section>
+{/if}
+
 {#if store.sync === 'signin'}
   <section class="card" role="alert">
     <p>Your Google sign-in has lapsed.</p>

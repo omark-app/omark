@@ -135,7 +135,9 @@ export async function sync(deps: SyncDeps, opts: { rebuild?: boolean } = {}): Pr
     else changed.delete(year);
   }
 
-  const next: DeviceState = { ...state, tokens, lastToday: today, knownCodes: codes, timeZone };
+  // Only the sync's own fields, onto the state as it is now: the colour queues are colouring's.
+  const own = { tokens, lastToday: today, knownCodes: codes, timeZone };
+  const next: DeviceState = opts.rebuild ? { ...state, ...own } : { ...(await deps.state.load()), ...own };
   await deps.state.save(next);
   const allRows = [...yearFiles.values()].flat();
   return {

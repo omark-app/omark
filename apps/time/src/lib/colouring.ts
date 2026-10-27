@@ -16,6 +16,8 @@ export type ColourOutcome = 'off' | 'done' | 'needs-edit' | 'stopped';
 
 type Queue = 'colourQueue' | 'clearQueue';
 
+const sameJob = (a: ColourJob, b: ColourJob) => a.calendarId === b.calendarId && a.eventId === b.eventId;
+
 const at = (start: EventTime, tz: string) => ('date' in start ? startOfDay(start.date, tz) : parseInstant(start.dateTime));
 
 const newestFirst = (a: ColourJob, b: ColourJob) =>
@@ -23,11 +25,18 @@ const newestFirst = (a: ColourJob, b: ColourJob) =>
 
 /**
  * The queue with `events` planned again: each one's old job is dropped, and a new one added when it still
- * needs a patch. So a sync before a job's turn never sends a stale colour.
+ * needs a patch. So a sync before a job's turn never sends a stale colour. Jobs of calendars no longer
+ * chosen are dropped too.
  */
-function plan(queue: ColourJob[], events: CalendarEvent[], patchFor: (e: CalendarEvent) => ColourJob['patch'] | null, tz: string): ColourJob[] {
+function plan(
+  queue: ColourJob[],
+  events: CalendarEvent[],
+  patchFor: (e: CalendarEvent) => ColourJob['patch'] | null,
+  tz: string,
+  calendars: readonly string[],
+): ColourJob[] {
   const latest = new Map(events.map((e) => [keyOf(e.calendarId, e.id), e]));
-  const kept = queue.filter((j) => !latest.has(keyOf(j.calendarId, j.eventId)));
+  const kept = queue.filter((j) => !latest.has(keyOf(j.calendarId, j.eventId)) && calendars.includes(j.calendarId));
   for (const e of latest.values()) {
     const patch = patchFor(e);
     if (patch && e.start) kept.push({ calendarId: e.calendarId, eventId: e.id, patch, at: at(e.start, tz) });
@@ -58,19 +67,26 @@ export async function colourAfterSync(result: SyncResult, deps: ColourDeps): Pro
   }
   const ctx: ColourContext = { ...result.context, ids: await deps.source.colourIds() };
   const events = state.colourPlanned ? result.events : await windowEvents(deps.source, result);
-  const colourQueue = plan(state.colourQueue, events, (e) => colourAction(e, ctx), ctx.timeZone);
+  const colourQueue = plan(state.colourQueue, events, (e) => colourAction(e, ctx), ctx.timeZone, result.config.calendars);
   await deps.state.save({ ...state, colourQueue, colourPlanned: true, clearQueue: [] });
   return runQueue('colourQueue', deps);
 }
 
-/** Plans taking the tracker's colours off the window's events (colouring turned off); returns how many. */
-export async function planClear(result: SyncResult, deps: Pick<ColourDeps, 'source' | 'state'>): Promise<number> {
+/**
+ * The patches that would take the tracker's colours off the window's events (colouring turned off). Nothing is
+ * saved: a clear runs only once the user confirms it (`confirmClear`).
+ */
+export async function planClear(result: SyncResult, deps: Pick<ColourDeps, 'source'>): Promise<ColourJob[]> {
   const ids = await deps.source.colourIds();
   const events = await windowEvents(deps.source, result);
+  return plan([], events, (e) => clearAction(e, ids), result.context.timeZone, result.config.calendars);
+}
+
+/** The user said yes: the clear is saved (so a reload finishes it) and sent. */
+export async function confirmClear(jobs: ColourJob[], deps: ColourDeps): Promise<ColourOutcome> {
   const state: DeviceState = await deps.state.load();
-  const clearQueue = plan([], events, (e) => clearAction(e, ids), result.context.timeZone);
-  await deps.state.save({ ...state, clearQueue });
-  return clearQueue.length;
+  await deps.state.save({ ...state, clearQueue: jobs });
+  return runQueue('clearQueue', deps);
 }
 
 /** Sends a queue's patches in order, saving the queue after each, so a reload carries on where this stopped. */
@@ -78,16 +94,18 @@ export async function runQueue(queue: Queue, deps: ColourDeps): Promise<ColourOu
   let state = await deps.state.load();
   while (state[queue].length > 0) {
     if (deps.shouldStop?.()) return 'stopped';
-    const [job, ...rest] = state[queue];
+    const job = state[queue][0];
     try {
       await deps.source.setColour(job!.calendarId, job!.eventId, job!.patch);
     } catch (e) {
       if (e instanceof EditAccessRequiredError) return 'needs-edit';
       throw e;
     }
-    state = { ...(await deps.state.load()), [queue]: rest };
+    // Only the job just sent goes: the queue may have been replanned meanwhile.
+    const now = await deps.state.load();
+    state = { ...now, [queue]: now[queue].filter((j) => !sameJob(j, job!)) };
     await deps.state.save(state);
-    deps.onProgress?.(rest.length);
+    deps.onProgress?.(state[queue].length);
   }
   return 'done';
 }

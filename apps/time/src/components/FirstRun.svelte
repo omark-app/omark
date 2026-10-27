@@ -11,6 +11,10 @@
   }
 </script>
 
+{#if store.error}
+  <p class="card" role="alert">{store.error}</p>
+{/if}
+
 {#if store.phase === 'storage'}
   <section class="card">
     <h2>Where should the files go?</h2>
@@ -24,7 +28,10 @@
 {:else}
   <section class="card">
     <h2>Which calendars count?</h2>
-    {#if store.calendars.length === 0}
+    {#if store.calendarsError}
+      <p role="alert">{store.calendarsError}</p>
+      <button class="secondary" onclick={() => store.loadCalendars()}>Try again</button>
+    {:else if store.calendars.length === 0}
       <p class="muted">Reading your calendars…</p>
     {:else}
       <ul>

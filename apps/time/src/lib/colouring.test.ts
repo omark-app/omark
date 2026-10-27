@@ -2,7 +2,7 @@ import { beforeEach, expect, test } from 'vitest';
 import { FakeCalendar } from '@omark/calendar';
 import type { CalendarEvent, CalendarInfo } from '@omark/calendar';
 import { defaultTimeConfigText } from '@omark/time-core';
-import { colourAfterSync, planClear, runQueue } from './colouring.ts';
+import { colourAfterSync, confirmClear, planClear, runQueue } from './colouring.ts';
 import { CONFIG, MemoryFiles, PROJECTS, PROJECTS_HEADER } from './files.ts';
 import { MemoryState } from './state.ts';
 import { sync } from './sync.ts';
@@ -123,13 +123,54 @@ test('turning it off drops the queue; clearing takes off only the tracker\'s col
   expect((await state.load()).colourQueue).toEqual([]);
 
   const before = calendar.patches.length;
-  const count = await planClear(result, { source: calendar, state });
-  expect(count).toBe(3);
-  expect(await runQueue('clearQueue', { source: calendar, state })).toBe('done');
+  const jobs = await planClear(result, { source: calendar });
+  expect(jobs).toHaveLength(3);
+  expect(await confirmClear(jobs, { source: calendar, state })).toBe('done');
   const clears = calendar.patches.slice(before).map((p) => [p.eventId, p.patch.colorId, p.patch.marker]);
   expect(clears).toEqual([
     ['new', null, null],
     ['typo', null, null],
     ['changed', '3', null],
   ]);
+});
+
+test('a clear that was offered but not confirmed never runs', async () => {
+  colouring(true);
+  await round();
+  colouring(false);
+  const result = await sync(deps);
+  const before = calendar.patches.length;
+  expect(await planClear(result, { source: calendar })).toHaveLength(3);
+  // The user taps Sync now, or reloads, without answering.
+  await round();
+  await round();
+  expect(calendar.patches.length).toBe(before);
+});
+
+test('a calendar taken out of config.yaml gets no more patches', async () => {
+  files.texts.set(CONFIG, defaultTimeConfigText('2026-10-27').replace('[primary]', '[primary, work@example.com]').replace('colour_events: false', 'colour_events: true'));
+  calendar = new FakeCalendar([...CALENDARS, { id: 'work@example.com', name: 'Work', primary: false, timeZone: 'Europe/Warsaw', owned: true }]);
+  deps = { ...deps, source: calendar };
+  calendar.add(event('p', '2026-10-01'));
+  calendar.add(event('w', '2026-10-02', 'ACME; x', { calendarId: 'work@example.com' }));
+  // Stops before any patch, leaving both queued.
+  await round({ stopAfter: 0 });
+  files.texts.set(CONFIG, defaultTimeConfigText('2026-10-27').replace('colour_events: false', 'colour_events: true'));
+  await round();
+  expect(calendar.patches.map((p) => p.eventId)).toEqual(['p']);
+});
+
+test('a run removes only the job it sent, even if the queue changed meanwhile', async () => {
+  colouring(true);
+  await round({ stopAfter: 0 });
+  const setColour = calendar.setColour.bind(calendar);
+  calendar.setColour = async (...args) => {
+    // Something else drops the last job while the first is in flight.
+    const s = await state.load();
+    await state.save({ ...s, colourQueue: s.colourQueue.slice(0, -1) });
+    calendar.setColour = setColour;
+    return setColour(...args);
+  };
+  await runQueue('colourQueue', { source: calendar, state, shouldStop: () => calendar.patches.length >= 1 });
+  expect((await state.load()).colourQueue.map((j) => j.eventId)).toEqual(['typo']);
 });

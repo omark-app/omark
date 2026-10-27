@@ -3,21 +3,27 @@ import type { CalendarInfo } from '@omark/calendar';
 import { defaultTimeConfigText, localDate, parseTimeConfig, setTimeConfig } from '@omark/time-core';
 import type { TimeConfig } from '@omark/time-core';
 import type { AppDeps, Place } from './boot.ts';
-import { colourAfterSync, planClear, runQueue } from './colouring.ts';
-import type { ColourOutcome } from './colouring.ts';
+import { colourAfterSync, confirmClear, planClear } from './colouring.ts';
+import type { ColourDeps, ColourOutcome } from './colouring.ts';
 import { CONFIG } from './files.ts';
 import { FRESH_PREFS } from './prefs.ts';
 import type { StorageKind } from './prefs.ts';
+import type { ColourJob } from './state.ts';
 import { readSummary, sync } from './sync.ts';
 import type { SyncResult } from './sync.ts';
 
 export type Phase = 'loading' | 'signin' | 'storage' | 'calendars' | 'ready' | 'error';
-/** `offline`: Google or the storage can't be reached; `signin`: the sign-in has lapsed. */
+/** `offline`: Google or the storage can't be reached; `signin`: the sign-in has lapsed or lacks a permission. */
 export type SyncState = 'syncing' | 'synced' | 'offline' | 'signin' | 'failed';
-/** `running`: patches are going out; `left` says how many. */
+/** `running`: patches are going out; `colourLeft` says how many. */
 export type ColourState = ColourOutcome | 'running';
 
-/** The app's state for the UI, and what the UI can do. One sync runs at a time. */
+/**
+ * The app's state for the UI, and what the UI can do. Syncs and colour runs take turns on one lock: a sync
+ * asked for while one runs (a click, a settings change) runs once after it, and a colour pass stops at its
+ * next patch when colouring is turned off or a sync is waiting. Actions never reject; a failure shows in
+ * `sync` and `error`.
+ */
 export class TimeStore {
   phase = $state<Phase>('loading');
   error = $state<string | null>(null);
@@ -30,17 +36,26 @@ export class TimeStore {
   /** How many tracker colours a clear would take off; set while the clear is offered. */
   clearOffer = $state<number | null>(null);
   calendars = $state<CalendarInfo[]>([]);
+  /** Why the calendar list could not be read, for the first run's calendars step. */
+  calendarsError = $state<string | null>(null);
   config = $state<TimeConfig | null>(null);
   storage = $state<StorageKind | null>(null);
+  /** Sign-out was asked for while a change had not reached the storage yet; `signOut({ anyway: true })` goes on. */
+  signOutPending = $state(false);
 
   private place: Place | null = null;
+  /** The sync or colour run that holds the lock, and the one sync waiting for it. */
   private running: Promise<void> | null = null;
+  private waiting: Promise<void> | null = null;
+  private waitingRebuild = false;
   private last: SyncResult | null = null;
+  private clearJobs: ColourJob[] = [];
   private stopped = false;
 
   constructor(private readonly deps: AppDeps) {}
 
   async start(): Promise<void> {
+    this.stopped = false;
     try {
       await this.deps.auth.handleRedirect();
     } catch (e) {
@@ -58,8 +73,8 @@ export class TimeStore {
     }
     this.open(prefs.storage);
     if (!prefs.started) {
-      await this.loadCalendars();
       this.phase = 'calendars';
+      await this.loadCalendars();
       return;
     }
     this.phase = 'ready';
@@ -67,113 +82,141 @@ export class TimeStore {
   }
 
   signIn(): Promise<void> {
-    return this.deps.auth.signIn().then(() => this.start());
+    return this.guard(async () => {
+      await this.deps.auth.signIn();
+      await this.start();
+    });
   }
 
   /** First run, step 1. Google Drive needs Drive access added to the sign-in first. */
-  async chooseStorage(kind: StorageKind): Promise<void> {
-    const prefs = await this.deps.prefs.load();
-    await this.deps.prefs.save({ ...prefs, storage: kind, askedDrive: true });
-    if (!prefs.askedDrive) await this.deps.auth.addAccess('drive');
-    await this.start();
+  chooseStorage(kind: StorageKind): Promise<void> {
+    return this.guard(async () => {
+      const prefs = await this.deps.prefs.load();
+      if (!prefs.askedDrive) await this.deps.auth.addAccess('drive');
+      await this.deps.prefs.save({ ...prefs, storage: kind, askedDrive: true });
+      await this.start();
+    });
   }
 
   /** First run, step 2: the calendars to read go into config.yaml, then the first sync. */
-  async chooseCalendars(ids: string[]): Promise<void> {
-    await this.writeConfig({ calendars: ids });
-    const prefs = await this.deps.prefs.load();
-    await this.deps.prefs.save({ ...prefs, started: true });
-    this.phase = 'ready';
-    await this.syncNow();
+  chooseCalendars(ids: string[]): Promise<void> {
+    return this.guard(async () => {
+      await this.writeConfig({ calendars: ids });
+      const prefs = await this.deps.prefs.load();
+      await this.deps.prefs.save({ ...prefs, started: true });
+      this.phase = 'ready';
+      await this.syncNow();
+    });
   }
 
+  /** Runs a sync after the one in progress, if any; asked for again before that one starts, it runs once. */
   syncNow(opts: { rebuild?: boolean } = {}): Promise<void> {
-    if (this.running) return this.running.then(() => (opts.rebuild ? this.syncNow(opts) : undefined));
-    this.running = this.runSync(opts).finally(() => {
-      this.running = null;
+    if (opts.rebuild) this.waitingRebuild = true;
+    this.waiting ??= this.afterRunning(async () => {
+      this.waiting = null;
+      const rebuild = this.waitingRebuild;
+      this.waitingRebuild = false;
+      await this.runSync({ rebuild });
     });
-    return this.running;
+    return this.waiting;
   }
 
   rebuild(): Promise<void> {
     return this.syncNow({ rebuild: true });
   }
 
-  async setCalendars(ids: string[]): Promise<void> {
-    await this.writeConfig({ calendars: ids });
-    await this.syncNow();
+  setCalendars(ids: string[]): Promise<void> {
+    return this.guard(async () => {
+      await this.writeConfig({ calendars: ids });
+      await this.syncNow();
+    });
   }
 
-  /** Turning colouring on asks Google for edit access the first time on this device (spec 8). */
-  async setColouring(on: boolean): Promise<void> {
-    await this.writeConfig({ colourEvents: on });
-    if (on) {
-      const prefs = await this.deps.prefs.load();
-      if (!prefs.askedEdit) {
-        await this.deps.prefs.save({ ...prefs, askedEdit: true });
-        await this.deps.auth.addAccess('edit');
+  /**
+   * Turning colouring on asks Google for edit access the first time on this device (spec 8). Turning it off
+   * stops a pass that is running and offers to clear the colours the tracker set.
+   */
+  setColouring(on: boolean): Promise<void> {
+    return this.guard(async () => {
+      await this.writeConfig({ colourEvents: on });
+      if (on) {
+        const prefs = await this.deps.prefs.load();
+        if (!prefs.askedEdit) {
+          await this.deps.prefs.save({ ...prefs, askedEdit: true });
+          await this.deps.auth.addAccess('edit');
+        }
+        await this.syncNow();
+        return;
       }
       await this.syncNow();
-      return;
-    }
-    await this.syncNow();
-    if (this.last && this.place) {
-      const count = await planClear(this.last, { source: this.deps.source, state: this.place.state });
-      this.clearOffer = count > 0 ? count : null;
-    }
+      if (this.last && this.config?.colourEvents === false) {
+        this.clearJobs = await planClear(this.last, { source: this.deps.source });
+        this.clearOffer = this.clearJobs.length > 0 ? this.clearJobs.length : null;
+      }
+    });
   }
 
-  /** The answer to the clear offer: take the tracker's colours off, or leave them. */
-  async answerClear(clear: boolean): Promise<void> {
+  /** The answer to the clear offer. Only a yes saves the clear, so nothing else ever runs it unasked. */
+  answerClear(clear: boolean): Promise<void> {
+    const jobs = this.clearJobs;
+    this.clearJobs = [];
     this.clearOffer = null;
-    if (!this.place) return;
-    if (!clear) {
-      await this.place.state.save({ ...(await this.place.state.load()), clearQueue: [] });
-      return;
-    }
-    await this.runColours(() => runQueue('clearQueue', this.colourDeps()));
+    if (!clear || !this.place || jobs.length === 0) return Promise.resolve();
+    const place = this.place;
+    return this.afterRunning(() => this.runColours(() => confirmClear(jobs, this.colourDeps(place, 'clear'))));
   }
 
-  async giveEditAccess(): Promise<void> {
-    const prefs = await this.deps.prefs.load();
-    await this.deps.prefs.save({ ...prefs, askedEdit: true });
-    await this.deps.auth.addAccess('edit');
-    await this.syncNow();
+  giveEditAccess(): Promise<void> {
+    return this.guard(async () => {
+      const prefs = await this.deps.prefs.load();
+      await this.deps.prefs.save({ ...prefs, askedEdit: true });
+      await this.deps.auth.addAccess('edit');
+      await this.syncNow();
+    });
   }
 
   /**
    * Signs out, then forgets everything this device kept for the account: the copy of the files, the sync
-   * state and the choices, so the next account on this device starts clean.
+   * state and the choices, so the next account on this device starts clean. A change that has not reached
+   * the storage yet would be lost, so that asks first (`signOutPending`).
    */
-  async signOut(): Promise<void> {
-    this.stopped = true;
-    await this.running?.catch(() => {});
-    try {
+  signOut(opts: { anyway?: boolean } = {}): Promise<void> {
+    return this.guard(async () => {
+      this.stopped = true;
+      await this.waiting?.catch(() => {});
+      await this.running?.catch(() => {});
+      if (!opts.anyway && this.place && this.place.files.status() !== 'saved') {
+        this.signOutPending = true;
+        this.stopped = false;
+        return;
+      }
+      this.signOutPending = false;
       await this.deps.auth.signOut();
-    } catch (e) {
-      this.noteFailure(e);
-      return;
-    }
-    await this.deps.forget();
-    await this.deps.prefs.save({ ...FRESH_PREFS });
-    this.place = null;
-    this.storage = null;
-    this.last = null;
-    this.config = null;
-    this.calendars = [];
-    this.rows = 0;
-    this.fixCount = 0;
-    this.syncedAt = null;
-    this.colour = 'off';
-    this.clearOffer = null;
-    this.phase = 'signin';
+      await this.deps.forget();
+      await this.deps.prefs.save({ ...FRESH_PREFS });
+      this.place = null;
+      this.storage = null;
+      this.last = null;
+      this.config = null;
+      this.calendars = [];
+      this.rows = 0;
+      this.fixCount = 0;
+      this.syncedAt = null;
+      this.colour = 'off';
+      this.clearOffer = null;
+      this.clearJobs = [];
+      this.phase = 'signin';
+    });
   }
 
   async loadCalendars(): Promise<void> {
     try {
       this.calendars = await this.deps.source.listCalendars();
+      this.calendarsError = null;
     } catch (e) {
       this.noteFailure(e);
+      this.calendarsError =
+        e instanceof OfflineError ? "Omark Time can't reach Google right now." : e instanceof Error ? e.message : String(e);
     }
   }
 
@@ -182,29 +225,47 @@ export class TimeStore {
     this.storage = kind;
     this.place = this.deps.openPlace(kind);
     this.place.files.onStatus(() => {
-      if (this.sync === 'synced' && this.place?.files.status() === 'offline') this.sync = 'offline';
+      if (this.sync === 'synced') this.sync = this.filesState('synced');
     });
+  }
+
+  /** The storage's own state where it is worse than `ok`: FileSync keeps write failures to its status. */
+  private filesState(ok: SyncState): SyncState {
+    const files = this.place?.files.status();
+    return files === 'offline' ? 'offline' : files === 'signin' ? 'signin' : ok;
+  }
+
+  /** Runs `work` once the lock is free, holding it meanwhile. */
+  private afterRunning(work: () => Promise<void>): Promise<void> {
+    const turn = (this.running ?? Promise.resolve()).catch(() => {}).then(() => {
+      const run = work().finally(() => {
+        if (this.running === run) this.running = null;
+      });
+      this.running = run;
+      return run;
+    });
+    return turn;
   }
 
   private async runSync(opts: { rebuild?: boolean }): Promise<void> {
     if (!this.place) return;
+    const place = this.place;
     this.sync = 'syncing';
-    this.stopped = false;
     try {
-      const result = await sync({ source: this.deps.source, files: this.place.files, state: this.place.state, now: this.deps.now }, opts);
+      const result = await sync({ source: this.deps.source, files: place.files, state: place.state, now: this.deps.now }, opts);
       this.last = result;
       this.config = result.config;
       this.rows = result.rows;
       this.fixCount = result.fixCount;
       this.syncedAt = this.deps.now();
-      this.sync = this.place.files.status() === 'offline' ? 'offline' : 'synced';
+      this.sync = this.filesState('synced');
       if (this.calendars.length === 0) await this.loadCalendars();
-      await this.runColours(() => colourAfterSync(result, this.colourDeps()));
+      await this.runColours(() => colourAfterSync(result, this.colourDeps(place, 'colour')));
     } catch (e) {
       this.noteFailure(e);
-      const summary = await readSummary(this.place.files, this.place.state, this.deps.now).catch(() => null);
+      const summary = await readSummary(place.files, place.state, this.deps.now).catch(() => null);
       if (summary) Object.assign(this, summary);
-      await this.readConfig();
+      await this.readConfig().catch(() => {});
     } finally {
       await this.deps.persist?.();
     }
@@ -223,11 +284,12 @@ export class TimeStore {
     }
   }
 
-  private colourDeps() {
+  /** A colour pass stops when colouring is turned off or a sync is waiting; a clear only on sign-out. */
+  private colourDeps(place: Place, kind: 'colour' | 'clear'): ColourDeps {
     return {
       source: this.deps.source,
-      state: this.place!.state,
-      shouldStop: () => this.stopped,
+      state: place.state,
+      shouldStop: () => this.stopped || (kind === 'colour' && (this.config?.colourEvents !== true || this.waiting !== null)),
       onProgress: (left: number) => {
         this.colourLeft = left;
         void this.deps.persist?.();
@@ -252,6 +314,16 @@ export class TimeStore {
     const text = setTimeConfig(base, changes, today);
     await this.place.files.write(CONFIG, text, base);
     this.config = parseTimeConfig(text, today).config;
+  }
+
+  /** Runs a UI action; a failure shows instead of rejecting into the click handler. */
+  private async guard(action: () => Promise<void>): Promise<void> {
+    try {
+      this.error = null;
+      await action();
+    } catch (e) {
+      this.noteFailure(e);
+    }
   }
 
   private noteFailure(e: unknown): void {
