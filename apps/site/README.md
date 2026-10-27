@@ -19,7 +19,7 @@ Needs the repository variables `DEPLOY_ENABLED`, `CF_SITE_PROJECT` and `SITE_URL
 
 Both jobs deploy from `apps/site`, so wrangler bundles only this folder's `functions/`, never the sign-in helper in the root `functions/`.
 
-**Rollback:** re-run the `site-production` job of an older green run on `main`, or use Cloudflare dashboard, `omark-site`, Deployments, Rollback.
+**Rollback:** Cloudflare dashboard, `omark-site`, Deployments, Rollback, or revert the commit on `main`. Re-running an older run's `site-production` job doesn't work: a deploy job skips when its commit is no longer main's tip (#81).
 
 ## Privacy policy
 
