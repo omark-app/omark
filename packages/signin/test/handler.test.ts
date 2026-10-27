@@ -3,14 +3,23 @@ import { CHUNK_SIZE, MAX_CHUNKS } from '../src/cookies.ts';
 import { importCookieKey, pkceChallenge, seal, toBase64Url } from '../src/crypto.ts';
 import { handleAuth } from '../src/handler.ts';
 import type { AuthOptions, Env } from '../src/handler.ts';
-import { microsoft } from '../src/providers.ts';
+import { google, microsoft } from '../src/providers.ts';
 
 const ORIGIN = 'https://tasks.example';
 const KEY = toBase64Url(new Uint8Array(32).fill(7));
-const ENV: Env = { MSAL_CLIENT_ID: 'cid', MSAL_CLIENT_SECRET: 'secret', COOKIE_KEY: KEY };
+const ENV: Env = {
+  MSAL_CLIENT_ID: 'cid',
+  MSAL_CLIENT_SECRET: 'secret',
+  GOOGLE_CLIENT_ID: 'gid',
+  GOOGLE_CLIENT_SECRET: 'gsecret',
+  COOKIE_KEY: KEY,
+};
+const MS_ONLY: Env = { MSAL_CLIENT_ID: 'cid', MSAL_CLIENT_SECRET: 'secret', COOKIE_KEY: KEY };
 const TOKEN_URL = 'https://login.microsoftonline.com/consumers/oauth2/v2.0/token';
+const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const DRIVE = 'https://www.googleapis.com/auth/drive.file';
 const NOW = 1_800_000_000_000;
-const TASKS: AuthOptions = { provider: microsoft, cookiePrefix: 'taskapp' };
+const TASKS: AuthOptions = { providers: { microsoft, google: google({ scopes: [DRIVE] }) }, cookiePrefix: 'taskapp' };
 
 /** A browser's cookies for one origin: Set-Cookie applied, and only path-matching ones sent back. */
 class Jar {
@@ -35,12 +44,12 @@ class Jar {
   }
 }
 
-/** Microsoft's token endpoint: answers each call with the next queued reply. */
-function tokenEndpoint() {
+/** A provider's token endpoint: answers each call with the next queued reply. */
+function tokenEndpoint(tokenUrl: string) {
   const calls: URLSearchParams[] = [];
   const replies: Array<() => Response> = [];
   const fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
-    expect(String(url)).toBe(TOKEN_URL);
+    expect(String(url)).toBe(tokenUrl);
     calls.push(new URLSearchParams(init!.body as URLSearchParams));
     const reply = replies.shift();
     if (!reply) throw new Error('unexpected token call');
@@ -60,11 +69,13 @@ const idToken = (claims: Record<string, unknown>) =>
 
 let jar: Jar;
 let ms: ReturnType<typeof tokenEndpoint>;
+let gg: ReturnType<typeof tokenEndpoint>;
 let now: number;
 
 beforeEach(() => {
   jar = new Jar();
-  ms = tokenEndpoint();
+  ms = tokenEndpoint(TOKEN_URL);
+  gg = tokenEndpoint(GOOGLE_TOKEN_URL);
   now = NOW;
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -80,7 +91,9 @@ async function send(
   const url = new URL(path, ORIGIN);
   const cookie = jar.header(url.pathname);
   const req = new Request(url, { ...init, headers: { ...(cookie ? { Cookie: cookie } : {}), ...init.headers } });
-  const res = await handleAuth(req, env, options, { fetch: ms.fetch as typeof fetch, now: () => now });
+  const fetch = ((u: string | URL | Request, i?: RequestInit) =>
+    String(u) === GOOGLE_TOKEN_URL ? gg.fetch(u, i) : ms.fetch(u, i)) as typeof globalThis.fetch;
+  const res = await handleAuth(req, env, options, { fetch, now: () => now });
   jar.take(res);
   return res;
 }
@@ -88,11 +101,14 @@ async function send(
 const post = (path: string, headers: Record<string, string> = { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' }) =>
   send(path, { method: 'POST', headers });
 
-/** Runs login and callback with Microsoft's answer to the code. */
-async function signIn(tokens: Record<string, unknown> = { access_token: 'at0', expires_in: 3600, refresh_token: 'rt1' }) {
-  const login = await send('/api/auth/login');
+/** Runs login and callback with the provider's answer to the code (Microsoft unless told). */
+async function signIn(
+  tokens: Record<string, unknown> = { access_token: 'at0', expires_in: 3600, refresh_token: 'rt1' },
+  provider?: 'google',
+) {
+  const login = await send(provider ? `/api/auth/login?provider=${provider}` : '/api/auth/login');
   const state = new URL(login.headers.get('Location')!).searchParams.get('state')!;
-  ms.ok(tokens);
+  (provider ? gg : ms).ok(tokens);
   return send(`/api/auth/callback?code=c0de&state=${state}`);
 }
 
@@ -189,7 +205,7 @@ describe('GET /api/auth/callback', () => {
     const session = jar.cookies.get('taskapp_session0')!;
     expect(session.attrs).toBe(`Path=/api/auth/token; Max-Age=${90 * 86400}; Secure; SameSite=Lax; HttpOnly`);
     expect(session.value).not.toContain('rt1');
-    expect(jar.cookies.get('taskapp_signed_in')).toMatchObject({ value: '1', path: '/' });
+    expect(jar.cookies.get('taskapp_signed_in')).toMatchObject({ value: 'microsoft', path: '/' });
     expect(jar.cookies.get('taskapp_signed_in')!.attrs).not.toContain('HttpOnly');
     expect(await res.text()).toBe(''); // no token in the body
   });
@@ -225,10 +241,14 @@ describe('GET /api/auth/callback', () => {
     const login = async () => new URL((await send('/api/auth/login')).headers.get('Location')!).searchParams.get('state')!;
     let state = await login();
     ms.fail(400, 'invalid_grant');
-    expect((await send(`/api/auth/callback?code=c&state=${state}`)).headers.get('Location')).toBe('/?signin_error=failed');
+    expect((await send(`/api/auth/callback?code=c&state=${state}`)).headers.get('Location')).toBe(
+      '/?signin_error=failed&provider=microsoft',
+    );
     state = await login();
     ms.down();
-    expect((await send(`/api/auth/callback?code=c&state=${state}`)).headers.get('Location')).toBe('/?signin_error=unavailable');
+    expect((await send(`/api/auth/callback?code=c&state=${state}`)).headers.get('Location')).toBe(
+      '/?signin_error=unavailable&provider=microsoft',
+    );
   });
 
   it('splits a long refresh token across several cookies, each under 4 KB', async () => {
@@ -246,7 +266,7 @@ describe('GET /api/auth/callback', () => {
 
   it('fails rather than set a cookie past the chunk limit', async () => {
     const res = await signIn({ access_token: 'at0', expires_in: 3600, refresh_token: 'R'.repeat(CHUNK_SIZE * MAX_CHUNKS) });
-    expect(res.headers.get('Location')).toBe('/?signin_error=failed');
+    expect(res.headers.get('Location')).toBe('/?signin_error=failed&provider=microsoft');
     expect(jar.cookies.has('taskapp_session0')).toBe(false);
   });
 });
@@ -388,7 +408,7 @@ describe('POST /api/auth/token', () => {
 
 describe('per-app cookies', () => {
   it("uses the app's cookie prefix", async () => {
-    const time: AuthOptions = { provider: microsoft, cookiePrefix: 'omark_time' };
+    const time: AuthOptions = { providers: { microsoft }, cookiePrefix: 'omark_time' };
     const login = await send('/api/auth/login', {}, ENV, time);
     expect([...jar.cookies.keys()]).toEqual(['omark_time_login']);
     const state = new URL(login.headers.get('Location')!).searchParams.get('state')!;
@@ -396,7 +416,7 @@ describe('per-app cookies', () => {
     await send(`/api/auth/callback?code=c0de&state=${state}`, {}, ENV, time);
     expect([...jar.cookies.keys()].sort()).toEqual(['omark_time_hint', 'omark_time_session0', 'omark_time_signed_in']);
     expect(jar.cookies.get('omark_time_session0')!.path).toBe('/api/auth/token');
-    expect(jar.cookies.get('omark_time_signed_in')).toMatchObject({ value: '1', path: '/' });
+    expect(jar.cookies.get('omark_time_signed_in')).toMatchObject({ value: 'microsoft', path: '/' });
 
     // Another app's prefix does not open these cookies.
     const headers = { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' };
@@ -414,7 +434,113 @@ describe('per-app cookies', () => {
     expect(await res.json()).toEqual({ accessToken: 'at1', expiresAt: NOW + 3_600_000 });
     expect(ms.calls[0]!.get('refresh_token')).toBe('rt-old');
     expect(jar.cookies.has('taskapp_session0')).toBe(true);
-    expect(jar.cookies.get('taskapp_signed_in')).toMatchObject({ value: '1', path: '/' });
+    expect(jar.cookies.get('taskapp_signed_in')).toMatchObject({ value: 'microsoft', path: '/' });
+  });
+});
+
+describe('several providers', () => {
+  const headers = { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' };
+  const GOOGLE_TOKENS = {
+    access_token: 'gat0',
+    expires_in: 3600,
+    refresh_token: 'grt1',
+    scope: `https://www.googleapis.com/auth/userinfo.email ${DRIVE} openid`,
+  };
+
+  it('sends login?provider=google to Google with its extra parameters and the PKCE ones', async () => {
+    const res = await send('/api/auth/login?provider=google');
+    expect(res.status).toBe(302);
+    const to = new URL(res.headers.get('Location')!);
+    expect(to.origin + to.pathname).toBe('https://accounts.google.com/o/oauth2/v2/auth');
+    const q = to.searchParams;
+    expect(q.get('client_id')).toBe('gid');
+    expect(q.get('access_type')).toBe('offline');
+    expect(q.get('prompt')).toBe('consent');
+    expect(q.get('include_granted_scopes')).toBe('true');
+    expect(q.get('scope')).toBe(`openid email ${DRIVE}`);
+    expect(q.get('code_challenge_method')).toBe('S256');
+    expect(q.get('state')).toMatch(/^[\w-]{43}$/);
+  });
+
+  it('answers 400 unknown_provider for a provider the app does not have, without cookies', async () => {
+    const res = await send('/api/auth/login?provider=dropbox');
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'unknown_provider' });
+    expect(res.headers.getSetCookie()).toEqual([]);
+    expect((await send('/api/auth/login?provider=constructor')).status).toBe(400);
+  });
+
+  it('answers 500 not_configured for Google without its settings while Microsoft still works', async () => {
+    const res = await send('/api/auth/login?provider=google', {}, MS_ONLY);
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'not_configured' });
+    expect((await send('/api/auth/login', {}, MS_ONLY)).status).toBe(302);
+  });
+
+  it('runs a Google round trip against Google only and records the provider', async () => {
+    const res = await signIn(GOOGLE_TOKENS, 'google');
+    expect(res.headers.get('Location')).toBe('/');
+    expect(ms.fetch).not.toHaveBeenCalled();
+    expect(gg.calls).toHaveLength(1);
+    expect(gg.calls[0]!.get('client_id')).toBe('gid');
+    expect(gg.calls[0]!.get('client_secret')).toBe('gsecret');
+    expect(jar.cookies.get('taskapp_signed_in')).toMatchObject({ value: 'google', path: '/' });
+    expect(jar.cookies.get('taskapp_session0')!.attrs).toContain(`Max-Age=${180 * 86400}`);
+
+    gg.ok({ access_token: 'gat1', expires_in: 3600 });
+    expect((await post('/api/auth/token')).status).toBe(200);
+    expect(gg.calls[1]!.get('refresh_token')).toBe('grt1');
+    expect(gg.calls[1]!.get('scope')).toBe(DRIVE);
+    expect(ms.fetch).not.toHaveBeenCalled();
+    expect(jar.cookies.get('taskapp_signed_in')).toMatchObject({ value: 'google' });
+  });
+
+  it('fails the sign-in when Google did not grant every required scope', async () => {
+    const res = await signIn({ ...GOOGLE_TOKENS, scope: 'https://www.googleapis.com/auth/userinfo.email openid' }, 'google');
+    expect(res.headers.get('Location')).toBe('/?signin_error=scope&provider=google');
+    expect(jar.cookies.has('taskapp_session0')).toBe(false);
+    expect(jar.cookies.has('taskapp_signed_in')).toBe(false);
+    expect(jar.cookies.has('taskapp_login')).toBe(false);
+  });
+
+  it('refreshes a session sealed without a provider against Microsoft and marks it microsoft', async () => {
+    const key = await importCookieKey(KEY);
+    const value = await seal(key, 'taskapp_session', { rt: 'rt-old', exp: NOW + 86_400_000 });
+    jar.cookies.set('taskapp_session0', { value, path: '/api/auth/token', attrs: '' });
+    ms.ok({ access_token: 'at1', expires_in: 3600, refresh_token: 'rt-new' });
+    expect((await post('/api/auth/token')).status).toBe(200);
+    expect(ms.calls).toHaveLength(1);
+    expect(jar.cookies.get('taskapp_signed_in')).toMatchObject({ value: 'microsoft' });
+  });
+
+  it('does not send a login_hint sealed for another provider', async () => {
+    await signIn({ access_token: 'at0', expires_in: 3600, refresh_token: 'rt1', id_token: idToken({ preferred_username: 'me@example.com' }) });
+    const toGoogle = new URL((await send('/api/auth/login?provider=google')).headers.get('Location')!);
+    expect(toGoogle.searchParams.get('login_hint')).toBeNull();
+    const toMicrosoft = new URL((await send('/api/auth/login')).headers.get('Location')!);
+    expect(toMicrosoft.searchParams.get('login_hint')).toBe('me@example.com');
+  });
+
+  it('names a Google account from its email as login_hint for Google', async () => {
+    await signIn({ ...GOOGLE_TOKENS, id_token: idToken({ email: 'me@gmail.example' }) }, 'google');
+    const to = new URL((await send('/api/auth/login?provider=google')).headers.get('Location')!);
+    expect(to.searchParams.get('login_hint')).toBe('me@gmail.example');
+  });
+
+  it('lists the configured providers in order, with no cookie key needed', async () => {
+    let res = await send('/api/auth/providers');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ providers: ['microsoft', 'google'] });
+    res = await send('/api/auth/providers', {}, MS_ONLY);
+    expect(await res.json()).toEqual({ providers: ['microsoft'] });
+    res = await send('/api/auth/providers', {}, { ...ENV, COOKIE_KEY: undefined });
+    expect(await res.json()).toEqual({ providers: ['microsoft', 'google'] });
+  });
+
+  it('rejects other methods on the providers route', async () => {
+    const res = await send('/api/auth/providers', { method: 'POST', headers });
+    expect(res.status).toBe(405);
+    expect(res.headers.get('Allow')).toBe('GET');
   });
 });
 

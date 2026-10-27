@@ -102,7 +102,7 @@ export function calendarContract(name: string, make: () => ContractHarness | Pro
 - [ ] **Step 1: Write the contract's cases** (each makes a fresh harness):
   1. `listCalendars` returns `primary` (`primary: true`, `timeZone: 'Europe/Warsaw'`, `owned: true`) and `work@example.com`, not `team@example.com`.
   2. A full read returns the added events and a token, but not a cancelled one.
-  3. With that token: no change → `[]`; after `edit` → the edited event; after `cancel` → `{ id, status: 'cancelled' }`; after `add` → the new event; each read returns a new token.
+  3. With that token: no change → `[]`; after `edit` → the edited event; after `cancel` → `{ id, status: 'cancelled' }`; after `add` → the new event; each read returns a token that works for the next read (Google doesn't promise a new value when nothing changed).
   4. After `expireTokens`, a read with an old token rejects with `SyncTokenExpiredError`; a full read still works.
   5. `readRange('primary', '2026-10-22T00:00:00+02:00', '2026-10-23T00:00:00+02:00')` returns the instances overlapping that day (Google's `timeMin`/`timeMax`), each instance of a series on its own; an event that started the day before and ends that day is included.
   6. `colourIds()` → `{ green: '10', red: '11' }`.
@@ -180,7 +180,7 @@ export interface GoogleCalendarOptions {
 export class GoogleCalendarSource implements CalendarSource { constructor(opts: GoogleCalendarOptions) }
 ```
 
-  Base `https://www.googleapis.com/calendar/v3`. `listCalendars`: `GET /users/me/calendarList` (all pages), owned only, the `primary: true` entry's id reported as `primary`, `name` = `summaryOverride ?? summary`. `readChanges`: `GET /calendars/{id}/events?singleEvents=true&maxResults=2500` plus `syncToken` when given, following `nextPageToken`, returning the last page's `nextSyncToken`. `readRange`: the same with `timeMin`/`timeMax`, no token. Mapping: `summary` → `title`, `attendees.find(a => a.self)?.responseStatus ?? null` → `response`, `extendedProperties.private.omarkTime` (`green`|`red` only) → `marker`. Errors: 410 → `SyncTokenExpiredError`; 401 → `getToken({ fresh: true })` and one retry, then `AuthRequiredError` (from `@omark/storage`); a network failure → `OfflineError`; 429, 403 with reason `rateLimitExceeded` or `userRateLimitExceeded`, and 5xx → wait `Retry-After` or 1, 2, 4, 8, 16 s, up to `maxRetries`.
+  Base `https://www.googleapis.com/calendar/v3`. `listCalendars`: `GET /users/me/calendarList` (all pages), owned only, the `primary: true` entry's id reported as `primary`, `name` = `summaryOverride ?? summary`. `readChanges`: `GET /calendars/{id}/events?singleEvents=true&maxResults=2500` plus `syncToken` when given, following `nextPageToken`, returning the last page's `nextSyncToken`. `readRange`: the same with `timeMin`/`timeMax`, no token. Mapping: `summary` → `title`, `attendees.find(a => a.self)?.responseStatus ?? null` → `response`, `extendedProperties.private.omarkTime` (`green`|`red` only) → `marker`; a `cancelled` item maps to `title: ''`, `start: null`, `end: null` whatever Google sends (it guarantees only `id`). Never send `showDeleted` (Google refuses `showDeleted=false` with a `syncToken`). Errors: 410 → `SyncTokenExpiredError`; 401 → `getToken({ fresh: true })` and one retry, then `AuthRequiredError` (from `@omark/storage`); a network failure → `OfflineError`; 429, 403 with reason `rateLimitExceeded` or `userRateLimitExceeded`, and 5xx → wait `Retry-After` or 1, 2, 4, 8, 16 s, up to `maxRetries`.
 
   `GoogleFake` (test) answers `fetch` for those endpoints from an in-memory state shaped like `FakeCalendar`'s, with switches `unauthorized`, `rateLimited` (next N answers 429), `readOnly`, `pageSize`, and a `calls` log.
 
@@ -200,7 +200,7 @@ export class GoogleCalendarSource implements CalendarSource { constructor(opts: 
 
 **Files:** Create `scripts/check-google.ts`; Modify `packages/calendar/package.json` (script `check:google`).
 
-The script reads an access token from the file named by `GOOGLE_TOKEN_FILE` (never printed), finds the calendar named "Omark Test" (exits with an error if there is none; it never reads or writes any other calendar), and prints, without event titles: the number of events in a full read, the number in an incremental read after it asks you to edit one event in Google Calendar, and the result of setting and then clearing the colour of the first event.
+The script reads an access token from the file named by `GOOGLE_TOKEN_FILE` (never printed), finds the calendar named "Omark Test" (exits with an error if there is none; it never reads or writes any other calendar), and prints, without event titles: the number of events in a full read, the number in an incremental read after it asks you to edit one event in Google Calendar, the result of setting and then clearing the colour of the first event, and whether an all-day event on one day is returned by `readRange` for the day after it (the contract says it must not be).
 
 - [ ] Run `pnpm typecheck`, `pnpm test`, `pnpm e2e`, `pnpm --filter tasks build` — all PASS.
 - [ ] Get a token for `hello@omark.app` with 3.8's helper on staging (or the spike's method), run `pnpm --filter @omark/calendar check:google`, paste the printed counts into the PR.

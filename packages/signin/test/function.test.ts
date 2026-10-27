@@ -25,6 +25,12 @@ describe('the Pages Function', () => {
     expect(res.headers.getSetCookie().map((c) => c.split('=')[0])).toEqual(['taskapp_login']);
   });
 
+  it('lists Microsoft and Google for Tasks when both are configured', async () => {
+    const env = { ...ENV, GOOGLE_CLIENT_ID: 'gid', GOOGLE_CLIENT_SECRET: 'gsecret' };
+    const res = await onRequest({ request: new Request('https://tasks.example/api/auth/providers'), env });
+    expect(await res.json()).toEqual({ providers: ['microsoft', 'google'] });
+  });
+
   it.each(['nope', 'constructor', 'toString'])('refuses OMARK_APP %s', async (app) => {
     const res = await onRequest({ request: login(), env: { ...ENV, OMARK_APP: app } });
     expect(res.status).toBe(500);

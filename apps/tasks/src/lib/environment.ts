@@ -57,6 +57,37 @@ export function folderFor(env: AppEnv, buildFolder: string, cfg: HostConfig): st
   return buildFolder;
 }
 
+/**
+ * The Google Drive folder for `env`: one folder in My Drive, named after the app. Local and preview builds
+ * use the folder they were built with (`VITE_GOOGLE_FOLDER`), else a Dev one.
+ */
+export function googleFolderFor(env: AppEnv, buildFolder: string): string {
+  if (env === 'production') return BRAND.app;
+  if (env === 'staging') return BRAND.stagingApp;
+  return buildFolder || `${BRAND.app} Dev`;
+}
+
+export type StorageProvider = 'microsoft' | 'google';
+
+/** What the app calls each storage in its texts. */
+export const STORAGE_NAMES: Record<StorageProvider, string> = { microsoft: 'OneDrive', google: 'Google Drive' };
+
+/** The sign-in providers this app offers: id in the sign-in helper → its name. The first is the default. */
+export const SIGN_IN_NAMES: Record<StorageProvider, string> = { microsoft: 'Microsoft', google: 'Google' };
+
+/**
+ * The offline cache's IndexedDB name. OneDrive keeps the name it has always had; Google Drive gets its own,
+ * so one adapter never sees the other's cached files or version tags.
+ */
+export function cacheName(provider: StorageProvider, folder: string): string {
+  return provider === 'google' ? `taskapp:google:${folder}` : `taskapp:${folder}`;
+}
+
+/** The localStorage key for when that cache last synced: one per cache, OneDrive's as it has always been. */
+export function syncedAtKey(provider: StorageProvider, folder: string): string {
+  return provider === 'google' ? `taskapp:synced-at:google:${folder}` : `taskapp:synced-at:${folder}`;
+}
+
 /** The old offline copy was made for the production folder only, so only that folder migrates it. */
 export function legacyCacheApplies(folder: string, cfg: HostConfig): boolean {
   return cfg.prodFolder !== '' && folder === cfg.prodFolder;

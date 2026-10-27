@@ -62,10 +62,10 @@
                 <tr><th scope="col">Cookie</th><th scope="col">What it holds</th><th scope="col">How long</th></tr>
               </thead>
               <tbody>
-                <tr><td>Session</td><td>Your refresh token, encrypted. It may be split across a few cookies. Your browser sends it only to <code>/api/auth/token</code>, and scripts on the page can't read it.</td><td>Up to 90 days</td></tr>
+                <tr><td>Session</td><td>Your refresh token, encrypted. It may be split across a few cookies. Your browser sends it only to <code>/api/auth/token</code>, and scripts on the page can't read it.</td><td>Up to 90 days (Microsoft) or 180 days (Google)</td></tr>
                 <tr><td>Sign-in in progress</td><td>Encrypted data that protects the sign-in from tampering. Scripts on the page can't read it.</td><td>Up to 10 minutes</td></tr>
                 <tr><td>Last account</td><td>The email address or username of the account you used, encrypted, so the sign-in page can suggest it. Scripts on the page can't read it.</td><td>Up to 400 days</td></tr>
-                <tr><td>Signed in</td><td>Just "1", no personal data. The page can read it, so the app knows to fetch a token.</td><td>As long as the session</td></tr>
+                <tr><td>Signed in</td><td>Only which provider you signed in with, <code>microsoft</code> or <code>google</code>, no personal data. The page can read it, so the app knows to fetch a token and which storage to open.</td><td>As long as the session</td></tr>
               </tbody>
             </table>
           </div>

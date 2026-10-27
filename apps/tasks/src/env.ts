@@ -1,5 +1,5 @@
 import type { DriveRoot } from '@omark/storage';
-import { envForHost, folderFor, hostConfig, lookFor } from './lib/environment.ts';
+import { envForHost, folderFor, googleFolderFor, hostConfig, lookFor } from './lib/environment.ts';
 import { storageMode } from './storage-mode.ts';
 import type { StorageMode } from './storage-mode.ts';
 
@@ -27,6 +27,8 @@ export const HOSTS = hostConfig(import.meta.env);
 export const APP_ENV = envForHost(typeof location === 'undefined' ? '' : location.hostname, HOSTS);
 export const LOOK = lookFor(APP_ENV, STORAGE_MODE);
 export const ONEDRIVE_FOLDER: string = folderFor(APP_ENV, import.meta.env.VITE_ONEDRIVE_FOLDER ?? '', HOSTS);
+/** The folder in My Drive when signed in with Google. */
+export const GOOGLE_FOLDER: string = googleFolderFor(APP_ENV, import.meta.env.VITE_GOOGLE_FOLDER ?? '');
 /** `full` reaches the whole drive (the owner's deployment); anything else, the app folder. Must match the helper's `ONEDRIVE_SCOPE`. */
 export const ONEDRIVE_ROOT: DriveRoot = import.meta.env.VITE_ONEDRIVE_SCOPE === 'full' ? 'drive' : 'approot';
 
