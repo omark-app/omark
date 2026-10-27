@@ -5,10 +5,20 @@ import type { BucketKey } from './model.ts';
 
 export type Command =
   | 'focusAdd' | 'down' | 'up' | 'today' | 'tomorrow' | 'thisWeek' | 'nextWeek' | 'pickDate' | 'someday'
-  | 'repeat' | 'important' | 'complete' | 'edit' | 'delete' | 'deselect' | 'undo' | 'switchView' | 'search';
+  | 'repeat' | 'important' | 'complete' | 'edit' | 'delete' | 'deselect' | 'undo' | 'switchView' | 'search' | 'habit';
 
 /** Values are `KeyboardEvent.key` strings. */
 export type Shortcuts = Record<Command, string[]>;
+
+export interface HabitConfig {
+  /** Habits in progress at once; 0 = no limit. */
+  maxInProgress: number;
+  /** Repetitions to form a habit; a habit's own `🌱 N` wins. */
+  goal: number;
+  missesInARow: number;
+  /** A count, or a share of the goal (rounded down). */
+  missesPerAttempt: number | { percent: number };
+}
 
 export interface Config {
   shortcuts: Shortcuts;
@@ -20,6 +30,7 @@ export interface Config {
   dateLabels: DateLabelStyle;
   newTaskBucket: MovableBucket;
   saveDelaySeconds: number;
+  habits: HabitConfig;
 }
 
 export interface ConfigError {
@@ -48,6 +59,7 @@ export const DEFAULT_CONFIG: Config = {
     undo: ['z'],
     switchView: ['v'],
     search: ['f'],
+    habit: ['h'],
   },
   defaultView: 'list',
   firstDayOfWeek: 0,
@@ -56,6 +68,7 @@ export const DEFAULT_CONFIG: Config = {
   dateLabels: 'short',
   newTaskBucket: 'today',
   saveDelaySeconds: 1,
+  habits: { maxInProgress: 3, goal: 66, missesInARow: 1, missesPerAttempt: { percent: 10 } },
 };
 
 export const DEFAULT_CONFIG_YAML = `# Omark Tasks settings.
@@ -84,6 +97,7 @@ shortcuts:
   undo: z
   switchView: v
   search: f
+  habit: h
 
 # View shown on desktop when the app opens: list or board.
 defaultView: list
@@ -106,6 +120,17 @@ newTaskBucket: today
 
 # Seconds to wait after you stop typing before saving (0 or more).
 saveDelaySeconds: 1
+
+# Habits (a task with a seed mark becomes a habit; it forms after enough repetitions).
+habits:
+  # Habits in progress at once, 0 to 99 (0 = no limit).
+  maxInProgress: 3
+  # Repetitions to form a habit, 1 to 999. A habit's own seed number wins.
+  goal: 66
+  # Misses allowed in a row before the count restarts, 0 to 99.
+  missesInARow: 1
+  # Misses allowed in one attempt: a whole number (0 to 999) or a share of the goal like 10% (rounded down).
+  missesPerAttempt: 10%
 `;
 
 const COMMANDS = Object.keys(DEFAULT_CONFIG.shortcuts) as Command[];
@@ -113,7 +138,7 @@ const COMMANDS = Object.keys(DEFAULT_CONFIG.shortcuts) as Command[];
  * Commands added after configs were already written (issue #19). Left unset, their default keys give way
  * to a key the file binds to another command, so an older config never starts failing.
  */
-const YIELDING: readonly Command[] = ['tomorrow', 'important'];
+const YIELDING: readonly Command[] = ['tomorrow', 'important', 'habit'];
 const BUCKETS: BucketKey[] = ['today', 'tomorrow', 'week', 'next', 'later', 'someday'];
 /** Buckets an older config may still name; they read without an error and do nothing (Overdue is in Today since #26). */
 const RETIRED = ['overdue'];
@@ -134,6 +159,41 @@ function oneOf<T extends string>(name: string, v: unknown, allowed: readonly T[]
 
 function keyName(key: unknown): string {
   return String(isNode(key) ? (key as { value?: unknown }).value : key);
+}
+
+const HABIT_LIMITS = {
+  maxInProgress: [0, 99],
+  goal: [1, 999],
+  missesInARow: [0, 99],
+} as const;
+
+/** Reads the `habits:` map into `out`; throws ConfigFailure with the line of the bad key or value. */
+function readHabits(node: unknown, out: HabitConfig, lineOf: (n: unknown) => number | null): void {
+  if (!isMap(node)) throw new Error('habits must be a list of "setting: value" lines');
+  for (const hp of node.items) {
+    const key = keyName(hp.key);
+    const line = lineOf(hp.value) ?? lineOf(hp.key);
+    const v: unknown = isNode(hp.value) ? hp.value.toJSON() : hp.value;
+    if (key === 'missesPerAttempt') {
+      const pct = typeof v === 'string' ? /^(\d{1,3})%$/.exec(v) : null;
+      if (pct && Number(pct[1]) <= 100) out.missesPerAttempt = { percent: Number(pct[1]) };
+      else if (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 999) out.missesPerAttempt = v;
+      else {
+        throw new ConfigFailure(
+          line,
+          'habits.missesPerAttempt must be a whole number from 0 to 999 or a percentage from 0% to 100%',
+        );
+      }
+    } else if (key === 'maxInProgress' || key === 'goal' || key === 'missesInARow') {
+      const [lo, hi] = HABIT_LIMITS[key];
+      if (typeof v !== 'number' || !Number.isInteger(v) || v < lo || v > hi) {
+        throw new ConfigFailure(line, `habits.${key} must be a whole number from ${lo} to ${hi}`);
+      }
+      out[key] = v;
+    } else {
+      throw new ConfigFailure(lineOf(hp.key), `Unknown setting "habits.${key}"`);
+    }
+  }
 }
 
 /** Never throws: any problem returns the defaults plus the first error found. */
@@ -197,6 +257,9 @@ function parse(text: string): Config {
           }
           break;
         }
+        case 'habits':
+          readHabits(valueNode, config.habits, lineOf);
+          break;
         case 'defaultView':
           config.defaultView = oneOf(name, raw, ['list', 'board']);
           break;
@@ -257,5 +320,5 @@ function cloneDefaults(): Config {
   const d = DEFAULT_CONFIG;
   const shortcuts = {} as Shortcuts;
   for (const c of COMMANDS) shortcuts[c] = [...d.shortcuts[c]];
-  return { ...d, shortcuts, foldedOnOpen: [...d.foldedOnOpen] };
+  return { ...d, shortcuts, foldedOnOpen: [...d.foldedOnOpen], habits: { ...d.habits } };
 }

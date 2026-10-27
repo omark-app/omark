@@ -7,6 +7,7 @@
 {#if store.toast}
   <div class="toast" data-testid="toast" role="status">
     <span class="msg">{store.toast.message}</span>
+    {#if store.toast.action}<button data-testid="toast-action" onclick={() => store.toast?.action?.run()}>{store.toast.action.label}</button>{/if}
     {#if store.toast.undo}<button data-testid="toast-undo" onclick={() => store.undo()}>Undo</button>{/if}
   </div>
 {/if}

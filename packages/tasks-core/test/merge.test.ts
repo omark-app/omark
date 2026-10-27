@@ -471,3 +471,11 @@ test('an Always line added on an old device while this one migrated becomes a gr
   }
   for (const out of mergeBothWays(base, migrated, deleted)) expect(out).toBe(md('# Tasks', '- [ ] A ⏫', '- [ ] T'));
 });
+
+test('mergeDoneText keeps one formed line both devices added (#44)', () => {
+  const formed = '- [x] Meditate 🌱 🏆 2026-10-20';
+  const local = DONE_BASE + md(formed);
+  const remote = DONE_BASE + md(formed, '- [x] Renew passport ✅ 2026-10-21');
+  expect(mergeDoneText(DONE_BASE, local, remote)).toBe(DONE_BASE + md(formed, '- [x] Renew passport ✅ 2026-10-21'));
+  expect(mergeDoneText(DONE_BASE, local, local)).toBe(local);
+});

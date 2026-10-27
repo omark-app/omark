@@ -463,3 +463,40 @@ test('task lines in a legacy # Always section stay tasks, and notes under a line
   // A line that is only field text has no title: it stays as text above # Tasks.
   expect(serializeTasks(doc)).toBe('- ⏫\n# Tasks\n- [ ] Walk ⏫\n    - slowly\n- [ ] Buy milk\n- [x] Old done ✅ 2026-10-01\n');
 });
+
+test('parses 🌱 and 🌱 N (#44)', () => {
+  const doc = parseTasks('# Tasks\n- [ ] Meditate 🌱 🔁 every day 📅 2026-10-26\n- [ ] Gym 🌱 30 🔁 every week on Monday 📅 2026-10-26\n- [ ] Read 🔁 every day 🌱 📅 2026-10-26\n');
+  expect(tasksOf(doc).map((t) => [t.title, t.habit, t.date])).toEqual([
+    ['Meditate', { goal: null }, '2026-10-26'],
+    ['Gym', { goal: 30 }, '2026-10-26'],
+    ['Read', { goal: null }, '2026-10-26'],
+  ]);
+});
+
+test('🌱 without a usable rule stays in the title (#44)', () => {
+  const doc = parseTasks('# Tasks\n- [ ] Plant 🌱\n- [ ] Water 🌱 🔁 every 3 days when done\n');
+  expect(tasksOf(doc).map((t) => [t.title, t.habit])).toEqual([['Plant 🌱', undefined], ['Water 🌱', undefined]]);
+});
+
+test('🌱 0 and 🌱 1000 are habits with the configured goal; the number stays in the title (#44)', () => {
+  const doc = parseTasks('# Tasks\n- [ ] A 🌱 0 🔁 every day\n- [ ] B 🌱 1000 🔁 every day\n- [ ] C 🌱 999 🔁 every day\n');
+  expect(tasksOf(doc).map((t) => [t.title, t.habit])).toEqual([
+    ['A 0', { goal: null }], ['B 1000', { goal: null }], ['C', { goal: 999 }],
+  ]);
+});
+
+test('round trip keeps unchanged habit lines byte for byte (#44)', () => {
+  const text = '# Tasks\n- [ ]   Meditate  🌱   30   🔁 every day   📅 2026-10-26\n- [ ] Read 🌱️ 🔁 every day\n';
+  expect(serializeTasks(parseTasks(text))).toBe(text);
+});
+
+test('writes 🌱 after ⏫ and before 🔁 (#44)', () => {
+  const doc = parseTasks('# Tasks\n');
+  const t: Task = {
+    id: 'n', title: 'No phone', notes: [], date: '2026-10-27', repeat: { type: 'daily' }, important: true,
+    habit: { goal: 30 }, raw: null, rawKey: null,
+  };
+  const text = serializeTasks({ ...doc, items: [{ kind: 'task', task: t }] });
+  expect(text).toBe('# Tasks\n- [ ] No phone ⏫ 🌱 30 🔁 every day 📅 2026-10-27\n');
+  expect(tasksOf(parseTasks(text))[0]!.habit).toEqual({ goal: 30 });
+});

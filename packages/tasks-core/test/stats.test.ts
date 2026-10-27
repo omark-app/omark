@@ -56,3 +56,10 @@ test('avg is shown to one decimal place', () => {
   const s: Stats = { today: 4, avg: 3.2, last7: 23, prev7: 19, trend: 'up', all: 412 };
   expect(formatStats(s)).toBe('Today 4 (3.2) · 7d 23 (19 ↑) · All 412');
 });
+
+test('formed and dropped lines are not completions (#44)', () => {
+  const doc = parseDone('- [x] Read 🌱 🔁 every day ✅ 2026-10-16\n- [x] Read 🌱 🏆 2026-10-16\n- [-] Gym 🌱 ❌ 2026-10-16\n');
+  const s = computeStats(doc, TODAY);
+  expect(s.all).toBe(1);
+  expect(s.today).toBe(1);
+});

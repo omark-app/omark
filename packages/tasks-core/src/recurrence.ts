@@ -35,14 +35,14 @@ export function matchesRule(rule: RepeatRule, d: ISODate): boolean {
 }
 
 /** Calendar months from the month of `a` to the month of `b`. */
-function monthsBetween(a: ISODate, b: ISODate): number {
+export function monthsBetween(a: ISODate, b: ISODate): number {
   const [ay, am] = parts(a);
   const [by, bm] = parts(b);
   return (by - ay) * 12 + (bm - am);
 }
 
 /** `start` moved `k` calendar months on, keeping `day` (clamped to the month's length). */
-function addMonths(start: ISODate, k: number, day: number): ISODate {
+export function addMonths(start: ISODate, k: number, day: number): ISODate {
   const [y, m] = parts(start);
   const idx = y * 12 + (m - 1) + k;
   return make(Math.floor(idx / 12), (idx % 12) + 1, day);

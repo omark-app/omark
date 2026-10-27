@@ -4,6 +4,7 @@
   import { autogrow } from '../lib/autogrow.ts';
   import type { AppStore } from '../lib/store.svelte.ts';
   import { createTaskEdit } from '../lib/task-edit.svelte.ts';
+  import HabitBlock from './HabitBlock.svelte';
   import MoveOptions from './MoveOptions.svelte';
   import ShortcutField from './ShortcutField.svelte';
 
@@ -12,9 +13,10 @@
     taskId,
     oncommand,
     onclose,
-  }: { store: AppStore; taskId: string; oncommand: (command: 'pickDate' | 'repeat') => void; onclose: () => void } = $props();
+  }: { store: AppStore; taskId: string; oncommand: (command: 'pickDate' | 'repeat' | 'habitRepeat') => void; onclose: () => void } = $props();
 
   const task = $derived(findTask(store.state, taskId));
+  const progress = $derived(task?.habit ? store.habits.get(taskId) : undefined);
   $effect(() => {
     if (!task) onclose();
   });
@@ -25,31 +27,44 @@
   const edit = createTaskEdit(store, taskId);
 
   // Each action saves the typed text first, so the edit and its toast come before the action's (and Undo
-  // after a delete brings back the edited text).
+  // after a delete brings back the edited text). These saves are final: a habit rename asks then.
   function save(): void {
-    edit.commit();
+    edit.commit(false, true);
+    onclose();
+  }
+
+  /** A habit block action, run like the others. */
+  function act(run: () => void): void {
+    edit.commit(false, true);
+    run();
     onclose();
   }
 
   function important(): void {
-    edit.commit();
+    edit.commit(false, true);
     store.setImportant(taskId, !task?.important);
     onclose();
   }
 
   function move(bucket: ChoiceKey): void {
-    edit.commit();
+    edit.commit(false, true);
     store.moveTo(taskId, bucket);
     onclose();
   }
 
+  function habit(): void {
+    edit.commit(false, true);
+    if (store.setHabit(taskId, !task?.habit) === 'needsRule') oncommand('habitRepeat');
+    else onclose();
+  }
+
   function open(command: 'pickDate' | 'repeat'): void {
-    edit.commit();
+    edit.commit(false, true);
     oncommand(command);
   }
 
   function remove(): void {
-    edit.commit();
+    edit.commit(false, true);
     store.remove(taskId);
     onclose();
   }
@@ -81,7 +96,8 @@
     aria-label="Notes"
     oninput={() => edit.typed('notes')}
   ></textarea>
-  <div class="sub due">{dueText(task, store.ctx)}{task.repeat ? ` · ↻ ${describeRepeat(task.repeat)}` : ''}</div>
+  <div class="sub due" data-testid="sheet-due">{dueText(task, store.ctx)}{task.repeat ? ` · ↻ ${describeRepeat(task.repeat)}` : ''}</div>
+  {#if task.habit && progress}<HabitBlock {store} {task} {progress} keys={false} {act} />{/if}
   <MoveOptions
     {task}
     ctx={store.ctx}
@@ -89,6 +105,7 @@
     onpickdate={() => open('pickDate')}
     onrepeat={() => open('repeat')}
     onimportant={important}
+    onhabit={habit}
   />
   <div class="actions">
     <button class="btn danger" onclick={remove}>Delete</button>
