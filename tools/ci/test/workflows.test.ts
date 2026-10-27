@@ -6,7 +6,7 @@ const FILES = ['ci.yml', 'promote.yml'];
 const path = (f: string) => new URL(`../../../.github/workflows/${f}`, import.meta.url);
 const text = (f: string) => readFileSync(path(f), 'utf8');
 
-interface Step { if?: string; uses?: string; with?: unknown; env?: unknown; run?: string; 'working-directory'?: string }
+interface Step { id?: string; name?: string; if?: string; uses?: string; with?: unknown; env?: unknown; run?: string; 'working-directory'?: string }
 interface Job {
   if?: string;
   needs?: string[];
@@ -262,6 +262,24 @@ describe('workflows', () => {
   it('deploys staging, the demo and the site only after check and every e2e job', () => {
     for (const name of ['tasks-staging', 'tasks-demo', 'site-production']) {
       expect(jobsOf('ci.yml').find(([n]) => n === name)![1].needs, name).toEqual(['check', 'e2e']);
+    }
+  });
+
+  it('deploys from main only while its commit is still main’s tip (#81)', () => {
+    // A run whose e2e finished later must not overwrite a newer commit's deploy; the newer run deploys itself.
+    for (const name of ['tasks-staging', 'tasks-demo', 'site-production']) {
+      const steps = jobsOf('ci.yml').find(([n]) => n === name)![1].steps!;
+      const i = steps.findIndex((s) => s.id === 'tip');
+      // Right after the variables check, before anything is built or deployed.
+      expect(i, name).toBe(1);
+      // Newer commits that only touch docs have no run of their own, so they don't make this one skip.
+      expect(steps[i]!.run, name).toContain(`gh api "repos/$REPO/compare/$GITHUB_SHA...main"`);
+      expect(steps[i]!.run, name).toContain('select(test("^doc/|[.]md$") | not)');
+      expect(steps[i]!.run, name).toMatch(/if \[ "\$newer" = 0 \]; then\n\s+echo "latest=true" >> "\$GITHUB_OUTPUT"/);
+      expect(steps[i]!.env, name).toEqual({ GH_TOKEN: '${{ github.token }}', REPO: '${{ github.repository }}' });
+      for (const s of steps.slice(i + 1)) {
+        expect(s.if, `${name}: ${s.name ?? s.uses ?? s.run}`).toBe("steps.tip.outputs.latest == 'true'");
+      }
     }
   });
 
