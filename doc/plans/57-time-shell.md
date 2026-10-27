@@ -8,7 +8,7 @@
 
 **Tech Stack:** Svelte 5, TypeScript 5.9, Vite 8, `vite-plugin-pwa`, Vitest 3, Playwright. No new third-party dependency beyond what `apps/tasks` uses.
 
-**Spec:** [`doc/Omark Time spec.md`](../Omark%20Time%20spec.md) sections 4, 7, 8 and 10; 3 (decisions), 13 (architecture), 15 (acceptance). Milestone: [53-omark-time-milestone.md](53-omark-time-milestone.md). Calendar: [55-calendar.md](55-calendar.md).
+**Spec:** [`doc/time/spec.md`](../time/spec.md) sections 4, 7, 8 and 10; 3 (decisions), 13 (architecture), 15 (acceptance). Milestone: [53-omark-time-milestone.md](53-omark-time-milestone.md). Calendar: [55-calendar.md](55-calendar.md).
 
 ## What changes for AL
 

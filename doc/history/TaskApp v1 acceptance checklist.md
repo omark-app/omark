@@ -1,5 +1,7 @@
 # TaskApp v1 acceptance checklist
 
+> Historical, may be out of date. The checklist for the first v1 deploy; sign-in has changed since (the sign-in helper replaced MSAL).
+
 Work through this after the first real deploy from `main`. Tick each box. If something does not match, note the number and what you saw.
 
 Devices: Brave on Windows (app pinned to the taskbar) and the iPhone home-screen app.
