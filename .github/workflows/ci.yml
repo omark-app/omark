@@ -172,15 +172,35 @@ jobs:
           CF_TASKS_STAGING_PROJECT: ${{ vars.CF_TASKS_STAGING_PROJECT }}
           TASKS_STAGING_HOST: ${{ vars.TASKS_STAGING_HOST }}
           TASKS_STAGING_URL: ${{ vars.TASKS_STAGING_URL }}
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-      - uses: actions/setup-node@v4
+      - name: Skip if main has moved on
+        # A run whose e2e finished later must not overwrite a newer commit's deploy; that commit's own run deploys
+        # it (#81). This runs inside the job's concurrency group, so two deploys never pass it at once.
+        id: tip
+        run: |
+          tip=$(gh api "repos/$REPO/commits/main" --jq .sha)
+          if [ "$tip" = "$GITHUB_SHA" ]; then
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::main is at $tip now, so its own run deploys. Skipping $GITHUB_SHA."
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+      - if: steps.tip.outputs.latest == 'true'
+        uses: actions/checkout@v4
+      - if: steps.tip.outputs.latest == 'true'
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - if: steps.tip.outputs.latest == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - if: steps.tip.outputs.latest == 'true'
+        run: pnpm install --frozen-lockfile
       # One build for staging and production: the app picks its folder and look from the host name.
-      - run: pnpm --filter tasks build
+      - if: steps.tip.outputs.latest == 'true'
+        run: pnpm --filter tasks build
         env:
           # The version shown in the footer; Promote ships this same build, so production shows it too.
           # run_number counts per workflow file: renaming ci.yml would restart it at 1.
@@ -191,13 +211,15 @@ jobs:
           VITE_PROD_FOLDER: ${{ vars.TASKS_PROD_FOLDER }}
           VITE_STAGING_FOLDER: ${{ vars.TASKS_STAGING_FOLDER }}
           VITE_ONEDRIVE_SCOPE: ${{ vars.TASKS_ONEDRIVE_SCOPE }}
-      - name: Keep the build for Promote
+      - if: steps.tip.outputs.latest == 'true'
+        name: Keep the build for Promote
         uses: actions/upload-artifact@v4
         with:
           name: tasks-dist
           path: apps/tasks/dist
           retention-days: 30
-      - name: Make sure the staging project exists
+      - if: steps.tip.outputs.latest == 'true'
+        name: Make sure the staging project exists
         run: node tools/ci/ensure-pages-project.mjs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -205,14 +227,16 @@ jobs:
           CF_PROJECT: ${{ vars.CF_TASKS_STAGING_PROJECT }}
           PAGES_DOMAIN: ${{ vars.TASKS_STAGING_DOMAIN }}
           CF_ZONE_ID: ${{ vars.CF_TASKS_ZONE_ID }}
-      - uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+      - if: steps.tip.outputs.latest == 'true'
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: '4.151.1'
           # Run from the repo root, so wrangler also bundles functions/ (the sign-in helper at /api/auth/*).
           command: pages deploy apps/tasks/dist --project-name=${{ vars.CF_TASKS_STAGING_PROJECT }} --branch=main
-      - name: Check the sign-in helper is live
+      - if: steps.tip.outputs.latest == 'true'
+        name: Check the sign-in helper is live
         # /api/auth/login must redirect to Microsoft for MSAL_TENANT, asking for the scope the build expects.
         # That holds only when the functions shipped and the Pages secrets (README, Sign-in) are set.
         run: node tools/ci/check-signin.mjs
@@ -239,21 +263,42 @@ jobs:
         env:
           CF_TASKS_DEMO_PROJECT: ${{ vars.CF_TASKS_DEMO_PROJECT }}
           TASKS_DEMO_URL: ${{ vars.TASKS_DEMO_URL }}
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-      - uses: actions/setup-node@v4
+      - name: Skip if main has moved on
+        # A run whose e2e finished later must not overwrite a newer commit's deploy; that commit's own run deploys
+        # it (#81). This runs inside the job's concurrency group, so two deploys never pass it at once.
+        id: tip
+        run: |
+          tip=$(gh api "repos/$REPO/commits/main" --jq .sha)
+          if [ "$tip" = "$GITHUB_SHA" ]; then
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::main is at $tip now, so its own run deploys. Skipping $GITHUB_SHA."
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+      - if: steps.tip.outputs.latest == 'true'
+        uses: actions/checkout@v4
+      - if: steps.tip.outputs.latest == 'true'
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - if: steps.tip.outputs.latest == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter tasks build
+      - if: steps.tip.outputs.latest == 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.tip.outputs.latest == 'true'
+        run: pnpm --filter tasks build
         env:
           VITE_STORAGE: demo
           VITE_REAL_USE_URL: ${{ vars.TASKS_REAL_USE_URL }}
           BUILD_NUMBER: ${{ github.run_number }}
       # The project only: its custom domain and DNS record were set up once by hand, so the CI token needs no
       # permission on that zone. The live check below catches a broken domain.
-      - name: Make sure the demo project exists
+      - if: steps.tip.outputs.latest == 'true'
+        name: Make sure the demo project exists
         run: node tools/ci/ensure-pages-project.mjs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -262,14 +307,16 @@ jobs:
       # Run from apps/tasks, not the repo root, so wrangler leaves out functions/: the demo has no sign-in
       # helper and no /api/auth at all. It is the workspace's wrangler (root package.json, the version the
       # deploy actions pin).
-      - name: Deploy the demo
+      - if: steps.tip.outputs.latest == 'true'
+        name: Deploy the demo
         working-directory: apps/tasks
         run: ../../node_modules/.bin/wrangler pages deploy dist --project-name="$CF_TASKS_DEMO_PROJECT" --branch=main
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CF_TASKS_DEMO_PROJECT: ${{ vars.CF_TASKS_DEMO_PROJECT }}
-      - name: Check the demo is live, without the sign-in helper
+      - if: steps.tip.outputs.latest == 'true'
+        name: Check the demo is live, without the sign-in helper
         run: node tools/ci/check-demo.mjs
         env:
           DEMO_URL: ${{ vars.TASKS_DEMO_URL }}
@@ -368,15 +415,36 @@ jobs:
         env:
           CF_SITE_PROJECT: ${{ vars.CF_SITE_PROJECT }}
           SITE_URL: ${{ vars.SITE_URL }}
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-      - uses: actions/setup-node@v4
+      - name: Skip if main has moved on
+        # A run whose e2e finished later must not overwrite a newer commit's deploy; that commit's own run deploys
+        # it (#81). This runs inside the job's concurrency group, so two deploys never pass it at once.
+        id: tip
+        run: |
+          tip=$(gh api "repos/$REPO/commits/main" --jq .sha)
+          if [ "$tip" = "$GITHUB_SHA" ]; then
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::main is at $tip now, so its own run deploys. Skipping $GITHUB_SHA."
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+      - if: steps.tip.outputs.latest == 'true'
+        uses: actions/checkout@v4
+      - if: steps.tip.outputs.latest == 'true'
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - if: steps.tip.outputs.latest == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter site build
-      - uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+      - if: steps.tip.outputs.latest == 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.tip.outputs.latest == 'true'
+        run: pnpm --filter site build
+      - if: steps.tip.outputs.latest == 'true'
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -384,7 +452,8 @@ jobs:
           # From apps/site, so only its own functions ship, not the sign-in helper in the root functions/.
           workingDirectory: apps/site
           command: pages deploy dist --project-name=${{ vars.CF_SITE_PROJECT }} --branch=main
-      - name: Check the site is live
+      - if: steps.tip.outputs.latest == 'true'
+        name: Check the site is live
         # The privacy policy must carry Google's Limited Use text, and the site must send its CSP header. The custom
         # domain can take a moment to serve the new deploy, so try a few times.
         run: |
