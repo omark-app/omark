@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Omark: small tools that keep your work in plain files</title>
+    <meta name="description" content="Omark is a set of small, open source apps for people and their AI agents. Your tasks and hours stay in plain files in your own OneDrive, Google Drive or folder." />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#F2F4F7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0D1015" media="(prefers-color-scheme: dark)" />
+    <link rel="stylesheet" href="/site.css" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap">
+        <a class="brand" href="/"><span class="brand-icon" aria-hidden="true"></span><span class="wordmark">Omark</span></a>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <section class="hero">
+        <h1>Small tools that keep your work in plain files you own.</h1>
+        <p class="lead">Omark is a set of open source apps for people and their AI agents. Your tasks and hours stay as Markdown and CSV in your own OneDrive, Google Drive or folder. No Omark server ever stores them.</p>
+      </section>
+
+      <section class="apps" aria-label="Apps">
+        <article class="card">
+          <div class="card-head">
+            <h2 class="app-title"><span class="app-icon" aria-hidden="true"></span>Omark Tasks</h2>
+          </div>
+          <p>A calm task list for today, this week and later, kept in plain Markdown.</p>
+          <div class="actions">
+            <span class="button coming"><span class="button-label">Open</span> Coming soon</span>
+            <span class="button coming"><span class="button-label">Try the demo</span> Coming soon</span>
+          </div>
+          <div class="stage">
+            <picture>
+              <source srcset="/img/tasks-dark.webp" media="(prefers-color-scheme: dark)" />
+              <img class="shot" src="/img/tasks-light.webp" width="600" height="1006" alt="Omark Tasks on an iPhone: tasks grouped under Today, Tomorrow, This week and Next week." />
+            </picture>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h2 class="app-title"><span class="app-icon" aria-hidden="true"></span>Omark Time</h2>
+            <span class="coming badge">Coming</span>
+          </div>
+          <p>Plan your day in your calendar. Omark Time turns those events into hours per project, kept in CSV.</p>
+          <p>It reads events from Google Calendars you own and, only if you turn it on, colours them.</p>
+          <div class="stage stage-time">
+            <div class="sample" role="img" aria-label="A calendar event titled ACME; Coding; new feature, from 9:00 to 10:30, becomes one CSV row of 1.5 hours.">
+              <div class="event">
+                <span class="event-time">09:00 – 10:30</span>
+                <span class="event-title">ACME; Coding; new feature</span>
+              </div>
+              <span class="arrow" aria-hidden="true">↓</span>
+              <div class="row">
+                <span class="row-file">events-2026.csv</span>
+                <code>2026-10-22,…,1.5,ACME,Coding,new feature,…</code>
+              </div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="section" id="start">
+        <h2>How to start</h2>
+        <p class="section-lead">No new account. Sign in with the Microsoft or Google account you already have, or pick a folder.</p>
+        <div class="columns">
+          <div>
+            <h3>Omark Tasks</h3>
+            <ol class="steps">
+              <li>Open the app.</li>
+              <li>Sign in with Microsoft or Google, or pick a folder.</li>
+              <li>Add your first task.</li>
+            </ol>
+          </div>
+          <div>
+            <h3>Omark Time</h3>
+            <ol class="steps">
+              <li>Open the app.</li>
+              <li>Sign in with Google.</li>
+              <li>Title a calendar event <code>CODE; Category; what</code>.</li>
+            </ol>
+          </div>
+          <div>
+            <h3>Install it</h3>
+            <p class="muted">Both apps install like any other app and work offline.</p>
+            <ul class="install">
+              <li><strong>iPhone:</strong> in Safari, tap Share, then Add to Home Screen.</li>
+              <li><strong>Chrome or Edge:</strong> click the install icon in the address bar.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="data">
+        <h2>Where your data lives</h2>
+        <div class="columns two">
+          <div class="store">
+            <h3>Omark Tasks</h3>
+            <p>Three plain files: <code>tasks.md</code> and <code>done.md</code> in Markdown, and <code>config.yaml</code> for settings.</p>
+          </div>
+          <div class="store">
+            <h3>Omark Time</h3>
+            <p>CSV files, such as <code>events-2026.csv</code> and <code>projects.csv</code>. Their source is your own calendar.</p>
+          </div>
+        </div>
+        <p class="section-foot">Both live in your OneDrive, Google Drive or your own folder. Open them in Obsidian or Excel, or hand them to an AI agent. Leaving is just closing the app.</p>
+      </section>
+
+      <section class="section" id="principles">
+        <h2>Principles</h2>
+        <ul class="principles">
+          <li><strong>Plain files you own.</strong> Your data stays in storage you choose. No Omark server keeps it.</li>
+          <li><strong>Works with your AI agent.</strong> The formats are documented, so an agent can read and write them with you.</li>
+          <li><strong>No lock-in.</strong> Leaving is just closing the app. Your files stay where they are.</li>
+          <li><strong>Small and simple.</strong> A calm screen and few features, added only when they fit.</li>
+          <li><strong>Open source.</strong> Read the code, run your own copy, change it.</li>
+        </ul>
+        <p class="section-foot muted">The full principles are in PHILOSOPHY.md, published with the code at launch.</p>
+      </section>
+
+      <section class="section" id="open-source">
+        <h2>Open source</h2>
+        <p>Omark is free and MIT licensed. It is built by a software factory of AI agents, with a human maintainer who reviews every change.</p>
+        <ul class="later">
+          <li>Code on GitHub <span class="coming">at launch</span></li>
+          <li>How to contribute <span class="coming">at launch</span></li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap">
+        <p class="footer-name">Omark · plain files you own</p>
+        <nav aria-label="Footer">
+          <a href="/privacy/">Privacy policy</a>
+          <a href="/terms/">Terms</a>
+          <a href="mailto:hello@omark.app">hello@omark.app</a>
+          <a href="https://opensource.org/license/mit">MIT licence</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>
