@@ -2,6 +2,7 @@
   import { dayMonth, describeRepeat, doneNotes, weekdayShort } from '@omark/tasks-core';
   import type { DoneEntry } from '@omark/tasks-core';
   import type { AppStore } from '../lib/store.svelte.ts';
+  import LinkedText from './LinkedText.svelte';
 
   /** A completed task found by search, read-only (reopening one is in the backlog). */
   let { store, entry, onclose }: { store: AppStore; entry: DoneEntry; onclose: () => void } = $props();
@@ -11,11 +12,11 @@
   const doneOn = $derived(entry.doneOn === null ? '' : `${weekdayShort(entry.doneOn)} ${dayMonth(entry.doneOn, store.ctx)}`);
 </script>
 
-<h3 class="done-title" data-testid="done-title">{entry.title}</h3>
+<h3 class="done-title" data-testid="done-title"><LinkedText text={entry.title} /></h3>
 <div class="sub">✅ Completed {doneOn}{entry.repeat ? ` · ↻ ${describeRepeat(entry.repeat)}` : ''}</div>
 {#if notes.length > 0}
   <ul class="notes">
-    {#each notes as note, i (i)}<li>{note}</li>{/each}
+    {#each notes as note, i (i)}<li><LinkedText text={note} /></li>{/each}
   </ul>
 {/if}
 <div class="actions">

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { findLinks, linkParts } from '../src/index.ts';
+import { findLinks, linkParts, linkText } from '../src/index.ts';
 
 test('linkParts splits a bare link out of the text', () => {
   expect(linkParts('Read https://example.com/a?b=1 today')).toEqual([
@@ -40,4 +40,24 @@ test('findLinks lists every link once, in order', () => {
     { text: 'https://one.example', href: 'https://one.example' },
     { text: 'two', href: 'https://two.example' },
   ]);
+});
+
+test('linkParts leaves Markdown marks and closing brackets around a bare link out of it', () => {
+  const link = (s: string) => linkParts(s).find((p) => p.href)?.href;
+  expect(link('[see https://example.com/x]')).toBe('https://example.com/x');
+  expect(link('**https://example.com/x**')).toBe('https://example.com/x');
+  expect(link('`https://example.com/x`')).toBe('https://example.com/x');
+  expect(link('_https://example.com/x_')).toBe('https://example.com/x');
+  expect(link('https://example.com/x…')).toBe('https://example.com/x');
+  expect(link('(https://x.com/a)]')).toBe('https://x.com/a');
+  expect(link('https://example.com/a_b')).toBe('https://example.com/a_b');
+});
+
+test('linkParts finds www. links only at the start of a word', () => {
+  expect(linkParts('ftp://www.example.com me@www.example.com foo.www.bar')).toEqual([{ text: 'ftp://www.example.com me@www.example.com foo.www.bar' }]);
+  expect(linkParts('(www.example.com)')).toEqual([{ text: '(' }, { text: 'www.example.com', href: 'https://www.example.com' }, { text: ')' }]);
+});
+
+test('linkText is the text as shown, Markdown links by their label', () => {
+  expect(linkText('Book [the hut](https://hut.example.com/book) now')).toBe('Book the hut now');
 });

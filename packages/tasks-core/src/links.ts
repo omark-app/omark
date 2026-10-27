@@ -4,17 +4,24 @@ export interface LinkPart {
   href?: string;
 }
 
-// A Markdown link `[label](https://…)`, a bare `http(s)://…` link, or a bare `www.…` one.
-const LINK = /\[([^\]\n]+)\]\((https?:\/\/[^\s()]+(?:\([^\s()]*\)[^\s()]*)*)\)|\b(?:https?:\/\/|www\.)[^\s<>]+/gi;
+// A Markdown link `[label](https://…)`, a bare `http(s)://…` link, or a bare `www.…` one. A bare link
+// starts a word, so `ftp://www.…` and `me@www.…` are not links.
+const LINK = /\[([^\]\n]+)\]\((https?:\/\/[^\s()]+(?:\([^\s()]*\)[^\s()]*)*)\)|(?<![^\s([{<*_`'"])(?:https?:\/\/|www\.)[^\s<>]+/gi;
 
-/** Cuts trailing punctuation and closing brackets that have no opening one inside the link. */
+const PAIRS: Record<string, string> = { ')': '(', ']': '[', '}': '{' };
+
+/**
+ * Cuts trailing punctuation and Markdown marks, and closing brackets that have no opening one inside the
+ * link (so `(https://x.com/a)` keeps the bracket out, `…/Foo_(bar)` keeps it in).
+ */
 function trimEnd(url: string): string {
   for (;;) {
     const last = url.at(-1);
     if (last === undefined) return url;
-    if ('.,;:!?\'"'.includes(last)) url = url.slice(0, -1);
-    else if (last === ')' && url.split('(').length < url.split(')').length) url = url.slice(0, -1);
-    else return url;
+    const open = PAIRS[last];
+    if (open !== undefined ? url.split(open).length < url.split(last).length : '.,;:!?\'"*_`…>，。、；：！？'.includes(last)) {
+      url = url.slice(0, -1);
+    } else return url;
   }
 }
 
@@ -43,6 +50,13 @@ export function linkParts(text: string): LinkPart[] {
   }
   plain(text.length);
   return out;
+}
+
+/** The text as shown, with each Markdown link by its label (e.g. for a screen reader's label). */
+export function linkText(text: string): string {
+  return linkParts(text)
+    .map((p) => p.text)
+    .join('');
 }
 
 /** The links in text, each href once, in order. */
