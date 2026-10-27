@@ -272,7 +272,10 @@ describe('workflows', () => {
       const i = steps.findIndex((s) => s.id === 'tip');
       // Right after the variables check, before anything is built or deployed.
       expect(i, name).toBe(1);
-      expect(steps[i]!.run, name).toContain('gh api "repos/$REPO/commits/main" --jq .sha');
+      // Newer commits that only touch docs have no run of their own, so they don't make this one skip.
+      expect(steps[i]!.run, name).toContain(`gh api "repos/$REPO/compare/$GITHUB_SHA...main"`);
+      expect(steps[i]!.run, name).toContain('select(test("^doc/|[.]md$") | not)');
+      expect(steps[i]!.run, name).toMatch(/if \[ "\$newer" = 0 \]; then\n\s+echo "latest=true" >> "\$GITHUB_OUTPUT"/);
       expect(steps[i]!.env, name).toEqual({ GH_TOKEN: '${{ github.token }}', REPO: '${{ github.repository }}' });
       for (const s of steps.slice(i + 1)) {
         expect(s.if, `${name}: ${s.name ?? s.uses ?? s.run}`).toBe("steps.tip.outputs.latest == 'true'");

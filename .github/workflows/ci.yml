@@ -174,14 +174,15 @@ jobs:
           TASKS_STAGING_URL: ${{ vars.TASKS_STAGING_URL }}
       - name: Skip if main has moved on
         # A run whose e2e finished later must not overwrite a newer commit's deploy; that commit's own run deploys
-        # it (#81). This runs inside the job's concurrency group, so two deploys never pass it at once.
+        # it (#81). Commits that only touch docs get no CI run (paths-ignore above), so they don't count. This runs
+        # inside the job's concurrency group, so two deploys never pass it at once.
         id: tip
         run: |
-          tip=$(gh api "repos/$REPO/commits/main" --jq .sha)
-          if [ "$tip" = "$GITHUB_SHA" ]; then
+          newer=$(gh api "repos/$REPO/compare/$GITHUB_SHA...main" --jq '[(.files // [])[].filename | select(test("^doc/|[.]md$") | not)] | length')
+          if [ "$newer" = 0 ]; then
             echo "latest=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::notice::main is at $tip now, so its own run deploys. Skipping $GITHUB_SHA."
+            echo "::notice::main has newer changes, so its own run deploys. Skipping $GITHUB_SHA."
             echo "latest=false" >> "$GITHUB_OUTPUT"
           fi
         env:
@@ -265,14 +266,15 @@ jobs:
           TASKS_DEMO_URL: ${{ vars.TASKS_DEMO_URL }}
       - name: Skip if main has moved on
         # A run whose e2e finished later must not overwrite a newer commit's deploy; that commit's own run deploys
-        # it (#81). This runs inside the job's concurrency group, so two deploys never pass it at once.
+        # it (#81). Commits that only touch docs get no CI run (paths-ignore above), so they don't count. This runs
+        # inside the job's concurrency group, so two deploys never pass it at once.
         id: tip
         run: |
-          tip=$(gh api "repos/$REPO/commits/main" --jq .sha)
-          if [ "$tip" = "$GITHUB_SHA" ]; then
+          newer=$(gh api "repos/$REPO/compare/$GITHUB_SHA...main" --jq '[(.files // [])[].filename | select(test("^doc/|[.]md$") | not)] | length')
+          if [ "$newer" = 0 ]; then
             echo "latest=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::notice::main is at $tip now, so its own run deploys. Skipping $GITHUB_SHA."
+            echo "::notice::main has newer changes, so its own run deploys. Skipping $GITHUB_SHA."
             echo "latest=false" >> "$GITHUB_OUTPUT"
           fi
         env:
@@ -417,14 +419,15 @@ jobs:
           SITE_URL: ${{ vars.SITE_URL }}
       - name: Skip if main has moved on
         # A run whose e2e finished later must not overwrite a newer commit's deploy; that commit's own run deploys
-        # it (#81). This runs inside the job's concurrency group, so two deploys never pass it at once.
+        # it (#81). Commits that only touch docs get no CI run (paths-ignore above), so they don't count. This runs
+        # inside the job's concurrency group, so two deploys never pass it at once.
         id: tip
         run: |
-          tip=$(gh api "repos/$REPO/commits/main" --jq .sha)
-          if [ "$tip" = "$GITHUB_SHA" ]; then
+          newer=$(gh api "repos/$REPO/compare/$GITHUB_SHA...main" --jq '[(.files // [])[].filename | select(test("^doc/|[.]md$") | not)] | length')
+          if [ "$newer" = 0 ]; then
             echo "latest=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::notice::main is at $tip now, so its own run deploys. Skipping $GITHUB_SHA."
+            echo "::notice::main has newer changes, so its own run deploys. Skipping $GITHUB_SHA."
             echo "latest=false" >> "$GITHUB_OUTPUT"
           fi
         env:
