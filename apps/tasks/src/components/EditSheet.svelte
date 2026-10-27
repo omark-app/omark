@@ -7,6 +7,7 @@
   import HabitBlock from './HabitBlock.svelte';
   import MoveOptions from './MoveOptions.svelte';
   import ShortcutField from './ShortcutField.svelte';
+  import TaskLinks from './TaskLinks.svelte';
 
   let {
     store,
@@ -96,6 +97,7 @@
     aria-label="Notes"
     oninput={() => edit.typed('notes')}
   ></textarea>
+  <TaskLinks title={edit.title} notes={edit.notes} />
   <div class="sub due" data-testid="sheet-due">{dueText(task, store.ctx)}{task.repeat ? ` · ↻ ${describeRepeat(task.repeat)}` : ''}</div>
   {#if task.habit && progress}<HabitBlock {store} {task} {progress} keys={false} {act} />{/if}
   <MoveOptions
