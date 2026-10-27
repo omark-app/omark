@@ -4,7 +4,7 @@ import type { CalendarEvent, CalendarInfo } from '@omark/calendar';
 import { defaultTimeConfigText, parseEventsFile } from '@omark/time-core';
 import { CONFIG, PROJECTS, PROJECTS_HEADER, MemoryFiles } from './files.ts';
 import { MemoryState } from './state.ts';
-import { sync } from './sync.ts';
+import { readSummary, sync } from './sync.ts';
 import type { SyncDeps } from './sync.ts';
 
 const CALENDARS: CalendarInfo[] = [
@@ -190,4 +190,34 @@ test('nothing before track_from or after the window gives rows', async () => {
 test('the time zone comes from the primary calendar and is kept', async () => {
   await sync(deps);
   expect((await state.load()).timeZone).toBe('Europe/Warsaw');
+});
+
+test('a sync returns its rows and projects, and keeps the calendar link of events with an unknown code', async () => {
+  calendar.add(event('typo', '2026-10-20', 'ACMEE; x', { htmlLink: 'https://www.google.com/calendar/event?eid=dHlwbw' }));
+  calendar.add(event('ok', '2026-10-21', 'ACME; x', { htmlLink: 'https://www.google.com/calendar/event?eid=b2s' }));
+  const result = await sync(deps);
+  expect(result.allRows.map((r) => r.eventId).sort()).toEqual(['ok', 'typo']);
+  expect(result.projects.projects.map((p) => p.code)).toEqual(['ACME']);
+  expect(Object.values((await state.load()).links)).toEqual(['https://www.google.com/calendar/event?eid=dHlwbw']);
+  // Fixed in Google Calendar: the link goes with the red row.
+  calendar.edit('primary', 'typo', { title: 'ACME; x' });
+  await sync(deps);
+  expect((await state.load()).links).toEqual({});
+});
+
+test('readSummary gives the rows from the copy this device has', async () => {
+  calendar.add(event('a', '2026-10-20'));
+  await sync(deps);
+  const summary = await readSummary(files, state, () => NOW);
+  expect(summary.allRows.map((r) => r.eventId)).toEqual(['a']);
+  expect(summary.projects.projects.map((p) => p.code)).toEqual(['ACME']);
+});
+
+test('a project deleted later gives its events their calendar link again (the window is read again)', async () => {
+  calendar.add(event('a', '2026-10-20', 'ACME; x', { htmlLink: 'https://www.google.com/calendar/event?eid=YQ' }));
+  await sync(deps);
+  expect((await state.load()).links).toEqual({});
+  files.texts.set(PROJECTS, PROJECTS_HEADER);
+  await sync(deps);
+  expect(Object.values((await state.load()).links)).toEqual(['https://www.google.com/calendar/event?eid=YQ']);
 });

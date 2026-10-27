@@ -287,3 +287,67 @@ test('no "not saved" warning on sign-out when only the reads failed', async () =
   expect(calls).toContain('forget');
   expect(store.storageName).toBe('');
 });
+
+test('the store has the rows and projects after a sync, and offline', async () => {
+  const { store, calendar, net, ready } = setup();
+  calendar.add(event('a', '2026-10-20'));
+  await ready();
+  expect(store.allRows.map((r) => r.eventId)).toEqual(['a']);
+  expect(store.projects.map((p) => p.code)).toEqual(['ACME']);
+  net.offline = true;
+  calendar.readOnly = true;
+  await store.syncNow();
+  expect(store.allRows.map((r) => r.eventId)).toEqual(['a']);
+});
+
+test('adding a project writes projects.csv and syncs, so its events turn known', async () => {
+  const { store, calendar, ready } = setup();
+  calendar.add({ ...event('t', '2026-10-20'), title: 'ACMEE; x' });
+  await ready();
+  expect(store.allRows[0]).toMatchObject({ project: 'ACMEE', known: false });
+  expect(await store.addProject({ code: 'acmee', description: 'Typo', client: '', rate: null, currency: '', archived: '', extra: {} })).toBeNull();
+  expect(store.projects.map((p) => p.code)).toEqual(['ACME', 'ACMEE']);
+  expect(store.allRows[0]).toMatchObject({ project: 'ACMEE', known: true });
+});
+
+test('a duplicate code is refused with the reason, and nothing is written', async () => {
+  const { store, ready } = setup();
+  await ready();
+  const message = await store.addProject({ code: 'ACME', description: '', client: '', rate: null, currency: '', archived: '', extra: {} });
+  expect(message).toMatch(/ACME/);
+  expect(store.projects.map((p) => p.code)).toEqual(['ACME']);
+});
+
+test('archive, unarchive, edit and delete', async () => {
+  const { store, ready } = setup();
+  await ready();
+  expect(await store.archiveProject('ACME')).toBeNull();
+  expect(store.projects[0]!.archived).toBe('2026-10-27');
+  expect(await store.unarchiveProject('ACME')).toBeNull();
+  expect(store.projects[0]!.archived).toBe('');
+  expect(await store.updateProject('ACME', { description: 'Acme Corp', rate: 120, currency: 'eur' })).toBeNull();
+  expect(store.projects[0]).toMatchObject({ description: 'Acme Corp', rate: 120, currency: 'EUR' });
+  expect(await store.updateProject('ACME', { rate: 120, currency: '' })).toMatch(/currency/);
+  expect(await store.deleteProject('ACME')).toBeNull();
+  expect(store.projects).toEqual([]);
+});
+
+test("today is in the calendar's time zone after a reload, before any sync", async () => {
+  const { store, ready, net } = setup();
+  await ready();
+  const deps = (store as unknown as { deps: AppDeps }).deps;
+  // A reload offline at 23:30 UTC on the 27th: already the 28th in Warsaw, the calendar's zone.
+  net.offline = true;
+  const reloaded = new TimeStore({ ...deps, now: () => Date.parse('2026-10-27T23:30:00Z'), source: { ...deps.source, readChanges: () => Promise.reject(new OfflineError('x')) } });
+  await reloaded.start();
+  expect(reloaded.todayDate).toBe('2026-10-28');
+});
+
+test('a project edit made while a sync runs is not undone by that sync', async () => {
+  const { store, ready } = setup();
+  await ready();
+  const syncing = store.syncNow();
+  const added = store.addProject({ code: 'NEW', description: '', client: '', rate: null, currency: '', archived: '', extra: {} });
+  await Promise.all([syncing, added]);
+  expect(store.projects.map((p) => p.code)).toEqual(['ACME', 'NEW']);
+});

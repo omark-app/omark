@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { TimeStore } from './lib/store.svelte.ts';
   import FirstRun from './components/FirstRun.svelte';
-  import Home from './components/Home.svelte';
+  import Shell from './components/Shell.svelte';
   import { BUILD_ID, BUILD_NUMBER, STORAGE_MODE } from './env.ts';
 
   let { store }: { store: TimeStore } = $props();
@@ -33,7 +33,7 @@
   {:else if store.phase === 'storage' || store.phase === 'calendars'}
     <FirstRun {store} />
   {:else}
-    <Home {store} />
+    <Shell {store} />
   {/if}
 </main>
 

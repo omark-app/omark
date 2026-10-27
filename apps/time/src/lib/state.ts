@@ -26,6 +26,8 @@ export interface DeviceState {
   colourPlanned: boolean;
   /** Patches that take the tracker's colours off, after colouring was turned off and the user said so. */
   clearQueue: ColourJob[];
+  /** Google Calendar's page for each event with an unknown code (`keyOf(calendar, id)`), for the fix list. */
+  links: Record<string, string>;
 }
 
 export const freshState = (): DeviceState => ({
@@ -36,6 +38,7 @@ export const freshState = (): DeviceState => ({
   colourQueue: [],
   colourPlanned: false,
   clearQueue: [],
+  links: {},
 });
 
 export interface StateStore {

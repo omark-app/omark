@@ -1,11 +1,22 @@
 import { AuthRequiredError, OfflineError } from '@omark/storage';
 import type { CalendarInfo } from '@omark/calendar';
-import { defaultTimeConfigText, localDate, parseTimeConfig, setTimeConfig } from '@omark/time-core';
-import type { TimeConfig } from '@omark/time-core';
+import {
+  addProject,
+  archiveProject,
+  defaultTimeConfigText,
+  deleteProject,
+  localDate,
+  parseProjects,
+  parseTimeConfig,
+  serializeProjects,
+  setTimeConfig,
+  updateProject,
+} from '@omark/time-core';
+import type { EventRow, Project, ProjectsFile, TimeConfig } from '@omark/time-core';
 import type { AppDeps, Place } from './boot.ts';
 import { colourAfterSync, confirmClear, planClear } from './colouring.ts';
 import type { ColourDeps, ColourOutcome } from './colouring.ts';
-import { CONFIG } from './files.ts';
+import { CONFIG, PROJECTS, PROJECTS_HEADER } from './files.ts';
 import { FRESH_PREFS } from './prefs.ts';
 import type { StorageKind } from './prefs.ts';
 import type { ColourJob } from './state.ts';
@@ -34,6 +45,15 @@ export class TimeStore {
   syncedAt = $state<number | null>(null);
   rows = $state(0);
   fixCount = $state(0);
+  /** Every row in the files, and the projects, for the screens; raw, as they are only ever replaced. */
+  allRows = $state.raw<EventRow[]>([]);
+  projects = $state.raw<Project[]>([]);
+  /** Google Calendar's page per event with an unknown code (`keyOf(calendar, id)`). */
+  links = $state.raw<Record<string, string>>({});
+  /** The primary calendar's time zone, as this device last read it; "today" is in it. */
+  timeZone = $state('UTC');
+  /** A code the fix list asked the projects view to start a new project with. */
+  newCode = $state<string | null>(null);
   colour = $state<ColourState>('off');
   colourLeft = $state(0);
   /** How many tracker colours a clear would take off; set while the clear is offered. */
@@ -61,6 +81,15 @@ export class TimeStore {
 
   constructor(private readonly deps: AppDeps) {}
 
+  /** Now, and today in the primary calendar's time zone, for the screens. */
+  nowMs(): number {
+    return this.deps.now();
+  }
+
+  get todayDate(): string {
+    return this.today();
+  }
+
   /** The first run offers a folder on this computer only where the browser can pick one. */
   get canPickFolder(): boolean {
     return this.deps.canPickFolder;
@@ -84,6 +113,7 @@ export class TimeStore {
       this.phase = 'storage';
       return;
     }
+    this.timeZone = (await this.place!.state.load()).timeZone ?? this.timeZone;
     if (!prefs.started) {
       this.phase = 'calendars';
       await this.loadCalendars();
@@ -167,6 +197,14 @@ export class TimeStore {
     return this.syncNow({ rebuild: true });
   }
 
+  /** A settings change (track from, all-day hours, week start): written to config.yaml, then a sync. */
+  setConfig(changes: Partial<Pick<TimeConfig, 'trackFrom' | 'allDayHours' | 'weekStart'>>): Promise<void> {
+    return this.guard(async () => {
+      await this.writeConfig(changes);
+      await this.syncNow();
+    });
+  }
+
   setCalendars(ids: string[]): Promise<void> {
     return this.guard(async () => {
       await this.writeConfig({ calendars: ids });
@@ -245,6 +283,9 @@ export class TimeStore {
       this.calendars = [];
       this.rows = 0;
       this.fixCount = 0;
+      this.allRows = [];
+      this.projects = [];
+      this.links = {};
       this.syncedAt = null;
       this.colour = 'off';
       this.clearOffer = null;
@@ -287,6 +328,57 @@ export class TimeStore {
     return ok;
   }
 
+  addProject(project: Project): Promise<string | null> {
+    return this.editProjects((f) => addProject(f, project));
+  }
+
+  /** Changes a project's fields; its code can't change (spec 9: past events would turn red). */
+  updateProject(code: string, changes: Partial<Omit<Project, 'code'>>): Promise<string | null> {
+    return this.editProjects((f) => updateProject(f, code, changes));
+  }
+
+  archiveProject(code: string): Promise<string | null> {
+    return this.editProjects((f) => archiveProject(f, code, this.today()));
+  }
+
+  unarchiveProject(code: string): Promise<string | null> {
+    return this.editProjects((f) => updateProject(f, code, { archived: '' }));
+  }
+
+  deleteProject(code: string): Promise<string | null> {
+    return this.editProjects((f) => deleteProject(f, code));
+  }
+
+  /**
+   * Edits projects.csv (merged onto any change from another device), then syncs, so rows and colours follow
+   * the codes. Resolves with the reason when the edit is refused (a duplicate code, a rate without a currency).
+   */
+  private async editProjects(edit: (file: ProjectsFile) => ProjectsFile): Promise<string | null> {
+    const place = this.place;
+    if (!place) return 'The files are not open';
+    let refused: string | null = null;
+    // On the lock, so a sync running now can't put the old projects back after the edit.
+    await this.afterRunning(async () => {
+      try {
+        const base = await place.files.read(PROJECTS, PROJECTS_HEADER);
+        const text = serializeProjects(edit(parseProjects(base)));
+        await place.files.write(PROJECTS, text, base);
+        this.projects = parseProjects(text).projects;
+      } catch (e) {
+        refused = e instanceof Error ? e.message : String(e);
+      }
+    });
+    if (refused === null) await this.syncNow();
+    return refused;
+  }
+
+  private showSummary(s: { allRows: EventRow[]; rows: number; fixCount: number; projects: ProjectsFile }): void {
+    this.allRows = s.allRows;
+    this.rows = s.rows;
+    this.fixCount = s.fixCount;
+    this.projects = s.projects.projects;
+  }
+
   /** Runs `work` once the lock is free, holding it meanwhile. */
   private afterRunning(work: () => Promise<void>): Promise<void> {
     const turn = (this.running ?? Promise.resolve()).catch(() => {}).then(() => {
@@ -307,14 +399,16 @@ export class TimeStore {
       // Without permission every read of the folder fails; the copy on this device shows until it is given.
       if (place.folder && (await place.folder.access()) !== 'granted') {
         this.sync = 'folder';
-        Object.assign(this, await readSummary(place.files, place.state, this.deps.now));
+        this.showSummary(await readSummary(place.files, place.state, this.deps.now));
+        this.links = (await place.state.load()).links;
         return;
       }
       const result = await sync({ source: this.deps.source, files: place.files, state: place.state, now: this.deps.now }, opts);
       this.last = result;
       this.config = result.config;
-      this.rows = result.rows;
-      this.fixCount = result.fixCount;
+      this.timeZone = result.context.timeZone;
+      this.showSummary(result);
+      this.links = result.state.links;
       this.syncedAt = this.deps.now();
       this.sync = this.filesState('synced');
       if (this.calendars.length === 0) await this.loadCalendars();
@@ -322,7 +416,8 @@ export class TimeStore {
     } catch (e) {
       this.noteFailure(e);
       const summary = await readSummary(place.files, place.state, this.deps.now).catch(() => null);
-      if (summary) Object.assign(this, summary);
+      if (summary) this.showSummary(summary);
+      this.links = (await place.state.load().catch(() => null))?.links ?? this.links;
       await this.readConfig().catch(() => {});
     } finally {
       await this.deps.persist?.();
@@ -356,7 +451,7 @@ export class TimeStore {
   }
 
   private today(): string {
-    return localDate(this.deps.now(), this.last?.context.timeZone ?? 'UTC');
+    return localDate(this.deps.now(), this.timeZone);
   }
 
   private async readConfig(): Promise<void> {

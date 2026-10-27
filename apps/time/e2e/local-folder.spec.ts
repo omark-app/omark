@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { authCalls, openTime, reload } from './helpers';
+import { authCalls, openTime, openView, reload } from './helpers';
 
 /**
  * Stands in for the folder picker with a real directory handle from Chrome's origin-private file system
@@ -40,6 +40,7 @@ test.describe('a folder on this computer', () => {
     await page.getByRole('button', { name: 'A folder on this computer' }).click();
     await page.getByRole('button', { name: 'Start' }).click();
     await expect(page.getByTestId('status')).toContainText('Synced');
+    await openView(page, 'Settings');
     await expect(page.getByTestId('storage')).toHaveText('In the folder Hours');
     expect(await folderFile(page, 'config.yaml')).toContain('calendars: [primary]');
     expect(await folderFile(page, 'events-2026.csv')).toContain(',old');
@@ -52,6 +53,7 @@ test.describe('a folder on this computer', () => {
     await page.getByRole('button', { name: 'A folder on this computer' }).click();
     await page.getByRole('button', { name: 'Start' }).click();
     await expect(page.getByTestId('status')).toContainText('Synced');
+    await openView(page, 'Settings');
     await page.evaluate(() => localStorage.setItem('e2e-folder-permission', 'prompt'));
     await reload(page);
     await expect(page.getByTestId('status')).toContainText('Allow access to the folder Hours');
