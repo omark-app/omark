@@ -6,6 +6,7 @@ import type { AppDeps, Place } from './boot.ts';
 import { colourAfterSync, planClear, runQueue } from './colouring.ts';
 import type { ColourOutcome } from './colouring.ts';
 import { CONFIG } from './files.ts';
+import { FRESH_PREFS } from './prefs.ts';
 import type { StorageKind } from './prefs.ts';
 import { readSummary, sync } from './sync.ts';
 import type { SyncResult } from './sync.ts';
@@ -140,9 +141,31 @@ export class TimeStore {
     await this.syncNow();
   }
 
+  /**
+   * Signs out, then forgets everything this device kept for the account: the copy of the files, the sync
+   * state and the choices, so the next account on this device starts clean.
+   */
   async signOut(): Promise<void> {
     this.stopped = true;
-    await this.deps.auth.signOut();
+    await this.running?.catch(() => {});
+    try {
+      await this.deps.auth.signOut();
+    } catch (e) {
+      this.noteFailure(e);
+      return;
+    }
+    await this.deps.forget();
+    await this.deps.prefs.save({ ...FRESH_PREFS });
+    this.place = null;
+    this.storage = null;
+    this.last = null;
+    this.config = null;
+    this.calendars = [];
+    this.rows = 0;
+    this.fixCount = 0;
+    this.syncedAt = null;
+    this.colour = 'off';
+    this.clearOffer = null;
     this.phase = 'signin';
   }
 

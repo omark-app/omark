@@ -30,7 +30,8 @@ export function createTimeAuth(): TimeAuth {
     getToken: (opts) => auth.getToken(opts),
     handleRedirect: () => auth.handleRedirect(),
     async signOut() {
-      await fetch('/api/auth/logout', { method: 'POST', headers: { [CSRF_HEADER]: '1' }, credentials: 'same-origin' });
+      const res = await fetch('/api/auth/logout', { method: 'POST', headers: { [CSRF_HEADER]: '1' }, credentials: 'same-origin' });
+      if (!res.ok) throw new Error('Sign-out failed; try again');
     },
   };
 }

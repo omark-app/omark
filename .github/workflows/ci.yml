@@ -6,7 +6,8 @@ name: CI
 # tasks-staging, tasks-demo) and read TASKS_* ones. CI can also be started by hand (Actions → CI → Run
 # workflow) for when GitHub misses a push; on main that deploys staging and the demo too. The Tasks app reaches
 # production only through promote.yml; the demo has no Promote step. The site (omark.app) deploys from main via
-# site-production, and PRs get a site-preview. (doc/TaskApp factory spec.md, section 6)
+# site-production, and PRs get a site-preview. Omark Time has time-preview (a fake build) and time-staging, with
+# TIME_* variables; it has no production yet. (doc/TaskApp factory spec.md, section 6)
 on:
   pull_request:
     paths-ignore: ['doc/**', '**/*.md']
@@ -81,6 +82,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter tasks e2e --project=${{ matrix.project }}
       - run: pnpm --filter site e2e --project=${{ matrix.project }}
+      - run: pnpm --filter time e2e --project=${{ matrix.project }}
   tasks-preview:
     # Same-repo PRs only: a fork's PR has no secrets, and its code must never meet ours. It waits for check
     # but not e2e, so AL can look while e2e runs; the PR is ready only once e2e is green too.
@@ -322,6 +324,143 @@ jobs:
         run: node tools/ci/check-demo.mjs
         env:
           DEMO_URL: ${{ vars.TASKS_DEMO_URL }}
+  time-preview:
+    # As tasks-preview: same-repo PRs only, once check passes. The fake build (fake calendar and drive kept in
+    # this browser, stubbed sign-in) goes to pr-<n> of the Time staging project.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && vars.DEPLOY_ENABLED == 'true'
+    needs: [check]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Check the repository variables
+        run: |
+          if [ -z "$CF_TIME_STAGING_PROJECT" ]; then
+            echo "::error::Set the repository variable CF_TIME_STAGING_PROJECT (README, Environment variables)."
+            exit 1
+          fi
+        env:
+          CF_TIME_STAGING_PROJECT: ${{ vars.CF_TIME_STAGING_PROJECT }}
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter time build
+        env:
+          VITE_STORAGE: fake
+          BUILD_NUMBER: ${{ github.run_number }}
+      - name: Make sure the staging project exists
+        run: node tools/ci/ensure-pages-project.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_PROJECT: ${{ vars.CF_TIME_STAGING_PROJECT }}
+          PAGES_DOMAIN: ${{ vars.TIME_STAGING_DOMAIN }}
+          CF_ZONE_ID: ${{ vars.CF_TIME_ZONE_ID }}
+      - name: Deploy the preview
+        id: preview
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: '4.151.1'
+          command: pages deploy apps/time/dist --project-name=${{ vars.CF_TIME_STAGING_PROJECT }} --branch=pr-${{ github.event.number }}
+      - name: Comment the preview link
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.pages-deployment-alias-url || steps.preview.outputs.deployment-url }}
+        with:
+          script: |
+            const marker = '<!-- time-preview -->';
+            const sha = context.payload.pull_request.head.sha.slice(0, 7);
+            const body = `${marker}\n**Omark Time preview:** ${process.env.PREVIEW_URL}\n\nFake build v${context.runNumber} (\`${sha}\`): a fake calendar and drive kept in this browser, no real sign-in.`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const old = comments.find((c) => c.body?.startsWith(marker));
+            if (old) await github.rest.issues.updateComment({ owner, repo, comment_id: old.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+  time-staging:
+    # As tasks-staging, for Omark Time at TIME_STAGING_HOST. There is no Promote for Time yet (T.9).
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    needs: [check, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: time-staging
+      cancel-in-progress: false
+    steps:
+      - name: Check the repository variables
+        run: |
+          if [ -z "$CF_TIME_STAGING_PROJECT" ] || [ -z "$TIME_STAGING_HOST" ] || [ -z "$TIME_STAGING_URL" ]; then
+            echo "::error::Set the repository variables CF_TIME_STAGING_PROJECT, TIME_STAGING_HOST and TIME_STAGING_URL (README, Environment variables)."
+            exit 1
+          fi
+          if [ "$TIME_STAGING_URL" != "https://$TIME_STAGING_HOST" ]; then
+            echo "::error::TIME_STAGING_URL must be https:// followed by TIME_STAGING_HOST."
+            exit 1
+          fi
+        env:
+          CF_TIME_STAGING_PROJECT: ${{ vars.CF_TIME_STAGING_PROJECT }}
+          TIME_STAGING_HOST: ${{ vars.TIME_STAGING_HOST }}
+          TIME_STAGING_URL: ${{ vars.TIME_STAGING_URL }}
+      - name: Skip if main has moved on
+        # As in tasks-staging (#81): only main's tip deploys; newer commits that touch only docs don't count.
+        id: tip
+        run: |
+          newer=$(gh api "repos/$REPO/compare/$GITHUB_SHA...main" --jq '[(.files // [])[].filename | select(test("^doc/|[.]md$") | not)] | length')
+          if [ "$newer" = 0 ]; then
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::main has newer changes, so its own run deploys. Skipping $GITHUB_SHA."
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+      - if: steps.tip.outputs.latest == 'true'
+        uses: actions/checkout@v4
+      - if: steps.tip.outputs.latest == 'true'
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - if: steps.tip.outputs.latest == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - if: steps.tip.outputs.latest == 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.tip.outputs.latest == 'true'
+        run: pnpm --filter time build
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+      - if: steps.tip.outputs.latest == 'true'
+        name: Make sure the staging project exists
+        run: node tools/ci/ensure-pages-project.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_PROJECT: ${{ vars.CF_TIME_STAGING_PROJECT }}
+          PAGES_DOMAIN: ${{ vars.TIME_STAGING_DOMAIN }}
+          CF_ZONE_ID: ${{ vars.CF_TIME_ZONE_ID }}
+      - if: steps.tip.outputs.latest == 'true'
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: '4.151.1'
+          # Run from the repo root, so wrangler also bundles functions/ (the sign-in helper at /api/auth/*).
+          command: pages deploy apps/time/dist --project-name=${{ vars.CF_TIME_STAGING_PROJECT }} --branch=main
+      - if: steps.tip.outputs.latest == 'true'
+        name: Check the sign-in helper is live
+        # /api/auth/login?provider=google must ask Google to read calendars and events, and for no more.
+        run: node tools/ci/check-google-signin.mjs
+        env:
+          SIGNIN_URL: ${{ vars.TIME_STAGING_URL }}
   site-preview:
     # The omark.app landing site (apps/site). Same-repo PRs only, like tasks-preview, and only when the PR touches
     # the site or what it shares (the design tokens, the lockfile): other PRs skip every step after the check.

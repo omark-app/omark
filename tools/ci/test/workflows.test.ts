@@ -53,9 +53,12 @@ describe('workflows', () => {
         (j.steps ?? []).filter((s) => re.test(s.run ?? '')).map((s) => ({ name, run: s.run, env: (s.env ?? {}) as Record<string, string> })),
       );
     const all = builds('ci.yml');
-    expect(all.map((b) => b.name).sort()).toEqual(['site-preview', 'site-production', 'tasks-demo', 'tasks-preview', 'tasks-staging']);
+    expect(all.map((b) => b.name).sort()).toEqual([
+      'site-preview', 'site-production', 'tasks-demo', 'tasks-preview', 'tasks-staging', 'time-preview', 'time-staging',
+    ]);
     const ci = all.filter((b) => !b.name.startsWith('site-'));
-    for (const b of all) expect(b.run, b.name).toBe(`pnpm --filter ${b.name.startsWith('site-') ? 'site' : 'tasks'} build`);
+    // The job's name starts with its app's: site-*, tasks-*, time-*.
+    for (const b of all) expect(b.run, b.name).toBe(`pnpm --filter ${b.name.split('-')[0]} build`);
     for (const b of ci) expect(b.env.BUILD_NUMBER, b.name).toBe('${{ github.run_number }}');
     const promote = builds('promote.yml');
     expect(promote).toHaveLength(1);
@@ -106,6 +109,8 @@ describe('workflows', () => {
       ['ci.yml', 'tasks-demo', ['CF_TASKS_DEMO_PROJECT', 'TASKS_DEMO_URL']],
       ['ci.yml', 'site-production', ['CF_SITE_PROJECT', 'SITE_URL']],
       ['ci.yml', 'site-preview', ['CF_SITE_PROJECT']],
+      ['ci.yml', 'time-staging', ['CF_TIME_STAGING_PROJECT', 'TIME_STAGING_HOST', 'TIME_STAGING_URL']],
+      ['ci.yml', 'time-preview', ['CF_TIME_STAGING_PROJECT']],
     ];
     for (const [f, job, vars] of expected) {
       const step = first(f, job);
@@ -125,6 +130,7 @@ describe('workflows', () => {
       'TASKS_PROD_FOLDER', 'TASKS_STAGING_FOLDER', 'TASKS_PREVIEW_HOST_SUFFIXES',
       'TASKS_ONEDRIVE_SCOPE', 'TASKS_MSAL_TENANT',
       'CF_TASKS_DEMO_PROJECT', 'TASKS_DEMO_URL', 'TASKS_REAL_USE_URL', 'CF_SITE_PROJECT', 'SITE_URL',
+      'CF_TIME_STAGING_PROJECT', 'CF_TIME_ZONE_ID', 'TIME_STAGING_DOMAIN', 'TIME_STAGING_HOST', 'TIME_STAGING_URL',
     ];
     const used = new Set(FILES.flatMap((f) => [...text(f).matchAll(/\bvars\.(\w+)/g)].map((m) => m[1]!)));
     expect(used.size).toBeGreaterThan(1);
@@ -260,14 +266,14 @@ describe('workflows', () => {
   });
 
   it('deploys staging, the demo and the site only after check and every e2e job', () => {
-    for (const name of ['tasks-staging', 'tasks-demo', 'site-production']) {
+    for (const name of ['tasks-staging', 'tasks-demo', 'site-production', 'time-staging']) {
       expect(jobsOf('ci.yml').find(([n]) => n === name)![1].needs, name).toEqual(['check', 'e2e']);
     }
   });
 
   it('deploys from main only while its commit is still main’s tip (#81)', () => {
     // A run whose e2e finished later must not overwrite a newer commit's deploy; the newer run deploys itself.
-    for (const name of ['tasks-staging', 'tasks-demo', 'site-production']) {
+    for (const name of ['tasks-staging', 'tasks-demo', 'site-production', 'time-staging']) {
       const steps = jobsOf('ci.yml').find(([n]) => n === name)![1].steps!;
       const i = steps.findIndex((s) => s.id === 'tip');
       // Right after the variables check, before anything is built or deployed.
@@ -284,7 +290,7 @@ describe('workflows', () => {
   });
 
   it('deploys PR previews once check passes, without waiting for e2e', () => {
-    for (const name of ['tasks-preview', 'site-preview']) {
+    for (const name of ['tasks-preview', 'site-preview', 'time-preview']) {
       expect(jobsOf('ci.yml').find(([n]) => n === name)![1].needs, name).toEqual(['check']);
     }
   });
@@ -304,7 +310,7 @@ describe('workflows', () => {
 
   it('gives every job a time limit', () => {
     const limits = Object.fromEntries(FILES.flatMap((f) => jobsOf(f).map(([n, j]) => [n, j['timeout-minutes']])));
-    expect(limits).toEqual({ check: 10, 'stop-on-check-failure': 5, e2e: 20, 'tasks-preview': 15, 'tasks-staging': 15, 'tasks-demo': 15, 'site-preview': 15, 'site-production': 15, promote: 15 });
+    expect(limits).toEqual({ check: 10, 'stop-on-check-failure': 5, e2e: 20, 'tasks-preview': 15, 'tasks-staging': 15, 'tasks-demo': 15, 'site-preview': 15, 'site-production': 15, 'time-preview': 15, 'time-staging': 15, promote: 15 });
   });
 
   it('site jobs deploy only apps/site', () => {
@@ -332,6 +338,29 @@ describe('workflows', () => {
   it('runs the site’s e2e in the e2e job', () => {
     const e2e = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1];
     expect(e2e.steps!.map((s) => s.run)).toContain('pnpm --filter site e2e --project=${{ matrix.project }}');
+  });
+
+  it('runs Omark Time’s e2e in the e2e job, with the same Playwright projects as Tasks', () => {
+    const e2e = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1];
+    expect(e2e.steps!.map((s) => s.run)).toContain('pnpm --filter time e2e --project=${{ matrix.project }}');
+    const names = (app: string) =>
+      [...readFileSync(new URL(`../../../apps/${app}/playwright.config.ts`, import.meta.url), 'utf8').matchAll(/\{ name: '(\w+)'/g)].map((m) => m[1]);
+    expect(names('time')).toEqual(names('tasks'));
+  });
+
+  it('builds Time previews as fake builds, and deploys Time from the repo root so its sign-in helper ships', () => {
+    const wf = parse(text('ci.yml')) as { jobs: Record<string, Job & { concurrency?: unknown }> };
+    const preview = wf.jobs['time-preview']!.steps!;
+    expect(preview.find((s) => s.run === 'pnpm --filter time build')!.env).toMatchObject({ VITE_STORAGE: 'fake' });
+    const staging = wf.jobs['time-staging']!;
+    expect(staging.concurrency).toEqual({ group: 'time-staging', 'cancel-in-progress': false });
+    expect(staging.steps!.find((s) => s.run === 'pnpm --filter time build')!.env).toEqual({ BUILD_NUMBER: '${{ github.run_number }}' });
+    for (const job of [preview, staging.steps!]) {
+      const deploy = job.find((s) => s.uses?.startsWith('cloudflare/wrangler-action@'))!;
+      expect((deploy.with as Record<string, string>).command).toMatch(/^pages deploy apps\/time\/dist /);
+    }
+    const check = staging.steps!.find((s) => s.run === 'node tools/ci/check-google-signin.mjs')!;
+    expect(check.env).toEqual({ SIGNIN_URL: '${{ vars.TIME_STAGING_URL }}' });
   });
 
   it('never uses pull_request_target', () => {

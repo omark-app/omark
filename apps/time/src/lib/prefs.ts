@@ -14,7 +14,7 @@ export interface DevicePrefs {
   askedEdit: boolean;
 }
 
-const FRESH: DevicePrefs = { storage: null, started: false, askedDrive: false, askedEdit: false };
+export const FRESH_PREFS: DevicePrefs = { storage: null, started: false, askedDrive: false, askedEdit: false };
 
 export interface PrefsStore {
   load(): Promise<DevicePrefs>;
@@ -22,7 +22,7 @@ export interface PrefsStore {
 }
 
 export class MemoryPrefs implements PrefsStore {
-  private prefs = { ...FRESH };
+  private prefs = { ...FRESH_PREFS };
   async load(): Promise<DevicePrefs> {
     return { ...this.prefs };
   }
@@ -34,7 +34,7 @@ export class MemoryPrefs implements PrefsStore {
 export class IdbPrefs implements PrefsStore {
   private readonly store: UseStore = createStore('omark-time-device', 'prefs');
   async load(): Promise<DevicePrefs> {
-    return { ...FRESH, ...((await get<DevicePrefs>('prefs', this.store)) ?? {}) };
+    return { ...FRESH_PREFS, ...((await get<DevicePrefs>('prefs', this.store)) ?? {}) };
   }
   async save(prefs: DevicePrefs): Promise<void> {
     await set('prefs', prefs, this.store);

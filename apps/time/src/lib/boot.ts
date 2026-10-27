@@ -27,14 +27,26 @@ export interface AppDeps {
   prefs: PrefsStore;
   openPlace(kind: StorageKind): Place;
   now: () => number;
+  /** Drops this device's copy of the files and its sync state, for every place (sign-out). */
+  forget(): Promise<void>;
   /** The fake build only: keep the fake calendar after the app changed it. */
   persist?: () => Promise<void>;
 }
 
+const KINDS: readonly StorageKind[] = ['google-drive'];
+const cacheOf = (kind: StorageKind) => new IdbCache(`omark-time-cache-${kind}`);
+
 function place(kind: StorageKind, adapter: StorageAdapter, state: StateStore, now: () => number): Place {
   // The day only matters for the defaults of a config.yaml merge; UTC is close enough for that.
-  const files = new FolderFiles(adapter, new IdbCache(`omark-time-cache-${kind}`), () => localDate(now(), 'UTC'));
+  const files = new FolderFiles(adapter, cacheOf(kind), () => localDate(now(), 'UTC'));
   return { files, state };
+}
+
+async function forget(): Promise<void> {
+  for (const kind of KINDS) {
+    await cacheOf(kind).clear();
+    await new IdbState(kind).clear();
+  }
 }
 
 export async function bootDeps(): Promise<AppDeps> {
@@ -47,6 +59,7 @@ export async function bootDeps(): Promise<AppDeps> {
       prefs: new IdbPrefs(),
       openPlace: (kind) => place(kind, fake.drive, new IdbState(kind), now),
       now,
+      forget,
       persist: fake.persist,
     };
   }
@@ -58,5 +71,6 @@ export async function bootDeps(): Promise<AppDeps> {
     prefs: new IdbPrefs(),
     openPlace: (kind) => place(kind, new GoogleDriveAdapter({ folder: GOOGLE_FOLDER, getToken }), new IdbState(kind), now),
     now,
+    forget,
   };
 }
