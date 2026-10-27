@@ -6,14 +6,8 @@ import type { AuthOptions, Env } from '../../../packages/signin/src/index.ts';
  * keeps the `taskapp` cookie prefix: it is sealed into the cookie values, so changing it signs everyone out.
  */
 const DRIVE_FILE = 'https://www.googleapis.com/auth/drive.file';
-/** Omark Time's first sign-in only reads (Time spec 10.1); Drive and edit access are asked for later. */
-const CALENDAR_READ = [
-  'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
-  'https://www.googleapis.com/auth/calendar.events.owned.readonly',
-];
 const APPS: Record<string, AuthOptions> = {
   tasks: { providers: { microsoft, google: google({ scopes: [DRIVE_FILE] }) }, cookiePrefix: 'taskapp' },
-  time: { providers: { google: google({ scopes: CALENDAR_READ }) }, cookiePrefix: 'omarktime' },
 };
 
 /** Cloudflare Pages Function for every `/api/auth/*` request; the sign-in helper itself is `packages/signin`. */
