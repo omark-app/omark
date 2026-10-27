@@ -13,7 +13,13 @@ const CALENDAR_READ = [
 ];
 const APPS: Record<string, AuthOptions> = {
   tasks: { providers: { microsoft, google: google({ scopes: [DRIVE_FILE] }) }, cookiePrefix: 'taskapp' },
-  time: { providers: { google: google({ scopes: CALENDAR_READ }) }, cookiePrefix: 'omarktime' },
+  time: {
+    providers: {
+      // Added with a second consent: Drive when the user picks it for the files, edit access to colour events.
+      google: google({ scopes: CALENDAR_READ, extra: { drive: [DRIVE_FILE], edit: ['https://www.googleapis.com/auth/calendar.events.owned'] } }),
+    },
+    cookiePrefix: 'omarktime',
+  },
 };
 
 /** Cloudflare Pages Function for every `/api/auth/*` request; the sign-in helper itself is `packages/signin`. */

@@ -36,7 +36,8 @@ let cookie: string;
 const navigate = vi.fn();
 const TASKS = { cookiePrefix: 'taskapp', providers: { microsoft: 'Microsoft' } };
 const BOTH = { cookiePrefix: 'taskapp', providers: { microsoft: 'Microsoft', google: 'Google' } };
-const mk = (timeoutMs?: number, app: { cookiePrefix: string; providers: Record<string, string>; appName?: string } = TASKS) =>
+const TIME = { cookiePrefix: 'omarktime', providers: { google: 'Google' }, appName: 'Omark Time', scopeError: 'Tick every box' };
+const mk = (timeoutMs?: number, app: { cookiePrefix: string; providers: Record<string, string>; appName?: string; scopeError?: string } = TASKS) =>
   createAuth({ ...app, fetch: api.fetch as typeof fetch, navigate, cookies: () => cookie, now: () => now, timeoutMs });
 
 beforeEach(() => {
@@ -144,6 +145,15 @@ describe('createAuth (sign-in helper)', () => {
     expect(navigate).toHaveBeenLastCalledWith('/api/auth/login');
   });
 
+  it('signIn with { add } asks the helper to add that access, naming the provider even when it is the default', async () => {
+    await mk(undefined, TIME).signIn('google', { add: 'edit' });
+    expect(navigate).toHaveBeenLastCalledWith('/api/auth/login?provider=google&add=edit');
+    await mk(undefined, BOTH).signIn('google', { add: 'drive' });
+    expect(navigate).toHaveBeenLastCalledWith('/api/auth/login?provider=google&add=drive');
+    await mk(undefined, TIME).signIn('google');
+    expect(navigate).toHaveBeenLastCalledWith('/api/auth/login');
+  });
+
   it('signedInProvider reads the provider from the hint cookie; 1 is the default provider', () => {
     cookie = 'taskapp_signed_in=google';
     expect(mk(undefined, BOTH).signedInProvider()).toBe('google');
@@ -231,6 +241,11 @@ describe('createAuth (sign-in helper)', () => {
       at('https://tasks.example/?signin_error=cancelled&x=1#h');
       await expect(mk().handleRedirect()).rejects.toThrow('Sign-in was cancelled');
       expect(replaceState).toHaveBeenCalledWith(null, '', '/?x=1#h');
+    });
+
+    it('gives an app its own text for a missing permission', async () => {
+      at('https://time.example/?signin_error=scope&provider=google');
+      await expect(mk(undefined, TIME).handleRedirect()).rejects.toThrow('Tick every box');
     });
 
     it("names the app's provider in the error", async () => {

@@ -1,8 +1,11 @@
 import { AuthRequiredError, OfflineError } from './errors.ts';
 
 export interface Auth {
-  /** Without a provider: the one last seen signed in, else the default. */
-  signIn(provider?: string): Promise<void>;
+  /**
+   * Without a provider: the one last seen signed in, else the default. `add` asks the helper for a second consent
+   * that adds that access to the sign-in (the helper's `login?add=`; Omark Time: `drive`, `edit`).
+   */
+  signIn(provider?: string, opts?: { add?: string }): Promise<void>;
   /** `fresh` skips the access token kept in memory (Graph rejected it). */
   getToken(opts?: { fresh?: boolean }): Promise<string>;
   isSignedIn(): boolean;
@@ -24,8 +27,10 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 const PROVIDERS_TIMEOUT_MS = 3_000;
 
 /** What `/api/auth/callback` sends back as `?signin_error=`. */
-const signinErrors = (provider: string, appName: string): Record<string, string> => ({
-  scope: `${provider} didn't give ${appName} access to its files. Sign in again and tick the box that lets it see, edit, create and delete its own ${provider} Drive files.`,
+const signinErrors = (provider: string, appName: string, scopeError?: string): Record<string, string> => ({
+  scope:
+    scopeError ??
+    `${provider} didn't give ${appName} access to its files. Sign in again and tick the box that lets it see, edit, create and delete its own ${provider} Drive files.`,
   cancelled: 'Sign-in was cancelled',
   expired: 'The sign-in took too long or was started in another window; sign in again',
   failed: `${provider} did not accept the sign-in`,
@@ -39,6 +44,8 @@ export interface AuthOptions {
   providers: Record<string, string>;
   /** The app's name for error texts; "the app" when not given. */
   appName?: string;
+  /** The text for a sign-in that lacks a permission the app needs; by default one about Drive files. */
+  scopeError?: string;
   fetch?: typeof fetch;
   /** Leaves the page for the sign-in (a top-level navigation). */
   navigate?: (url: string) => void;
@@ -125,13 +132,17 @@ export function createAuth(opts: AuthOptions): Auth {
       window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
       // hasOwn, so `?provider=constructor` or `?signin_error=toString` read as unknown.
       const id = provider !== null && Object.hasOwn(opts.providers, provider) ? provider : defaultProvider;
-      const errors = signinErrors(opts.providers[id] ?? '', opts.appName ?? 'the app');
+      const errors = signinErrors(opts.providers[id] ?? '', opts.appName ?? 'the app', opts.scopeError);
       throw new Error(Object.hasOwn(errors, reason) ? errors[reason] : 'Sign-in failed');
     },
-    async signIn(provider) {
+    async signIn(provider, o) {
       // A top-level navigation: the helper redirects to the provider and back to /api/auth/callback, which
       // returns to / (in an iOS home-screen app's scope). The helper adds the last account as login_hint.
       const id = provider ?? signedInProvider() ?? defaultProvider;
+      if (o?.add) {
+        navigate(`${BASE}/login?provider=${encodeURIComponent(id)}&add=${encodeURIComponent(o.add)}`);
+        return;
+      }
       // The default keeps the plain URL (as before there were several providers), chosen or not.
       navigate(id === defaultProvider ? `${BASE}/login` : `${BASE}/login?provider=${encodeURIComponent(id)}`);
     },

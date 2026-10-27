@@ -59,11 +59,15 @@ interface LoginState {
   /** ms since the epoch */
   exp: number;
   p?: string;
+  /** The access added by this sign-in (`login?add=`). */
+  a?: string;
 }
 interface Session {
   rt: string;
   exp: number;
   p?: string;
+  /** The scopes to ask for on each token call, when the provider has extra scopes: the granted ones it knows. */
+  sc?: string;
 }
 interface Hint {
   username: string;
@@ -166,6 +170,10 @@ async function login(base: Base): Promise<Response> {
   if (!hasProvider(base.options, id)) return json(400, { error: 'unknown_provider' });
   const ctx = withProvider(base, id);
   if (ctx instanceof Response) return ctx;
+  const add = base.url.searchParams.get('add');
+  const extra = ctx.provider.extraScopes ?? {};
+  // hasOwn, so `toString` is not an access.
+  if (add !== null && !Object.hasOwn(extra, add)) return json(400, { error: 'unknown_access' });
   const state = randomToken();
   const verifier = randomToken();
   const params = new URLSearchParams({
@@ -173,7 +181,7 @@ async function login(base: Base): Promise<Response> {
     response_type: 'code',
     response_mode: 'query',
     redirect_uri: redirectUri(ctx),
-    scope: ctx.provider.signinScope,
+    scope: add === null ? ctx.provider.signinScope : [ctx.provider.signinScope, ...extra[add]!].join(' '),
     state,
     code_challenge: await pkceChallenge(verifier),
     code_challenge_method: 'S256',
@@ -183,7 +191,8 @@ async function login(base: Base): Promise<Response> {
   const hint = await unseal<Hint>(ctx.key, HINT.name, ctx.cookies.get(HINT.name));
   // An account name only means something to the provider that gave it.
   if (hint?.username && (hint.p ?? defaultProvider(ctx.options)) === id) params.set('login_hint', hint.username);
-  const sealed = await seal(ctx.key, LOGIN.name, { state, verifier, exp: ctx.now + LOGIN_MAX_AGE * 1000, p: id } satisfies LoginState);
+  const login: LoginState = { state, verifier, exp: ctx.now + LOGIN_MAX_AGE * 1000, p: id, ...(add === null ? {} : { a: add }) };
+  const sealed = await seal(ctx.key, LOGIN.name, login);
   return redirect(`${ctx.provider.authorizeUrl}?${params}`, [
     serializeCookie(LOGIN.name, sealed, { path: LOGIN.path, maxAge: LOGIN_MAX_AGE }),
   ]);
@@ -214,18 +223,19 @@ async function callback(base: Base): Promise<Response> {
   const code = q.get('code');
   if (!code) return back('failed', id);
 
+  const added = login.a !== undefined && Object.hasOwn(ctx.provider.extraScopes ?? {}, login.a) ? ctx.provider.extraScopes![login.a]! : [];
   const redeemed = await redeem(ctx, {
     grant_type: 'authorization_code',
     code,
     redirect_uri: redirectUri(ctx),
     code_verifier: login.verifier,
-    scope: ctx.provider.signinScope,
+    scope: [ctx.provider.signinScope, ...added].join(' '),
   });
   if (redeemed.kind !== 'ok') return back(redeemed.kind === 'signin' ? 'failed' : 'unavailable', id);
   const { refresh_token: rt, id_token, scope } = redeemed.tokens;
   // The user can untick permissions on the consent screen; a session without them would only fail later.
   const granted = typeof scope === 'string' ? scope.split(' ') : [];
-  if (ctx.provider.requiredScopes?.some((required) => !granted.includes(required))) {
+  if ([...(ctx.provider.requiredScopes ?? []), ...added].some((required) => !granted.includes(required))) {
     console.warn('Omark sign-in: the grant lacks a required scope');
     return back('scope', id);
   }
@@ -233,7 +243,7 @@ async function callback(base: Base): Promise<Response> {
 
   let session: string[];
   try {
-    session = await sessionCookies(ctx, rt);
+    session = await sessionCookies(ctx, rt, grantedScope(ctx.provider, granted));
   } catch {
     console.error('Omark sign-in: the refresh token does not fit in the session cookies');
     return back('failed', id);
@@ -257,7 +267,7 @@ async function token(base: Base): Promise<Response> {
   if (!hasProvider(base.options, id)) return json(401, { signin: true }, clearSession(base));
   const ctx = withProvider(base, id);
   if (ctx instanceof Response) return ctx;
-  const redeemed = await redeem(ctx, { grant_type: 'refresh_token', refresh_token: session.rt, scope: ctx.provider.scope });
+  const redeemed = await redeem(ctx, { grant_type: 'refresh_token', refresh_token: session.rt, scope: session.sc ?? ctx.provider.scope });
   if (redeemed.kind === 'signin') return json(401, { signin: true }, clearSession(ctx));
   if (redeemed.kind === 'unavailable') return json(503, { error: 'unavailable' });
   const { access_token, expires_in, refresh_token } = redeemed.tokens;
@@ -265,7 +275,7 @@ async function token(base: Base): Promise<Response> {
   return json(
     200,
     { accessToken: access_token, expiresAt: ctx.now + expires_in * 1000 },
-    await sessionCookies(ctx, refresh_token ?? session.rt),
+    await sessionCookies(ctx, refresh_token ?? session.rt, session.sc),
   );
 }
 
@@ -274,11 +284,23 @@ const logout = (ctx: Base): Response => {
   return json(200, { ok: true }, [...clearSession(ctx), serializeCookie(HINT.name, '', { path: HINT.path, maxAge: 0 })]);
 };
 
+/**
+ * For a provider with extra scopes, the granted ones it knows (its own and every extra), in its order: what each
+ * token call asks for, so an access token carries what was added. Undefined for the others, which keep asking
+ * for their fixed `scope`.
+ */
+function grantedScope(provider: ProviderConfig, granted: string[]): string | undefined {
+  if (!provider.extraScopes) return undefined;
+  const known = [...provider.scope.split(' '), ...Object.values(provider.extraScopes).flat()];
+  return [...new Set(known)].filter((s) => granted.includes(s)).join(' ');
+}
+
 /** Rolling: every token refresh sets them again. */
-async function sessionCookies(ctx: Context, rt: string): Promise<string[]> {
+async function sessionCookies(ctx: Context, rt: string, sc?: string): Promise<string[]> {
   const { session: SESSION, signedIn: SIGNED_IN } = ctx.names;
   const maxAge = ctx.provider.sessionMaxAge;
-  const sealed = await seal(ctx.key, SESSION.name, { rt, exp: ctx.now + maxAge * 1000, p: ctx.providerId } satisfies Session);
+  const session: Session = { rt, exp: ctx.now + maxAge * 1000, p: ctx.providerId, ...(sc === undefined ? {} : { sc }) };
+  const sealed = await seal(ctx.key, SESSION.name, session);
   return [
     ...chunkedCookies(SESSION.name, sealed, { path: SESSION.path, maxAge }),
     serializeCookie(SIGNED_IN.name, ctx.providerId, { path: SIGNED_IN.path, maxAge, httpOnly: false }),

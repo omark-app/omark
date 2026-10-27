@@ -46,6 +46,14 @@ describe('the Pages Function', () => {
     expect(res.headers.getSetCookie().map((c) => c.split('=')[0])).toEqual(['omarktime_login']);
     const providers = await onRequest({ request: new Request('https://time.example/api/auth/providers'), env });
     expect(await providers.json()).toEqual({ providers: ['google'] });
+    // Drive and edit access are added later, each with its own consent.
+    for (const [add, scope] of [
+      ['drive', 'https://www.googleapis.com/auth/drive.file'],
+      ['edit', 'https://www.googleapis.com/auth/calendar.events.owned'],
+    ]) {
+      const more = await onRequest({ request: new Request(`https://time.example/api/auth/login?provider=google&add=${add}`), env });
+      expect(new URL(more.headers.get('Location')!).searchParams.get('scope')!.split(' ')).toContain(scope);
+    }
   });
 
   it.each(['nope', 'constructor', 'toString'])('refuses OMARK_APP %s', async (app) => {

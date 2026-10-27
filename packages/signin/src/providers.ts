@@ -24,6 +24,11 @@ export interface ProviderConfig {
   authorizeParams?: Record<string, string>;
   /** Scopes that must all be in the `scope` the token endpoint reports as granted; otherwise the sign-in fails. */
   requiredScopes?: readonly string[];
+  /**
+   * Access the app can add to a sign-in later (`login?add=<name>`), by name. A provider with any keeps the granted
+   * scopes in the session and asks for all of them on each token call.
+   */
+  extraScopes?: Readonly<Record<string, readonly string[]>>;
 }
 
 const DAY = 24 * 60 * 60;
@@ -58,10 +63,11 @@ export const microsoft: Provider = {
 };
 
 /**
- * A Google account, for Drive. Reads `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. `scopes` are the full
- * scope URLs the app needs; the user can untick them on the consent screen, so all are required back.
+ * A Google account. Reads `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. `scopes` are the full scope URLs the app
+ * needs; the user can untick them on the consent screen, so all are required back. `extra` names scopes the app
+ * asks for only later, with a second consent (Omark Time: Drive, and edit access for colouring; Time spec 10.2).
  */
-export const google = ({ scopes }: { scopes: readonly string[] }): Provider => ({
+export const google = ({ scopes, extra }: { scopes: readonly string[]; extra?: Record<string, readonly string[]> }): Provider => ({
   name: 'Google',
   configure(env) {
     if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) return 'GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET is not set';
@@ -79,6 +85,7 @@ export const google = ({ scopes }: { scopes: readonly string[] }): Provider => (
       // `prompt=consent` because Google sends a refresh token only when the user consents.
       authorizeParams: { access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true' },
       requiredScopes: scopes,
+      ...(extra ? { extraScopes: extra } : {}),
     };
   },
 });
