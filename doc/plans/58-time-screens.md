@@ -84,7 +84,7 @@
 
 ## As built
 
-- **Settings is Time's own view**, as the first risk below foresaw. `@omark/settings`' reader refuses any key outside its schema ("Unknown setting"). Time's `config.yaml` also holds `calendars`, `track_from` and a boolean `colour_events`, which its field types can't express. So the view has its own fields for all of them, and links to Omark Tasks' settings.
+- **Settings is Time's own view**, as the first risk below foresaw. `@omark/settings`' reader refuses any key outside its schema ("Unknown setting"). Time's `config.yaml` also holds `calendars`, `track_from` and a boolean `colour_events`, which its field types can't express. So the view has its own fields for all of them, and links to Omark Tasks' settings. It has no text editor for `config.yaml`: the file is plain YAML that any editor (or an agent) changes, and the app merges such edits.
 - **The phone's bottom bar** uses short labels ("Fix" for "Fix list"); each link keeps its full name for screen readers.
 
 ## Risks

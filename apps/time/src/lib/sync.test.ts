@@ -212,3 +212,12 @@ test('readSummary gives the rows from the copy this device has', async () => {
   expect(summary.allRows.map((r) => r.eventId)).toEqual(['a']);
   expect(summary.projects.projects.map((p) => p.code)).toEqual(['ACME']);
 });
+
+test('a project deleted later gives its events their calendar link again (the window is read again)', async () => {
+  calendar.add(event('a', '2026-10-20', 'ACME; x', { htmlLink: 'https://www.google.com/calendar/event?eid=YQ' }));
+  await sync(deps);
+  expect((await state.load()).links).toEqual({});
+  files.texts.set(PROJECTS, PROJECTS_HEADER);
+  await sync(deps);
+  expect(Object.values((await state.load()).links)).toEqual(['https://www.google.com/calendar/event?eid=YQ']);
+});

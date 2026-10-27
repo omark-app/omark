@@ -331,3 +331,23 @@ test('archive, unarchive, edit and delete', async () => {
   expect(await store.deleteProject('ACME')).toBeNull();
   expect(store.projects).toEqual([]);
 });
+
+test("today is in the calendar's time zone after a reload, before any sync", async () => {
+  const { store, ready, net } = setup();
+  await ready();
+  const deps = (store as unknown as { deps: AppDeps }).deps;
+  // A reload offline at 23:30 UTC on the 27th: already the 28th in Warsaw, the calendar's zone.
+  net.offline = true;
+  const reloaded = new TimeStore({ ...deps, now: () => Date.parse('2026-10-27T23:30:00Z'), source: { ...deps.source, readChanges: () => Promise.reject(new OfflineError('x')) } });
+  await reloaded.start();
+  expect(reloaded.todayDate).toBe('2026-10-28');
+});
+
+test('a project edit made while a sync runs is not undone by that sync', async () => {
+  const { store, ready } = setup();
+  await ready();
+  const syncing = store.syncNow();
+  const added = store.addProject({ code: 'NEW', description: '', client: '', rate: null, currency: '', archived: '', extra: {} });
+  await Promise.all([syncing, added]);
+  expect(store.projects.map((p) => p.code)).toEqual(['ACME', 'NEW']);
+});

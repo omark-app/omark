@@ -14,14 +14,10 @@
   let { store }: { store: TimeStore } = $props();
   let view = $state<View>(viewOf(location.hash));
 
-  $effect(() => {
-    const onHash = () => {
-      view = viewOf(location.hash);
-      window.scrollTo(0, 0);
-    };
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  });
+  function onHash() {
+    view = viewOf(location.hash);
+    window.scrollTo(0, 0);
+  }
 
   const status = $derived.by(() => {
     const fix = store.fixCount === 1 ? '1 to fix' : `${store.fixCount} to fix`;
@@ -42,6 +38,8 @@
   });
 </script>
 
+<svelte:window onhashchange={onHash} />
+
 <div class="shell">
   <nav aria-label="Views">
     {#each VIEWS as v (v.id)}
@@ -52,7 +50,10 @@
   </nav>
   <div class="content">
     <section class="card status">
-      <p data-testid="status" role="status">{status}</p>
+      <p>
+        <span data-testid="status" role="status">{status}</span>
+        {#if store.fixCount > 0 && view !== 'fix'}<a href="#/fix" class="fix">Open the fix list</a>{/if}
+      </p>
       <button class="secondary" disabled={store.sync === 'syncing'} onclick={() => store.syncNow()}>Sync now</button>
     </section>
     <Notices {store} />
@@ -115,6 +116,11 @@
   }
   .status p {
     margin: 0;
+  }
+  .fix {
+    color: var(--accent);
+    margin-left: 6px;
+    white-space: nowrap;
   }
   @media (max-width: 719.98px) {
     .shell {

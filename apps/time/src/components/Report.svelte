@@ -30,7 +30,9 @@
           nowMs: store.nowMs(),
         },
   );
-  const report = $derived(options ? buildReport(store.allRows, store.projects, options) : null);
+  // No project ticked would mean every project to time-core, so it means none here.
+  const noneTicked = $derived(by === 'projects' && codes.length === 0);
+  const report = $derived(options && !noneTicked ? buildReport(store.allRows, store.projects, options) : null);
   const money = (m: { amount: number; currency: string }) => `${m.amount.toFixed(2)} ${m.currency}`;
 
   function toggle(code: string, on: boolean) {
@@ -86,6 +88,10 @@
     <label><input type="checkbox" bind:checked={planned} /> Include planned time</label>
   </div>
 </section>
+
+{#if noneTicked}
+  <p class="card muted" role="status">Pick a project to report on.</p>
+{/if}
 
 {#if report}
   <section class="card" data-testid="report">

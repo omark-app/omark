@@ -61,6 +61,7 @@
   {/if}
   <details>
     <summary>As a table</summary>
+    <div class="scroll">
     <table data-testid="chart-table">
       <thead>
         <tr><th scope="col">Week of</th>{#each data.series as s (s.key)}<th scope="col">{s.label || 'No category'}</th>{/each}</tr>
@@ -71,6 +72,7 @@
         {/each}
       </tbody>
     </table>
+    </div>
   </details>
 </figure>
 
@@ -110,6 +112,9 @@
   }
   details {
     font-size: 14px;
+  }
+  .scroll {
+    overflow-x: auto;
   }
   table {
     border-collapse: collapse;

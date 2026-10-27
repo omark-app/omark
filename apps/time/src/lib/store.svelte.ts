@@ -50,8 +50,8 @@ export class TimeStore {
   projects = $state.raw<Project[]>([]);
   /** Google Calendar's page per event with an unknown code (`keyOf(calendar, id)`). */
   links = $state.raw<Record<string, string>>({});
-  /** config.yaml as it is now, for the settings page's text editor. */
-  configText = $state('');
+  /** The primary calendar's time zone, as this device last read it; "today" is in it. */
+  timeZone = $state('UTC');
   /** A code the fix list asked the projects view to start a new project with. */
   newCode = $state<string | null>(null);
   colour = $state<ColourState>('off');
@@ -90,19 +90,6 @@ export class TimeStore {
     return this.today();
   }
 
-  /** The settings page's edit of config.yaml: the whole new text; then a sync, as the calendars or window may change. */
-  writeConfigText(text: string): Promise<void> {
-    return this.guard(async () => {
-      if (!this.place) return;
-      const today = this.today();
-      const base = await this.place.files.read(CONFIG, defaultTimeConfigText(today));
-      await this.place.files.write(CONFIG, text, base);
-      this.configText = text;
-      this.config = parseTimeConfig(text, today).config;
-      await this.syncNow();
-    });
-  }
-
   /** The first run offers a folder on this computer only where the browser can pick one. */
   get canPickFolder(): boolean {
     return this.deps.canPickFolder;
@@ -126,6 +113,7 @@ export class TimeStore {
       this.phase = 'storage';
       return;
     }
+    this.timeZone = (await this.place!.state.load()).timeZone ?? this.timeZone;
     if (!prefs.started) {
       this.phase = 'calendars';
       await this.loadCalendars();
@@ -366,17 +354,22 @@ export class TimeStore {
    * the codes. Resolves with the reason when the edit is refused (a duplicate code, a rate without a currency).
    */
   private async editProjects(edit: (file: ProjectsFile) => ProjectsFile): Promise<string | null> {
-    if (!this.place) return 'The files are not open';
-    try {
-      const base = await this.place.files.read(PROJECTS, PROJECTS_HEADER);
-      const text = serializeProjects(edit(parseProjects(base)));
-      await this.place.files.write(PROJECTS, text, base);
-      this.projects = parseProjects(text).projects;
-    } catch (e) {
-      return e instanceof Error ? e.message : String(e);
-    }
-    await this.syncNow();
-    return null;
+    const place = this.place;
+    if (!place) return 'The files are not open';
+    let refused: string | null = null;
+    // On the lock, so a sync running now can't put the old projects back after the edit.
+    await this.afterRunning(async () => {
+      try {
+        const base = await place.files.read(PROJECTS, PROJECTS_HEADER);
+        const text = serializeProjects(edit(parseProjects(base)));
+        await place.files.write(PROJECTS, text, base);
+        this.projects = parseProjects(text).projects;
+      } catch (e) {
+        refused = e instanceof Error ? e.message : String(e);
+      }
+    });
+    if (refused === null) await this.syncNow();
+    return refused;
   }
 
   private showSummary(s: { allRows: EventRow[]; rows: number; fixCount: number; projects: ProjectsFile }): void {
@@ -407,12 +400,13 @@ export class TimeStore {
       if (place.folder && (await place.folder.access()) !== 'granted') {
         this.sync = 'folder';
         this.showSummary(await readSummary(place.files, place.state, this.deps.now));
+        this.links = (await place.state.load()).links;
         return;
       }
       const result = await sync({ source: this.deps.source, files: place.files, state: place.state, now: this.deps.now }, opts);
       this.last = result;
       this.config = result.config;
-      await this.readConfig().catch(() => {});
+      this.timeZone = result.context.timeZone;
       this.showSummary(result);
       this.links = result.state.links;
       this.syncedAt = this.deps.now();
@@ -457,14 +451,13 @@ export class TimeStore {
   }
 
   private today(): string {
-    return localDate(this.deps.now(), this.last?.context.timeZone ?? 'UTC');
+    return localDate(this.deps.now(), this.timeZone);
   }
 
   private async readConfig(): Promise<void> {
     if (!this.place) return;
     const today = this.today();
-    this.configText = await this.place.files.read(CONFIG, defaultTimeConfigText(today));
-    this.config = parseTimeConfig(this.configText, today).config;
+    this.config = parseTimeConfig(await this.place.files.read(CONFIG, defaultTimeConfigText(today)), today).config;
   }
 
   private async writeConfig(changes: Partial<TimeConfig>): Promise<void> {
@@ -473,7 +466,6 @@ export class TimeStore {
     const base = await this.place.files.read(CONFIG, defaultTimeConfigText(today));
     const text = setTimeConfig(base, changes, today);
     await this.place.files.write(CONFIG, text, base);
-    this.configText = text;
     this.config = parseTimeConfig(text, today).config;
   }
 

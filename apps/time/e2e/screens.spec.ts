@@ -13,6 +13,9 @@ test.describe('hours', () => {
     await firstRun(page);
     await openView(page, 'Hours');
     await expect(page.getByText('No tracked time in this range.')).toBeVisible();
+    await page.getByRole('button', { name: 'Last month' }).click();
+    await expect(page.getByTestId('range')).toHaveText('2026-09-01 – 2026-09-30');
+    await expect(page.getByText('No tracked time in this range.')).toBeVisible();
     await page.getByRole('button', { name: 'This month' }).click();
     await expect(hoursOf(page, 'ACME')).toContainText('2 h');
     await expect(hoursOf(page, 'ACME')).toContainText('Coding');
@@ -24,6 +27,8 @@ test.describe('hours', () => {
     await expect(page.getByTestId('total-done')).toHaveText('1 h');
     await page.getByLabel('To', { exact: true }).fill('2026-09-01');
     await expect(page.getByRole('alert')).toHaveText('The first day must not be after the last');
+    // No numbers for a range that isn't one.
+    await expect(page.getByTestId('hours')).toHaveCount(0);
   });
 });
 
@@ -118,7 +123,22 @@ test.describe('charts and report', () => {
     expect(text).toContain('ACME');
     expect(text).toContain('200');
     const [csv] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download CSV' }).click()]);
-    expect(readFileSync((await csv.path())!, 'utf8').split('\n')[0]).toContain('date');
+    const lines = readFileSync((await csv.path())!, 'utf8').trim().split('\n');
+    expect(lines[0]).toContain('date');
+    expect(lines.slice(1).map((l) => l.split(',')[0])).toEqual(['2026-10-01', '2026-10-20']);
+    // Unticking every project reports on none, not on all.
+    await page.getByRole('checkbox', { name: 'ACME' }).uncheck();
+    await expect(page.getByText('Pick a project to report on.')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Download CSV' })).toHaveCount(0);
+  });
+
+  test('settings keep unknown keys in config.yaml', async ({ page }) => {
+    const config = 'calendars: [primary]\ntrack_from: 2026-01-01\nall_day_hours: 8\nweek_start: monday\ncolour_events: false\nmy_note: keep me # mine\n';
+    await openTime(page, { files: { 'projects.csv': PROJECTS, 'config.yaml': config } });
+    await firstRun(page);
+    await page.getByLabel('Week starts on').selectOption('sunday');
+    await expect.poll(() => driveFile(page, 'config.yaml')).toContain('week_start: sunday');
+    expect(await driveFile(page, 'config.yaml')).toContain('my_note: keep me # mine');
   });
 });
 

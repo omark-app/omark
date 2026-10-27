@@ -16,6 +16,13 @@
 
   const active = $derived(store.projects.filter((p) => p.archived === ''));
   const archived = $derived(store.projects.filter((p) => p.archived !== ''));
+  const deletingArchived = $derived(archived.some((p) => p.code === deleting));
+
+  /** The form and the warning are drawn below the list: bring them into view, focus on their first control. */
+  function reveal(node: HTMLElement) {
+    node.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    node.querySelector<HTMLElement>('input:not([readonly]), button')?.focus({ preventScroll: true });
+  }
 
   // The fix list's "Add CODE as a project" opens the form filled in.
   $effect(() => {
@@ -82,11 +89,15 @@
 </section>
 
 {#if deleting}
-  <section class="card" aria-labelledby="delete-title" data-testid="delete-warning">
+  <section class="card" aria-labelledby="delete-title" data-testid="delete-warning" use:reveal>
     <h2 id="delete-title">Delete {deleting}?</h2>
-    <p>Its events turn red and stop counting. Archive it instead to keep them green and counted, while it no longer shows in pickers.</p>
+    <p>
+      Its events turn red and stop counting.{deletingArchived ? ' It is archived: its events stay green and counted while it stays.' : ' Archive it instead to keep them green and counted, while it no longer shows in pickers.'}
+    </p>
     <div class="actions">
-      <button class="primary" onclick={() => act(() => store.archiveProject(deleting!))}>Archive instead</button>
+      {#if !deletingArchived}
+        <button class="primary" onclick={() => act(() => store.archiveProject(deleting!))}>Archive instead</button>
+      {/if}
       <button class="secondary danger" onclick={() => act(() => store.deleteProject(deleting!))}>Delete</button>
       <button class="secondary" onclick={() => (deleting = null)}>Cancel</button>
     </div>
@@ -94,7 +105,7 @@
 {/if}
 
 {#if form}
-  <form class="card" onsubmit={save} aria-labelledby="form-title">
+  <form class="card" onsubmit={save} aria-labelledby="form-title" use:reveal>
     <h2 id="form-title">{form.editing ? `Edit ${form.editing}` : 'New project'}</h2>
     <label>
       Code

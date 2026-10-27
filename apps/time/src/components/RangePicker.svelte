@@ -9,7 +9,13 @@
     weekStart,
     onchange,
     initial = 'thisWeek',
-  }: { today: string; weekStart: WeekStart; onchange: (range: DateRange) => void; initial?: RangeName | 'custom' } = $props();
+  }: {
+    today: string;
+    weekStart: WeekStart;
+    /** Null while a custom range is not valid, so nothing shows numbers for the last good one. */
+    onchange: (range: DateRange | null) => void;
+    initial?: RangeName | 'custom';
+  } = $props();
 
   const NAMES: { id: RangeName | 'custom'; label: string }[] = [
     { id: 'thisWeek', label: 'This week' },
@@ -27,7 +33,7 @@
   const range = $derived(name === 'custom' ? (typeof custom === 'string' ? null : custom) : namedRange(name, today, weekStart));
 
   $effect(() => {
-    if (range) onchange(range);
+    onchange(range);
   });
 
   function choose(id: RangeName | 'custom') {

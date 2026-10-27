@@ -11,21 +11,22 @@
   let { store }: { store: TimeStore } = $props();
   const chosen = $derived(store.config?.calendars ?? []);
   const DAYS: WeekStart[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-  let error = $state<string | null>(null);
+  let trackError = $state<string | null>(null);
+  let allDayError = $state<string | null>(null);
 
   function toggleCalendar(id: string, on: boolean) {
     void store.setCalendars(on ? [...chosen, id] : chosen.filter((c) => c !== id));
   }
 
   function setTrackFrom(value: string) {
-    error = isRealDate(value) ? null : 'Track from must be a date';
-    if (!error) void store.setConfig({ trackFrom: value });
+    trackError = isRealDate(value) ? null : 'Track from must be a date';
+    if (!trackError) void store.setConfig({ trackFrom: value });
   }
 
   function setAllDay(value: string) {
     const hours = Number(value.replace(',', '.'));
-    error = Number.isFinite(hours) && hours >= 0.25 && hours <= 24 ? null : 'All-day hours must be a number from 0.25 to 24';
-    if (!error) void store.setConfig({ allDayHours: hours });
+    allDayError = Number.isFinite(hours) && hours >= 0.25 && hours <= 24 ? null : 'All-day hours must be a number from 0.25 to 24';
+    if (!allDayError) void store.setConfig({ allDayHours: hours });
   }
 </script>
 
@@ -71,10 +72,12 @@
     Track from
     <input type="date" value={store.config?.trackFrom ?? ''} onchange={(e) => setTrackFrom(e.currentTarget.value)} />
     <span class="muted small">Nothing before this day is read, coloured or written.</span>
+    {#if trackError}<span class="error" role="alert">{trackError}</span>{/if}
   </label>
   <label class="field">
     Hours an all-day event counts for
     <input inputmode="decimal" value={String(store.config?.allDayHours ?? 8)} onchange={(e) => setAllDay(e.currentTarget.value)} />
+    {#if allDayError}<span class="error" role="alert">{allDayError}</span>{/if}
   </label>
   <label class="field">
     Week starts on
@@ -82,7 +85,6 @@
       {#each DAYS as d (d)}<option value={d}>{d[0]!.toUpperCase() + d.slice(1)}</option>{/each}
     </select>
   </label>
-  {#if error}<p class="error" role="alert">{error}</p>{/if}
 </section>
 
 <style>
