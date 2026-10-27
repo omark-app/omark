@@ -34,6 +34,13 @@ for (const path of PAGES) {
     expect(response.headers()['content-type']).toContain('image/svg+xml');
   });
 
+  test(`Omark logo on ${path}`, async ({ page }) => {
+    await page.goto(path);
+    const logo = page.locator('.site-header img.brand-icon');
+    await expect(logo).toHaveAttribute('src', '/img/icon-omark.svg');
+    await expect.poll(() => logo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+  });
+
   test(`no dead links on ${path}`, async ({ page }) => {
     await page.goto(path);
     const hrefs = await page.locator('a[href]').evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));

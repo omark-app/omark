@@ -40,7 +40,7 @@ code {
 }
 @media (min-width: 720px) { .wrap { padding-inline: 32px; } }
 
-/* Header and wordmark. The icon slot stays empty until the icons exist; it already holds its size. */
+/* Header and wordmark, with the Omark mark from brand/. */
 .site-header .wrap { display: flex; align-items: center; height: 72px; padding-top: env(safe-area-inset-top, 0px); }
 .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; }
 .brand-icon { width: 26px; height: 26px; flex: none; border-radius: 8px; }
