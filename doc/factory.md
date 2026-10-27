@@ -1,8 +1,8 @@
 # The factory
 
-Omark is built through a small software factory: ideas and bugs are GitHub issues, AI agents do the work on branches, and changes land through pull requests that a maintainer reviews and merges. This page describes it for maintainers and contributors. Agents get the same rules in [AGENTS.md](../AGENTS.md); Claude Code also gets them step by step in the `taskapp-factory` skill.
+Omark is built through a small software factory: ideas and bugs are GitHub issues, AI agents do the work on branches, and changes land through pull requests that a maintainer reviews and merges. This page describes it for maintainers and contributors. Agents get the same rules in [AGENTS.md](../AGENTS.md); Claude Code also gets them step by step in the `omark-factory` skill.
 
-The factory was first built for one person; [its original spec](TaskApp%20factory%20spec.md) has the history and the reasons. Making its wording role-neutral for outside contributors is roadmap item 2.5.
+The factory was first built for one person; [its original spec](history/TaskApp%20factory%20spec.md) has the history and the reasons.
 
 ## Who does what
 
@@ -10,7 +10,10 @@ The factory was first built for one person; [its original spec](TaskApp%20factor
 |---|---|
 | Maintainer | Turns ideas into `ready` issues; sets and changes sizes; approves plans; reviews and merges; runs Promote; handles `needs-human` steps |
 | Contributor and their agent | Picks a `ready` issue and claims it; sizes it; writes a plan for large work and waits; implements test-first; opens the PR; fixes CI and review comments; never merges |
+| Community | Posts and votes on ideas in Discussions, reports bugs |
 | GitHub Actions | Checks, e2e, previews, staging and demo deploys, Promote |
+
+Maintainers are the accounts `.github/CODEOWNERS` names on `main`, each with the Maintain or Admin role ([GOVERNANCE.md](../GOVERNANCE.md)). Only a maintainer can change that file, and anyone who can read the repository can read it, so an agent finds out whom it works for by looking its own login up there.
 
 ## The issue flow
 
@@ -34,15 +37,19 @@ Anything else is **large**. When in doubt, large. File formats, sync and merge, 
 ### Plans for large work
 
 1. Write `doc/plans/<n>-<slug>.md` on the issue's branch: **What changes for users**, **Acceptance criteria** (checkboxes), **Tests I'll write first**, **Risks**, **Out of scope**.
-2. Post a summary on the issue, label it `plan-review`, and stop.
-3. A maintainer approves with the `plan-approved` label or an "approved" comment. Only a maintainer's approval counts.
-4. A change of direction mid-way means an updated plan and a new approval.
+2. Post a summary on the issue (also when the plan sits in a draft PR), in a comment whose first line starts `Plan for #<n>:`, label it `plan-review`, and stop.
+3. A maintainer approves with the `plan-approved` label or a comment whose first line is "approved".
+4. Before writing code, the agent runs `node tools/ci/plan-approval.mjs <n>` (from a fork it checks the upstream repository). It counts an approval only when the account that gave it is in `CODEOWNERS` on `main`: the account that last added the label (from the issue's events), or the one that wrote the comment. Only approvals after the latest `Plan for #<n>` comment and its last edit count, and never a comment an agent wrote (one with the Claude Code footer). So a contributor's agent, which runs as the contributor, can't approve its own plan, and a comment can't fake an approval. Exit 0 means go, 1 not approved, 2 the check couldn't run.
+5. A change of direction mid-way means an updated plan, a new `Plan for #<n>` comment and a new approval.
 
 ### Labels
 
+`.github/labels.yml` lists every label with its colour and description. `node tools/ci/labels.mjs` shows what it would create or update in the repository, and `--apply` does it (a maintainer runs it; it never deletes a label).
+
 | Label | Meaning |
 |---|---|
-| `bug`, `enhancement` | Kind of issue |
+| `bug`, `enhancement`, `task` | Kind of issue, one per form |
+| `app:tasks`, `app:time`, `app:suite` | Which app; `app:suite` for shared packages, CI, docs and the landing page. The agent adds it when sizing |
 | `size:small`, `size:large` | Size |
 | `ready` | Can be picked up |
 | `good first issue`, `help wanted` | Starter and open work |
@@ -50,9 +57,20 @@ Anything else is **large**. When in doubt, large. File formats, sync and merge, 
 | `plan-review`, `plan-approved` | The plan gate for large work |
 | `in-progress` | Someone is on it; their comment names the branch |
 | `needs-human` | Blocked on a step only a maintainer can do (accounts, dashboards, devices) |
-| `format` | A change to an open file format ([doc/format.md](format.md)); always large. Created with the factory update (roadmap 2.5) |
+| `format` | A change to an open file format ([doc/format.md](format.md)); always large |
 
-"Take the next issue" means the oldest `ready` issue that isn't `in-progress`, bugs first.
+"Take the next issue" means the oldest `ready` issue that isn't `in-progress`: `bug`, then `enhancement`, then `task`.
+
+### Forms and templates
+
+- **Ideas** start in Discussions, in the Ideas category (`.github/DISCUSSION_TEMPLATE/ideas.yml`: the problem, how you handle it today, which app). Anyone votes with 👍. An idea can be vague; an issue is accepted work, clear enough to size.
+- **Issues** use one of three forms in `.github/ISSUE_TEMPLATE/`, each with an App field and its kind label:
+  - **Bug:** what happened, what I expected, build number, OS and browser, installed or in a tab, storage, steps.
+  - **Feature:** the problem, who has it, the Ideas link, how I'll know it works.
+  - **Task**, for work users don't see: what and why, done when.
+- Blank issues are off. The chooser links "Report a security problem" (private vulnerability reporting) and "Ask a question" (Discussions, Q&A).
+- Forms bind only people using GitHub's site and app; issues created through the API skip them. So when sizing, the agent checks the form's required fields, and if one is missing it adds `needs-info`, asks, and stops.
+- **Pull requests** follow `.github/pull_request_template.md`: `Closes #`, size, what changes for users, tests written first, how to try it, the preview, and whether and how AI was used.
 
 ### Definition of done
 
@@ -89,11 +107,20 @@ Branch protection comes with the public repository. Until then, and for every ag
 - writing to `main` through the API;
 - starting Promote.
 
+It blocks every agent the same way, a maintainer's included: merging and Promote are for maintainers to do themselves. A blocked call says why: `Blocked by the Omark guard: merging a PR (a maintainer merges). See AGENTS.md, Hard rules.`
+
 The guard is best-effort: it reads the command line and can't see what a script or alias does. Its tests run in CI's `check` job.
 
 ## Claude Code and the cloud environment
 
-`.claude/` is the Claude Code adapter: the skills, the guard and a session-start hook. Adapters for other agents are welcome contributions; they follow the same [AGENTS.md](../AGENTS.md).
+`.claude/` is the Claude Code adapter: the skills (`omark-factory`, `taskapp-files`, `omark-time`), the guard's hook and a session-start hook. Adapters for other agents are welcome contributions; they follow the same [AGENTS.md](../AGENTS.md).
+
+### What a contributor's agent needs
+
+- Node 22 or newer, pnpm 10, and the four commands in [AGENTS.md](../AGENTS.md#commands). Playwright's Chromium and WebKit for the e2e (`pnpm --filter tasks exec playwright install chromium webkit`).
+- `gh` 2.48 or newer, signed in as the contributor, for issues, comments and pull requests from their fork.
+- No secrets: everything runs on fake storage and a fake calendar.
+- In a Claude cloud session, the contributor's own cloud environment pointed at their fork, with the settings below.
 
 Factory sessions can run in a Claude cloud environment, which keeps working with the laptop closed and can be followed from the phone. Its settings live at claude.ai, so they are recorded here. To re-create it: claude.ai/code → environment menu → Add environment.
 
@@ -109,7 +136,7 @@ When a cloud session starts, `.claude/hooks/session-start.sh` (only when `CLAUDE
 
 In cloud sessions `gh issue` and `gh pr` (GraphQL) are blocked by the proxy. Use the GitHub MCP tools or `gh api` (REST).
 
-The checks made when the environment was set up are in [the old cloud environment notes](TaskApp%20cloud%20environment.md).
+The checks made when the environment was set up are in [the old cloud environment notes](history/TaskApp%20cloud%20environment.md).
 
 ## Costs
 

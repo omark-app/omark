@@ -138,6 +138,18 @@ describe('guard', () => {
     expect(run({ tool_name, tool_input, cwd: repo }).code).toBe(0);
   });
 
+  // The guard blocks every agent, maintainer's or contributor's, so its messages name a role, never a person (#96).
+  it.each([
+    ...blocked.map(([command]) => ({ tool_name: 'Bash', tool_input: { command } })),
+    { tool_name: 'mcp__github__merge_pull_request', tool_input: { pullNumber: 15 } },
+    { tool_name: 'mcp__github__actions_run_trigger', tool_input: { method: 'run_workflow', workflow_id: 'promote.yml' } },
+  ])('says why in role-neutral words: %j', (input) => {
+    const r = run({ ...input, cwd: repo });
+    expect(r.code).toBe(2);
+    expect(r.stderr).toMatch(/^Blocked by the Omark guard: .+\. See AGENTS\.md, Hard rules\.\n$/);
+    expect(r.stderr).not.toMatch(/\bAL\b|TaskApp/);
+  });
+
   it('lets other tools through', () => {
     expect(run({ tool_name: 'Edit', tool_input: { file_path: 'x' } }).code).toBe(0);
   });

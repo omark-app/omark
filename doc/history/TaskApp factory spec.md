@@ -1,7 +1,9 @@
 # TaskApp factory spec
 
+> Historical, may be out of date. The factory as first built for one person (2026-10-18). The current description is [doc/factory.md](../factory.md).
+
 Status: approved, 2026-10-18. Agreed points are from the session that compared ready-made factories (zazencodes, addyosmani/factory, claude-code-action, PranayHaldiya/software-factory and others).
-Related: [[TaskApp v1 spec]], [[TaskApp backlog]].
+Related: [the Tasks spec](../tasks/spec.md), [the backlog](../TaskApp%20backlog.md).
 
 ## 1. Goal
 

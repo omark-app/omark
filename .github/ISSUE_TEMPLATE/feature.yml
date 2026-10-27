@@ -1,14 +1,37 @@
 name: Feature
-description: Something new or a change
+description: Something new or a change users see. Ideas start in Discussions; this is for ones a maintainer has accepted.
 labels: [enhancement]
 body:
-  - type: textarea
-    id: want
+  - type: dropdown
+    id: app
     attributes:
-      label: What I want and why
+      label: App
+      options:
+        - Omark Tasks
+        - Omark Time
+        - Both, or the whole suite
     validations:
       required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+    validations:
+      required: true
+  - type: textarea
+    id: who
+    attributes:
+      label: Who has it
+    validations:
+      required: true
+  - type: input
+    id: idea
+    attributes:
+      label: Link to the Ideas discussion
+      description: Optional for maintainers.
   - type: textarea
     id: done
     attributes:
       label: How I'll know it works
+    validations:
+      required: true

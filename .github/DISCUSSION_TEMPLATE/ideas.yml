@@ -1,0 +1,25 @@
+title: "Idea: "
+body:
+  - type: markdown
+    attributes:
+      value: Vote for ideas you want with 👍. Maintainers weigh the most-wanted ones against PHILOSOPHY.md and turn those that fit into issues.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What gets in your way? Describe the problem before any solution.
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: How you handle it today
+  - type: dropdown
+    id: app
+    attributes:
+      label: Which app
+      options:
+        - Omark Tasks
+        - Omark Time
+        - Both, or the whole suite
+        - A new tool

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Promote to production, step 1: resolve the commit to promote and refuse anything that isn't on main with
-// a passing CI run (doc/TaskApp factory spec.md, 6.2). Usage: promote-check.mjs <sha | short sha | tag> <app>;
+// a passing CI run (doc/factory.md, Environments and CI). Usage: promote-check.mjs <sha | short sha | tag> <app>;
 // an empty commit means the one staging runs now. The tag is <app>-prod-…, or for tasks also a prod-… tag from
 // before the monorepo move. Needs GITHUB_TOKEN and GITHUB_REPOSITORY; writes sha, run_id, run_number,
 // built_at, artifact (true when that run's build can still be downloaded), artifact_name, app_dir and filter

@@ -5,7 +5,9 @@ description: Use when reading or editing TaskApp's tasks.md, done.md or config.y
 
 # TaskApp files
 
-Three UTF-8 files, LF line endings, in `C:\Users\alipk\OneDrive\ALAI\TaskApp\`: `tasks.md`, `done.md`, `config.yaml`. TaskApp re-reads them on every sync, so edit them exactly as the app would.
+Three UTF-8 files, LF line endings, in the user's Omark Tasks folder: `tasks.md`, `done.md`, `config.yaml`. The folder is the app's folder in OneDrive (`Apps/Omark Tasks`), a folder in Google Drive (`My Drive/Omark Tasks`), or a local folder the user picked; ask where it is if you don't know. The app re-reads the files on every sync, so edit them exactly as the app would.
+
+This skill holds the editing rules. The format itself, as an open standard, is `doc/format.md` in the Omark repository (https://github.com/omark-app/omark); where the two differ, the format wins.
 
 ## Edit rules
 
@@ -52,7 +54,7 @@ A habit is a repeating task with a finish line: after enough repetitions it coun
 
 - `🌱` marks a habit. A whole number from 1 to 999 right after it (`🌱 30`) is its own goal; with no number the goal comes from `habits.goal` in `config.yaml` (default 66). Write it after `⏫` and before `🔁`.
 - A habit needs a `🔁` rule other than `when done`. A `🌱` on a task with no rule, or with a `when done` rule, is only text in the title.
-- **At most `habits.maxInProgress` open `🌱` tasks** (default 3, `0` = no limit; count them in `tasks.md`). At the limit, don't add another `🌱`: tell AL the limit is reached and that one must be formed or dropped first, or the limit raised. Never remove or change an existing `🌱` to make room.
+- **At most `habits.maxInProgress` open `🌱` tasks** (default 3, `0` = no limit; count them in `tasks.md`). At the limit, don't add another `🌱`: tell the user the limit is reached and that one must be formed or dropped first, or the limit raised. Never remove or change an existing `🌱` to make room.
 - Complete a habit like any repeating task (below): the done line keeps `🌱` but not the goal number. Do it once per period: if it is already done in today's period, say so and write nothing.
 - Never write a formed line (`🏆`) yourself. The app writes it when the count reaches the goal, on its next sync.
 - To drop a habit, delete its block from `tasks.md` and append `- [-] {title} 🌱 ❌ {today}` to `done.md`. To make it an ordinary task, remove `🌱` and leave the rest.

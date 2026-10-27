@@ -2,7 +2,7 @@
 
 Status: approved, 2026-10-21. Agreed in the session that weighed a paid app against open source. Plans: [roadmap](plans/open-source-launch-roadmap.md), [milestone 1](history/open-source-m1-groundwork.md).
 Updated and approved 2026-10-22 for the suite: a second app, [Omark Time](time/spec.md), launches with Omark Tasks from one monorepo; Google Drive storage joins the launch; PHILOSOPHY.md holds principles instead of a "won't add" list.
-Related: [v1 spec](tasks/spec.md), [Omark Time spec](time/spec.md), [factory spec](TaskApp%20factory%20spec.md), [backlog](TaskApp%20backlog.md).
+Related: [v1 spec](tasks/spec.md), [Omark Time spec](time/spec.md), [factory spec](history/TaskApp%20factory%20spec.md), [backlog](TaskApp%20backlog.md).
 
 ## 1. Intent
 

@@ -1,1 +1,8 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem
+    url: https://github.com/omark-app/omark/security/advisories/new
+    about: Privately, never in a public issue. See SECURITY.md.
+  - name: Ask a question
+    url: https://github.com/omark-app/omark/discussions/categories/q-a
+    about: Questions go to Discussions, Q&A.
