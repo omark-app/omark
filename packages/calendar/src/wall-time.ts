@@ -13,8 +13,8 @@ function offsetMs(ms: number, tz: string): number {
  * A local wall time as an RFC 3339 instant with the zone's offset at that
  * instant (not exported from the package). Same rule in every zone:
  * a repeated hour (clocks go back) gives the later instant, the standard-time
- * one; a skipped time (clocks go forward) moves forward to the first valid
- * instant, so 02:30 becomes 03:30.
+ * one; a skipped time (clocks go forward) moves forward by the length of the
+ * gap, so 02:30 becomes 03:30 and 02:00 becomes 03:00.
  */
 export function local(date: string, minutes: number, tz: string): { dateTime: string } {
   const wall = Date.parse(`${date}T00:00:00Z`) + minutes * MINUTE;
