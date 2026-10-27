@@ -25,6 +25,14 @@ for (const path of PAGES) {
     await expectNoSideScroll(page);
   });
 
+  test(`favicon on ${path}`, async ({ page }) => {
+    await page.goto(path);
+    await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/favicon.svg');
+    const response = await page.request.get('/favicon.svg');
+    expect(response.status()).toBe(200);
+    expect(response.headers()['content-type']).toContain('image/svg+xml');
+  });
+
   test(`no dead links on ${path}`, async ({ page }) => {
     await page.goto(path);
     const hrefs = await page.locator('a[href]').evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));

@@ -29,3 +29,11 @@ test('has the wordmark with an icon slot', async ({ page }) => {
   await expect(page.locator('.brand .brand-icon')).toHaveAttribute('aria-hidden', 'true');
   await expect(page.locator('.brand .wordmark')).toHaveText('Omark');
 });
+
+test('serves the Tasks screenshot as a small WebP', async ({ page }) => {
+  const shot = page.locator('img.shot');
+  await expect(shot).toHaveAttribute('width', '600');
+  const { src, natural } = await shot.evaluate((img: HTMLImageElement) => ({ src: img.currentSrc, natural: img.naturalWidth }));
+  expect(src).toMatch(/\.webp$/);
+  expect(natural).toBe(600);
+});
