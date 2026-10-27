@@ -5,12 +5,19 @@ import { AuthRequiredError, OfflineError, PreconditionFailedError } from './erro
 
 export type FolderPermission = 'granted' | 'prompt' | 'denied';
 
+/** The part of `FileSystemWritableFileStream` the adapter uses. */
+export interface WritableFile {
+  write(data: string): Promise<void>;
+  close(): Promise<void>;
+  abort?(): Promise<void>;
+}
+
 /** The part of `FileSystemFileHandle` the adapter uses. */
 export interface FolderFileHandle {
   readonly kind: 'file';
   readonly name: string;
   getFile(): Promise<File>;
-  createWritable(): Promise<{ write(data: string): Promise<void>; close(): Promise<void> }>;
+  createWritable(): Promise<WritableFile>;
 }
 
 /**
@@ -22,6 +29,7 @@ export interface FolderHandle {
   readonly name: string;
   getFileHandle(name: string, opts?: { create?: boolean }): Promise<FolderFileHandle>;
   keys(): AsyncIterableIterator<string>;
+  removeEntry?(name: string): Promise<void>;
   queryPermission?(desc: { mode: 'readwrite' }): Promise<FolderPermission>;
   requestPermission?(desc: { mode: 'readwrite' }): Promise<FolderPermission>;
   isSameEntry?(other: FolderHandle): Promise<boolean>;
@@ -54,10 +62,19 @@ export class LocalFolderAdapter implements StorageAdapter {
       const existing = await this.fileOrNull(name);
       const current = existing ? await etagOf(await (await existing.getFile()).text()) : null;
       if (current !== ifMatch) throw new PreconditionFailedError(`Precondition failed for ${name}`);
+      // Creating the file puts an empty one there at once; the text lands only when the stream closes.
       const file = existing ?? (await this.folder.getFileHandle(name, { create: true }));
-      const stream = await file.createWritable();
-      await stream.write(text);
-      await stream.close();
+      let stream: WritableFile | undefined;
+      try {
+        stream = await file.createWritable();
+        await stream.write(text);
+        await stream.close();
+      } catch (e) {
+        await stream?.abort?.().catch(() => {});
+        // Take away the empty file this write created (only if still empty), so it never reads as content.
+        if (!existing) await this.removeIfEmpty(file).catch(() => {});
+        throw e;
+      }
       return { etag: await etagOf(text) };
     });
   }
@@ -69,9 +86,15 @@ export class LocalFolderAdapter implements StorageAdapter {
     } catch (e) {
       if (!isError(e, 'NotFoundError')) throw e;
       // A handle to a folder that has gone away says NotFoundError for every file too.
-      await this.folder.keys().next();
+      const listing = this.folder.keys();
+      await listing.next();
+      await listing.return?.();
       return null;
     }
+  }
+
+  private async removeIfEmpty(file: FolderFileHandle): Promise<void> {
+    if ((await file.getFile()).size === 0) await this.folder.removeEntry?.(file.name);
   }
 
   private async guard<T>(op: () => Promise<T>): Promise<T> {
@@ -127,15 +150,17 @@ export async function pickFolder(win: object, id: string): Promise<FolderHandle 
 
 /**
  * Files in the folder that look like a sync client's copy of one of `names` after a clash: for `notes.md`,
- * `notes (1).md` (Google Drive, Dropbox), `notes 2.md` (iCloud), `notes-PC.md` (OneDrive) and
- * `notes.sync-conflict-….md` (Syncthing). Sorted; empty when the folder cannot be listed.
+ * `notes (1).md` (Google Drive, Dropbox), `notes 2.md` (iCloud), `notes-DESKTOP-4F2K.md` (OneDrive adds the
+ * computer's name, in capitals) and `notes.sync-conflict-….md` (Syncthing). Kept narrow, so `notes-archive.md`
+ * or `notes 2026.md` are not taken for one. Sorted; empty when the folder cannot be listed.
  */
 export async function conflictCopies(folder: FolderHandle, names: string[]): Promise<string[]> {
   const patterns = names.map((n) => {
     const dot = n.lastIndexOf('.');
     const stem = escape(dot > 0 ? n.slice(0, dot) : n);
     const ext = dot > 0 ? escape(n.slice(dot)) : '';
-    return new RegExp(`^${stem}(?: \\(.+\\)| \\d+|-.+|\\.sync-conflict-.+)${ext}$`, 'i');
+    const copy = ` \\(.+\\)| \\d{1,2}|-(?=[A-Z0-9-]*[A-Z])[A-Z0-9-]+|\\.sync-conflict-.+`;
+    return new RegExp(`^${stem}(?:${copy})${ext}$`);
   });
   const found: string[] = [];
   try {
@@ -176,9 +201,13 @@ export class SavedFolder {
     }
   }
 
-  async save(handle: FolderHandle): Promise<FolderChoice> {
+  /**
+   * `keepId`: the user is picking the folder they had again (it moved, or access was refused), so its
+   * offline copy, and any edits still waiting in it, carries over even though the handle differs.
+   */
+  async save(handle: FolderHandle, opts: { keepId?: boolean } = {}): Promise<FolderChoice> {
     const old = await this.load();
-    const same = old ? await old.handle.isSameEntry?.(handle).catch(() => false) : false;
+    const same = old ? opts.keepId || (await old.handle.isSameEntry?.(handle).catch(() => false)) : false;
     const choice: FolderChoice = { handle, id: same && old ? old.id : crypto.randomUUID() };
     await set(KEY, choice, this.store);
     return choice;

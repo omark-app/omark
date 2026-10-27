@@ -12,6 +12,8 @@ export class MemoryFolder implements FolderHandle {
   readonly files = new Map<string, { text: string; lastModified: number }>();
   permission: FolderPermission = 'granted';
   gone = false;
+  /** Makes closing a write stream fail (a lock, a full disk), after the file was created. */
+  failClose = false;
   /** Answers to `requestPermission`; the default grants it. */
   answer: FolderPermission = 'granted';
   private clock = 1;
@@ -34,6 +36,11 @@ export class MemoryFolder implements FolderHandle {
 
   async isSameEntry(other: FolderHandle): Promise<boolean> {
     return other === this;
+  }
+
+  async removeEntry(name: string): Promise<void> {
+    this.check();
+    if (!this.files.delete(name)) throw notFound(name);
   }
 
   async *keys(): AsyncIterableIterator<string> {
@@ -63,9 +70,11 @@ export class MemoryFolder implements FolderHandle {
           write: async (data: string) => {
             text += data;
           },
+          abort: async () => {},
           // Like a real handle, the file changes only when the stream closes.
           close: async () => {
             this.check();
+            if (this.failClose) throw new DOMException('The file is locked', 'NoModificationAllowedError');
             this.files.set(name, { text, lastModified: ++this.clock });
           },
         };

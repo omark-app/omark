@@ -368,6 +368,21 @@ describe('FileSync', () => {
     expect(sync.status()).toBe('saved');
   });
 
+  it('keeps every task when a deleted file comes back empty or cut short', async () => {
+    // A folder's create is not atomic: a write that fails after creating the file leaves it empty.
+    const { cache, drive } = await opened();
+    const gone = new FakeOneDrive();
+    const failing = new TrackingAdapter(gone);
+    failing.failWrites = new OfflineError('write failed after the create');
+    expect(await makeSync(failing, cache).open()).toBe(S);
+    expect(drive.peek(NAME)).toBe(S);
+    gone.externalWrite(NAME, '');
+    const sync = makeSync(gone, cache);
+    expect(await sync.open()).toBe(S);
+    expect(gone.peek(NAME)).toBe(S);
+    expect(await cache.get(NAME)).toMatchObject({ local: S, dirty: false });
+  });
+
   it('notifies onStatus on change only: syncing then saved for a successful save', async () => {
     const { sync } = await opened();
     const seen: SyncStatus[] = [];

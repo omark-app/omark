@@ -26,14 +26,14 @@ async function installFolderPicker(page: Page): Promise<void> {
   });
 }
 
-/** The file's text in the picked folder ('' if it does not exist). */
-function folderFile(page: Page, name: FileName): Promise<string> {
+/** The file's text in the picked folder, or null if it does not exist. */
+function folderFile(page: Page, name: FileName): Promise<string | null> {
   return page.evaluate(async (n) => {
     const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('Tasks', { create: true });
     try {
       return await (await (await dir.getFileHandle(n)).getFile()).text();
     } catch {
-      return '';
+      return null;
     }
   }, name);
 }
@@ -64,7 +64,7 @@ test.describe('a folder on this computer', () => {
 
     await expect(row(page, 'Call the dentist')).toHaveCount(1);
     // Missing files are created in the folder.
-    await expect.poll(() => folderFile(page, 'config.yaml')).not.toBe('');
+    for (const name of ['done.md', 'config.yaml'] as const) await expect.poll(() => folderFile(page, name)).not.toBeNull();
 
     await page.getByTestId('add-input').fill('Water the plants');
     await page.getByTestId('add-input').press('Enter');
@@ -111,9 +111,35 @@ test.describe('a folder on this computer', () => {
     const banner = page.getByTestId('sync-banner');
     await expect(banner).toContainText('Allow access again to reach the folder Tasks');
     await expect(row(page, 'Written while closed')).toHaveCount(0);
+    // An edit made meanwhile waits in the offline copy and reaches the folder once access is allowed.
+    await page.getByTestId('add-input').fill('While waiting');
+    await page.getByTestId('add-input').press('Enter');
     await banner.getByRole('button', { name: 'Allow access' }).click();
     await expect(row(page, 'Written while closed')).toHaveCount(1);
     await expect(banner).toHaveCount(0);
+    await expect.poll(() => folderFile(page, 'tasks.md')).toContain('While waiting');
+    await expect.poll(() => folderFile(page, 'tasks.md')).toContain('Written while closed');
+  });
+
+  test('a folder that has gone away is picked again, and its tasks are written there', async ({ page }) => {
+    await installFolderPicker(page);
+    await openApp(page, { auth: 'signed-out' });
+    await folderWrite(page, 'tasks.md', '# Tasks\n- [ ] One 📅 2026-10-16\n');
+    await page.getByRole('button', { name: FOLDER_BUTTON }).click();
+    await expect(row(page, 'One')).toHaveCount(1);
+    await expect.poll(() => folderFile(page, 'done.md')).toBe('');
+
+    // The folder is moved away: the open handle now finds nothing.
+    await page.evaluate(async () => (await navigator.storage.getDirectory()).removeEntry('Tasks', { recursive: true }));
+    await refocus(page);
+    await expect(page.getByTestId('sync-banner')).toContainText("Can't reach the folder Tasks");
+    await expect(row(page, 'One')).toHaveCount(1);
+
+    // Picking it again (here an empty folder of the same name) writes the offline copy there.
+    await page.getByTestId('folder-again').getByRole('button', { name: 'Pick the folder again' }).click();
+    await expect(row(page, 'One')).toHaveCount(1);
+    await expect.poll(() => folderFile(page, 'tasks.md')).toContain('One');
+    await expect(page.getByTestId('sync-banner')).toHaveCount(0);
   });
 
   test("a sync client's conflict copy is named and not merged", async ({ page }) => {

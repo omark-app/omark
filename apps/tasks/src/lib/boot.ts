@@ -132,7 +132,7 @@ export async function boot(): Promise<BootResult> {
     return ready(createWorkspace(demo.drive, demo.cache), demo, null, ONEDRIVE);
   }
   // A folder picked on this device comes before any sign-in.
-  const folder = await new SavedFolder(FOLDER_DB).load();
+  const folder = await savedFolder();
   if (folder) return openFolder(folder);
   if (STORAGE_MODE === 'fake') {
     const seed = fakeSeed(window.__TASKAPP_SEED__);
@@ -166,13 +166,29 @@ export async function boot(): Promise<BootResult> {
 
 /**
  * Shows the folder picker (needs a click) and keeps the folder picked, so the next start opens it.
- * False when the user cancels.
+ * `again`: the user is picking the folder they had once more (moved, renamed, or access refused), so its
+ * offline copy and any edits waiting in it carry over. False when the user cancels.
  */
-export async function chooseFolder(): Promise<boolean> {
+export async function chooseFolder(opts: { again?: boolean } = {}): Promise<boolean> {
   const handle = await pickFolder(window, PICKER_ID);
   if (!handle) return false;
-  await new SavedFolder(FOLDER_DB).save(handle);
+  await new SavedFolder(FOLDER_DB).save(handle, { keepId: opts.again });
   return true;
+}
+
+/** How long start-up waits for IndexedDB to give the picked folder back before going on without it. */
+const SAVED_FOLDER_MS = 3_000;
+
+/**
+ * The folder picked on this device, or null. Only where the browser can pick folders (elsewhere none can
+ * have been saved), and never holding start-up up: IndexedDB can hang on open (WebKit).
+ */
+async function savedFolder(): Promise<FolderChoice | null> {
+  if (!folderSupported(window)) return null;
+  let found: FolderChoice | null = null;
+  const load = new SavedFolder(FOLDER_DB).load().then((f) => (found = f));
+  if (!(await settlesWithin(load, SAVED_FOLDER_MS))) console.warn(`${BRAND.app}: the picked folder did not load in time`);
+  return found;
 }
 
 /**
@@ -188,6 +204,9 @@ async function openFolder({ handle, id }: FolderChoice): Promise<BootResult> {
     async allow() {
       if (!(await requestFolderAccess(handle))) return false;
       await store.refresh();
+      // A refresh already running (say, from the focus the permission prompt gave back) started without
+      // access and was shared; one more reads the folder now that access is given.
+      if (store.status === 'signin') await store.refresh();
       return true;
     },
     conflicts: () => conflictCopies(handle, [...TASK_FILES]),

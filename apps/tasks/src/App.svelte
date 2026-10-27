@@ -46,6 +46,8 @@
   let signInError = $state<string | null>(null);
   /** Sync clients' conflict copies in the picked folder. */
   let conflicts = $state<string[]>([]);
+  /** The browser or the user refused access to the picked folder. */
+  let folderRefused = $state(false);
   let sheet = $state<OpenSheet | null>(null);
   // Settings is its own page at #settings, so browser back leaves it.
   const loadedOnSettings = location.hash === '#settings';
@@ -176,11 +178,14 @@
     }
   }
 
-  /** Picks a folder on this computer and starts again on it. */
-  async function useFolder(): Promise<void> {
+  /**
+   * Picks a folder on this computer and starts again on it. `again`: the folder in use is picked once more
+   * (it moved, or access was refused); its offline copy carries over.
+   */
+  async function useFolder(again = false): Promise<void> {
     signInError = null;
     try {
-      if (await chooseFolder()) window.location.reload();
+      if (await chooseFolder({ again })) window.location.reload();
     } catch (e) {
       signInError = `Could not open the folder: ${message(e)}`;
     }
@@ -190,7 +195,7 @@
   async function allowFolder(): Promise<void> {
     if (result?.kind !== 'ready' || !result.folder) return;
     try {
-      await result.folder.allow();
+      folderRefused = !(await result.folder.allow());
     } catch (e) {
       signInError = `Could not open the folder: ${message(e)}`;
     }
@@ -254,7 +259,7 @@
 {:else if result === null}
   <p class="notice">Loading…</p>
 {:else if result.kind === 'signin'}
-  <SignIn providers={result.providers} onsignin={signIn} folders={result.folders} onfolder={useFolder} error={signInError} />
+  <SignIn providers={result.providers} onsignin={signIn} folders={result.folders} onfolder={() => useFolder()} error={signInError} />
 {:else}
   {@const store = result.store}
   {@const provider = result.provider}
@@ -265,6 +270,13 @@
   {@const updates = result.updates}
   {#if signInError}<p class="signin-error" role="alert">{signInError}</p>{/if}
   {#if folderNote}<p class="folder-note" role="status" data-testid="folder-note">{folderNote}</p>{/if}
+  <!-- A folder that was moved or renamed, or whose access was refused, is picked again from here. -->
+  {#if result.folder && (folderRefused || store.status === 'offline')}
+    <p class="folder-note" role="status" data-testid="folder-again">
+      {folderRefused ? `Access to ${storageName} was refused.` : `If ${storageName} was moved or renamed, pick it again.`}
+      <button type="button" class="again" onclick={() => useFolder(true)}>Pick the folder again</button>
+    </p>
+  {/if}
   {#if onSettings}
     <div class="settings-page">
       <SettingsPage
@@ -328,5 +340,6 @@
   /* The page has its own padding: it takes over the app's side and top padding (the notch inset stays). */
   .settings-page { margin: -18px -16px 0; }
   .folder-note { max-width: 1160px; margin: 0 auto 12px; font: 12px/1.5 var(--mono); color: var(--ink); }
+  .again { margin-left: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 4px 11px; font: 500 13px var(--sans); cursor: pointer; }
   .signin-error { max-width: 1160px; margin: 0 auto 12px; font: 12px var(--mono); color: var(--danger); }
 </style>

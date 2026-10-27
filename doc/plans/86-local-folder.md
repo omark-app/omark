@@ -43,7 +43,7 @@
 
 ## Tests I'll write first
 
-1. `packages/storage/test/local-folder-adapter.test.ts`: the contract with `MemoryFolder`; then each adapter test above.
+1. `packages/storage/test/local-folder.test.ts`: the contract with `MemoryFolder` (`test/memory-folder.ts`); then each adapter test above.
 2. Same file: `conflictCopies` cases; `SavedFolder` save, load, forget and a broken IndexedDB (with `fake-indexeddb`).
 3. `apps/tasks/src/lib/environment.test.ts`: `cacheName('folder', id)`, `syncedAtKey('folder', id)`.
 4. `apps/tasks/src/lib/sync-banner.test.ts`: the folder's `signin` text.
@@ -56,6 +56,13 @@
 - **A sync client replacing the file mid-read:** the text and its hash come from one `getFile()`, so they always match each other.
 - **Cache keyed by a random id:** picking the same folder again gets the same id (`isSameEntry`), so its offline copy is kept.
 
+## Changes after review
+
+- A write that fails after creating a file removes the empty file it left (only if still empty), and `FileSync` merges a file that was missing from an empty base, so a half-made file can only add tasks. This changes `FileSync` for every adapter, in the safe direction.
+- **Pick the folder again** when the folder can't be reached or access is refused; it keeps the folder's id, so the offline copy carries over.
+- Conflict-copy patterns narrowed (OneDrive's suffix is a computer name in capitals; iCloud's a number of one or two digits), and the note no longer says to delete the file.
+- The saved folder is looked up only where folders can be picked, with a 3 s limit.
+
 ## Out of scope
 
 - The first-run choice screen, the demo option there, and a setting to switch storage (3.2).
@@ -65,7 +72,7 @@
 
 ## Tasks
 
-- [ ] **1. Adapter.** `packages/storage/src/local-folder.ts`: the `FolderHandle` types (a subset of `FileSystemDirectoryHandle`, plus the permission methods TypeScript's DOM types lack), `LocalFolderAdapter`, `folderSupported`, `pickFolder`, `folderAccess`, `requestFolderAccess`, `conflictCopies`, `SavedFolder`. `src/memory-folder.ts`: `MemoryFolder`. Exports in `index.ts`. Tests first.
+- [ ] **1. Adapter.** `packages/storage/src/local-folder.ts`: the `FolderHandle` types (a subset of `FileSystemDirectoryHandle`, plus the permission methods TypeScript's DOM types lack), `LocalFolderAdapter`, `folderSupported`, `pickFolder`, `folderAccess`, `requestFolderAccess`, `conflictCopies`, `SavedFolder`. `test/memory-folder.ts`: `MemoryFolder`. Exports in `index.ts`. Tests first.
 - [ ] **2. App wiring.** `environment.ts`: `folder` storage, its cache and synced-at names. `boot.ts`: a saved folder opens before sign-in (real and fake builds); the result carries the folder (`name`, `allow()`, `conflicts()`). `SignIn.svelte`: the option or the faint line; picking saves the handle and reloads. `sync-banner.ts` and `SyncBanner.svelte`: the folder's texts and button. `App.svelte`: the conflict note.
 - [ ] **3. e2e.** `apps/tasks/e2e/local-folder.spec.ts` with a helper that installs the OPFS picker and the permission switch.
 - [ ] **4. Docs.** `doc/TaskApp v1 spec.md` (storage section), a short README in `packages/storage` if none exists.

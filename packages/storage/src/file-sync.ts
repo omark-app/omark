@@ -238,7 +238,9 @@ export class FileSync {
     const f = this.file;
     if (remote === null) {
       // Missing: create it from `local` (whether never created or deleted elsewhere, the text is kept).
-      this.set({ ...f, baseEtag: null, dirty: true });
+      // The base becomes empty: if the file comes back before that write lands (another device made it,
+      // or a folder's create left it empty or cut short), merging only adds to `local`, never removes.
+      this.set({ ...f, base: '', baseEtag: null, dirty: true });
     } else if (remote.etag === f.baseEtag) {
       return;
     } else if (!f.dirty) {

@@ -34,6 +34,26 @@ describe('LocalFolderAdapter', () => {
     expect(folder.files.get('tasks.md')?.text).toBe('# Tasks\n');
   });
 
+  it('leaves no empty file behind when creating one fails', async () => {
+    const folder = new MemoryFolder();
+    folder.failClose = true;
+    const adapter = new LocalFolderAdapter(folder);
+    await expect(adapter.write('tasks.md', '# Tasks\n', null)).rejects.toMatchObject({ name: 'NoModificationAllowedError' });
+    expect(folder.files.has('tasks.md')).toBe(false);
+    folder.failClose = false;
+    await adapter.write('tasks.md', '# Tasks\n', null);
+    expect(folder.files.get('tasks.md')?.text).toBe('# Tasks\n');
+  });
+
+  it('keeps an existing file as it was when writing it fails', async () => {
+    const folder = new MemoryFolder();
+    const adapter = new LocalFolderAdapter(folder);
+    const { etag } = await adapter.write('tasks.md', 'a', null);
+    folder.failClose = true;
+    await expect(adapter.write('tasks.md', 'b', etag)).rejects.toMatchObject({ name: 'NoModificationAllowedError' });
+    expect(folder.files.get('tasks.md')?.text).toBe('a');
+  });
+
   it('notices an outside edit of the same size and modified time', async () => {
     const folder = new MemoryFolder();
     const adapter = new LocalFolderAdapter(folder);
@@ -154,6 +174,10 @@ describe('conflictCopies', () => {
       'tasks (1).txt',
       'tasksX.md',
       'mytasks (1).md',
+      // Ordinary files a person might keep next to them.
+      'tasks-archive.md',
+      'done-2025.md',
+      'tasks 2026.md',
     ]) {
       folder.external(name, '');
     }
@@ -197,6 +221,13 @@ describe('SavedFolder', () => {
     const first = await store.save(a);
     expect((await store.save(a)).id).toBe(first.id);
     expect((await store.save(new MemoryFolder('B'))).id).not.toBe(first.id);
+  });
+
+  it('keeps the id when asked, for the same folder picked again after a move', async () => {
+    const store = new SavedFolder(fresh(), memoryStore());
+    const first = await store.save(new MemoryFolder('A'));
+    expect((await store.save(new MemoryFolder('A moved'), { keepId: true })).id).toBe(first.id);
+    expect((await store.load())?.handle.name).toBe('A moved');
   });
 
   it('loads as null when IndexedDB fails', async () => {
