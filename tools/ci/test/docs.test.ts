@@ -8,7 +8,7 @@ import {
 } from '../../../packages/tasks-core/src/index.ts';
 import {
   buildReport, defaultTimeConfigText, EVENT_COLUMNS, formatHours, parseEventsFile, parseProjects, parseTitle,
-  PROJECT_COLUMNS, reportToMarkdown, serializeEventsFile, serializeProjects, summarise,
+  PROJECT_COLUMNS, reportToMarkdown, serializeEventsFile, serializeProjects, summarise, weekStartOf,
 } from '../../../packages/time-core/src/index.ts';
 
 // The suite's docs set (#85, launch spec 6.7). CI skips PRs that change only `doc/**` and `*.md`, so these
@@ -265,22 +265,39 @@ describe('Omark Time docs', () => {
     expect(parsed).toEqual({ code, category: none(category!), description: none(description!), known: known === 'yes' });
   });
 
-  test('README: hours per project and category in October match the app\'s summary', () => {
+  // The SQL itself is checked by hand with DuckDB (#60); these check the results the docs show.
+  const byCode = (a: { code: string }, b: { code: string }) => (a.code < b.code ? -1 : 1);
+
+  test('README: hours per project and category in October match the app\'s summary, in its order', () => {
     const table = tableIn(readme, '| project | category | hours |');
     const summary = summarise(rows, october, now);
-    const expected = summary.projects.flatMap((p) => p.categories.map((c) => [p.code, c.name, formatHours(c.done)]));
-    expect(table.map((r) => r.join('|')).sort()).toEqual(expected.map((r) => r.join('|')).sort());
+    const expected = [...summary.projects]
+      .sort(byCode)
+      .flatMap((p) => p.categories.map((c) => [p.code, c.name, formatHours(c.done)]));
+    expect(table).toEqual(expected);
   });
 
-  test('README: the weekly trend matches the app\'s summary per week', () => {
+  test('README: the weekly trend matches the app\'s summary for every Monday week with done hours', () => {
     const table = tableIn(readme, '| week | project | hours |');
-    expect(table.length).toBeGreaterThanOrEqual(4);
-    const weeks = [...new Set(table.map((r) => r[0]!))];
+    const weeks = [...new Set(rows.filter((r) => r.known).map((r) => weekStartOf(r.date, 'monday')))].sort();
+    expect(weeks.length).toBeGreaterThanOrEqual(3);
     const expected = weeks.flatMap((from) => {
       const to = new Date(Date.parse(`${from}T00:00Z`) + 6 * 86400_000).toISOString().slice(0, 10);
-      return summarise(rows, { from, to }, now).projects.map((p) => [from, p.code, formatHours(p.done)]);
+      return summarise(rows, { from, to }, now)
+        .projects.filter((p) => p.done > 0)
+        .sort(byCode)
+        .map((p) => [from, p.code, formatHours(p.done)]);
     });
-    expect(table.map((r) => r.join('|')).sort()).toEqual(expected.map((r) => r.join('|')).sort());
+    expect(table).toEqual(expected);
+  });
+
+  test('format.md: the CSV snippets read as the app reads them', () => {
+    const csv = [...format.matchAll(/^```csv\n([\s\S]*?)^```$/gm)].map((m) => m[1]!);
+    expect(csv).toHaveLength(2);
+    const events = parseEventsFile(csv[0]!);
+    expect(events.badLines).toEqual([]);
+    expect(events.rows).toHaveLength(2);
+    expect(serializeProjects(parseProjects(csv[1]!))).toBe(projectsText);
   });
 
   const reportOptions = { range: october, client: 'Acme Corp', rounding: 0 as const, includePlanned: false, nowMs: now };

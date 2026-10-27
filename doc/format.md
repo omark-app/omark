@@ -293,7 +293,11 @@ A writer puts one space after each `;` and leaves out empty trailing parts: `ACM
 
 ### Files
 
-UTF-8 CSV (RFC 4180: comma-separated, a header row, a field in double quotes when it holds `,`, `"` or a line break, with `""` for a quote inside), written with LF line endings and a final newline; read with LF or CRLF and an optional BOM. They sit in one folder: `Omark Time` in My Drive, `Apps/Omark Time` in OneDrive, or a folder the user picks. Unknown columns and keys are kept.
+The files sit in one folder: `Omark Time` in My Drive, `Apps/Omark Time` in OneDrive, or a folder the user picks.
+
+- **CSV** follows RFC 4180: comma-separated, with a header row. A field is in double quotes when it holds `,`, `"` or a line break, with `""` for a quote inside.
+- **Encoding.** UTF-8, written with LF line endings and a final newline. A reader accepts CRLF and a BOM.
+- **Unknown columns and keys** are kept.
 
 #### `events-YYYY.csv`
 
@@ -317,7 +321,7 @@ date,start,end,hours,project,category,description,all_day,known,calendar,event_i
 | `event_id` | the event's id; each instance of a recurring event has its own |
 
 - A row's key is `calendar` + `event_id` + `date`.
-- Rows are sorted by `start` (as an instant), then `calendar`, then `event_id`.
+- Rows are sorted by `start` (as an instant), then `calendar`, then `event_id`, then `date`.
 - **The app owns these files.** It rewrites them from the calendar on every sync, so hand edits are lost. Change the calendar event instead.
 - The column order is fixed. New columns are only added at the end.
 - **Adding up hours:** turn each row's `hours` into whole seconds (`round(hours × 3600)`), add the seconds, and convert back once. Adding the 4-decimal values directly drifts (three 20-minute rows would make 0.9999 hours).
@@ -342,6 +346,8 @@ OLD,Old client,Old Co,90,PLN,2026-06-30
 
 Codes are never renamed: that would make past events unknown. Archive the old project and add a new one.
 
+A reader trims every cell and reads `code` and `currency` in upper case. If a code appears twice, the first row counts. A project with a `rate` but no `currency` has no amount in reports.
+
 #### `config.yaml`
 
 ```yaml
@@ -362,4 +368,4 @@ colour_events: false  # set by the "Colour my events" setting
 
 ### Colours
 
-With `colour_events` on, the app sets a structured event's colour to green (Google colour 10) for a known code and red (11) for an unknown one, and marks it with the private extended property `omarkTime` = `green` or `red`. It changes no other field. A tool that creates events doesn't need to set colours; the app does it on its next sync.
+With `colour_events` on, the app sets a structured event's colour to green (Google's "Basil", colour id 10) for a known code and red ("Tomato", 11) for an unknown one. It checks the ids against Google's colour list at run time, and marks each event it colours with the private extended property `omarkTime` = `green` or `red`. It changes no other field. A tool that creates events doesn't need to set colours; the app does it on its next sync.

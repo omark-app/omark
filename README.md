@@ -46,7 +46,7 @@ This opens Omark Tasks on http://localhost:5173 with sample tasks and no sign-in
 
 **Coming from Todoist?** A one-time import of your open tasks: `pnpm --filter todoist-import start -- --out <path> [--force]`, with your API token in `TODOIST_TOKEN`. Review the warnings it prints.
 
-## Omark Time: ask your hours
+## Omark Time: query your hours
 
 Omark Time (in progress) writes one CSV row per calendar event per day, so you can query your hours with anything that reads CSV. With [DuckDB](https://duckdb.org), from the `Omark Time` folder:
 
@@ -54,12 +54,12 @@ Omark Time (in progress) writes one CSV row per calendar event per day, so you c
 -- Hours per project and category in October, done time only
 SELECT project, coalesce(mode(category), '') AS category,
        round(sum(round(hours * 3600)) / 3600, 4) AS hours
-FROM read_csv('events-*.csv')
+FROM read_csv('events-[0-9][0-9][0-9][0-9].csv', union_by_name = true)
 WHERE known
   AND date BETWEEN DATE '2026-10-01' AND DATE '2026-10-31'
   AND "end" <= now()
 GROUP BY project, lower(category)
-ORDER BY project, hours DESC;
+ORDER BY project, lower(category) IS NULL, hours DESC;
 ```
 
 On [the example files](doc/time/examples/events-2026.csv):
@@ -77,7 +77,7 @@ On [the example files](doc/time/examples/events-2026.csv):
 -- The weekly trend per project
 SELECT CAST(date_trunc('week', date) AS DATE) AS week, project,
        round(sum(round(hours * 3600)) / 3600, 4) AS hours
-FROM read_csv('events-*.csv')
+FROM read_csv('events-[0-9][0-9][0-9][0-9].csv', union_by_name = true)
 WHERE known AND "end" <= now()
 GROUP BY ALL
 ORDER BY week, project;
@@ -92,7 +92,7 @@ ORDER BY week, project;
 | 2026-10-19 | ACME | 1.8333 |
 | 2026-10-19 | MYAPP | 5 |
 
-`round(hours * 3600)` adds whole seconds, as the app does, so totals match it exactly. The `omark-time` skill (`.claude/skills/omark-time/`) teaches Claude Code to add correctly titled events, answer questions like these and draft a client report. Copy it to your personal skills folder like the Tasks skill. The format is in [doc/format.md](doc/format.md#omark-time).
+`round(hours * 3600)` adds whole seconds, as the app does, so the hours match its summary. `date_trunc('week', …)` starts weeks on Monday; the `omark-time` skill shows how to start them on another day, and why the file pattern isn't just `events-*.csv`. The `omark-time` skill (`.claude/skills/omark-time/`) teaches Claude Code to add correctly titled events, answer questions like these and draft a client report. Copy it to your personal skills folder like the Tasks skill. The format is in [doc/format.md](doc/format.md#omark-time).
 
 ## How it's built
 
