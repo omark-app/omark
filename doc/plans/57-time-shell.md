@@ -33,12 +33,13 @@ Until 1–3 land, the shell runs on the fake calendar and fake drive, and the st
 
 Already there: the "Omark Time Staging" Google project has the Calendar and Drive APIs on, and its Web client has `https://staging-time.omark.app/api/auth/callback` as a redirect URI.
 
-Claude does, with the CLI and the tokens in `.secrets`:
-- the repository variables `CF_TIME_STAGING_PROJECT` (`omark-time-staging`), `TIME_STAGING_HOST`, `TIME_STAGING_URL` and `TIME_STAGING_DOMAIN`;
-- the Pages project, the custom domain and its DNS record (CI's `ensure-pages-project.mjs` makes them on the first deploy);
-- the Pages secrets `OMARK_APP=time`, `COOKIE_KEY`, `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (from the client file).
+Done by Claude (2026-10-27): the Pages project `omark-time-staging` with the custom domain `staging-time.omark.app` (waiting for DNS), and the repository variables `CF_TIME_STAGING_PROJECT`, `TIME_STAGING_HOST`, `TIME_STAGING_URL`, `TIME_STAGING_DOMAIN` and `CF_TIME_ZONE_ID` (the omark.app zone).
 
-Only AL can do, and only for Task 8 (OneDrive):
+AL does (Claude's session may not change DNS or Pages secrets):
+- the DNS record: `CNAME staging-time` → `omark-time-staging.pages.dev`, proxied, in the omark.app zone;
+- the Pages secrets of `omark-time-staging`: `OMARK_APP=time`, `COOKIE_KEY` (32 random bytes, base64), and `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` from `C:\Users\alipk\.secrets\omark-time-staging-google-client.json`.
+
+Only for Task 8 (OneDrive):
 - the Entra registration "Omark Time Staging": personal Microsoft accounts, Web redirect URI `https://staging-time.omark.app/api/auth/callback`, `Files.ReadWrite.AppFolder`, and a client secret saved to `C:\Users\alipk\.secrets\omark-time-staging-entra.txt`. Claude puts it into the Pages secrets.
 
 ## Acceptance criteria
