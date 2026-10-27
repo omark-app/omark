@@ -177,3 +177,11 @@ test('with IndexedDB blocked (private mode) the demo opens in memory with a warn
   await open(page);
   await expect(page.getByText('This browser blocks offline storage, so demo edits are lost on reload.')).toBeVisible();
 });
+
+test('the demo shows two habits under way', async ({ page }) => {
+  await open(page);
+  await expect(page.getByTestId('habits-group')).toBeVisible();
+  await expect(page.getByTestId('habits-count')).toHaveText('2 of 3');
+  await expect(row(page, 'Read 20 pages')).toBeVisible();
+  await expect(row(page, 'Floss')).toBeVisible();
+});
