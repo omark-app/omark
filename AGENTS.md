@@ -11,6 +11,7 @@ This file is for any coding agent (Claude Code, Codex, Cursor and others). Claud
 | Tasks | Change what the app does | [the Tasks spec](doc/TaskApp%20v1%20spec.md), and the [habits](doc/TaskApp%20habits%20spec.md) or [settings page](doc/Omark%20settings%20page%20spec.md) spec when it is about those |
 | Tasks | Read or edit `tasks.md`, `done.md`, `config.yaml` | [doc/format.md](doc/format.md), and the `taskapp-files` skill for the editing rules |
 | Time | Anything in Omark Time | [the Omark Time spec](doc/Omark%20Time%20spec.md) |
+| Time | Read or write event titles, `events-*.csv`, `projects.csv` | [doc/format.md](doc/format.md#omark-time), and the `omark-time` skill |
 | Both | Storage, sync, sign-in, packages | [doc/architecture.md](doc/architecture.md) |
 | Both | Deploys, secrets, Promote | [doc/self-hosting.md](doc/self-hosting.md) |
 | Both | Issues, plans, PRs, labels | [doc/factory.md](doc/factory.md) and the `taskapp-factory` skill |
