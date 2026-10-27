@@ -2,6 +2,16 @@ name: Bug
 description: Something doesn't work as it should
 labels: [bug]
 body:
+  - type: dropdown
+    id: app
+    attributes:
+      label: App
+      options:
+        - Omark Tasks
+        - Omark Time
+        - Both, or the whole suite
+    validations:
+      required: true
   - type: textarea
     id: happened
     attributes:
@@ -12,14 +22,42 @@ body:
     id: expected
     attributes:
       label: What I expected
-  - type: dropdown
-    id: device
+    validations:
+      required: true
+  - type: input
+    id: build
     attributes:
-      label: Device
+      label: Build number
+      description: In the app's footer, for example v152.
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: OS and browser
+      placeholder: iOS 26, Safari
+    validations:
+      required: true
+  - type: dropdown
+    id: installed
+    attributes:
+      label: Installed or in a tab
       options:
-        - iPhone
-        - Windows / Brave
-        - Both
+        - Installed (home screen or desktop app)
+        - In a browser tab
+    validations:
+      required: true
+  - type: dropdown
+    id: storage
+    attributes:
+      label: Storage
+      options:
+        - OneDrive
+        - Google Drive
+        - A local folder
+        - The demo
+    validations:
+      required: true
   - type: textarea
     id: steps
     attributes:

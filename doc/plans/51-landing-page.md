@@ -8,7 +8,7 @@
 
 **Tech Stack:** HTML, CSS, Vite 8 (already in the repo), `@fontsource/geist`, Playwright, Vitest, Cloudflare Pages.
 
-**Spec:** [launch spec 6.3.1](../TaskApp%20open%20source%20launch%20spec.md), with [Time spec 10.1 and 10.3](../Omark%20Time%20spec.md) and launch spec 6.4.1 and 6.5 for the policy. Roadmap row 2.2.
+**Spec:** [launch spec 6.3.1](../TaskApp%20open%20source%20launch%20spec.md), with [Time spec 10.1 and 10.3](../time/spec.md) and launch spec 6.4.1 and 6.5 for the policy. Roadmap row 2.2.
 
 ## What changes for AL
 

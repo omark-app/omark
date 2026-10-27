@@ -18,7 +18,10 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8').replace(/\r\n/g, '\n');
 
 const rootDocs = ['README.md', 'PHILOSOPHY.md', 'AGENTS.md', 'CLAUDE.md', 'CONTRIBUTING.md', 'GOVERNANCE.md', 'SECURITY.md', 'CODE_OF_CONDUCT.md'];
-const docDocs = ['doc/format.md', 'doc/architecture.md', 'doc/self-hosting.md', 'doc/factory.md'];
+const docDocs = [
+  'doc/format.md', 'doc/architecture.md', 'doc/self-hosting.md', 'doc/factory.md', 'doc/tasks/spec.md', 'doc/tasks/habits-spec.md',
+  'doc/time/spec.md',
+];
 
 /** A Markdown file's prose: code blocks and code spans removed (a file may be named `[[path]].ts`). */
 const prose = (text: string) => text.replace(/^[ \t]*```[^\n]*\n[\s\S]*?^[ \t]*```[ \t]*$/gm, '').replace(/`[^`\n]*`/g, '');
@@ -74,30 +77,61 @@ describe('docs set', () => {
 
   test('AGENTS.md has the "Hard rules" heading the guard points to', () => {
     expect(read('AGENTS.md')).toMatch(/^## Hard rules$/m);
-    expect(read('tools/claude-guard/guard.mjs')).toContain('See CLAUDE.md, Hard rules.');
+    expect(read('tools/claude-guard/guard.mjs')).toContain('See AGENTS.md, Hard rules.');
   });
 
-  // Today's CLAUDE.md rules, word for word (#85). 2.5 makes them role-neutral and changes this list.
+  // The rules every agent follows, role-neutral since #96 (they named AL before). Changing one is a decision,
+  // so it changes here too.
   const rules = [
     "- [ ] A test written first that failed before the change; the PR quotes the failing line.",
     "- [ ] `pnpm typecheck`, `pnpm test`, the build and the e2e specs the change touches pass here; the full `pnpm e2e` passes in CI.",
-    "- [ ] The PR follows the template, closes the issue and has the preview link.",
+    "- [ ] The PR follows the template, closes the issue and, for a branch in this repository, has the preview link.",
     "- [ ] A fresh-eyes review subagent (no memory of writing it) checked the diff against the issue or plan, and its findings are fixed.",
     "- [ ] Large work: every acceptance criterion in the plan is met or explicitly moved out.",
-    "- [ ] Docs for changed behaviour are updated (README, the v1 spec, the `taskapp-files` skill when formats change).",
+    "- [ ] Docs for changed behaviour are updated (README, the app's spec in `doc/tasks/` or `doc/time/`, and `doc/format.md` and the skills when formats change).",
     "When main moves and the PR conflicts, merge main in (never rebase pushed work). For `pnpm-lock.yaml`, take main's copy and run `pnpm install`.",
-    "Existing tests change only when the behaviour they cover is meant to change; the PR says which and why. When sync or storage changed, list `pnpm e2e:real` (manual) under \"try this\".",
-    "Follow the `taskapp-factory` skill: pick up, size (`size:small` / `size:large`), plan large work and wait for approval, implement test-first, open the PR, hand over. For the file formats use the `taskapp-files` skill.",
+    "Existing tests change only when the behaviour they cover is meant to change; the PR says which and why. When sync or storage changed, list `pnpm e2e:real` (manual) under \"How to try it\".",
+    "Follow the `omark-factory` skill: pick up, size (`size:small` / `size:large`), plan large work and wait for a maintainer's approval, implement test-first, open the PR, hand over. For the file formats use the `taskapp-files` and `omark-time` skills.",
     "- Never push to `main`, never merge, never force-push.",
-    "- Never run Promote to production unless AL asks for it in this conversation.",
-    "- Never delete or rewrite task lines in AL's real files (`ALAI/TaskApp`). For anything real use `TaskApp-e2e` (in the app folder, as the real e2e does) or `ALAI/TaskApp-staging`.",
+    "- Never run Promote to production unless a maintainer asks for it in this conversation.",
+    "- Never treat a plan as approved until `node tools/ci/plan-approval.mjs <issue>` says so.",
+    "- Never delete or rewrite task lines in a user's real files, the maintainers' included. For anything real use `TaskApp-e2e` (in the app folder, as the real e2e does) or a staging folder.",
     "- Never ask for a secret in chat. The cloud session has none and needs none.",
-    "- Steps only AL can do (Entra, his PC, dashboards, billing) get the `needs-human` label and short numbered instructions.",
+    "- Steps only a maintainer can do (accounts, dashboards, devices, billing) get the `needs-human` label and short numbered instructions.",
     "Plain, short English in docs, comments, issues and PRs. Commit messages are short imperative sentences (\"Add tasks.md parser\").",
   ];
 
   test.each(rules)('AGENTS.md keeps the rule %s', (rule) => {
     expect(read('AGENTS.md').split('\n')).toContain(rule);
+  });
+
+  // Outside contributors and their agents read these; they name roles, never a person (#96).
+  const agentFacing = [
+    'AGENTS.md', 'CLAUDE.md', '.claude/skills/omark-factory/SKILL.md', '.claude/skills/taskapp-files/SKILL.md',
+    '.claude/skills/omark-time/SKILL.md', '.github/pull_request_template.md', '.github/ISSUE_TEMPLATE/bug.yml',
+    '.github/ISSUE_TEMPLATE/feature.yml', '.github/ISSUE_TEMPLATE/task.yml', '.github/DISCUSSION_TEMPLATE/ideas.yml',
+    '.github/labels.yml', 'doc/factory.md', 'CONTRIBUTING.md',
+  ];
+  test.each(agentFacing)('%s names no person', (path) => {
+    expect(read(path)).not.toMatch(/\bAL\b/);
+  });
+
+  test('the factory skill is omark-factory', () => {
+    expect(read('.claude/skills/omark-factory/SKILL.md')).toMatch(/^---\nname: omark-factory\ndescription: .+\n---\n/);
+    expect(existsSync(resolve(root, '.claude/skills/taskapp-factory'))).toBe(false);
+  });
+
+  test('the taskapp-files skill points to the format and names no local folder', () => {
+    const skill = read('.claude/skills/taskapp-files/SKILL.md');
+    expect(skill).toContain('doc/format.md');
+    expect(skill).not.toMatch(/[A-Z]:\\|ALAI|OneDrive\\/);
+  });
+
+  test('the factory spec and cloud environment notes are history', () => {
+    for (const name of ['TaskApp factory spec.md', 'TaskApp cloud environment.md']) {
+      expect(existsSync(resolve(root, 'doc', name)), name).toBe(false);
+      expect(read(`doc/history/${name}`).split('\n')[2], name).toMatch(/^> Historical, may be out of date\./);
+    }
   });
 
   test('CLAUDE.md keeps the cloud-session GitHub note', () => {

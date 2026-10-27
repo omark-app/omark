@@ -10,7 +10,7 @@ Omark is small and wants to stay that way. This page says who decides what, and 
 | **Contributors** (and their AI agents) | Pick a `ready` issue and comment to claim it; work in a fork; post a plan for large work and wait for a maintainer's approval; follow the [definition of done](AGENTS.md#definition-of-done); never merge |
 | **Community** | Post and vote on ideas in Discussions, report bugs, answer questions |
 
-At launch there is one maintainer, the project's founder. Maintainers are the accounts with the Maintain or Admin role on the repository. A plan approval counts only when a maintainer gives it: an "approved" comment from anyone else doesn't count.
+At launch there is one maintainer, the project's founder. Maintainers are the accounts with the Maintain or Admin role on the repository, and `.github/CODEOWNERS` on `main` lists them. A plan approval counts only when a maintainer gives it, with the `plan-approved` label or an "approved" comment. The factory checks the approver against that list (`tools/ci/plan-approval.mjs`), so an approval from anyone else doesn't count, whatever the comment says.
 
 ## How ideas become issues
 

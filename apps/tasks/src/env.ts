@@ -12,6 +12,12 @@ export function realUseUrl(value: unknown): string {
   return url === '' ? 'https://omark.app' : url;
 }
 
+/** Reads `VITE_DEMO_URL`, where the first-run screen's "Try the demo" goes; unset or blank means the public demo. */
+export function demoUrl(value: unknown): string {
+  const url = typeof value === 'string' ? value.trim() : '';
+  return url === '' ? 'https://demo-tasks.omark.app' : url;
+}
+
 declare const __STORAGE_MODE__: StorageMode | undefined;
 /**
  * This build's storage mode. vite.config.ts writes it in as a literal (`__STORAGE_MODE__`), so the bundler
@@ -21,6 +27,7 @@ declare const __STORAGE_MODE__: StorageMode | undefined;
 export const STORAGE_MODE: StorageMode =
   typeof __STORAGE_MODE__ === 'string' ? __STORAGE_MODE__ : storageMode(import.meta.env.VITE_STORAGE);
 export const REAL_USE_URL = realUseUrl(import.meta.env.VITE_REAL_USE_URL);
+export const DEMO_URL = demoUrl(import.meta.env.VITE_DEMO_URL);
 /** The hosts and folders this build serves, from its build variables. */
 export const HOSTS = hostConfig(import.meta.env);
 /** Production, staging, a PR preview or local, from the host name (staging and production share one build). */

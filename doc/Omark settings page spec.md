@@ -1,7 +1,7 @@
 # Omark settings page spec
 
 Status: approved by AL, 2026-10-26, including section 2 (one shared page design, each app edits its own file). Issue #45.
-Source: AL in the habits brainstorm of 2026-10-26: "move the yaml config of tasks into one single editable webpage for both omark tasks and time apps". Related: [v1 spec](TaskApp%20v1%20spec.md) section 10, [Omark Time spec](Omark%20Time%20spec.md) sections 7.2 and 9, [habits spec](TaskApp%20habits%20spec.md) section 11.
+Source: AL in the habits brainstorm of 2026-10-26: "move the yaml config of tasks into one single editable webpage for both omark tasks and time apps". Related: [v1 spec](tasks/spec.md) section 10, [Omark Time spec](time/spec.md) sections 7.2 and 9, [habits spec](tasks/habits-spec.md) section 11.
 Mockup: artboard 6 in https://claude.ai/artifact/VwN7ULDERA3tsd2JoMatWt (source: `doc/mockups/habits/Settings.dc.html`)
 
 ## 1. Intent
@@ -29,7 +29,7 @@ The alternative, one shared settings file for the suite, would need both apps to
 - **Keyboard**: each command shows its keys; click one and press the new key. A key held by another command is refused, naming it.
 - **config.yaml section**: the file as it is now; **Edit as text** opens it in a plain editor with the problem line marked; **Reset to defaults** writes the commented default file (asks first).
 - **Broken file**: the page opens on the text editor with the problem line, instead of the form.
-- **Sync**: the page re-reads on focus like the rest of the app. A change made elsewhere meanwhile is merged key by key; when the same key changed on both sides, the newer write wins and the page says so. *(My call: settings are small and a lost setting is cheap.)*
+- **Sync**: the page re-reads on focus like the rest of the app. A change made elsewhere meanwhile is merged key by key; when the same key changed on both sides, this device's change wins and the page names the setting ("Also changed on another device: … Kept the change made here."). *(AL's call, 2026-10-27: settings are small, a lost setting is cheap, and the change you just made is the one you expect to see.)*
 
 ## 4. Built once
 

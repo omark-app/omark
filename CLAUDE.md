@@ -8,7 +8,7 @@ Everything above comes from `AGENTS.md`, which every agent reads. These notes ar
 
 The repo's skills live in `.claude/skills/`:
 
-- `taskapp-factory`: the issue flow step by step, with the comment and label wording.
+- `omark-factory`: the issue flow step by step, with the comment and label wording and the plan-approval check.
 - `taskapp-files`: how to read and edit `tasks.md`, `done.md` and `config.yaml`.
 - `omark-time`: how to add Omark Time events, answer questions about hours from its CSV files, and draft a client report.
 

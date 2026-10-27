@@ -22,6 +22,7 @@
     note = null,
     status,
     defaultText,
+    extraSections = [],
   }: {
     schema: Schema;
     text: string;
@@ -35,6 +36,8 @@
     status?: Snippet;
     /** What Reset to defaults writes. */
     defaultText: string;
+    /** The app's own cards, shown before the file's settings and listed in the nav (e.g. where the files are kept). */
+    extraSections?: { id: string; title: string; body: Snippet }[];
   } = $props();
 
   const RESET_QUESTION = 'Reset every setting to its default? Comments you added are lost.';
@@ -64,7 +67,11 @@
     resets++;
   }
 
-  const navItems = $derived([...schema.sections.map((s) => ({ id: s.id, title: s.title })), { id: CONFIG_ID, title: 'config.yaml' }]);
+  const navItems = $derived([
+    ...extraSections.map((s) => ({ id: s.id, title: s.title })),
+    ...schema.sections.map((s) => ({ id: s.id, title: s.title })),
+    { id: CONFIG_ID, title: 'config.yaml' },
+  ]);
 
   // The nav marks the first card in the upper part of the screen.
   let current = $state('');
@@ -102,6 +109,13 @@
   <p class="file">This page writes <span class="mono">{schema.file}</span> and keeps its comments. Only changed settings are written.</p>
 {/snippet}
 
+{#snippet extraCard(section: { id: string; title: string; body: Snippet })}
+  <section class="card" id="settings-{section.id}" data-testid="settings-section-{section.id}">
+    <h2>{section.title}</h2>
+    {@render section.body()}
+  </section>
+{/snippet}
+
 {#snippet resetButton()}
   <button type="button" class="btn" data-testid="reset-defaults" onclick={reset}>Reset to defaults</button>
   {#if status}<span class="status">{@render status()}</span>{/if}
@@ -125,6 +139,10 @@
     {/if}
 
     {#if editing}
+      <!-- The app's own cards stay in reach while the file is edited as text (say, a file that does not read). -->
+      {#each extraSections as section (section.id)}
+        {@render extraCard(section)}
+      {/each}
       <section class="card" id="settings-{CONFIG_ID}">
         <h2>config.yaml</h2>
         {@render fileLine()}
@@ -141,6 +159,9 @@
         </nav>
 
         <div class="cards">
+          {#each extraSections as section (section.id)}
+            {@render extraCard(section)}
+          {/each}
           {#each schema.sections as section (section.id)}
             <section
               class="card"

@@ -846,6 +846,19 @@ ${['A', 'B', 'C', 'D'].map((t) => `- [ ] Tom ${t} 📅 2026-10-17`).join('\n')}
       expect(store.wouldLoseEdits()).toBe(true);
     });
 
+    it('hasUnsyncedEdits: true while a cached edit has not reached the storage, false once it has', async () => {
+      const { drive, store } = await offlineStore({ durableCache: true });
+      expect(store.hasUnsyncedEdits()).toBe(false);
+      store.add('Cached, not synced');
+      await store.flush();
+      await vi.waitFor(() => expect(store.status).toBe('offline'));
+      expect(store.wouldLoseEdits()).toBe(false);
+      expect(store.hasUnsyncedEdits()).toBe(true);
+      drive.setOffline(false);
+      await store.refresh();
+      expect(store.hasUnsyncedEdits()).toBe(false);
+    });
+
     it('is false with no edits, even when nothing could be synced since opening', async () => {
       const drive = new FakeOneDrive();
       drive.setOffline(true);

@@ -1,0 +1,26 @@
+name: Task
+description: Work users don't see, such as CI, dependencies, refactors, docs or roadmap items
+labels: [task]
+body:
+  - type: dropdown
+    id: app
+    attributes:
+      label: App
+      options:
+        - Omark Tasks
+        - Omark Time
+        - Both, or the whole suite
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What and why
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+    validations:
+      required: true

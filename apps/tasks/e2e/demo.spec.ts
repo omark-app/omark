@@ -65,8 +65,15 @@ async function addNote(page: Page, isMobile: boolean, title: string, note: strin
 test('opens on the sample tasks, with no sign-in', async ({ page }) => {
   await open(page);
   await expect(row(page, 'Send the invoice')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Sign in with Microsoft' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Use my OneDrive' })).toHaveCount(0);
   await expect(page.getByTestId('sync-banner')).toHaveCount(0);
+});
+
+test('Settings has no Storage card: the demo keeps its tasks in this browser only', async ({ page }) => {
+  await open(page);
+  await page.evaluate(() => (location.hash = 'settings'));
+  await expect(page.getByTestId('settings-section-general')).toBeVisible();
+  await expect(page.getByTestId('settings-section-storage')).toHaveCount(0);
 });
 
 test('an added task, a completion and a note survive a reload', async ({ page, isMobile }) => {

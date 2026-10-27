@@ -6,6 +6,7 @@ interface ImportMetaEnv {
   readonly VITE_STORAGE?: string;
   /** Where the demo's "Use it for real" link goes; default https://omark.app. */
   readonly VITE_REAL_USE_URL?: string;
+  readonly VITE_DEMO_URL?: string;
   readonly VITE_PROD_HOST?: string;
   readonly VITE_STAGING_HOST?: string;
   /** Comma-separated. */

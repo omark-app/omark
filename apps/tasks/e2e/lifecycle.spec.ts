@@ -130,7 +130,7 @@ test('buckets move on at local midnight without a focus change', async ({ page }
 
 test('with no signed-in account the sign-in screen shows, and its button starts sign-in', async ({ page }) => {
   await startWithAuth(page, 'signed-out');
-  const button = page.getByRole('button', { name: 'Sign in with Microsoft' });
+  const button = page.getByRole('button', { name: 'Use my OneDrive' });
   await expect(button).toBeVisible();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('omark tasks');
   await expect(page.getByTestId('bucket-today')).toHaveCount(0);
