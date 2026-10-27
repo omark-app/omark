@@ -1,15 +1,17 @@
 import { AuthRequiredError, OfflineError } from '@omark/storage';
-import type { CalendarInfo } from '@omark/calendar';
+import type { CalendarEvent, CalendarInfo } from '@omark/calendar';
 import {
   addProject,
   archiveProject,
   defaultTimeConfigText,
   deleteProject,
+  formatLocal,
   localDate,
   parseProjects,
   parseTimeConfig,
   serializeProjects,
   setTimeConfig,
+  startOfDay,
   updateProject,
 } from '@omark/time-core';
 import type { EventRow, Project, ProjectsFile, TimeConfig } from '@omark/time-core';
@@ -326,6 +328,24 @@ export class TimeStore {
     // For a folder, "sign in" means the browser wants permission again.
     if (files === 'signin') return this.place?.folder ? 'folder' : 'signin';
     return ok;
+  }
+
+  /**
+   * The events of the chosen calendars from `from` to `to` (dates), and which colour ids are green and red: for the
+   * demo's calendar view. Null when the calendar can't be read.
+   */
+  async weekEvents(from: string, to: string): Promise<{ events: CalendarEvent[]; ids: { green: string; red: string } } | null> {
+    try {
+      const at = (date: string) => formatLocal(startOfDay(date, this.timeZone), this.timeZone);
+      const events: CalendarEvent[] = [];
+      for (const calendar of this.config?.calendars ?? ['primary']) {
+        events.push(...(await this.deps.source.readRange(calendar, at(from), at(to))));
+      }
+      return { events, ids: await this.deps.source.colourIds() };
+    } catch (e) {
+      this.noteFailure(e);
+      return null;
+    }
   }
 
   addProject(project: Project): Promise<string | null> {

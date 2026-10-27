@@ -15,6 +15,7 @@ import { localDate } from '@omark/time-core';
 import { GOOGLE_FOLDER, STORAGE_MODE } from '../env.ts';
 import { createTimeAuth } from './auth.ts';
 import type { TimeAuth } from './auth.ts';
+import { DEMO_PREFS, demoFiles, demoStart } from './demo.ts';
 import { openFake } from './fake.ts';
 import { FolderFiles } from './files.ts';
 import { IdbPrefs } from './prefs.ts';
@@ -104,12 +105,21 @@ export async function forgetDevice(): Promise<void> {
 export async function bootDeps(): Promise<AppDeps> {
   const now = Date.now;
   const folders = { canPickFolder: folderSupported(window), pickFolder: chooseFolder, forget: forgetDevice };
-  if (STORAGE_MODE === 'fake') {
-    const fake = await openFake();
+  if (STORAGE_MODE === 'fake' || STORAGE_MODE === 'demo') {
+    const prefs = new IdbPrefs();
+    let fake;
+    if (STORAGE_MODE === 'demo') {
+      // Two weeks around today in the visitor's zone, past the first run, signed in with edit access.
+      const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      fake = await openFake({ ...demoStart(now(), zone), files: demoFiles(localDate(now(), zone)), edit: true });
+      if (!(await prefs.load()).storage) await prefs.save(DEMO_PREFS);
+    } else {
+      fake = await openFake();
+    }
     return {
       auth: fake.auth,
       source: fake.source,
-      prefs: new IdbPrefs(),
+      prefs,
       // The fake drive stands in for Google Drive; a folder is a real one (the e2e gives it a private folder).
       openPlace: async (kind) =>
         kind === 'local-folder' ? folderPlace(now) : { files: filesOn(fake.drive, kind, now), state: new IdbState(kind) },

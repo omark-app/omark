@@ -2,6 +2,8 @@
   import type { TimeStore } from '../lib/store.svelte.ts';
   import { viewOf, VIEWS } from '../lib/views.ts';
   import type { View } from '../lib/views.ts';
+  import { IS_DEMO } from '../env.ts';
+  import Calendar from './Calendar.svelte';
   import Charts from './Charts.svelte';
   import FixList from './FixList.svelte';
   import Hours from './Hours.svelte';
@@ -12,10 +14,13 @@
 
   /** The signed-in app: a status line, the navigation (a side bar on a computer, a bottom bar on a phone) and one view. */
   let { store }: { store: TimeStore } = $props();
-  let view = $state<View>(viewOf(location.hash));
+  /** The calendar view is the demo's only. */
+  const views = VIEWS.filter((v) => v.id !== 'calendar' || IS_DEMO);
+  const shown = (v: View): View => (views.some((x) => x.id === v) ? v : 'hours');
+  let view = $state<View>(shown(viewOf(location.hash)));
 
   function onHash() {
-    view = viewOf(location.hash);
+    view = shown(viewOf(location.hash));
     window.scrollTo(0, 0);
   }
 
@@ -42,7 +47,7 @@
 
 <div class="shell">
   <nav aria-label="Views">
-    {#each VIEWS as v (v.id)}
+    {#each views as v (v.id)}
       <a href="#/{v.id}" aria-current={view === v.id ? 'page' : undefined} aria-label={v.id === 'fix' && store.fixCount > 0 ? `${v.label}, ${store.fixCount} to fix` : v.label}>
         <span class="long">{v.label}</span><span class="short" aria-hidden="true">{v.short}</span>{#if v.id === 'fix' && store.fixCount > 0}<span class="badge" aria-hidden="true">{store.fixCount}</span>{/if}
       </a>
@@ -62,6 +67,7 @@
     {:else if view === 'fix'}<FixList {store} />
     {:else if view === 'projects'}<Projects {store} />
     {:else if view === 'report'}<Report {store} />
+    {:else if view === 'calendar'}<Calendar {store} />
     {:else}<Settings {store} />{/if}
   </div>
 </div>

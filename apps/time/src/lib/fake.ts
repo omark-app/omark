@@ -45,10 +45,13 @@ declare global {
 
 const DEMO_ZONE = 'Europe/Warsaw';
 
-/** The fake calendar, drive and sign-in, kept in IndexedDB so a reload finds them as they were. */
-export async function openFake(): Promise<Fake> {
+/**
+ * The fake calendar, drive and sign-in, kept in IndexedDB so a reload finds them as they were. `start` is what
+ * they begin with (the demo's); otherwise an e2e test's `__OMARK_TIME_SEED__`, else the demo seed.
+ */
+export async function openFake(start?: FakeSeed): Promise<Fake> {
   const store = createStore('omark-time-fake', 'fake');
-  const seed = window.__OMARK_TIME_SEED__ ?? {};
+  const seed = start ?? window.__OMARK_TIME_SEED__ ?? {};
   let saved = await get<FakeCalendarState>('calendar', store);
   if (!saved) {
     const demo = demoSeed(localDate(Date.now(), DEMO_ZONE), DEMO_ZONE);

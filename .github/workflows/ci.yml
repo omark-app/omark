@@ -7,7 +7,7 @@ name: CI
 # workflow) for when GitHub misses a push; on main that deploys staging and the demo too. The Tasks app reaches
 # production only through promote.yml; the demo has no Promote step. The site (omark.app) deploys from main via
 # site-production, and PRs get a site-preview. Omark Time has time-preview (a fake build) and time-staging, with
-# TIME_* variables; it has no production yet. (doc/TaskApp factory spec.md, section 6)
+# TIME_* variables, and time-demo from main; it has no production yet. (doc/TaskApp factory spec.md, section 6)
 on:
   pull_request:
     paths-ignore: ['doc/**', '**/*.md']
@@ -461,6 +461,78 @@ jobs:
         run: node tools/ci/check-google-signin.mjs
         env:
           SIGNIN_URL: ${{ vars.TIME_STAGING_URL }}
+  time-demo:
+    # As tasks-demo, for Omark Time at TIME_DEMO_URL (spec 12): the demo build on its own Pages project, from main.
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    needs: [check, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: time-demo
+      cancel-in-progress: false
+    steps:
+      - name: Check the repository variables
+        run: |
+          if [ -z "$CF_TIME_DEMO_PROJECT" ] || [ -z "$TIME_DEMO_URL" ]; then
+            echo "::error::Set the repository variables CF_TIME_DEMO_PROJECT and TIME_DEMO_URL (README, Environment variables)."
+            exit 1
+          fi
+        env:
+          CF_TIME_DEMO_PROJECT: ${{ vars.CF_TIME_DEMO_PROJECT }}
+          TIME_DEMO_URL: ${{ vars.TIME_DEMO_URL }}
+      - name: Skip if main has moved on
+        # As in tasks-demo (#81): only main's tip deploys; newer commits that touch only docs don't count.
+        id: tip
+        run: |
+          newer=$(gh api "repos/$REPO/compare/$GITHUB_SHA...main" --jq '[(.files // [])[].filename | select(test("^doc/|[.]md$") | not)] | length')
+          if [ "$newer" = 0 ]; then
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::main has newer changes, so its own run deploys. Skipping $GITHUB_SHA."
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+      - if: steps.tip.outputs.latest == 'true'
+        uses: actions/checkout@v4
+      - if: steps.tip.outputs.latest == 'true'
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - if: steps.tip.outputs.latest == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - if: steps.tip.outputs.latest == 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.tip.outputs.latest == 'true'
+        run: pnpm --filter time build
+        env:
+          VITE_STORAGE: demo
+          VITE_REAL_USE_URL: ${{ vars.TASKS_REAL_USE_URL }}
+          BUILD_NUMBER: ${{ github.run_number }}
+      # The project only: its custom domain and DNS record were set up once by hand.
+      - if: steps.tip.outputs.latest == 'true'
+        name: Make sure the demo project exists
+        run: node tools/ci/ensure-pages-project.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_PROJECT: ${{ vars.CF_TIME_DEMO_PROJECT }}
+      # Run from apps/time, so wrangler leaves out functions/: the demo has no sign-in helper.
+      - if: steps.tip.outputs.latest == 'true'
+        name: Deploy the demo
+        working-directory: apps/time
+        run: ../../node_modules/.bin/wrangler pages deploy dist --project-name="$CF_TIME_DEMO_PROJECT" --branch=main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_TIME_DEMO_PROJECT: ${{ vars.CF_TIME_DEMO_PROJECT }}
+      - if: steps.tip.outputs.latest == 'true'
+        name: Check the demo is live, without the sign-in helper
+        run: node tools/ci/check-demo.mjs
+        env:
+          DEMO_URL: ${{ vars.TIME_DEMO_URL }}
   site-preview:
     # The omark.app landing site (apps/site). Same-repo PRs only, like tasks-preview, and only when the PR touches
     # the site or what it shares (the design tokens, the lockfile): other PRs skip every step after the check.

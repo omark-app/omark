@@ -2,7 +2,14 @@
   import type { TimeStore } from './lib/store.svelte.ts';
   import FirstRun from './components/FirstRun.svelte';
   import Shell from './components/Shell.svelte';
-  import { BUILD_ID, BUILD_NUMBER, STORAGE_MODE } from './env.ts';
+  import { BUILD_ID, BUILD_NUMBER, IS_DEMO, REAL_USE_URL, STORAGE_MODE } from './env.ts';
+  import { resetDemo } from './lib/demo.ts';
+
+  async function reset() {
+    if (!window.confirm('Reset the demo? Your demo changes are lost.')) return;
+    await resetDemo();
+    location.reload();
+  }
 
   let { store }: { store: TimeStore } = $props();
 </script>
@@ -38,7 +45,14 @@
 </main>
 
 <footer class="muted">
-  {STORAGE_MODE === 'fake' ? 'PREVIEW · fake calendar · ' : ''}v{BUILD_NUMBER ?? '?'} ({BUILD_ID})
+  {#if IS_DEMO}
+    <strong>DEMO</strong> · a sample calendar kept in this browser ·
+    <button class="link" onclick={reset}>Reset demo</button> ·
+    <a href={REAL_USE_URL}>Use it for real</a> ·
+  {:else if STORAGE_MODE === 'fake'}
+    PREVIEW · fake calendar ·
+  {/if}
+  v{BUILD_NUMBER ?? '?'} ({BUILD_ID})
 </footer>
 
 <style>
@@ -51,6 +65,18 @@
   h1 {
     font-size: 20px;
     margin: 0;
+  }
+  footer .link {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--accent);
+    text-decoration: underline;
+    cursor: pointer;
+    font: inherit;
+  }
+  footer a {
+    color: var(--accent);
   }
   footer {
     margin-top: 32px;

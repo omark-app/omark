@@ -2,6 +2,7 @@
   import { isRealDate } from '@omark/time-core';
   import type { WeekStart } from '@omark/time-core';
   import type { TimeStore } from '../lib/store.svelte.ts';
+  import { IS_DEMO } from '../env.ts';
   import { tasksSettingsUrl } from '../lib/views.ts';
 
   /**
@@ -40,11 +41,11 @@
 
 <section class="card">
   <h2>Your files</h2>
-  <p class="muted small" data-testid="storage">In {store.storageName}</p>
+  <p class="muted small" data-testid="storage">{IS_DEMO ? 'In this browser: the demo keeps its files here' : `In ${store.storageName}`}</p>
   <p data-testid="rows">{store.rows} {store.rows === 1 ? 'row' : 'rows'} of tracked time</p>
   <div class="row">
     <button class="secondary" disabled={store.sync === 'syncing'} onclick={() => store.rebuild()}>Rebuild</button>
-    <button class="secondary" onclick={() => store.signOut()}>Sign out</button>
+    {#if !IS_DEMO}<button class="secondary" onclick={() => store.signOut()}>Sign out</button>{/if}
   </div>
   <p class="muted small">Rebuild reads your whole calendar again and rewrites the hour files.</p>
 </section>

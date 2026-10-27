@@ -1,7 +1,7 @@
 import { isRealDate, keyOf } from '@omark/time-core';
 import type { DateRange, Project } from '@omark/time-core';
 
-export type View = 'hours' | 'charts' | 'fix' | 'projects' | 'report' | 'settings';
+export type View = 'hours' | 'charts' | 'fix' | 'projects' | 'report' | 'settings' | 'calendar';
 
 /** The views, in the order the navigation shows them; the hash is `#/<id>`. `short` fits a phone's bottom bar. */
 export const VIEWS: readonly { id: View; label: string; short: string }[] = [
@@ -11,6 +11,8 @@ export const VIEWS: readonly { id: View; label: string; short: string }[] = [
   { id: 'projects', label: 'Projects', short: 'Projects' },
   { id: 'report', label: 'Report', short: 'Report' },
   { id: 'settings', label: 'Settings', short: 'Settings' },
+  // The demo only: with no Google Calendar to look at, it shows the colours itself (spec 12).
+  { id: 'calendar', label: 'Calendar', short: 'Calendar' },
 ];
 
 /** The view a `location.hash` names; hours for anything else. */

@@ -17,3 +17,8 @@ declare const __BUILD_NUMBER__: number | null | undefined;
 /** Short commit hash of this build (`dev` when unknown), and the CI run number that made it. */
 export const BUILD_ID: string = typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev';
 export const BUILD_NUMBER: number | null = typeof __BUILD_NUMBER__ === 'number' ? __BUILD_NUMBER__ : null;
+
+/** The public demo (`VITE_STORAGE=demo`): a fake calendar in this browser, no sign-in (spec 12). */
+export const IS_DEMO: boolean = STORAGE_MODE === 'demo';
+/** Where the demo's "Use it for real" link goes (`VITE_REAL_USE_URL`); omark.app when unset. */
+export const REAL_USE_URL: string = (import.meta.env.VITE_REAL_USE_URL ?? '').trim() || 'https://omark.app';

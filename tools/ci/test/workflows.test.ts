@@ -54,7 +54,7 @@ describe('workflows', () => {
       );
     const all = builds('ci.yml');
     expect(all.map((b) => b.name).sort()).toEqual([
-      'site-preview', 'site-production', 'tasks-demo', 'tasks-preview', 'tasks-staging', 'time-preview', 'time-staging',
+      'site-preview', 'site-production', 'tasks-demo', 'tasks-preview', 'tasks-staging', 'time-demo', 'time-preview', 'time-staging',
     ]);
     const ci = all.filter((b) => !b.name.startsWith('site-'));
     // The job's name starts with its app's: site-*, tasks-*, time-*.
@@ -111,6 +111,7 @@ describe('workflows', () => {
       ['ci.yml', 'site-preview', ['CF_SITE_PROJECT']],
       ['ci.yml', 'time-staging', ['CF_TIME_STAGING_PROJECT', 'TIME_STAGING_HOST', 'TIME_STAGING_URL']],
       ['ci.yml', 'time-preview', ['CF_TIME_STAGING_PROJECT']],
+      ['ci.yml', 'time-demo', ['CF_TIME_DEMO_PROJECT', 'TIME_DEMO_URL']],
     ];
     for (const [f, job, vars] of expected) {
       const step = first(f, job);
@@ -130,7 +131,7 @@ describe('workflows', () => {
       'TASKS_PROD_FOLDER', 'TASKS_STAGING_FOLDER', 'TASKS_PREVIEW_HOST_SUFFIXES',
       'TASKS_ONEDRIVE_SCOPE', 'TASKS_MSAL_TENANT',
       'CF_TASKS_DEMO_PROJECT', 'TASKS_DEMO_URL', 'TASKS_REAL_USE_URL', 'CF_SITE_PROJECT', 'SITE_URL',
-      'CF_TIME_STAGING_PROJECT', 'TIME_STAGING_HOST', 'TIME_STAGING_URL',
+      'CF_TIME_STAGING_PROJECT', 'TIME_STAGING_HOST', 'TIME_STAGING_URL', 'CF_TIME_DEMO_PROJECT', 'TIME_DEMO_URL',
     ];
     const used = new Set(FILES.flatMap((f) => [...text(f).matchAll(/\bvars\.(\w+)/g)].map((m) => m[1]!)));
     expect(used.size).toBeGreaterThan(1);
@@ -266,14 +267,14 @@ describe('workflows', () => {
   });
 
   it('deploys staging, the demo and the site only after check and every e2e job', () => {
-    for (const name of ['tasks-staging', 'tasks-demo', 'site-production', 'time-staging']) {
+    for (const name of ['tasks-staging', 'tasks-demo', 'site-production', 'time-staging', 'time-demo']) {
       expect(jobsOf('ci.yml').find(([n]) => n === name)![1].needs, name).toEqual(['check', 'e2e']);
     }
   });
 
   it('deploys from main only while its commit is still main’s tip (#81)', () => {
     // A run whose e2e finished later must not overwrite a newer commit's deploy; the newer run deploys itself.
-    for (const name of ['tasks-staging', 'tasks-demo', 'site-production', 'time-staging']) {
+    for (const name of ['tasks-staging', 'tasks-demo', 'site-production', 'time-staging', 'time-demo']) {
       const steps = jobsOf('ci.yml').find(([n]) => n === name)![1].steps!;
       const i = steps.findIndex((s) => s.id === 'tip');
       // Right after the variables check, before anything is built or deployed.
@@ -310,7 +311,7 @@ describe('workflows', () => {
 
   it('gives every job a time limit', () => {
     const limits = Object.fromEntries(FILES.flatMap((f) => jobsOf(f).map(([n, j]) => [n, j['timeout-minutes']])));
-    expect(limits).toEqual({ check: 10, 'stop-on-check-failure': 5, e2e: 20, 'tasks-preview': 15, 'tasks-staging': 15, 'tasks-demo': 15, 'site-preview': 15, 'site-production': 15, 'time-preview': 15, 'time-staging': 15, promote: 15 });
+    expect(limits).toEqual({ check: 10, 'stop-on-check-failure': 5, e2e: 20, 'tasks-preview': 15, 'tasks-staging': 15, 'tasks-demo': 15, 'site-preview': 15, 'site-production': 15, 'time-preview': 15, 'time-staging': 15, 'time-demo': 15, promote: 15 });
   });
 
   it('site jobs deploy only apps/site', () => {
@@ -346,6 +347,26 @@ describe('workflows', () => {
     const names = (app: string) =>
       [...readFileSync(new URL(`../../../apps/${app}/playwright.config.ts`, import.meta.url), 'utf8').matchAll(/\{ name: '(\w+)'/g)].map((m) => m[1]);
     expect(names('time')).toEqual(names('tasks'));
+  });
+
+  it('deploys the Time demo build from apps/time, so functions/ (the sign-in helper) is left out', () => {
+    const wf = parse(text('ci.yml')) as { jobs: Record<string, Job & { concurrency?: unknown }> };
+    const demo = wf.jobs['time-demo']!;
+    expect(demo.concurrency).toEqual({ group: 'time-demo', 'cancel-in-progress': false });
+    const steps = demo.steps!;
+    expect(steps.find((s) => s.run === 'pnpm --filter time build')!.env).toEqual({
+      VITE_STORAGE: 'demo',
+      VITE_REAL_USE_URL: '${{ vars.TASKS_REAL_USE_URL }}',
+      BUILD_NUMBER: '${{ github.run_number }}',
+    });
+    const deploys = steps.filter((s) => s.run?.includes('wrangler pages deploy'));
+    expect(deploys).toHaveLength(1);
+    expect(deploys[0]!['working-directory']).toBe('apps/time');
+    expect(deploys[0]!.run).toBe('../../node_modules/.bin/wrangler pages deploy dist --project-name="$CF_TIME_DEMO_PROJECT" --branch=main');
+    expect(steps.some((s) => s.uses?.startsWith('cloudflare/wrangler-action@'))).toBe(false);
+    const check = steps.find((s) => s.run === 'node tools/ci/check-demo.mjs')!;
+    expect(check.env).toEqual({ DEMO_URL: '${{ vars.TIME_DEMO_URL }}' });
+    expect(steps.indexOf(check)).toBeGreaterThan(steps.indexOf(deploys[0]!));
   });
 
   it('builds Time previews as fake builds, and deploys Time from the repo root so its sign-in helper ships', () => {
