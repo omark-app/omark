@@ -2,7 +2,7 @@ import { BRAND } from '../brand.ts';
 import type { StorageMode } from '../storage-mode.ts';
 
 /**
- * Which environment this page runs in, from its host name (doc/TaskApp factory spec.md, 6.1). The hosts and
+ * Which environment this page runs in, from its host name (doc/factory.md, Environments and CI). The hosts and
  * folders come from build variables (VITE_PROD_HOST and so on); with none set, every host is local. Staging
  * and production run the same build, so the host, not a build variable, picks the OneDrive folder and the look.
  */
