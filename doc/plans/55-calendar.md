@@ -27,10 +27,10 @@ Part 1 (#55):
 - [ ] The fake's state survives `toJSON` / `fromJSON` (the demo keeps it in IndexedDB).
 
 Part 2 (#56):
-- [ ] `GoogleCalendarSource` passes `calendarContract` against the Google emulation.
-- [ ] A colour patch is `PATCH …/events/{id}?sendUpdates=none` with a body of only `colorId` and `extendedProperties.private.omarkTime`.
-- [ ] 429 and 403 rate-limit answers back off and retry; 403 for missing scopes raises `EditAccessRequiredError`; 410 raises `SyncTokenExpiredError`; 401 retries once with a fresh token.
-- [ ] Manual: on `hello@omark.app`'s "Omark Test" calendar, a full read, an incremental read after an edit, and a colour set and clear behave as in the emulation.
+- [x] `GoogleCalendarSource` passes `calendarContract` against the Google emulation.
+- [x] A colour patch is `PATCH …/events/{id}?sendUpdates=none` with a body of only `colorId` and `extendedProperties.private.omarkTime`.
+- [x] 429 and 403 rate-limit answers back off and retry; 403 for missing scopes raises `EditAccessRequiredError`; 410 raises `SyncTokenExpiredError`; 401 retries once with a fresh token.
+- [x] Manual: on `hello@omark.app`'s "Omark Test" calendar, a full read, an incremental read after an edit, and a colour set and clear behave as in the emulation.
 
 ## Global Constraints
 

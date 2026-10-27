@@ -419,6 +419,9 @@ Run against `hello@omark.app` (the Omark account, standing in for the test accou
 | Adding edit access later | A second consent with `include_granted_scopes=true` returns a new refresh token with all scopes. The first refresh token still works but stays read-only; asking it for `calendar.events.owned` fails with `invalid_scope` (section 10.2). |
 | Sync token and a window | A sync token with `timeMin` is refused (400 "Sync token cannot be used with other request restrictions"). |
 | Primary time zone | `calendarList/primary` gives `timeZone` (and `accessRole` = `owner`) with `calendar.calendarlist.readonly`. |
+| Clearing a colour (#56, 2026-10-27) | A PATCH with `colorId: null` and `extendedProperties.private.omarkTime: null` removes both; another key under `private` stays. Run on "Omark Test" with `packages/calendar`'s `check:google`. |
+| Incremental read after a patch (#56) | Usually only the patched event. Once, the first read after colouring one instance of a series returned the whole series, a cancelled instance included, so the sync must take more than it asked for. |
+| `timeMin` / `timeMax` format (#56) | Google answers 400 to a time without seconds (`2026-10-28T12:00+01:00`); the source sends UTC with seconds. |
 | Scope classes | In the Console: `calendar.calendarlist.readonly`, `drive.file`, `openid`, `email` non-sensitive; `calendar.events.owned` and `calendar.events.owned.readonly` sensitive. |
 
 Open for the build: how far ahead Google expands a series with no end when it is renamed (the window filter handles the rows, but the read may be large).

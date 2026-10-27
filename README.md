@@ -1,167 +1,70 @@
-# TaskApp
+# Omark
 
-A small task app that keeps your tasks in plain Markdown files on your own OneDrive (`tasks.md`, `done.md`, `config.yaml`). It is a Svelte 5 + TypeScript PWA with a list view and a week board, works offline, and the files stay editable in Obsidian or by Claude Code.
+Small tools that keep your work in plain files you own.
 
-Monorepo: `packages/tasks-core` (parsing and logic), `packages/settings` (the schema-driven Settings page), `packages/storage` (OneDrive, Google Drive and the sign-in client), `packages/signin` (the sign-in helper, served from `functions/` as Cloudflare Pages Functions), `apps/tasks` (the Tasks app), `apps/site` (the omark.app landing page, privacy policy and terms), `tools/todoist-import`, `tools/claude-guard` (the guard hook), `tools/ci` (CI helper scripts).
+Omark is a set of open source apps for people and their AI agents. **Omark Tasks** keeps your tasks in three Markdown files in your own OneDrive or Google Drive: one calm page with today, this week and later, quick add, repeating tasks and habits. The files stay editable in Obsidian, any text editor, or by an AI agent such as Claude Code. **Omark Time** (in progress) turns calendar events titled `CODE; Category; description` into hours per project, in CSV files you own. No Omark server ever stores your data.
 
-Settings: the gear in the footer, or the `,` key, opens a Settings page that edits `config.yaml`. It writes only the keys that differ from the defaults and keeps your comments. The page is the shared `@omark/settings` package ([how to use it](packages/settings/README.md)).
+![Omark Tasks: today, this week and later on one page, with important tasks on the right](apps/site/src/img/tasks-light.webp)
 
-Work on the app runs through GitHub issues and pull requests, mostly done by Claude in cloud sessions: see `CLAUDE.md` and [the factory spec](doc/TaskApp%20factory%20spec.md).
+## Use it
 
-## Habits
+- **Try the demo:** https://demo-tasks.omark.app. Sample tasks, no sign-in; edits stay in your browser.
+- **Use the hosted app** (coming soon at `tasks.omark.app`): sign in with Microsoft or Google, and your files live in your OneDrive or Google Drive. The sign-in helper keeps nothing on the server ([SECURITY.md](SECURITY.md)).
+- **Use a local folder** (coming soon): in desktop Chrome or Edge, pick a folder and skip the account entirely. Sync it with whatever you already use.
+- **Host your own copy:** [doc/self-hosting.md](doc/self-hosting.md) has the environment variables, sign-in setup, deploys and Promote that this README used to hold.
 
-A task with `🌱` and a `🔁` rule (not `when done`) is a habit: `- [ ] Meditate 10 min 🌱 🔁 every day`. `🌱 30` sets its own goal. The app counts repetitions from `done.md` and shows the count (`12/66`); after the goal (default 66) it counts as formed and moves to History as a `🏆` line in `done.md`. Too many misses restart the count; dropping a habit writes a `- [-] … ❌` line. Press `h` or type `hab` to make one. The `habits` block in `config.yaml` sets the goal, the misses allowed and the limit of habits in progress (3). Details: [the habits spec](doc/TaskApp%20habits%20spec.md).
+Each app installs like any other: on the iPhone, Safari → Share → Add to Home Screen; in Chrome or Edge, the install icon in the address bar. Both work offline. On the iPhone, sign in inside the home-screen app itself: it has its own cookies, separate from Safari.
 
-## Setup
+## Quick start
 
-Node 22 or newer and pnpm 10, then `pnpm i`.
-
-## Environment variables
-
-`.env.example` at the repo root lists every variable below (a test keeps it complete).
-
-| name | used for |
-| --- | --- |
-| `VITE_STORAGE` | `onedrive` (default), `demo` (sample tasks kept in this browser's IndexedDB, no sign-in; Reset demo in the footer) or `fake` (in-memory drive, used by the tests) |
-| `VITE_REAL_USE_URL` | where the demo's "Use it for real" link goes; default `https://omark.app` |
-| `VITE_GOOGLE_FOLDER` | the Google Drive folder (in My Drive) for preview and local builds; default `Omark Tasks Dev`. Production uses `Omark Tasks` and staging `Omark Tasks Staging`, chosen by host |
-| `VITE_ONEDRIVE_FOLDER` | OneDrive folder holding the files; default `''` (the app folder's root) |
-| `VITE_PROD_HOST`, `VITE_STAGING_HOST` | the hosts that are production and staging; with neither set every host is `local` |
-| `VITE_PREVIEW_HOST_SUFFIXES` | comma-separated host suffixes that are previews (a host matches itself or any subdomain) |
-| `VITE_PROD_FOLDER`, `VITE_STAGING_FOLDER` | the OneDrive folders production and staging read |
-| `VITE_ONEDRIVE_SCOPE` | `full` asks for the whole drive; anything else (the default) is the app folder |
-| `ONEDRIVE_SCOPE`, `MSAL_TENANT` | Pages secrets, optional. `full` makes the sign-in helper ask for `Files.ReadWrite`, else `Files.ReadWrite.AppFolder` (default `appfolder`); the Entra tenant to sign in through (default `consumers`). They must match the build: CI fails the deploy when the helper grants another scope |
-| Repository variables | read by the workflows (Settings → Secrets and variables → Actions → Variables): `DEPLOY_ENABLED` (`true` turns on every deploy job), and per app, named after it (`TASKS_*` for Tasks): `CF_TASKS_STAGING_PROJECT`, `CF_TASKS_PROD_PROJECT` (Cloudflare Pages projects), `TASKS_STAGING_URL`, `TASKS_PROD_URL` (sign-in checks), `TASKS_STAGING_DOMAIN` with `CF_TASKS_ZONE_ID` (optional: staging's custom domain and DNS), `CF_TASKS_DEMO_PROJECT` and `TASKS_DEMO_URL` (the demo's Pages project and address, checked after each deploy), `TASKS_REAL_USE_URL` (becomes `VITE_REAL_USE_URL` in the demo and preview builds), and `TASKS_PROD_HOST`, `TASKS_STAGING_HOST`, `TASKS_PREVIEW_HOST_SUFFIXES`, `TASKS_PROD_FOLDER`, `TASKS_STAGING_FOLDER`, `TASKS_ONEDRIVE_SCOPE`, `TASKS_MSAL_TENANT`, which become the `VITE_*` build variables and the sign-in check. The site has two: `CF_SITE_PROJECT` (its Pages project, `omark-site`) and `SITE_URL` (`https://omark.app`, for the check after a deploy). Forks have no secrets, so for them only the checks and e2e run |
-| `OMARK_APP` | Pages variable, one per app's Pages project: which app the sign-in helper serves; unset means `tasks` |
-| `MSAL_CLIENT_ID`, `MSAL_CLIENT_SECRET`, `COOKIE_KEY` | the sign-in helper's secrets: Entra app (client) ID, its client secret, and 32 random bytes (base64) that encrypt the session cookie. Set on Cloudflare Pages with `wrangler pages secret put` (see Sign-in); for local runs put them in `.dev.vars` at the repo root (git-ignored), one `NAME=value` per line |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Pages secrets, optional: the Google OAuth client for the sign-in helper. Only a Pages project that has both lists Google at `/api/auth/providers`, so only there the app offers "Sign in with Google" (production has neither). For local runs put them in `.dev.vars` too |
-| `TODOIST_TOKEN` | Todoist API token for the import; read from the environment, never written anywhere |
-| `TASKAPP_E2E_STATE` | where the real-OneDrive smoke keeps its signed-in browser state; default `C:\Users\<you>\.secrets\taskapp-e2e-state.json` (outside the repo, it holds tokens) |
-| `TASKAPP_E2E_FOLDER` | the folder the real-OneDrive smoke uses, inside the app folder; default `TaskApp-e2e` |
-
-## One-time setup already done
-
-- Entra app registration "TaskApp" (client ID `1fa03c5b-4275-490e-8e71-2aa7a405e310`) in my own tenant, personal Microsoft accounts only. It was registered as a single-page app with redirect URIs `https://tasks.alipka.com/` and `http://localhost:5173/`; the sign-in helper needs a **Web** platform as well (see Sign-in). Scopes used: `Files.ReadWrite.AppFolder offline_access` by default, `Files.ReadWrite offline_access` for the whole drive with `ONEDRIVE_SCOPE=full` (plus `openid profile` at sign-in, for the account name).
-- Cloudflare Pages project `taskapp` with the custom domain `tasks.alipka.com` (production), and `taskapp-staging` with `tasks-staging.alipka.com` (staging and PR previews; CI creates it if missing, `tools/ci/ensure-pages-project.mjs`). The demo has its own project, `omark-tasks-demo`, with the custom domain `demo-tasks.omark.app`; its domain and DNS record were set up by hand, and CI only makes sure the project exists. GitHub Actions deploys all three using the repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
-
-## Sign-in
-
-The app signs in with your personal Microsoft account through a small sign-in helper on its own origin (`/api/auth/*`, Cloudflare Pages Functions in `functions/`, code in `packages/signin`). The helper signs in as a confidential web app, so Microsoft's refresh token lasts 90 days instead of a single-page app's 24 hours; it is kept in an encrypted HttpOnly cookie that only `/api/auth/token` receives, and every refresh replaces it and restarts the 90 days. The app only ever sees short-lived Graph access tokens. Nothing is stored on the server. So each device signs in once and stays signed in as long as the app is opened at least every 90 days (or until the Microsoft password changes or the app's access is revoked). Edits made while signed out stay in the browser's offline copy and are uploaded after you sign in.
-
-| endpoint | what it does |
-| --- | --- |
-| `GET /api/auth/providers` | `{ providers: [...] }`, the providers whose secrets are set, in order; the sign-in screen offers these |
-| `GET /api/auth/login` | redirects to Microsoft (authorization code + PKCE, `login_hint` from the last sign-in); state and verifier wait in a 10-minute encrypted cookie |
-| `GET /api/auth/login?provider=google` | the same for Google (`microsoft` is the default without `provider`) |
-| `GET /api/auth/callback` | checks the state, redeems the code with the client secret, sets the session cookie, returns to `/` (on failure `/?signin_error=…`, which the app shows) |
-| `POST /api/auth/token` | `{ accessToken, expiresAt }`, rotating the session cookie; 401 `{ signin: true }` means sign in again, 503 means the provider could not be reached |
-| `POST /api/auth/logout` | deletes the cookies |
-
-The POST endpoints need the header `X-TaskApp-Auth: 1` and an `Origin` of the app itself.
-
-### Google as a second provider
-
-The helper serves more than one provider per app. Tasks offers `microsoft` (the default) and `google`, with the scope `https://www.googleapis.com/auth/drive.file` (the app sees only files it created; `openid email` is added at sign-in). `GET /api/auth/login?provider=google` starts a Google sign-in; `GET /api/auth/providers` returns `{ providers: [...] }` and lists only the providers whose secrets are set, which is how the app decides whether to show "Sign in with Google". The Google session lasts 180 days, rolling. Google's consent screen starts with the Drive box unticked, so a sign-in without it is refused (`signin_error=scope`). The readable cookie `taskapp_signed_in` holds the provider id (the old value `1` means Microsoft). Google Drive keeps the files in one My Drive folder (`Omark Tasks`, `Omark Tasks Staging` on staging).
-
-To set up a Google client (OAuth client type "Web application"):
-
-1. Redirect URIs: `https://<host>/api/auth/callback` for each host that offers Google, and `http://localhost:8788/api/auth/callback` for local runs. `wrangler pages dev` listens on 8788 by default, but `pnpm dev:signin` passes `--port 5173`, so for it add `http://localhost:5173/api/auth/callback` as well.
-2. Set the secrets from the client's JSON file without printing it (the file has the `web` object; adjust the path and project):
-
-   ```
-   node -p "require('./google-client.json').web.client_id" | pnpm exec wrangler pages secret put GOOGLE_CLIENT_ID --project-name=taskapp-staging
-   node -p "require('./google-client.json').web.client_secret" | pnpm exec wrangler pages secret put GOOGLE_CLIENT_SECRET --project-name=taskapp-staging
-   ```
-
-   `COOKIE_KEY` is shared with Microsoft (step 3 below). Secrets apply to the next deployment.
-
-### Before the first deploy with the sign-in helper
-
-Do these before merging to `main` (the merge deploys to production, and the app cannot sign in until all of it is done):
-
-1. **Entra portal.** Open it tenant-scoped at https://portal.azure.com/47bed4a7-e649-443a-b055-b54d901df272 (plain entra.microsoft.com opens the wrong tenant). App registrations → TaskApp → Authentication → Add a platform → **Web**, redirect URI `https://tasks.alipka.com/api/auth/callback`. Leave the implicit-grant boxes unticked. For the real-OneDrive smoke, add `http://localhost:5173/api/auth/callback` to the same Web platform. Do not add `https://taskapp-64g.pages.dev/api/auth/callback`: the app is used at tasks.alipka.com, every origin has its own cookies and offline copy, so signing in on pages.dev would only make a second, separate copy, and each extra redirect URI is one more place a sign-in code can be sent. Add it later only if pages.dev ever has to stand in for the custom domain.
-2. Still in TaskApp: Certificates & secrets → Client secrets → New client secret, description `taskapp pages`, expires **24 months**. Copy the **Value** (not the Secret ID) at once; it is shown only once. Put a reminder in your calendar about a month before it expires (see below).
-3. **Pages secrets.** From any checkout with `pnpm i` done, logged in with `pnpm exec wrangler login` (or with `CLOUDFLARE_API_TOKEN` set):
-
-   ```
-   pnpm exec wrangler pages secret put MSAL_CLIENT_ID --project-name=taskapp
-   # paste 1fa03c5b-4275-490e-8e71-2aa7a405e310
-   pnpm exec wrangler pages secret put MSAL_CLIENT_SECRET --project-name=taskapp
-   # paste the secret Value from step 2
-   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-   pnpm exec wrangler pages secret put COOKIE_KEY --project-name=taskapp
-   # paste the 44-character line it printed
-   pnpm exec wrangler pages secret list --project-name=taskapp
-   ```
-
-   These go to the production environment, which is what `--branch=main` deploys. Secrets apply to deployments made after they are set, so set them before merging. Keep no copy of `COOKIE_KEY`; it never needs to be read back.
-4. **Merge.** CI deploys, then checks that `https://tasks.alipka.com/api/auth/login` redirects to Microsoft; if that step fails, a secret is missing or the functions did not ship.
-5. **Each device signs in once:** open the app, "Sign in with Microsoft". On the iPhone, open the home-screen app itself and sign in there (it has its own cookies, separate from Safari).
-
-The SPA platform with `https://tasks.alipka.com/` and `http://localhost:5173/` can stay registered: the helper never uses it, and keeping it lets a rollback to an MSAL build still sign in. Remove it once the helper has run for a while, so the registration no longer allows a browser-only sign-in with 24-hour tokens. The old MSAL cache in localStorage needs no clearing by hand: the new build deletes its `msal.` entries on first start.
-
-### Later
-
-- **Staging** signs in the same way, on its own origin, with its own Web redirect URI `https://tasks-staging.alipka.com/api/auth/callback`, its own client secret (`taskapp staging`) and its own three Pages secrets on `taskapp-staging` (step 3 with `--project-name=taskapp-staging`). Its CI deploy checks `https://tasks-staging.alipka.com/api/auth/login` the same way.
-- **Client secret expiry.** When the secret expires, the token refresh fails with `invalid_client`: the app reads "offline" and the Pages Functions log shows `invalid_client`. Make a new secret (step 2), set it (step 3, `MSAL_CLIENT_SECRET` only) and redeploy (run Promote to production again with the current `tasks-prod-` tag; for staging, re-run the last `main` CI run); nobody needs to sign in again.
-- **Changing `COOKIE_KEY`** signs every device out.
-- **Signing out** a device: `fetch('/api/auth/logout', { method: 'POST', headers: { 'X-TaskApp-Auth': '1' } })` in its console, or clear the site's cookies.
-- **Local sign-in:** `pnpm dev:signin` builds the app and serves it with the helper on http://localhost:5173 (`wrangler pages dev`, secrets from `.dev.vars`, and the localhost Web redirect URI from step 1). `pnpm dev` (plain Vite) has no `/api/auth`: it runs the demo (`apps/tasks/.env.development`), which needs no sign-in.
-
-## Commands
-
-| command | what it does |
-| --- | --- |
-| `pnpm demo` (or `pnpm dev`) | dev server on http://localhost:5173 with the demo: sample tasks, no sign-in. For OneDrive instead, put `VITE_STORAGE=onedrive` in `apps/tasks/.env.development.local` (or set it in the shell), and use `pnpm dev:signin` to sign in |
-| `pnpm dev:signin` | build and serve the app with the sign-in helper on http://localhost:5173 (needs `.dev.vars`) |
-| `pnpm test` | unit tests |
-| `pnpm typecheck` | type checks |
-| `pnpm e2e` | browser tests on a fake drive |
-| `pnpm e2e:real:login` | once: opens a browser, you sign in, the state is saved to `TASKAPP_E2E_STATE` |
-| `pnpm e2e:real` | smoke test on the real OneDrive, folder `TaskApp-e2e` inside the app folder; by hand only, never in CI |
-
-## Deploy
-
-| | when | where | data |
-| --- | --- | --- | --- |
-| Preview | every push to a PR from this repository, once `DEPLOY_ENABLED` is `true` | `pr-<n>.taskapp-staging…pages.dev`, linked in a PR comment | the demo build: sample tasks kept in this browser, no sign-in, "PREVIEW" and Reset demo in the footer |
-| Staging | every merge to `main`, once `DEPLOY_ENABLED` is `true` | https://tasks-staging.alipka.com | OneDrive `ALAI/TaskApp-staging`, "STAGING" in the footer |
-| Production | by hand, once `DEPLOY_ENABLED` is `true`: Actions → **Promote to production** → Run workflow | https://tasks.alipka.com | OneDrive `ALAI/TaskApp` |
-| Demo | every merge to `main`, with staging, once `DEPLOY_ENABLED` is `true`; no Promote step | https://demo-tasks.omark.app (Pages project `omark-tasks-demo`) | sample tasks kept in the visitor's browser, no sign-in, "DEMO", Reset demo and "Use it for real" in the footer |
-
-Staging and production run the same build: the app picks its OneDrive folder and look from the host name (`apps/tasks/src/lib/environment.ts`). Promote takes a commit (empty = what staging runs now), refuses it unless it is on `main` with a passing CI run, deploys the build staging ran (or rebuilds it once that build has expired after 30 days), and tags it `tasks-prod-YYYY-MM-DD-n` with a release listing the PRs merged since the last one. Promote asks which app; only `tasks` exists so far.
-
-The demo is its own build (`VITE_STORAGE=demo`), deployed by the `tasks-demo` CI job from `apps/tasks`, so the sign-in helper in `functions/` is not deployed with it and the demo has no `/api/auth`. After each deploy CI checks that the demo page loads and that the sign-in helper is not there (`tools/ci/check-demo.mjs`).
-
-The Pages Function in `functions/` serves every app. It picks the app from the Pages variable `OMARK_APP`; unset means `tasks`. Each app's Pages project sets its own value.
-
-**Rollback:** run Promote with an older `tasks-prod-` tag, or a `prod-` tag from before the monorepo move. Cloudflare's dashboard rollback also works.
-
-**Refresh staging:** copy the files from `ALAI/TaskApp` over `ALAI/TaskApp-staging` on the PC.
-
-## Real-OneDrive smoke
-
-`pnpm e2e:real` covers Microsoft only. Google Drive is checked by hand on staging: sign in with Google (Drive box ticked), add a task, look in `My Drive/Omark Tasks Staging`, then edit `tasks.md` through Google Drive for desktop and check the app merges it.
-
-`pnpm e2e:real` builds the app with `VITE_STORAGE=onedrive` and `VITE_ONEDRIVE_FOLDER=TaskApp-e2e` (inside the app folder), serves it with the sign-in helper on http://localhost:5173 (`wrangler pages dev`, secrets from `.dev.vars` at the repo root; stop `pnpm dev` first, the port must be free), adds and completes one task and adds and deletes another, and reads `tasks.md` and `done.md` back through Graph. It removes its own lines afterwards. The saved sign-in (the helper's cookies) lasts 90 days from its last use. The smoke leaves the `TaskApp-e2e` folder and its files behind (only the task lines are removed). Without the saved state it stops with a message to run `pnpm e2e:real:login`. The first run after the move to the app folder needs `pnpm e2e:real:login` again, because the sign-in asks for new consent.
-
-Real-OneDrive smoke last passed: (not yet run)
-
-## Todoist import
-
-One-time import of open tasks into `tasks.md`:
+You need Node 22 or newer and pnpm 10.
 
 ```
-pnpm --filter todoist-import start -- --out <path> [--force]
+git clone https://github.com/omark-app/omark.git
+cd omark
+pnpm i
+pnpm demo
 ```
 
-The token is read from `TODOIST_TOKEN`. Review the warnings it prints.
+This opens Omark Tasks on http://localhost:5173 with sample tasks and no sign-in. [CONTRIBUTING.md](CONTRIBUTING.md) has the tests and how to send a change.
 
-## Claude Code skill
+## Your files
 
-The repo ships a skill, `.claude/skills/taskapp-files/`, that teaches Claude Code the formats of `tasks.md`, `done.md` and `config.yaml`. Inside this repo Claude Code picks it up automatically. To use it from any project, copy the folder into your personal skills directory:
+```markdown
+# Tasks
+- [ ] Inbox zero by Friday ⏫
+- [ ] Pay rent 🔁 every month on the 1st 📅 2026-11-01
+    - transfer from savings
+- [ ] Meditate 10 min 🌱 🔁 every day 📅 2026-10-27
+```
 
-- macOS / Linux: copy `.claude/skills/taskapp-files/` to `~/.claude/skills/taskapp-files/`
-- Windows: copy it to `C:\Users\<you>\.claude\skills\taskapp-files\`
+- `tasks.md` holds your open tasks, `done.md` a log of everything you completed, `config.yaml` your settings. Completing a task moves it to `done.md` with its notes; nothing is lost.
+- The format is compatible with the Obsidian Tasks emoji format, and documented as an open standard in [doc/format.md](doc/format.md), so any tool or agent can read and write it.
+- Settings: the gear in the footer, or the `,` key. The page writes only what differs from the defaults and keeps your comments in `config.yaml`.
 
-Re-copy after the skill changes.
+**With Claude Code.** The repo ships a skill, `.claude/skills/taskapp-files/`, that teaches Claude Code the formats. Inside this repo it is picked up automatically. To use it from anywhere, copy the folder to your personal skills folder: `~/.claude/skills/taskapp-files/` on macOS and Linux, `C:\Users\<you>\.claude\skills\taskapp-files\` on Windows. Then ask Claude to add, move or complete tasks in your files.
+
+**Coming from Todoist?** A one-time import of your open tasks: `pnpm --filter todoist-import start -- --out <path> [--force]`, with your API token in `TODOIST_TOKEN`. Review the warnings it prints.
+
+## How it's built
+
+A Svelte 5 + TypeScript PWA in a pnpm monorepo, with the logic in pure packages that know nothing about the browser. [doc/architecture.md](doc/architecture.md) explains the packages, sync and merge, and the sign-in helper.
+
+Omark is built mostly by AI agents, through GitHub issues and pull requests, in a small software factory that ships with the repo: every change is planned when it's large, written test-first, and reviewed. [doc/factory.md](doc/factory.md) describes it. Agents start at [AGENTS.md](AGENTS.md).
+
+## More
+
+| | |
+|---|---|
+| [PHILOSOPHY.md](PHILOSOPHY.md) | Why Omark exists and the principles every idea is weighed against |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Set up, pick an issue, send a pull request; the AI policy |
+| [AGENTS.md](AGENTS.md) | Instructions for AI coding agents |
+| [GOVERNANCE.md](GOVERNANCE.md) | Who decides, how ideas become issues |
+| [SECURITY.md](SECURITY.md) | Reporting a problem; what the sign-in helper keeps |
+| [doc/format.md](doc/format.md) | The file formats |
+| [doc/self-hosting.md](doc/self-hosting.md) | Run your own copy |
+| [The Tasks spec](doc/TaskApp%20v1%20spec.md), [the Omark Time spec](doc/Omark%20Time%20spec.md) | What each app does, in detail |
+
+## Licence
+
+[MIT](LICENSE).
