@@ -41,9 +41,11 @@ The app signs in with your personal Microsoft account through a small sign-in he
 
 | endpoint | what it does |
 | --- | --- |
+| `GET /api/auth/providers` | `{ providers: [...] }`, the providers whose secrets are set, in order; the sign-in screen offers these |
 | `GET /api/auth/login` | redirects to Microsoft (authorization code + PKCE, `login_hint` from the last sign-in); state and verifier wait in a 10-minute encrypted cookie |
+| `GET /api/auth/login?provider=google` | the same for Google (`microsoft` is the default without `provider`) |
 | `GET /api/auth/callback` | checks the state, redeems the code with the client secret, sets the session cookie, returns to `/` (on failure `/?signin_error=…`, which the app shows) |
-| `POST /api/auth/token` | `{ accessToken, expiresAt }`, rotating the session cookie; 401 `{ signin: true }` means sign in again, 503 means Microsoft could not be reached |
+| `POST /api/auth/token` | `{ accessToken, expiresAt }`, rotating the session cookie; 401 `{ signin: true }` means sign in again, 503 means the provider could not be reached |
 | `POST /api/auth/logout` | deletes the cookies |
 
 The POST endpoints need the header `X-TaskApp-Auth: 1` and an `Origin` of the app itself.
