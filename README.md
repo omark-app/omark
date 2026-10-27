@@ -2,7 +2,7 @@
 
 Small tools that keep your work in plain files you own.
 
-Omark is a set of open source apps for people and their AI agents. **Omark Tasks** keeps your tasks in three Markdown files in your own OneDrive, Google Drive or folder: one calm page with today, this week and later, quick add, repeating tasks and habits. The files stay editable in Obsidian, any text editor, or by an AI agent such as Claude Code. **Omark Time** (in progress) turns calendar events titled `CODE; Category; description` into hours per project, in CSV files you own. No Omark server ever stores your data.
+Omark is a set of open source apps for people and their AI agents. **Omark Tasks** keeps your tasks in three Markdown files in your own OneDrive or Google Drive: one calm page with today, this week and later, quick add, repeating tasks and habits. The files stay editable in Obsidian, any text editor, or by an AI agent such as Claude Code. **Omark Time** (in progress) turns calendar events titled `CODE; Category; description` into hours per project, in CSV files you own. No Omark server ever stores your data.
 
 ![Omark Tasks: today, this week and later on one page, with important tasks on the right](apps/site/src/img/tasks-light.webp)
 
@@ -11,9 +11,9 @@ Omark is a set of open source apps for people and their AI agents. **Omark Tasks
 - **Try the demo:** https://demo-tasks.omark.app. Sample tasks, no sign-in; edits stay in your browser.
 - **Use the hosted app** (coming soon at `tasks.omark.app`): sign in with Microsoft or Google, and your files live in your OneDrive or Google Drive. The sign-in helper keeps nothing on the server ([SECURITY.md](SECURITY.md)).
 - **Use a local folder** (coming soon): in desktop Chrome or Edge, pick a folder and skip the account entirely. Sync it with whatever you already use.
-- **Host your own copy:** [doc/self-hosting.md](doc/self-hosting.md).
+- **Host your own copy:** [doc/self-hosting.md](doc/self-hosting.md) has the environment variables, sign-in setup, deploys and Promote that this README used to hold.
 
-Each app installs like any other: on the iPhone, Safari → Share → Add to Home Screen; in Chrome or Edge, the install icon in the address bar. Both work offline.
+Each app installs like any other: on the iPhone, Safari → Share → Add to Home Screen; in Chrome or Edge, the install icon in the address bar. Both work offline. On the iPhone, sign in inside the home-screen app itself: it has its own cookies, separate from Safari.
 
 ## Quick start
 

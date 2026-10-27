@@ -11,7 +11,7 @@ The examples and tables on this page are checked against `packages/tasks-core` b
 
 ## Omark Tasks
 
-Three files in one folder: the app folder in OneDrive, a folder in Google Drive, or a local folder.
+Three files in one folder: the app's folder in OneDrive or Google Drive (a local folder is coming).
 
 | File | Holds |
 |---|---|
@@ -48,7 +48,7 @@ Three files in one folder: the app folder in OneDrive, a folder in Google Drive,
 | `🔁 {rule}` | Repeats, by one of the [repeat rules](#repeat-rules). The rule runs to the next field emoji, the next ` #tag` or the end of the line |
 | `📅 {date}` | Due date |
 
-- When a field appears twice, the last valid one counts and the earlier one stays in the title, as in Obsidian Tasks. A `🔁` whose text is not a valid rule stays in the title.
+- When `📅` or `🔁` appears twice, the last valid one counts and the earlier one stays in the title, as in Obsidian Tasks. Every `⏫` and every `🌱` counts as the one mark. A `🔁` whose text is not a valid rule stays in the title.
 - **Notes.** Indented lines under a task, written as `    - {note}` (four spaces). A reader keeps any indent and marker byte for byte.
 - **Order.** Line order is the user's own order.
 - **Buckets are worked out, never stored.** The date decides where a task shows:
@@ -65,7 +65,7 @@ Three files in one folder: the app folder in OneDrive, a folder in Google Drive,
 
 - **Weeks** run Monday to Sunday unless `firstDayOfWeek` in `config.yaml` names another first day. "This week" starts the day after tomorrow, so on its last two days it is empty.
 - **Older files** may have a `# Always` section above `# Tasks`, one `- text` per line. A tool turns each line into `- [ ] text ⏫` at the top of `# Tasks`, in order, and removes the section. Don't write new ones.
-- **A `- [x]` line in `tasks.md`** (ticked in another editor) moves to `done.md` with its notes on the next sync. Without a `✅` date it gets today's.
+- **A `- [x]` line in `tasks.md`** (ticked in another editor) moves to `done.md` with its notes on the next sync. One with a `✅` date moves as it is. One without gets today's; if it repeats, the task also stays in `tasks.md` as `- [ ]` on its next date, with its notes.
 
 ### done.md
 
@@ -76,7 +76,7 @@ Three files in one folder: the app folder in OneDrive, a folder in Google Drive,
 - [x] Water the plants 🔁 every week on Monday ✅ 2026-10-19
 ```
 
-- An append-only log, oldest first. A tool never rewrites existing lines.
+- An append-only log, oldest first. A tool only appends to it and never rewrites existing lines. (The app's Undo takes back the block it just added.)
 - An entry is a `- [x] … ✅ {date}` line plus the indented lines right under it (its notes). A blank or unindented line ends it.
 - Each `- [x]` line with a valid `✅` date counts as one completion. Note lines are never counted.
 - Any other line (free text, headings, a `- [x]` without `✅`) is kept and not counted.
@@ -185,15 +185,40 @@ YAML with only the settings that differ from the defaults. A tool keeps the user
 | --- | --- |
 | `defaultView` | `list`, `board` |
 | `firstDayOfWeek` | `monday` ... `sunday` |
-| `foldedOnOpen` | list of `today`, `tomorrow`, `week`, `next`, `later`, `someday` (default `[later, someday]`) |
+| `foldedOnOpen` | list of `today`, `tomorrow`, `week`, `next`, `later`, `someday` (default `[later, someday]`); `overdue`, from older files, is accepted and ignored |
 | `theme` | `system`, `light`, `dark` |
 | `dateLabels` | `short` (Thu, 12 Nov), `iso` |
 | `newTaskBucket` | `today`, `tomorrow`, `week`, `next`, `someday` |
 | `saveDelaySeconds` | a number, 0 or more (default 1) |
 | `habits` | `maxInProgress` (0–99, default 3, 0 = no limit), `goal` (1–999, default 66), `missesInARow` (0–99, default 1), `missesPerAttempt` (0–999, or `0%`–`100%` of the goal; default `10%`) |
-| `shortcuts` | a map of command to a key or a list of keys (`KeyboardEvent.key` names) |
+| `shortcuts` | a map of command to a key or a list of keys (`KeyboardEvent.key` names); a key binds to one command only |
 
-The `taskapp-files` skill lists the shortcut commands.
+The shortcut commands, with their default keys:
+
+| command | default keys |
+| --- | --- |
+| `focusAdd` | `/`, `n` |
+| `down` | `j`, `ArrowDown` |
+| `up` | `k`, `ArrowUp` |
+| `today` | `t` |
+| `tomorrow` | `m` |
+| `thisWeek` | `w` |
+| `nextWeek` | `e` |
+| `pickDate` | `d` |
+| `someday` | `s` |
+| `repeat` | `r` |
+| `important` | `i` |
+| `habit` | `h` |
+| `complete` | `x` |
+| `edit` | `Enter` |
+| `delete` | `Delete`, `Backspace` |
+| `deselect` | `Escape` |
+| `undo` | `z` |
+| `switchView` | `v` |
+| `search` | `f` |
+| `settings` | `,` |
+
+`tomorrow`, `important`, `habit` and `settings` give way to a key the file binds to another command.
 
 ### What a tool must keep
 

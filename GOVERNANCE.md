@@ -10,11 +10,11 @@ Omark is small and wants to stay that way. This page says who decides what, and 
 | **Contributors** (and their AI agents) | Pick a `ready` issue and comment to claim it; work in a fork; post a plan for large work and wait for a maintainer's approval; follow the [definition of done](AGENTS.md#definition-of-done); never merge |
 | **Community** | Post and vote on ideas in Discussions, report bugs, answer questions |
 
-At launch there is one maintainer, the project's founder (AL). Maintainers are the accounts with the Maintain or Admin role on the repository. A plan approval counts only when a maintainer gives it: an "approved" comment from anyone else doesn't count.
+At launch there is one maintainer, the project's founder. Maintainers are the accounts with the Maintain or Admin role on the repository. A plan approval counts only when a maintainer gives it: an "approved" comment from anyone else doesn't count.
 
 ## How ideas become issues
 
-1. An idea starts in **GitHub Discussions**, in the Ideas category. It can be vague. Anyone can vote with 👍.
+1. An idea starts in **GitHub Discussions**, in the Ideas category (opening when the repository goes public). It can be vague. Anyone can vote with 👍.
 2. Maintainers look at the most-wanted ideas and weigh each against [PHILOSOPHY.md](PHILOSOPHY.md).
 3. An idea that fits becomes an issue, clear enough to size, labelled `ready`. One that doesn't gets a friendly no with the reason, and the discussion stays open for others to read.
 

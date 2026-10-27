@@ -31,7 +31,7 @@ These are what Omark believes. Each idea is weighed against them. There is no li
 
 ## How features get in
 
-1. Anyone can post an idea in GitHub Discussions (the Ideas category) and vote for ideas with 👍.
+1. Anyone can post an idea in GitHub Discussions (the Ideas category, opening when the repository goes public) and vote for ideas with 👍.
 2. Maintainers weigh the most-wanted ideas against the principles above. An idea that fits becomes a `ready` issue. One that doesn't gets a friendly no with the reason.
 3. Votes show what people want; they are not a majority vote. Maintainers have the final say on what keeps Omark simple.
 

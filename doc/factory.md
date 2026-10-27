@@ -50,7 +50,7 @@ Anything else is **large**. When in doubt, large. File formats, sync and merge, 
 | `plan-review`, `plan-approved` | The plan gate for large work |
 | `in-progress` | Someone is on it; their comment names the branch |
 | `needs-human` | Blocked on a step only a maintainer can do (accounts, dashboards, devices) |
-| `format` | A change to an open file format ([doc/format.md](format.md)); always large |
+| `format` | A change to an open file format ([doc/format.md](format.md)); always large. Created with the factory update (roadmap 2.5) |
 
 "Take the next issue" means the oldest `ready` issue that isn't `in-progress`, bugs first.
 
@@ -71,7 +71,7 @@ Staging and production run the same build; Promote ships the exact files staging
 | Workflow | When | Does |
 |---|---|---|
 | `ci.yml` | PR opened or updated | `check` (typecheck and unit tests), e2e on desktop Chrome and iPhone WebKit in parallel, and once `check` passes a preview deploy with a comment linking it |
-| `ci.yml` | Push to `main` | The same checks, then the staging deploy (keeping the build as an artifact) and the demo deploy |
+| `ci.yml` | Push to `main` | The same checks, then the staging deploy (keeping the build as an artifact), the demo deploy and the omark.app site deploy |
 | `promote.yml` | By hand | Production deploy of a green `main` commit, tag and release |
 
 - Docs-only changes (`doc/**`, `*.md`) skip CI.

@@ -2,10 +2,13 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
-import { formatRepeat, nextDate, parseDone, parseRepeat, parseTasks, serializeDone, serializeTasks } from '../../../packages/tasks-core/src/index.ts';
+import {
+  allTasks, completeTask, DEFAULT_CONFIG, formatRepeat, nextDate, parseDone, parseRepeat, parseTasks, serializeDone,
+  serializeTasks,
+} from '../../../packages/tasks-core/src/index.ts';
 
-// The suite's docs set (#85, launch spec 6.7). Docs-only PRs skip CI, so this file is what makes a docs
-// change run the checks.
+// The suite's docs set (#85, launch spec 6.7). CI skips PRs that change only `doc/**` and `*.md`, so these
+// checks run on a docs change only when a maintainer or agent runs `pnpm test` before pushing.
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8').replace(/\r\n/g, '\n');
@@ -14,23 +17,36 @@ const rootDocs = ['README.md', 'PHILOSOPHY.md', 'AGENTS.md', 'CLAUDE.md', 'CONTR
 const docDocs = ['doc/format.md', 'doc/architecture.md', 'doc/self-hosting.md', 'doc/factory.md'];
 
 /** A Markdown file's prose: code blocks and code spans removed (a file may be named `[[path]].ts`). */
-const prose = (text: string) => text.replace(/^```[^\n]*\n[\s\S]*?^```[ \t]*$/gm, '').replace(/`[^`\n]*`/g, '');
+const prose = (text: string) => text.replace(/^[ \t]*```[^\n]*\n[\s\S]*?^[ \t]*```[ \t]*$/gm, '').replace(/`[^`\n]*`/g, '');
 
-/** Relative link targets in a Markdown file: `[text](target)`, without web links, mail links or bare anchors. */
-function relativeLinks(text: string): string[] {
-  return [...prose(text).matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)]
-    .map((m) => m[1]!)
-    .filter((t) => !/^(https?:|mailto:|#)/.test(t));
+/** Link targets in a Markdown file: `[text](target)`, without web links and mail links. */
+function links(text: string): string[] {
+  return [...prose(text).matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)].map((m) => m[1]!).filter((t) => !/^(https?:|mailto:)/.test(t));
+}
+
+/** Relative link targets, without bare anchors. */
+const relativeLinks = (text: string) => links(text).filter((t) => !t.startsWith('#'));
+
+/** GitHub's anchors for a Markdown file's headings. */
+function anchors(text: string): Set<string> {
+  const slugs = [...prose(text).matchAll(/^#{1,6}[ \t]+(.+)$/gm)].map((m) =>
+    m[1]!.trim().toLowerCase().replace(/[^\p{L}\p{N}\s_-]/gu, '').replace(/\s/g, '-'),
+  );
+  return new Set(slugs);
 }
 
 describe('docs set', () => {
-  test.each([...rootDocs, ...docDocs])('%s exists, has no wiki links, and its relative links resolve', (path) => {
+  test.each([...rootDocs, ...docDocs])('%s exists, has no wiki links, and its links and anchors resolve', (path) => {
     expect(existsSync(resolve(root, path)), path).toBe(true);
     const text = read(path);
     expect(prose(text)).not.toMatch(/\[\[[^\]]+\]\]/);
-    for (const link of relativeLinks(text)) {
-      const target = resolve(root, dirname(path), decodeURIComponent(link.replace(/#.*$/, '')));
+    for (const link of links(text)) {
+      const [file, anchor] = link.split('#') as [string, string | undefined];
+      const target = file === '' ? resolve(root, path) : resolve(root, dirname(path), decodeURIComponent(file));
       expect(existsSync(target), `${path} → ${link}`).toBe(true);
+      if (anchor && target.endsWith('.md')) {
+        expect(anchors(readFileSync(target, 'utf8')).has(anchor), `${path} → ${link}`).toBe(true);
+      }
     }
   });
 
@@ -42,14 +58,19 @@ describe('docs set', () => {
   });
 
   test('README links the other docs', () => {
-    const links = relativeLinks(read('README.md'));
+    const readmeLinks = relativeLinks(read('README.md'));
     for (const doc of ['PHILOSOPHY.md', 'AGENTS.md', 'CONTRIBUTING.md', 'doc/format.md', 'doc/self-hosting.md']) {
-      expect(links, doc).toContain(doc);
+      expect(readmeLinks, doc).toContain(doc);
     }
   });
 
   test('CLAUDE.md imports AGENTS.md', () => {
     expect(read('CLAUDE.md').split('\n')[0]).toBe('@AGENTS.md');
+  });
+
+  test('AGENTS.md has the "Hard rules" heading the guard points to', () => {
+    expect(read('AGENTS.md')).toMatch(/^## Hard rules$/m);
+    expect(read('tools/claude-guard/guard.mjs')).toContain('See CLAUDE.md, Hard rules.');
   });
 
   // Today's CLAUDE.md rules, word for word (#85). 2.5 makes them role-neutral and changes this list.
@@ -84,6 +105,8 @@ describe('doc/format.md', () => {
   const format = read('doc/format.md');
   const lines = format.split('\n');
   const blocks = [...format.matchAll(/^```markdown[ \t]*\n([\s\S]*?)^```[ \t]*$/gm)].map((m) => m[1]!);
+  const tasksBlocks = blocks.filter((b) => b.startsWith('# Tasks'));
+  const doneBlocks = blocks.filter((b) => b.startsWith('- ['));
 
   /** Cells of every row under `header` (after the separator) up to the first non-table line. */
   function tableRows(header: string): string[][] {
@@ -101,14 +124,44 @@ describe('doc/format.md', () => {
     expect(format).toMatch(/^Version: 1\.0$/m);
   });
 
-  test('has tasks.md and done.md examples, and every one is checked', () => {
-    expect(blocks.length).toBeGreaterThanOrEqual(3);
+  test('every markdown example is a tasks.md or a done.md, and every one is checked', () => {
+    expect(tasksBlocks.length).toBeGreaterThanOrEqual(3);
+    expect(doneBlocks.length).toBeGreaterThanOrEqual(3);
+    expect(tasksBlocks.length + doneBlocks.length).toBe(blocks.length);
     expect(blocks).toHaveLength(lines.filter((l) => /^```markdown[ \t]*$/.test(l)).length);
   });
 
   test.each(blocks.map((b, i) => [i, b] as const))('markdown example %i round-trips', (_i, block) => {
     if (block.startsWith('- [')) expect(serializeDone(parseDone(block))).toBe(block);
     else expect(serializeTasks(parseTasks(block))).toBe(block);
+  });
+
+  // Round-tripping keeps any text, so check that every field was read as a field, not left in the title.
+  test.each(tasksBlocks.map((b, i) => [i, b] as const))('tasks.md example %i: every field is read', (_i, block) => {
+    const tasks = allTasks(parseTasks(block));
+    expect(tasks.length).toBe(block.split('\n').filter((l) => l.startsWith('- [ ]')).length);
+    for (const t of tasks) expect(t.title, t.title).not.toMatch(/⏫|🌱|🔁|📅/u);
+  });
+
+  test.each(doneBlocks.map((b, i) => [i, b] as const))('done.md example %i: every line is an entry or a habit end', (_i, block) => {
+    for (const line of parseDone(block).lines) {
+      if (/^\s/.test(line.raw)) continue;
+      expect(line.entry ?? line.end, line.raw).toBeTruthy();
+      if (line.entry) expect(line.entry.title, line.raw).not.toMatch(/⏫|🌱|🔁|✅/u);
+    }
+  });
+
+  test('the completion example is what completing the task does', () => {
+    const before = tasksBlocks.find((b) => b.includes('Pay rent') && b.includes('📅 2026-11-01'))!;
+    const after = tasksBlocks.find((b) => b.includes('Pay rent') && b.includes('📅 2026-12-01'))!;
+    const log = doneBlocks.find((b) => b.includes('Pay rent') && b.includes('✅ 2026-11-01'))!;
+    let n = 0;
+    const doc = parseTasks(before, () => `id${++n}`);
+    const id = allTasks(doc).find((t) => t.title === 'Pay rent')!.id;
+    const { state } = completeTask({ doc, done: parseDone('') }, id, '2026-11-01');
+    const rent = (text: string) => text.slice(text.indexOf('- [ ] Pay rent')).split('\n').slice(0, 2).join('\n');
+    expect(rent(serializeTasks(state.doc))).toBe(rent(after));
+    expect(serializeDone(state.done)).toBe(log);
   });
 
   const nextRows = tableRows('| rule | due | completed on | next |');
@@ -133,5 +186,15 @@ describe('doc/format.md', () => {
       expect(parsed, text).not.toBeNull();
       expect(formatRepeat(parsed!), text).toBe(text);
     }
+  });
+
+  test('the config table lists every key, and no other', () => {
+    const keys = tableRows('| key | values (default first) |').map((cells) => unquote(cells[0]!));
+    expect(keys.sort()).toEqual(Object.keys(DEFAULT_CONFIG).sort());
+  });
+
+  test('every shortcut command is listed', () => {
+    const commands = tableRows('| command | default keys |').map((cells) => unquote(cells[0]!));
+    expect(commands.sort()).toEqual(Object.keys(DEFAULT_CONFIG.shortcuts).sort());
   });
 });

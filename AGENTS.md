@@ -1,8 +1,8 @@
 # Omark: instructions for AI agents
 
-Omark is a small suite of open source apps that keep your data in plain files you own. **Omark Tasks** is a PWA that keeps tasks in three Markdown files on the user's OneDrive, Google Drive or a local folder. **Omark Time** (in progress) turns Google Calendar events titled `CODE; Category; description` into hours in CSV files. Both are built from this one repository, mostly by AI agents working through GitHub issues and pull requests.
+Omark is a small suite of open source apps that keep your data in plain files you own. **Omark Tasks** is a PWA that keeps tasks in three Markdown files in the user's OneDrive or Google Drive (a local folder is coming). **Omark Time** (in progress) turns Google Calendar events titled `CODE; Category; description` into hours in CSV files. Both are built from this one repository, mostly by AI agents working through GitHub issues and pull requests.
 
-This file is for any coding agent (Claude Code, Codex, Cursor and others). Claude Code reads it through `CLAUDE.md`. The rules below still name AL, the maintainer; they become role-neutral with the factory work (roadmap 2.5).
+This file is for any coding agent (Claude Code, Codex, Cursor and others). Claude Code reads it through `CLAUDE.md`. The rules below still name AL, who is the only maintainer today; they become role-neutral with the factory work (roadmap 2.5).
 
 ## Where to read first
 
@@ -50,7 +50,7 @@ Follow the `taskapp-factory` skill: pick up, size (`size:small` / `size:large`),
 
 In brief:
 
-1. Work starts from an issue labelled `ready`. Comment that you are taking it, and work on a branch `issue-<n>-<slug>`.
+1. Work starts from an issue: the one you were given, or the oldest `ready` one. Comment that you are taking it, and work on a branch `issue-<n>-<slug>`.
 2. Size it. Small is a bug fix or small tweak with clear expected behaviour, and no change to the file formats, sync, merge, saving, sign-in, CI, deploy, `.claude/`, dependencies or screens. Everything else is large.
 3. Large work gets a plan in `doc/plans/<n>-<slug>.md`: what changes for the user, acceptance criteria, the tests you'll write first, risks, out of scope. Then stop until a maintainer approves it.
 4. Test first: write the test, see it fail, then write the code.
@@ -58,7 +58,7 @@ In brief:
 
 The skill and [doc/factory.md](doc/factory.md) have the details, labels and wording.
 
-## Rules
+## Hard rules
 
 ### Always
 
@@ -67,7 +67,10 @@ The skill and [doc/factory.md](doc/factory.md) have the details, labels and word
 - Keep users' files byte for byte where a change doesn't touch them. The [format](doc/format.md) says what a tool must keep.
 - Steps only AL can do (Entra, his PC, dashboards, billing) get the `needs-human` label and short numbered instructions.
 
-### Ask first (a large issue with an approved plan)
+### Ask first
+
+These make an issue `size:large`: write a plan and wait for a maintainer's approval before any code.
+
 
 - A change to a file format, to sync, merge or saving, or to sign-in.
 - Anything that deletes or rewrites task lines.

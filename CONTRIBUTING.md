@@ -28,8 +28,8 @@ Run `pnpm --filter tasks exec playwright install chromium webkit` once before th
 
 ## Ideas and bugs
 
-- **An idea?** Post it in Discussions, in the Ideas category, and vote for others' with 👍. Maintainers turn the ones that fit [PHILOSOPHY.md](PHILOSOPHY.md) into issues ([GOVERNANCE.md](GOVERNANCE.md)).
-- **A bug?** Open an issue with the bug template: which app, what happened, what you expected, the build number (in the app's footer), your OS and browser, and the steps.
+- **An idea?** Post it in Discussions, in the Ideas category, and vote for others' with 👍. Discussions open when the repository goes public. Maintainers turn the ideas that fit [PHILOSOPHY.md](PHILOSOPHY.md) into issues ([GOVERNANCE.md](GOVERNANCE.md)).
+- **A bug?** Open an issue with the bug template: what happened, what you expected, your device and the steps. Add which app, the build number (in the app's footer) and your browser.
 - **A security problem?** Never in public: see [SECURITY.md](SECURITY.md).
 
 ## Working on an issue
@@ -38,7 +38,7 @@ Run `pnpm --filter tasks exec playwright install chromium webkit` once before th
 2. **Fork the repo** and work on a branch named `issue-<n>-<slug>`.
 3. **Check the size.** `size:small` issues go straight to code. `size:large` ones (file formats, sync, sign-in, CI, dependencies, a new screen) need a plan first: write `doc/plans/<n>-<slug>.md` with what changes for users, acceptance criteria, the tests you'll write first, risks and what's out of scope. Post its summary on the issue, or open a draft PR with it, and **wait for a maintainer's approval** before writing code.
 4. **Test first.** Write the test, run it, see it fail, then make it pass. The PR quotes the failing line.
-5. **Open the pull request** from the template. It closes the issue, says what changes for users and how to try it, and says whether and how AI was used.
+5. **Open the pull request** from the template. It closes the issue, says what changes for users and how to try it, and says whether and how AI was used (add a line for it until the template asks).
 
 ## Definition of done
 

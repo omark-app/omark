@@ -56,13 +56,17 @@ One new file, `tools/ci/test/docs.test.ts` (in the existing `ci-scripts` project
 
 Each fails first because the files don't exist yet.
 
-Because `tools/ci/test/` is not in CI's `paths-ignore`, the PR runs CI even though the rest is Markdown.
+Because `tools/ci/test/` is not in CI's `paths-ignore`, this PR runs CI even though the rest is Markdown. Later PRs that change only Markdown skip CI, so these checks run there only through the local `pnpm test` the factory asks for.
+
+After the review the test also checks that every field in the examples is read as a field, that the completion example is what `completeTask` does, that the config and shortcut tables match `DEFAULT_CONFIG`, that anchor links resolve, and that `AGENTS.md` has the "Hard rules" heading the guard's message points to.
 
 ## Risks
 
 - **Conflicts with the other lanes.** Storage and Time edit `README.md` and `CLAUDE.md`. Kept small by rewriting them once, early, and by doing no moves in PR A. Their "README note for the docs lane" items are folded in by this lane.
 - **Losing AL's operating notes.** Today's README holds the steps for the bridge deployment (tenant link, client ID, Pages projects). They move to a clearly marked section of `doc/self-hosting.md`, not dropped. Its values go with the bridge in 3.7, before the repo goes public.
-- **Agents losing rules.** The test pins today's rules in `AGENTS.md`, and `CLAUDE.md` imports it. The guard's message still says "See CLAUDE.md, Hard rules"; that stays true through the import, and 2.5 rewrites the guard's wording.
+- **Agents losing rules.** The test pins today's rules in `AGENTS.md`, and `CLAUDE.md` imports it. The guard's message says "See CLAUDE.md, Hard rules", so `AGENTS.md` keeps a "Hard rules" heading; 2.5 rewrites the guard's wording.
+- **Stale pointers in CI.** `ci.yml`, `promote.yml`, `tools/ci/check-signin.mjs` and `apps/site/README.md` point to "README, Environment variables" (or Sign-in, Deploy). Those sections are now in `doc/self-hosting.md`, and the README says so. The pointers themselves are outside this lane (a follow-up for whoever next touches CI).
+- **Docs-only changes skip CI**, so `doc/format.md` can drift unless `pnpm test` runs locally. Taking `doc/format.md` out of `paths-ignore` is a CI change for 2.5.
 - **The format doc drifting from the code.** Its examples and tables are tested, like the skill's.
 - **PHILOSOPHY in AL's voice.** It is a draft until AL approves (2.7); the PR body lists each principle in one line.
 
@@ -71,5 +75,5 @@ Because `tools/ci/test/` is not in CI's `paths-ignore`, the PR runs CI even thou
 - Role-neutral wording ("a maintainer", not "AL") in the rules, skills, guard and templates, the issue forms, labels script and Discussion form: 2.5. `AGENTS.md` keeps today's rules word for word until then.
 - Omark Time's format, spec, skill and DuckDB examples: #60.
 - The `taskapp-files` skill pointing to `doc/format.md` and dropping AL's local path: with 2.5's skill rewrite, or #60 if it is simple. Not in PR A, to keep the skill test untouched.
-- Moving or renaming any file: PR B.
+- Moving or renaming any file: PR B. When PR B moves the v1 spec, the definition-of-done line "(README, the v1 spec, …)" stays word for word until 2.5.
 - The roadmap: the coordinator updates it.
