@@ -4,6 +4,7 @@ import { PAGES, expectNoSideScroll } from './pages';
 // Hosts a page may link to. Add one only when a page genuinely needs it.
 const ALLOWED_HOSTS = [
   'omark.app',
+  'demo-tasks.omark.app',
   'github.com',
   'developers.google.com',
   'policies.google.com',

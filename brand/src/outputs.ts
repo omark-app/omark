@@ -47,8 +47,13 @@ export const OUTPUTS: Output[] = [
   ...appSet('tasks', 'staging', 'apps/tasks/public/icons/staging'),
   ...appSet('time', 'production', 'brand/png/time'),
   ...appSet('omark', 'production', 'brand/png/omark'),
-  // The landing page serves its favicon from its own public folder.
+  // The landing page serves its favicon, logo and app icons from its own public folder.
   { path: 'apps/site/public/favicon.svg', size: [32, 32], svg: icon('omark', 'production', 'rounded', true) },
+  ...(['omark', 'tasks', 'time'] as const).map((app) => ({
+    path: `apps/site/public/img/icon-${app}.svg`,
+    size: [36, 36] as [number, number],
+    svg: icon(app, 'production', 'rounded', true),
+  })),
   { path: 'brand/png/omark-avatar-500.png', size: [500, 500], svg: icon('omark', 'production', 'square') },
   { path: 'brand/png/social-preview.png', size: [1280, 640], svg: socialHtml },
   ...(['omark-mark', 'tasks', 'time'] as const).map((n) => ({

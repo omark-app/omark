@@ -44,6 +44,11 @@ describe('outputs', () => {
     expect(svgs.map((o) => o.path)).toContain('apps/site/public/favicon.svg');
   });
 
+  it('the landing page logo and app icons are drawn here too', () => {
+    const paths = svgs.map((o) => o.path);
+    for (const app of ['omark', 'tasks', 'time']) expect(paths).toContain(`apps/site/public/img/icon-${app}.svg`);
+  });
+
   it.each(svgs.map((o) => [o.path, o] as const))('every SVG output on disk matches iconSvg: %s', (path, o) => {
     expect(read(path).toString('utf8')).toBe(o.svg());
   });
