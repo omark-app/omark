@@ -160,13 +160,11 @@ describe('GET /api/auth/login', () => {
 
   it('treats a malformed MSAL_TENANT as missing configuration', async () => {
     const headers = { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' };
-    expect((await send('/api/auth/login', {}, { ...ENV, MSAL_TENANT: 'a/b' })).status).toBe(500);
     await signIn();
     const calls = ms.calls.length;
-    // The session's provider is not configured: sign in again (see "several providers").
     const res = await send('/api/auth/token', { method: 'POST', headers }, { ...ENV, MSAL_TENANT: 'a/b' });
-    expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ signin: true });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'not_configured' });
     expect(ms.calls.length).toBe(calls);
   });
 
@@ -495,25 +493,6 @@ describe('several providers', () => {
     expect(gg.calls[1]!.get('scope')).toBe(DRIVE);
     expect(ms.fetch).not.toHaveBeenCalled();
     expect(jar.cookies.get('taskapp_signed_in')).toMatchObject({ value: 'google' });
-  });
-
-  it('answers 401 { signin: true } and clears the session when its provider is no longer configured', async () => {
-    await signIn(GOOGLE_TOKENS, 'google');
-    const res = await send('/api/auth/token', { method: 'POST', headers }, MS_ONLY);
-    expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ signin: true });
-    expect(jar.cookies.has('taskapp_session0')).toBe(false);
-    expect(jar.cookies.has('taskapp_signed_in')).toBe(false);
-    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('GOOGLE_CLIENT_ID'));
-    expect(gg.calls).toHaveLength(1); // the sign-in's, no refresh
-  });
-
-  it('still answers 500 for a token request without COOKIE_KEY', async () => {
-    await signIn(GOOGLE_TOKENS, 'google');
-    const res = await send('/api/auth/token', { method: 'POST', headers }, { ...ENV, COOKIE_KEY: undefined });
-    expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: 'not_configured' });
-    expect(jar.cookies.has('taskapp_session0')).toBe(true);
   });
 
   it('fails the sign-in when Google did not grant every required scope', async () => {

@@ -247,10 +247,7 @@ async function callback(base: Base): Promise<Response> {
   return redirect('/', cookies);
 }
 
-/**
- * `{ accessToken, expiresAt }` (ms since the epoch); 401 `{ signin: true }` when only signing in helps, also when the
- * session's provider is no longer configured; 503 when the provider cannot be reached.
- */
+/** `{ accessToken, expiresAt }` (ms since the epoch); 401 `{ signin: true }` when only signing in helps; 503 when the provider cannot be reached. */
 async function token(base: Base): Promise<Response> {
   const SESSION = base.names.session;
   const session = await unseal<Session>(base.key, SESSION.name, readChunkedCookie(base.cookies, SESSION.name));
@@ -259,8 +256,7 @@ async function token(base: Base): Promise<Response> {
   // A provider the app no longer offers: only a new sign-in helps.
   if (!hasProvider(base.options, id)) return json(401, { signin: true }, clearSession(base));
   const ctx = withProvider(base, id);
-  // Its settings were removed (logged): a 500 would read as offline forever, so sign in again, maybe with another.
-  if (ctx instanceof Response) return json(401, { signin: true }, clearSession(base));
+  if (ctx instanceof Response) return ctx;
   const redeemed = await redeem(ctx, { grant_type: 'refresh_token', refresh_token: session.rt, scope: ctx.provider.scope });
   if (redeemed.kind === 'signin') return json(401, { signin: true }, clearSession(ctx));
   if (redeemed.kind === 'unavailable') return json(503, { error: 'unavailable' });
