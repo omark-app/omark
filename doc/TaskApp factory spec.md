@@ -135,7 +135,7 @@ The real-OneDrive smoke (`pnpm e2e:real`) stays manual, since its sign-in lasts 
 
 | Workflow | When | Does |
 |---|---|---|
-| `ci.yml` | PR opened or updated | check; e2e, one job per Playwright project (`e2e (desktop)`, `e2e (iphone)`) in parallel; then a preview job that deploys the demo build and comments the link |
+| `ci.yml` | PR opened or updated | check; e2e, one job per Playwright project (`e2e (desktop)`, `e2e (iphone)`) in parallel; and, once check passes, a preview job that deploys the demo build and comments the link |
 | `ci.yml` | Push to `main` | check; both e2e jobs; then a small deploy job that builds once for staging and production, deploys to staging, and keeps the files as a workflow artifact; beside it `tasks-demo` builds and deploys the demo |
 | `promote.yml` | By hand (`workflow_dispatch`) | Production deploy (below) |
 
