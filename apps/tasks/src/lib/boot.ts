@@ -11,7 +11,7 @@ import {
 import type { Auth, LocalCache, StorageAdapter } from '@omark/storage';
 import { toISODate } from '@omark/tasks-core';
 import { BRAND } from '../brand.ts';
-import { APP_ENV, GOOGLE_FOLDER, HOSTS, ONEDRIVE_FOLDER, ONEDRIVE_ROOT, STORAGE_MODE } from '../env.ts';
+import { GOOGLE_FOLDER, HOSTS, ONEDRIVE_FOLDER, ONEDRIVE_ROOT, STORAGE_MODE } from '../env.ts';
 import { createAuthStub, tokenGated } from './auth-stub.ts';
 import { createWorkspace, TASK_FILES } from './workspace.ts';
 import type { TaskFile, Workspace } from './workspace.ts';
@@ -23,6 +23,7 @@ import { installLifecycle } from './lifecycle.ts';
 import { createStore } from './store.svelte.ts';
 import type { AppStore } from './store.svelte.ts';
 import { fakeSeed } from './sample-files.ts';
+import { openDemo, takeDemoReset } from './demo.ts';
 import { installUpdates } from './updates.svelte.ts';
 import type { UpdateDeps, Updates } from './updates.svelte.ts';
 
@@ -46,7 +47,7 @@ declare global {
 }
 
 /**
- * `ready`: the store is open; `auth` (null in fake mode) lets the UI sign in again when the status reads
+ * `ready`: the store is open; `auth` (null in demo and fake mode) lets the UI sign in again when the status reads
  * `sign in needed`; `updates` loads newer builds; `provider` is the sign-in the storage belongs to, so
  * signing in again keeps to it (the helper forgets it on a failed token request); `storageName` is what
  * the texts call the storage.
@@ -81,8 +82,9 @@ const GOOGLE: Place = { provider: 'google', folder: GOOGLE_FOLDER };
 const isPhone = (): boolean => window.matchMedia(PHONE_QUERY).matches;
 
 /**
- * Builds the store for this build's storage mode. Fake mode (`VITE_STORAGE=fake`) runs on an in-memory
- * drive seeded from `window.__TASKAPP_SEED__` (sample files on a PR preview) and exposes it as `window.__taskappFake`; with
+ * Builds the store for this build's storage mode. Demo mode (`VITE_STORAGE=demo`) runs on a drive in
+ * IndexedDB seeded with sample files (src/lib/demo.ts) and never signs in. Fake mode (`VITE_STORAGE=fake`)
+ * runs on an in-memory drive seeded from `window.__TASKAPP_SEED__` and exposes it as `window.__taskappFake`; with
  * `window.__TASKAPP_AUTH_STUB__` set it goes through the sign-in path too, with a stubbed account.
  * Real mode signs in through the sign-in helper (`/api/auth`) and opens the storage of the provider signed in
  * with (OneDrive, or Google Drive), caching in IndexedDB, falling back to memory (with `store.cacheWarning`)
@@ -90,8 +92,12 @@ const isPhone = (): boolean => window.matchMedia(PHONE_QUERY).matches;
  * way to try again.
  */
 export async function boot(): Promise<BootResult> {
+  if (STORAGE_MODE === 'demo') {
+    const demo = await openDemo(toISODate(new Date()), { reset: takeDemoReset() });
+    return ready(createWorkspace(demo.drive, demo.cache), demo, null, ONEDRIVE);
+  }
   if (STORAGE_MODE === 'fake') {
-    const seed = fakeSeed(APP_ENV, window.__TASKAPP_SEED__, toISODate(new Date()));
+    const seed = fakeSeed(window.__TASKAPP_SEED__);
     if (window.__TASKAPP_AUTH_STUB__?.startsWith('google')) return fakeGoogle(seed, window.__TASKAPP_AUTH_STUB__);
     const drive = new FakeOneDrive(seed);
     window.__taskappFake = drive;

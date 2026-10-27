@@ -1,22 +1,17 @@
 import { addDays, dayOfWeek, DEFAULT_CONFIG_YAML, endOfWeek } from '@omark/tasks-core';
 import type { ISODate } from '@omark/tasks-core';
 import type { TaskFile } from './workspace.ts';
-import type { AppEnv } from './environment.ts';
 
 /**
- * What a fake build's drive starts with: the e2e test seed when one is set, else sample files on a PR
- * preview, else nothing (locally the drive starts empty).
+ * What a fake build's drive starts with: the e2e test seed when one is set, else nothing. Fake builds are
+ * only for tests; the demo and PR previews are demo builds, which start from `sampleFiles`.
  */
-export function fakeSeed(
-  env: AppEnv,
-  testSeed: Partial<Record<TaskFile, string>> | undefined,
-  today: ISODate,
-): Partial<Record<TaskFile, string>> {
-  return testSeed ?? (env === 'preview' ? sampleFiles(today) : {});
+export function fakeSeed(testSeed: Partial<Record<TaskFile, string>> | undefined): Partial<Record<TaskFile, string>> {
+  return testSeed ?? {};
 }
 
 /**
- * Files a PR preview's fake drive starts with, so a preview is worth opening on the phone: every bucket,
+ * Files the demo drive starts with, so the demo (and a PR preview) is worth opening on the phone: every bucket,
  * Important, not urgent, a repeat, notes and a few completions. Dates are relative to `today`.
  */
 export function sampleFiles(today: ISODate): Record<TaskFile, string> {

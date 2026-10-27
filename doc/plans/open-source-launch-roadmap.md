@@ -28,7 +28,7 @@ Clashes to watch: 2.1 and 2.2 both add a deploy job to `ci.yml`, and 3.1 and 3.8
 
 Legend: **AL** = a step only AL can do (`needs-human`). **Plan** = a detailed TDD plan in `doc/plans/` is written and approved before the work starts.
 
-## Milestone 0: name and home (AL, before any code)
+## Milestone 0: name and home (AL, before any code) — done 2026-10-21
 
 | # | Step | Spec |
 |---|---|---|
@@ -36,7 +36,7 @@ Legend: **AL** = a step only AL can do (`needs-human`). **Plan** = a detailed TD
 | 0.2 | AL: buy `omark.app`, add it to Cloudflare, set up Email Routing for `hello@` and `security@`. | 6.10 |
 | 0.3 | AL: create the GitHub org (`omarkhq`, `omark-app` or `getomark`); transfer the repo (still private), rename it `tasks`; check that old URLs redirect and that CI and Promote still work. | 6.10 |
 
-## Milestone 1: groundwork (one PR, detailed plan ready)
+## Milestone 1: groundwork — done 2026-10-22 (PRs #29, #30)
 
 | # | Workstream | Spec | Depends on |
 |---|---|---|---|

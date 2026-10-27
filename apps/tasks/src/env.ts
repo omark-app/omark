@@ -1,13 +1,31 @@
 import type { DriveRoot } from '@omark/storage';
 import { envForHost, folderFor, googleFolderFor, hostConfig, lookFor } from './lib/environment.ts';
+import { storageMode } from './storage-mode.ts';
+import type { StorageMode } from './storage-mode.ts';
 
-export const STORAGE_MODE: 'fake' | 'onedrive' =
-  import.meta.env.VITE_STORAGE === 'fake' ? 'fake' : 'onedrive';
+export { storageMode } from './storage-mode.ts';
+export type { StorageMode } from './storage-mode.ts';
+
+/** Reads `VITE_REAL_USE_URL`, where the demo's "Use it for real" link goes; unset or blank means omark.app. */
+export function realUseUrl(value: unknown): string {
+  const url = typeof value === 'string' ? value.trim() : '';
+  return url === '' ? 'https://omark.app' : url;
+}
+
+declare const __STORAGE_MODE__: StorageMode | undefined;
+/**
+ * This build's storage mode. vite.config.ts writes it in as a literal (`__STORAGE_MODE__`), so the bundler
+ * drops the code of the other modes: a demo build has no sign-in path, a OneDrive build no demo. Under
+ * Vitest, where nothing is written in, it is read from `VITE_STORAGE`.
+ */
+export const STORAGE_MODE: StorageMode =
+  typeof __STORAGE_MODE__ === 'string' ? __STORAGE_MODE__ : storageMode(import.meta.env.VITE_STORAGE);
+export const REAL_USE_URL = realUseUrl(import.meta.env.VITE_REAL_USE_URL);
 /** The hosts and folders this build serves, from its build variables. */
 export const HOSTS = hostConfig(import.meta.env);
 /** Production, staging, a PR preview or local, from the host name (staging and production share one build). */
 export const APP_ENV = envForHost(typeof location === 'undefined' ? '' : location.hostname, HOSTS);
-export const LOOK = lookFor(APP_ENV);
+export const LOOK = lookFor(APP_ENV, STORAGE_MODE);
 export const ONEDRIVE_FOLDER: string = folderFor(APP_ENV, import.meta.env.VITE_ONEDRIVE_FOLDER ?? '', HOSTS);
 /** The folder in My Drive when signed in with Google. */
 export const GOOGLE_FOLDER: string = googleFolderFor(APP_ENV, import.meta.env.VITE_GOOGLE_FOLDER ?? '');

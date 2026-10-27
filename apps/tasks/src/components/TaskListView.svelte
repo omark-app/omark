@@ -7,6 +7,8 @@
   import Stats from './Stats.svelte';
   import Hints from './Hints.svelte';
   import StatusLine from './StatusLine.svelte';
+  import DemoControls from './DemoControls.svelte';
+  import { STORAGE_MODE } from '../env.ts';
   import SyncBanner from './SyncBanner.svelte';
   import ConfigBanner from './ConfigBanner.svelte';
   import Toast from './Toast.svelte';
@@ -69,9 +71,11 @@
     <div class="top">
       <Stats stats={store.stats} variant="line" />
       <span class="topr">
-        <StatusLine status={store.status} {updates} onupdate={onUpdate} />
+        <StatusLine status={store.status} {updates} onupdate={onUpdate} demoControls={false} />
         {#if onSearch}<button class="find" data-testid="search-open" aria-label="Search" onclick={onSearch}>🔍</button>{/if}
       </span>
+      <!-- Too wide to sit beside the status on a phone. -->
+      {#if STORAGE_MODE === 'demo'}<span class="demo-row"><DemoControls /></span>{/if}
     </div>
     <!-- Habit cards scroll sideways under the stats line; a tap opens the edit sheet. -->
     <HabitsGroup {store} variant="cards" onopen={open} onhistory={onHistory} />
@@ -153,6 +157,7 @@
     .frame { overflow-x: clip; }
   }
   .top { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 14px; flex-wrap: wrap; }
+  .demo-row { flex-basis: 100%; display: flex; justify-content: flex-end; }
   .topr { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; }
   .find { width: 36px; height: 32px; margin: -8px -6px -8px 0; padding: 0; border: 0; border-radius: 8px; background: none; font-size: 16px; filter: grayscale(1); opacity: .7; cursor: pointer; }
   .find:active { background: var(--sel); }
