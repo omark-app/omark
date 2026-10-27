@@ -31,6 +31,23 @@ describe('the Pages Function', () => {
     expect(await res.json()).toEqual({ providers: ['microsoft', 'google'] });
   });
 
+  it('runs Omark Time when OMARK_APP is time: Google only, reading calendars and events', async () => {
+    const env = { COOKIE_KEY: KEY, GOOGLE_CLIENT_ID: 'gid', GOOGLE_CLIENT_SECRET: 'gsecret', OMARK_APP: 'time' };
+    const res = await onRequest({ request: new Request('https://time.example/api/auth/login'), env });
+    expect(res.status).toBe(302);
+    const location = new URL(res.headers.get('Location')!);
+    expect(location.origin + location.pathname).toBe('https://accounts.google.com/o/oauth2/v2/auth');
+    expect(location.searchParams.get('scope')!.split(' ').sort()).toEqual([
+      'email',
+      'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+      'https://www.googleapis.com/auth/calendar.events.owned.readonly',
+      'openid',
+    ]);
+    expect(res.headers.getSetCookie().map((c) => c.split('=')[0])).toEqual(['omarktime_login']);
+    const providers = await onRequest({ request: new Request('https://time.example/api/auth/providers'), env });
+    expect(await providers.json()).toEqual({ providers: ['google'] });
+  });
+
   it.each(['nope', 'constructor', 'toString'])('refuses OMARK_APP %s', async (app) => {
     const res = await onRequest({ request: login(), env: { ...ENV, OMARK_APP: app } });
     expect(res.status).toBe(500);
