@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CONFIG, DEFAULT_CONFIG_YAML, parseConfig } from '../src/config.ts';
+import { allFields, defaults, fieldId } from '@omark/settings';
+import { TASKS_SCHEMA } from '../src/settings-schema.ts';
 
 describe('parseConfig', () => {
   it('empty and comment-only files give defaults', () => {
@@ -149,6 +151,32 @@ describe('tomorrow and important shortcuts (#19)', () => {
 
   it('still reject a clash the file itself makes', () => {
     expect(parseConfig('shortcuts:\n  tomorrow: x\n').error?.message).toContain('complete');
+  });
+});
+
+describe('settings command and schema', () => {
+  it('settings defaults to a comma', () => {
+    expect(parseConfig('').config.shortcuts.settings).toEqual([',']);
+  });
+
+  it('a key bound to another command frees the settings default', () => {
+    const r = parseConfig('shortcuts:\n  complete: ","\n');
+    expect(r.error).toBeNull();
+    expect(r.config.shortcuts.complete).toEqual([',']);
+    expect(r.config.shortcuts.settings).toEqual([]);
+  });
+
+  it('every Config key has a schema field', () => {
+    const ids = new Set(allFields(TASKS_SCHEMA).map((f) => fieldId(f).split('.')[0]));
+    expect(ids).toEqual(new Set(Object.keys(DEFAULT_CONFIG)));
+    const d = defaults(TASKS_SCHEMA);
+    expect(d.shortcuts).toEqual(DEFAULT_CONFIG.shortcuts);
+    expect(d.defaultView).toBe(DEFAULT_CONFIG.defaultView);
+    expect(d.theme).toBe(DEFAULT_CONFIG.theme);
+    expect(d.foldedOnOpen).toEqual(DEFAULT_CONFIG.foldedOnOpen);
+    expect(d.saveDelaySeconds).toBe(DEFAULT_CONFIG.saveDelaySeconds);
+    expect(d['habits.goal']).toBe(DEFAULT_CONFIG.habits.goal);
+    expect(parseConfig('').config.habits).toEqual(DEFAULT_CONFIG.habits);
   });
 });
 

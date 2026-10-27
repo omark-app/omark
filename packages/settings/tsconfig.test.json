@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  // No DOM here: this check keeps the src/*.ts files pure. The .svelte files are checked by svelte-check.
+  "compilerOptions": { "lib": ["ES2023"], "types": ["node", "vitest"] },
+  "include": ["src/**/*.ts", "test", "vitest.config.ts"]
+}

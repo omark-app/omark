@@ -1,9 +1,17 @@
 import { FileSync } from '@omark/storage';
 import type { LocalCache, StorageAdapter, SyncStatus } from '@omark/storage';
-import { DEFAULT_CONFIG_YAML, mergeDoneText, mergeTasksText } from '@omark/tasks-core';
+import { mergeSettings } from '@omark/settings';
+import type { Dropped } from '@omark/settings';
+import { DEFAULT_CONFIG_YAML, mergeDoneText, mergeTasksText, TASKS_SCHEMA } from '@omark/tasks-core';
 
 export type TaskFile = 'tasks.md' | 'done.md' | 'config.yaml';
 export const TASK_FILES: readonly TaskFile[] = ['tasks.md', 'done.md', 'config.yaml'];
+
+/** An edit to one file: its new text and `base`, the text the edit started from. */
+export interface FileEdit {
+  text: string;
+  base: string;
+}
 
 export interface Snapshot {
   tasks: string;
@@ -25,22 +33,16 @@ export interface Workspace {
    */
   refresh(): Promise<Snapshot & { changed: boolean }>;
   /**
-   * Saves tasks.md first, then done.md; each only if given, and resolves when the upload attempt is over.
-   * `base` is the text the edit started from. Kept for tests; the app uses `stage`.
+   * Saves tasks.md, then done.md, then config.yaml; each only if given, and resolves when the upload
+   * attempt is over. Kept for tests; the app uses `stage`.
    */
-  save(files: {
-    tasks?: { text: string; base: string };
-    done?: { text: string; base: string };
-  }): Promise<void>;
+  save(files: { tasks?: FileEdit; done?: FileEdit; config?: FileEdit }): Promise<void>;
   /**
    * Like `save`, but resolves once the edits are in the cache, without waiting for the network (which
-   * syncs in the background). Stages tasks.md, then done.md even if tasks.md failed; rethrows the first
-   * cache error afterwards.
+   * syncs in the background). Stages tasks.md, then done.md, then config.yaml, each even if an earlier
+   * one failed; rethrows the first cache error afterwards.
    */
-  stage(files: {
-    tasks?: { text: string; base: string };
-    done?: { text: string; base: string };
-  }): Promise<void>;
+  stage(files: { tasks?: FileEdit; done?: FileEdit; config?: FileEdit }): Promise<void>;
   /**
    * Each file's working text right now: every staged edit plus whatever has been absorbed from the
    * remote. Merging the caller's unstaged edits onto this, against the text it last staged or adopted,
@@ -52,6 +54,13 @@ export interface Workspace {
    * save whose write met a newer file (another device's change) and merged it in. Read `texts()` then.
    */
   onRemoteChange(cb: () => void): () => void;
+  /**
+   * Calls `cb` when merging config.yaml found settings changed differently here and on another device
+   * (when a staged edit meets a newer file, on a pull or a save). `labels` are the settings' labels;
+   * the change made here was kept. When `dropped` (it says why), the change could not go onto the other
+   * device's file: that file was kept, and `labels` are the settings changed here.
+   */
+  onConfigConflict(cb: (labels: string[], dropped: Dropped) => void): () => void;
   /** Worst of the three files: signin > offline > syncing > saved. */
   status(): SyncStatus;
   onStatus(cb: (s: SyncStatus) => void): () => void;
@@ -59,10 +68,23 @@ export interface Workspace {
 
 const RANK: Record<SyncStatus, number> = { saved: 0, syncing: 1, offline: 2, signin: 3 };
 
-/** The app never writes config.yaml after creating it, so the remote text always wins. */
-const mergeConfig = (_base: string, _local: string, remote: string): string => remote;
-
 export function createWorkspace(adapter: StorageAdapter, cache: LocalCache): Workspace {
+  const conflictListeners = new Set<(labels: string[], dropped: Dropped) => void>();
+  /** config.yaml merges one setting at a time; where both sides changed one, the local value wins. */
+  const mergeConfig = (base: string, local: string, remote: string): string => {
+    const { text, conflicts, dropped } = mergeSettings(TASKS_SCHEMA, base, local, remote);
+    if (conflicts.length > 0 || dropped) {
+      const labels = conflicts.map((f) => f.label);
+      for (const cb of conflictListeners) {
+        try {
+          cb(labels, dropped);
+        } catch (e) {
+          console.error('Workspace config-conflict listener failed', e);
+        }
+      }
+    }
+    return text;
+  };
   const make = (name: TaskFile, merge: (b: string, l: string, r: string) => string, initial: string) =>
     new FileSync({ name, adapter, cache, merge, initial });
   const tasks = make('tasks.md', mergeTasksText, '# Tasks\n');
@@ -108,13 +130,14 @@ export function createWorkspace(adapter: StorageAdapter, cache: LocalCache): Wor
     async save(files) {
       if (files.tasks) await tasks.save(files.tasks.text, files.tasks.base);
       if (files.done) await done.save(files.done.text, files.done.base);
+      if (files.config) await config.save(files.config.text, files.config.base);
     },
     texts() {
       return { tasks: tasks.text(), done: done.text(), config: config.text() };
     },
     async stage(files) {
       const errors: unknown[] = [];
-      for (const [sync, edit] of [[tasks, files.tasks], [done, files.done]] as const) {
+      for (const [sync, edit] of [[tasks, files.tasks], [done, files.done], [config, files.config]] as const) {
         if (!edit) continue;
         try {
           await sync.stage(edit.text, edit.base);
@@ -129,6 +152,12 @@ export function createWorkspace(adapter: StorageAdapter, cache: LocalCache): Wor
       const offs = all.map((f) => f.onRemoteChange(cb));
       return () => {
         for (const off of offs) off();
+      };
+    },
+    onConfigConflict(cb) {
+      conflictListeners.add(cb);
+      return () => {
+        conflictListeners.delete(cb);
       };
     },
     onStatus(cb) {

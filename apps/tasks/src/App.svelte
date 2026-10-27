@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { DEFAULT_CONFIG_YAML, TASKS_SCHEMA } from '@omark/tasks-core';
   import type { DoneEntry, ISODate } from '@omark/tasks-core';
+  import SettingsPage from '@omark/settings/SettingsPage.svelte';
   import { BRAND } from './brand.ts';
   import { boot } from './lib/boot.ts';
   import type { BootResult } from './lib/boot.ts';
@@ -17,6 +19,8 @@
   import SignIn from './components/SignIn.svelte';
   import SearchPanel from './components/SearchPanel.svelte';
   import DoneSheet from './components/DoneSheet.svelte';
+  import StatusLine from './components/StatusLine.svelte';
+  import { timeSettingsUrl } from './lib/other-app.ts';
   import HabitHistory from './components/HabitHistory.svelte';
   import { createSearch } from './lib/search.svelte.ts';
   import type { SearchResult } from './lib/search.svelte.ts';
@@ -40,6 +44,15 @@
   let error = $state<string | null>(null);
   let signInError = $state<string | null>(null);
   let sheet = $state<OpenSheet | null>(null);
+  // Settings is its own page at #settings, so browser back leaves it.
+  const loadedOnSettings = location.hash === '#settings';
+  let onSettings = $state(loadedOnSettings);
+  // A direct load of #settings has no list behind it, so its ‹ Tasks follows the link. The entry is
+  // marked, so it is known when browser back or forward returns to it. Opened from the app (the gear,
+  // `,`), ‹ Tasks goes back instead: a second entry would make browser back reopen Settings.
+  const DIRECT = 'settingsLoadedDirect';
+  if (loadedOnSettings) history.replaceState({ ...history.state, [DIRECT]: true }, '');
+  let settingsDirect = $state(loadedOnSettings);
   /** The History of habits is open (a sheet on the phone, a dialog on desktop). */
   let historyOpen = $state(false);
   // Phones always get the Task list (whatever the view), with the + button.
@@ -75,12 +88,36 @@
     sheet = { kind: 'date', id, suggested, beforeId: beforeId ?? undefined };
   }
 
-  /** `f` or Ctrl+K anywhere but a field or an open sheet (the views ignore the command). */
-  function onkeydown(e: KeyboardEvent): void {
-    if (result?.kind !== 'ready' || search.mode === 'open') return;
-    if (commandFor(keyInput(e), result.store.config.shortcuts) !== 'search') return;
+  function backToTasks(e: MouseEvent): void {
     e.preventDefault();
-    search.open();
+    history.back();
+  }
+
+  /** Settings replaces the views; whatever was open over them closes. */
+  function onhashchange(): void {
+    onSettings = location.hash === '#settings';
+    if (!onSettings) return;
+    settingsDirect = (history.state as Record<string, unknown> | null)?.[DIRECT] === true;
+    window.scrollTo(0, 0);
+    sheet = null;
+    historyOpen = false;
+    if (search.mode !== 'closed') search.close(false);
+  }
+
+  /**
+   * `f` or Ctrl+K opens search and `,` opens Settings, anywhere but a field or an open sheet (the views
+   * ignore both). Neither works on the Settings page or while search is open.
+   */
+  function onkeydown(e: KeyboardEvent): void {
+    if (result?.kind !== 'ready' || onSettings || search.mode === 'open') return;
+    const command = commandFor(keyInput(e), result.store.config.shortcuts);
+    if (command === 'search') {
+      e.preventDefault();
+      search.open();
+    } else if (command === 'settings') {
+      e.preventDefault();
+      location.hash = 'settings';
+    }
   }
 
   /** An open task shows in the desktop detail or the phone's edit sheet; a completed one in its own sheet. */
@@ -175,7 +212,7 @@
   });
 </script>
 
-<svelte:window {onkeydown} />
+<svelte:window {onkeydown} {onhashchange} />
 
 {#if error !== null}
   <div class="notice">
@@ -194,48 +231,66 @@
   {@const storageName = result.storageName}
   {@const updates = result.updates}
   {#if signInError}<p class="signin-error" role="alert">{signInError}</p>{/if}
-  {#if store.view === 'board' && !phone.value}
-    <WeekBoardView {store} onCommand={openSheet} onDropPickDate={openDropDate} {onSignIn} {storageName} onHistory={() => (historyOpen = true)} {updates} onUpdate={update} />
+  {#if onSettings}
+    <div class="settings-page">
+      <SettingsPage
+        schema={TASKS_SCHEMA}
+        text={store.configText}
+        onwrite={(text) => store.writeConfig(text)}
+        back={{ label: '‹ Tasks', href: '#', onclick: settingsDirect ? undefined : backToTasks }}
+        apps={{ current: 'Omark Tasks', other: { label: 'Omark Time', href: timeSettingsUrl(location.host) } }}
+        note={store.configNote}
+        defaultText={DEFAULT_CONFIG_YAML}
+      >
+        {#snippet status()}<StatusLine status={store.status} {updates} onupdate={update} settingsLink={false} />{/snippet}
+      </SettingsPage>
+    </div>
   {:else}
-    <TaskListView
-      {store}
-      onCommand={openSheet}
-      onDropPickDate={openDropDate}
-      {onSignIn}
-      {storageName}
-      onSearch={() => search.open()}
-      onHistory={() => (historyOpen = true)}
-      {updates}
-      onUpdate={update}
-    />
+    {#if store.view === 'board' && !phone.value}
+      <WeekBoardView {store} onCommand={openSheet} onDropPickDate={openDropDate} {onSignIn} {storageName} onHistory={() => (historyOpen = true)} {updates} onUpdate={update} />
+    {:else}
+      <TaskListView
+        {store}
+        onCommand={openSheet}
+        onDropPickDate={openDropDate}
+        {onSignIn}
+        {storageName}
+        onSearch={() => search.open()}
+        onHistory={() => (historyOpen = true)}
+        {updates}
+        onUpdate={update}
+      />
+    {/if}
+    {#if historyOpen}<HabitHistory {store} variant={phone.value ? 'sheet' : 'dialog'} onclose={() => (historyOpen = false)} />{/if}
+    {#if phone.value}<Fab onclick={() => (sheet = { kind: 'add' })} />{/if}
+    {#if search.mode === 'open'}<SearchPanel {store} {search} onopen={openResult} />{/if}
+    <!-- One sheet per kind, so a sheet opened from another (move → date) gets its own focus and backdrop guard. -->
+    {#key sheet?.kind}
+      <Sheet open={sheet !== null} onclose={closeSheet}>
+        {#if sheet?.kind === 'date'}
+          <DatePicker {store} taskId={sheet.id} suggested={sheet.suggested} beforeId={sheet.beforeId} onclose={closeSheet} />
+        {:else if sheet?.kind === 'repeat'}
+          <RepeatPicker {store} taskId={sheet.id} habit={sheet.habit} onclose={closeSheet} />
+        {:else if sheet?.kind === 'add'}
+          <AddSheet {store} onclose={closeSheet} />
+        {:else if sheet?.kind === 'edit'}
+          {@const id = sheet.id}
+          <EditSheet {store} taskId={id} oncommand={(c) => openSheet(c, id)} onclose={closeSheet} />
+        {:else if sheet?.kind === 'move'}
+          {@const id = sheet.id}
+          <MoveSheet {store} taskId={id} oncommand={(c) => openSheet(c, id)} onclose={closeSheet} />
+        {:else if sheet?.kind === 'done'}
+          <DoneSheet {store} entry={sheet.entry} onclose={closeSheet} />
+        {/if}
+      </Sheet>
+    {/key}
   {/if}
-  {#if historyOpen}<HabitHistory {store} variant={phone.value ? 'sheet' : 'dialog'} onclose={() => (historyOpen = false)} />{/if}
-  {#if phone.value}<Fab onclick={() => (sheet = { kind: 'add' })} />{/if}
-  {#if search.mode === 'open'}<SearchPanel {store} {search} onopen={openResult} />{/if}
-  <!-- One sheet per kind, so a sheet opened from another (move → date) gets its own focus and backdrop guard. -->
-  {#key sheet?.kind}
-    <Sheet open={sheet !== null} onclose={closeSheet}>
-      {#if sheet?.kind === 'date'}
-        <DatePicker {store} taskId={sheet.id} suggested={sheet.suggested} beforeId={sheet.beforeId} onclose={closeSheet} />
-      {:else if sheet?.kind === 'repeat'}
-        <RepeatPicker {store} taskId={sheet.id} habit={sheet.habit} onclose={closeSheet} />
-      {:else if sheet?.kind === 'add'}
-        <AddSheet {store} onclose={closeSheet} />
-      {:else if sheet?.kind === 'edit'}
-        {@const id = sheet.id}
-        <EditSheet {store} taskId={id} oncommand={(c) => openSheet(c, id)} onclose={closeSheet} />
-      {:else if sheet?.kind === 'move'}
-        {@const id = sheet.id}
-        <MoveSheet {store} taskId={id} oncommand={(c) => openSheet(c, id)} onclose={closeSheet} />
-      {:else if sheet?.kind === 'done'}
-        <DoneSheet {store} entry={sheet.entry} onclose={closeSheet} />
-      {/if}
-    </Sheet>
-  {/key}
 {/if}
 
 <style>
   .notice { max-width: 420px; margin: 20vh auto 0; font: 14px var(--mono); color: var(--muted); }
   .retry { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 14px; font: 500 14px var(--sans); cursor: pointer; }
+  /* The page has its own padding: it takes over the app's side and top padding (the notch inset stays). */
+  .settings-page { margin: -18px -16px 0; }
   .signin-error { max-width: 1160px; margin: 0 auto 12px; font: 12px var(--mono); color: var(--danger); }
 </style>

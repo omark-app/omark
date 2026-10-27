@@ -59,6 +59,7 @@ export function createCommands(opts: {
       case 'switchView': store.switchView(); return true;
       // The app shell opens search (App.svelte).
       case 'search': return false;
+      case 'settings': return false;
     }
     const id = store.selectedId;
     if (id === null) return false;
