@@ -1,6 +1,6 @@
 # TaskApp backlog
 
-Ideas deliberately left out of v1 ([[TaskApp v1 spec]]). Grouped by theme; not ordered by priority yet.
+Ideas deliberately left out of v1 ([the Tasks spec](tasks/spec.md)). Grouped by theme; not ordered by priority yet.
 
 ## Going wider (public release)
 

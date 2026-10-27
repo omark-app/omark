@@ -18,7 +18,10 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8').replace(/\r\n/g, '\n');
 
 const rootDocs = ['README.md', 'PHILOSOPHY.md', 'AGENTS.md', 'CLAUDE.md', 'CONTRIBUTING.md', 'GOVERNANCE.md', 'SECURITY.md', 'CODE_OF_CONDUCT.md'];
-const docDocs = ['doc/format.md', 'doc/architecture.md', 'doc/self-hosting.md', 'doc/factory.md'];
+const docDocs = [
+  'doc/format.md', 'doc/architecture.md', 'doc/self-hosting.md', 'doc/factory.md', 'doc/tasks/spec.md', 'doc/tasks/habits-spec.md',
+  'doc/time/spec.md',
+];
 
 /** A Markdown file's prose: code blocks and code spans removed (a file may be named `[[path]].ts`). */
 const prose = (text: string) => text.replace(/^[ \t]*```[^\n]*\n[\s\S]*?^[ \t]*```[ \t]*$/gm, '').replace(/`[^`\n]*`/g, '');

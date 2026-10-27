@@ -1,8 +1,8 @@
 # TaskApp open source launch spec
 
 Status: approved, 2026-10-21. Agreed in the session that weighed a paid app against open source. Plans: [roadmap](plans/open-source-launch-roadmap.md), [milestone 1](history/open-source-m1-groundwork.md).
-Updated and approved 2026-10-22 for the suite: a second app, [Omark Time](Omark%20Time%20spec.md), launches with Omark Tasks from one monorepo; Google Drive storage joins the launch; PHILOSOPHY.md holds principles instead of a "won't add" list.
-Related: [v1 spec](TaskApp%20v1%20spec.md), [Omark Time spec](Omark%20Time%20spec.md), [factory spec](TaskApp%20factory%20spec.md), [backlog](TaskApp%20backlog.md).
+Updated and approved 2026-10-22 for the suite: a second app, [Omark Time](time/spec.md), launches with Omark Tasks from one monorepo; Google Drive storage joins the launch; PHILOSOPHY.md holds principles instead of a "won't add" list.
+Related: [v1 spec](tasks/spec.md), [Omark Time spec](time/spec.md), [factory spec](TaskApp%20factory%20spec.md), [backlog](TaskApp%20backlog.md).
 
 ## 1. Intent
 
@@ -17,7 +17,7 @@ I looked at selling it as a paid mobile app and decided against it. The numbers 
 The model is [Open Mercato](https://github.com/open-mercato/open-mercato), but for personal productivity: an umbrella brand, **Omark**, for a family of small, plain-file tools that AI agents can work on. The suite launches with two apps from one repository:
 
 - **Omark Tasks**, the task app.
-- **Omark Time** ([its spec](Omark%20Time%20spec.md)), a time tracker built on the calendar. You plan and record your day as calendar events titled `CODE; Category; description`, and it turns them into hours per project and category in plain CSV files you own. The calendar is where people already live with their schedules, so the tracker works on top of it.
+- **Omark Time** ([its spec](time/spec.md)), a time tracker built on the calendar. You plan and record your day as calendar events titled `CODE; Category; description`, and it turns them into hours per project and category in plain CSV files you own. The calendar is where people already live with their schedules, so the tracker works on top of it.
 
 Further tools, such as notes, are only a direction in PHILOSOPHY.md for now.
 
@@ -52,7 +52,7 @@ These are not part of the launch. They can be issues or later specs.
 - Sharing, multiple users, team features.
 - Paid tiers, sponsorship tooling, usage analytics.
 - A third Omark tool. Notes and other apps are ideas for later versions. The naming (`notes.omark.app`), the landing page and the icon family leave room for them, but nothing is built for them now.
-- Omark Time's own non-goals are in [its spec](Omark%20Time%20spec.md) (2.2).
+- Omark Time's own non-goals are in [its spec](time/spec.md) (2.2).
 
 *(Changed 2026-10-22: the line "any second Omark tool" was reversed by adding Omark Time, and Google Drive moved from here into the launch, 6.4.1.)*
 
@@ -321,7 +321,7 @@ The old docs are rewritten for a stranger, in plain, short English, with no `[[w
 
 The set is suite-level: one README, PHILOSOPHY, AGENTS, CONTRIBUTING, GOVERNANCE, SECURITY and CODE_OF_CONDUCT for the repo, covering both apps. The per-app documents (spec, format, self-hosting notes) have a part or a file per app:
 
-- `doc/tasks/spec.md` and `doc/time/spec.md` (from the [Omark Time spec](Omark%20Time%20spec.md));
+- `doc/tasks/spec.md` and `doc/time/spec.md` (from the [Omark Time spec](time/spec.md));
 - `doc/format.md` covering both apps, or one file per app *(the builder decides)*.
 
 AGENTS.md's task router names the app as well as the kind of task. The table below lists the Tasks sources; Omark Time's docs come from its spec.
@@ -549,7 +549,7 @@ The suite lives in one repository, renamed `omark-app/tasks` → **`omark-app/om
 
 ### 6.13 Omark Time (large: a new app)
 
-Specified in the [Omark Time spec](Omark%20Time%20spec.md) and built in the roadmap's milestone T. It depends on:
+Specified in the [Omark Time spec](time/spec.md) and built in the roadmap's milestone T. It depends on:
 
 - the monorepo (6.12);
 - the Google provider in `@omark/signin` and the Google Drive adapter (6.4.1);
