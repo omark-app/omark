@@ -1,6 +1,8 @@
 # TaskApp cloud environment
 
-The settings of the Claude cloud environment that factory sessions run in ([[TaskApp factory spec]], 7.4). They live at claude.ai, not in the repo, so this page is the record. To re-create it: claude.ai/code → environment menu → Add environment, and copy what's below.
+> Historical, may be out of date. The checks made when the cloud environment was set up (2026-10-18). Its current settings are in [doc/factory.md](../factory.md).
+
+The settings of the Claude cloud environment that factory sessions run in ([the factory spec](TaskApp%20factory%20spec.md), 7.4). They live at claude.ai, not in the repo, so this page is the record. To re-create it: claude.ai/code → environment menu → Add environment, and copy what's below.
 
 ## Settings
 
@@ -34,7 +36,7 @@ The guard hook (`tools/claude-guard/guard.mjs`) runs before every Bash command a
 | 2026-10-18 | Playwright browser download with the default network list | Blocked (`cdn.playwright.dev`); needs the allowed domains above |
 | 2026-10-18 | Unit tests and typecheck in a cloud session | Pass |
 | 2026-10-18 | Desktop e2e in a cloud session, on the older pre-installed Chromium | Pass |
-| 2026-10-18 | Session start in a fresh session on this environment (Task 15 of [[TaskApp factory build plan]]) | The hook installed Chromium 1248 and WebKit 2370 (with apt deps). Hook 4m00s (pnpm install ~1m20s, apt ~20s, browsers ~1m30s); container start to first prompt ~4m15s. Under the 5-minute bar, so the install stays in the hook |
+| 2026-10-18 | Session start in a fresh session on this environment (Task 15 of [the factory build plan](TaskApp%20factory%20build%20plan.md)) | The hook installed Chromium 1248 and WebKit 2370 (with apt deps). Hook 4m00s (pnpm install ~1m20s, apt ~20s, browsers ~1m30s); container start to first prompt ~4m15s. Under the 5-minute bar, so the install stays in the hook |
 | 2026-10-18 | `pnpm typecheck` | Pass, 0 errors (1m00s) |
 | 2026-10-18 | `pnpm test` | Pass, 692 tests in 41 files (39s) |
 | 2026-10-18 | `pnpm e2e`, both projects | Pass, 157 passed, 0 failed, 97 skipped (desktop 97 passed / 30 skipped, iphone 60 / 67; the skips are the other device's tests). WebKit works in the sandbox. 7m02s |

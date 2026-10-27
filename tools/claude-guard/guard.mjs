@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Claude Code PreToolUse hook: blocks pushes to main, force pushes, deleting other remote branches, merging
-// PRs and starting Promote, from Bash and from the GitHub MCP tools (doc/TaskApp factory spec.md, section 8).
+// PRs and starting Promote, from Bash and from the GitHub MCP tools (doc/factory.md, The guard).
 // Exit 2 blocks the call, with the reason on stderr; exit 0 lets it run. Best-effort: it reads the command
 // line, not what scripts or aliases do.
 import { execFileSync } from 'node:child_process';
@@ -168,7 +168,7 @@ function checkGit(words, cwd) {
   return null;
 }
 
-const PROMOTE = 'starting Promote to production (only AL starts it)';
+const PROMOTE = 'starting Promote to production (a maintainer starts it)';
 
 const GH_API_VALUE_FLAGS = new Set([
   '-X', '--method', '-f', '--raw-field', '-F', '--field', '-H', '--header', '-q', '--jq',
@@ -180,7 +180,7 @@ const GH_API_VALUE_FLAGS = new Set([
  * @param {string[]} words the words after `gh`
  */
 function checkGh(words) {
-  if (words[0] === 'pr' && words[1] === 'merge') return 'merging a PR (only AL merges)';
+  if (words[0] === 'pr' && words[1] === 'merge') return 'merging a PR (a maintainer merges)';
   if (words[0] === 'workflow' && words[1] === 'run' && /promote/i.test(words[2] ?? '')) return PROMOTE;
   if (words[0] !== 'api') return null;
   let path = null;
@@ -196,13 +196,13 @@ function checkGh(words) {
   }
   if (path === null) return null;
   const bare = path.split('?')[0] ?? '';
-  if (/\/merges?\/?$/.test(bare)) return 'merging through the API (only AL merges)';
+  if (/\/merges?\/?$/.test(bare)) return 'merging through the API (a maintainer merges)';
   if (/\/dispatches\/?$/.test(bare) && /promote/i.test(bare)) return PROMOTE;
   const writes = method !== 'GET' || fields.length > 0;
   if (writes && /\/git\/refs\b/.test(bare)) return 'changing a branch ref through the API';
   if (writes && /\/contents\//.test(bare) && fields.includes(`branch=${MAIN}`)) return 'writing to main through the API';
   if (bare === 'graphql' && words.some((w) => /mergePullRequest|enablePullRequestAutoMerge/.test(w))) {
-    return 'merging through the API (only AL merges)';
+    return 'merging through the API (a maintainer merges)';
   }
   return null;
 }
@@ -217,7 +217,7 @@ const SHELLS = new Set(['bash', 'sh', 'zsh', 'dash']);
  */
 function checkGitHubTool(tool, input) {
   const name = tool.replace(/^mcp__github__/, '');
-  if (name === 'merge_pull_request' || name === 'enable_pr_auto_merge') return 'merging a PR (only AL merges)';
+  if (name === 'merge_pull_request' || name === 'enable_pr_auto_merge') return 'merging a PR (a maintainer merges)';
   if (name === 'actions_run_trigger' && /promote/i.test(String(input.workflow_id ?? ''))) return PROMOTE;
   if (input.branch === MAIN && ['push_files', 'create_or_update_file', 'delete_file'].includes(name)) {
     return 'writing to main through the GitHub tools';
@@ -262,7 +262,7 @@ async function main() {
   try {
     input = JSON.parse(raw);
   } catch {
-    process.stderr.write('TaskApp guard: could not read the hook input; letting the command through.\n');
+    process.stderr.write('Omark guard: could not read the hook input; letting the command through.\n');
     return 0;
   }
   const tool = input.tool_name ?? '';
@@ -272,7 +272,7 @@ async function main() {
     : tool.startsWith('mcp__github__') ? checkGitHubTool(tool, args)
     : null;
   if (!reason) return 0;
-  process.stderr.write(`Blocked by the TaskApp guard: ${reason}. See CLAUDE.md, Hard rules.\n`);
+  process.stderr.write(`Blocked by the Omark guard: ${reason}. See AGENTS.md, Hard rules.\n`);
   return 2;
 }
 

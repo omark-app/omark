@@ -58,7 +58,7 @@ Ideas deliberately left out of v1 ([the Tasks spec](tasks/spec.md)). Grouped by 
 
 ## Factory
 
-Left out of phase 1 of [[TaskApp factory spec]] (its section 13).
+Left out of phase 1 of [the factory spec](history/TaskApp%20factory%20spec.md) (its section 13).
 
 - **Branch protection** on `main` (PR and checks required), once the repo is on GitHub Pro or public.
 - **claude-code-action** (`@claude` in issues and PRs, automatic PR review): it uses Actions minutes. Revisit if minutes allow.

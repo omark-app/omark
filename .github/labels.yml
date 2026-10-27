@@ -1,0 +1,53 @@
+# Every label the factory uses (doc/factory.md). `node tools/ci/labels.mjs` shows what it would change in the
+# repository; `--apply` creates and updates them. It never deletes a label.
+- name: bug
+  color: "d73a4a"
+  description: Something doesn't work as it should
+- name: enhancement
+  color: "a2eeef"
+  description: Something new or a change users see
+- name: task
+  color: "c5def5"
+  description: "Work users don't see: CI, dependencies, refactors, docs, roadmap items"
+- name: ready
+  color: "1d76db"
+  description: Can be picked up
+- name: good first issue
+  color: "7057ff"
+  description: A good start for a new contributor
+- name: help wanted
+  color: "008672"
+  description: Open for a contributor to take
+- name: size:small
+  color: "0e8a16"
+  description: "Small: straight to a PR"
+- name: size:large
+  color: "b60205"
+  description: "Large: needs a plan approved by a maintainer"
+- name: plan-review
+  color: "d93f0b"
+  description: Plan posted; waiting for a maintainer
+- name: plan-approved
+  color: "0e8a16"
+  description: A maintainer approved the plan; go ahead
+- name: in-progress
+  color: "5319e7"
+  description: Someone is working on it; their comment names the branch
+- name: needs-info
+  color: "fbca04"
+  description: A question was asked; waiting for the answer
+- name: needs-human
+  color: "b60205"
+  description: Blocked on a step only a maintainer can do (accounts, dashboards, devices)
+- name: format
+  color: "e99695"
+  description: Changes an open file format (doc/format.md); always large
+- name: app:tasks
+  color: "bfd4f2"
+  description: About Omark Tasks
+- name: app:time
+  color: "d4c5f9"
+  description: About Omark Time
+- name: app:suite
+  color: "ededed"
+  description: Shared packages, CI, docs or the landing page
