@@ -28,6 +28,18 @@ export type RepeatRule =
   | { type: 'every'; n: number; unit: 'days' | 'weeks' | 'months' }
   | { type: 'after'; n: number };
 
+/** The 🌱 field of a habit (#44). `goal` is the number after it (1–999); null means the configured goal. */
+export interface HabitMark {
+  goal: number | null;
+}
+
+/** A habit's boundary line in `done.md`: `formed` is the 🏆 line, `dropped` the `- [-]` ❌ line. */
+export interface HabitEnd {
+  kind: 'formed' | 'dropped';
+  title: string;
+  on: ISODate;
+}
+
 /**
  * An open task in `tasks.md`. `raw`/`rawKey` are the block as read and its `taskKey`; null for tasks the
  * app created. A task made from a swept recurring `- [x]` block keeps that block as `raw` (so its note
@@ -41,6 +53,8 @@ export interface Task {
   repeat: RepeatRule | null;
   /** The ⏫ field (issue #19). Absent or false: not important. */
   important?: boolean;
+  /** The 🌱 field (#44); only set while the task has a usable 🔁 rule. */
+  habit?: HabitMark;
   raw: string[] | null;
   rawKey: string | null;
 }
@@ -56,6 +70,8 @@ export interface DoneEntry {
   notes: string[];
   /** The ⏫ field; absent when the line has none. */
   important?: boolean;
+  /** The 🌱 field; absent when the line has none. */
+  habit?: HabitMark;
 }
 
 /**
@@ -78,10 +94,12 @@ export interface TasksDoc {
 
 /**
  * One line of `done.md`. `entry` is null for a line without a valid ✅ date and for the note lines under a
- * done line (both kept as is); `raw` has no newline.
+ * done line (both kept as is); `raw` has no newline. `end` is set on formed and dropped habit lines (#44),
+ * whose `entry` stays null.
  */
 export interface DoneLine {
   entry: DoneEntry | null;
+  end?: HabitEnd;
   raw: string;
 }
 

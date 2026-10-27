@@ -3,8 +3,8 @@
 
   /**
    * What was typed and chosen. It outlives a dismissed sheet and is cleared only by a successful Add. A
-   * picked chip or Important toggle holds while the typed shortcut words still say what they said when it
-   * was picked (`*For`); typing a new date word or `imp` takes over again (issue #19).
+   * picked chip or Important or Habit toggle holds while the typed shortcut words still say what they said when it
+   * was picked (`*For`); typing a new date word, `imp` or `hab` takes over again (issue #19).
    */
   const draft = $state<{
     title: string;
@@ -13,7 +13,9 @@
     pickedFor: string;
     important: boolean | null;
     importantFor: boolean;
-  }>({ title: '', dismissed: [], picked: null, pickedFor: '', important: null, importantFor: false });
+    habit: boolean | null;
+    habitFor: boolean;
+  }>({ title: '', dismissed: [], picked: null, pickedFor: '', important: null, importantFor: false, habit: null, habitFor: false });
 </script>
 
 <script lang="ts">
@@ -26,6 +28,7 @@
 
   const typed = $derived(readQuickAdd(draft.title, store.ctx, draft.dismissed));
   const typedKey = $derived(JSON.stringify(typed.when));
+  const habit = $derived(draft.habit !== null && draft.habitFor === typed.habit ? draft.habit : typed.habit);
   /** A typed weekday gets its own chip (Tomorrow's date shows as Tomorrow). */
   const typedDay = $derived(
     typeof typed.when === 'object' && typed.when !== null && typed.when.date !== addDays(store.ctx.today, 1)
@@ -43,10 +46,12 @@
     if (typeof w === 'object') return typedDay ? 'day' : 'tomorrow';
     return w;
   });
-  // The picked chip while the typed words are unchanged, else the typed one, else the configured bucket
-  // for new tasks. This week is not offered at the week's end, where its date is tomorrow or today (#26).
+  // The picked chip while the typed words are unchanged, else the typed one, else Today for a habit, else
+  // the configured bucket for new tasks. This week is not offered at the week's end, where its date is tomorrow or today (#26).
   const chip = $derived.by(() => {
-    const wanted = (draft.picked !== null && draft.pickedFor === typedKey ? draft.picked : null) ?? typedChip ?? store.config.newTaskBucket;
+    // A habit with no date word starts today.
+    const wanted =
+      (draft.picked !== null && draft.pickedFor === typedKey ? draft.picked : null) ?? typedChip ?? (habit ? 'today' : store.config.newTaskBucket);
     if (chips.some((c) => c.key === wanted)) return wanted;
     return endOfWeek(store.ctx) === store.ctx.today ? 'today' : 'tomorrow';
   });
@@ -59,6 +64,7 @@
   $effect(() => {
     if (draft.picked !== null && draft.pickedFor !== typedKey) draft.picked = null;
     if (draft.important !== null && draft.importantFor !== typed.important) draft.important = null;
+    if (draft.habit !== null && draft.habitFor !== typed.habit) draft.habit = null;
   });
 
   function choose(key: ChoiceKey | 'day'): void {
@@ -73,10 +79,18 @@
     input?.focus();
   }
 
+  /** Turning it on at the limit says why (the store's toast) and leaves it off. */
+  function toggleHabit(): void {
+    if (!habit && !store.habitRoom()) return;
+    draft.habit = !habit;
+    draft.habitFor = typed.habit;
+    input?.focus();
+  }
+
   function add(): void {
     const when: DateChoice = chip === 'day' ? { date: typedDay! } : chip;
-    if (store.add(typed.title, when, important)) {
-      Object.assign(draft, { title: '', dismissed: [], picked: null, pickedFor: '', important: null, importantFor: false });
+    if (store.add(typed.title, when, important, habit)) {
+      Object.assign(draft, { title: '', dismissed: [], picked: null, pickedFor: '', important: null, importantFor: false, habit: null, habitFor: false });
     }
     onclose();
   }
@@ -106,6 +120,13 @@
     </button>
     <span class="tip">or type imp</span>
   </div>
+  <div class="flagrow">
+    <button type="button" class="chip flag hab" class:on={habit} aria-pressed={habit} onclick={toggleHabit}>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21v-9"></path><path d="M12 12c0-4 3-7 8-7 0 4-3 7-8 7z"></path><path d="M12 14c0-3-2-5-6-5 0 3 2 5 6 5z"></path></svg>
+      Habit
+    </button>
+    <span class="tip">or type hab</span>
+  </div>
   <div class="actions">
     <button type="button" class="btn ghost" onclick={onclose}>Cancel</button>
     <button type="submit" class="btn primary">Add</button>
@@ -117,5 +138,7 @@
   .flagrow { display: flex; align-items: center; gap: 10px; }
   .flagrow .flag { display: inline-flex; align-items: center; gap: 6px; color: var(--imp); }
   .flagrow .flag.on { background: var(--imp); border-color: var(--imp); color: var(--on-imp); }
+  .flagrow .flag.hab { color: var(--habit-ink); }
+  .flagrow .flag.hab.on { background: var(--habit-soft); border-color: var(--habit); color: var(--habit-ink); font-weight: 600; }
   .tip { font: 12px var(--mono); color: var(--muted); }
 </style>

@@ -134,7 +134,7 @@ When a completion brings the count to the goal:
 2. `done.md` gets the completion line, then `- [x] {title} 🌱 🏆 {today}`.
 3. The toast says: "Habit formed: Read 20 pages · 66 in 71 days · moved to History", with **Undo** and **Keep as task**. Keep as task puts the task back without `🌱` (an ordinary repeating task); the formed line stays.
 
-When the count reaches the goal from a completion made outside the app (Obsidian, Claude), the app does steps 1 and 2 on its next sync and shows the toast then.
+When the count reaches the goal from a completion made outside the app (Obsidian, Claude), the app does steps 1 and 2 on its next sync and shows the toast then. A lower goal (the habit's own or in Settings) can form a habit too, with no completion: then the task's notes go under the `🏆` line. Nothing forms while `config.yaml` has an error (its defaults are not what the file asks for), nor, after a start from the offline cache, before the first sync has brought the files in as they are now.
 
 ## 8. Dropping, unmarking, renaming
 
@@ -194,7 +194,7 @@ A sheet (desktop dialog) with In progress, Formed and Dropped. Formed: title, go
 At most `habits.maxInProgress` habits (default 3) can be in progress at once: open tasks with `🌱` in `tasks.md`.
 
 - **At the limit, the app won't start another.** `h`, the toggle and "Make it a habit" say: "3 habits in progress already. Finish or drop one first, or raise the limit in Settings." Nothing changes.
-- **A typed `hab`** at the limit still adds the task, as an ordinary repeating task (with `🔁 every day` if none was typed) and without `🌱`. The toast says so, with Undo. *(My call: the typing isn't lost.)*
+- **A typed `hab`** at the limit still adds the task, as an ordinary repeating task (with `🔁 every day` if none was typed) and without `🌱`. The toast says so, with Undo. *(My call: the typing isn't lost.)* Typed while editing a title, it saves the rest of the edit the same way, and the toast is the limit message.
 - **Keep as task** after a habit is formed or Undo of a drop count against the limit like any other way in.
 - **Over the limit** (habits added by hand, in Obsidian or by Claude, or a limit lowered in Settings): nothing is removed or paused. Every habit keeps counting, the Habits header shows `4 of 3` in red, and no new habit can start until the count is under the limit. *(My call: the app never takes away progress.)*
 - `0` means no limit.

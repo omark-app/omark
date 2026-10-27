@@ -13,7 +13,8 @@ export default defineConfig({
   test: {
     name: 'tasks',
     include: ['src/**/*.test.ts'],
-    testTransformMode: { web: ['**/*.test.ts'] },
+    // The second glob matches checkouts under a dot folder (e.g. .claude/worktrees), which `**` skips.
+    testTransformMode: { web: ['**/*.test.ts', '**/.*/**/*.test.ts'] },
     passWithNoTests: true,
     // msUntilMidnight's DST assertions only mean something in a DST zone (as in packages/tasks-core).
     env: { TZ: 'Europe/Warsaw' },

@@ -40,10 +40,10 @@ describe('shortcutWords (#19)', () => {
 
 describe('readQuickAdd (#19)', () => {
   test('takes the words out of the title and gives the date and flag', () => {
-    expect(readQuickAdd('Call the bank imp tom', mon)).toEqual({ title: 'Call the bank', when: 'tomorrow', important: true });
-    expect(readQuickAdd('tod Pay  rent', mon)).toEqual({ title: 'Pay  rent', when: 'today', important: false });
-    expect(readQuickAdd('Learn Rust som', mon)).toEqual({ title: 'Learn Rust', when: 'someday', important: false });
-    expect(readQuickAdd('Plain task', mon)).toEqual({ title: 'Plain task', when: null, important: false });
+    expect(readQuickAdd('Call the bank imp tom', mon)).toEqual({ title: 'Call the bank', when: 'tomorrow', important: true, habit: false });
+    expect(readQuickAdd('tod Pay  rent', mon)).toEqual({ title: 'Pay  rent', when: 'today', important: false, habit: false });
+    expect(readQuickAdd('Learn Rust som', mon)).toEqual({ title: 'Learn Rust', when: 'someday', important: false, habit: false });
+    expect(readQuickAdd('Plain task', mon)).toEqual({ title: 'Plain task', when: null, important: false, habit: false });
   });
 
   test('weekday words give the next such day after today', () => {
@@ -68,7 +68,7 @@ describe('readQuickAdd (#19)', () => {
 
   test('a dismissed word stays in the title', () => {
     expect(readQuickAdd('Buy sun cream', mon, [{ start: 4, word: 'sun' }])).toEqual({
-      title: 'Buy sun cream', when: null, important: false,
+      title: 'Buy sun cream', when: null, important: false, habit: false,
     });
   });
 
@@ -108,7 +108,7 @@ describe('carryDismissed (#19)', () => {
 describe('review fixes (#19)', () => {
   test('words inside a typed 🔁 rule are not shortcut words', () => {
     expect(readQuickAdd('Gym 🔁 every week on Monday', mon)).toEqual({
-      title: 'Gym 🔁 every week on Monday', when: null, important: false,
+      title: 'Gym 🔁 every week on Monday', when: null, important: false, habit: false,
     });
     expect(readQuickAdd('Bins 🔁 every week on tuesday 📅 2026-10-30 imp', mon)).toMatchObject({
       title: 'Bins 🔁 every week on tuesday 📅 2026-10-30', important: true,
@@ -117,5 +117,19 @@ describe('review fixes (#19)', () => {
 
   test('a typed 📅 date wins over a date word, as the saved line reads', () => {
     expect(readQuickAdd('Pay 📅 2026-10-30 tom', mon)).toMatchObject({ when: { date: '2026-10-30' } });
+  });
+});
+
+describe('the hab word (#44)', () => {
+  test('hab and habit set the flag and leave the title', () => {
+    expect(readQuickAdd('Meditate 10 min hab', mon)).toEqual({ title: 'Meditate 10 min', when: null, important: false, habit: true });
+    expect(readQuickAdd('Habit Meditate tod', mon)).toMatchObject({ title: 'Meditate', when: 'today', habit: true });
+    expect(kinds('a HAB b habit')).toEqual([['HAB', 'habit'], ['habit', 'habit']]);
+  });
+
+  test('is not a word inside a typed 🔁 rule, and does not touch important', () => {
+    expect(readQuickAdd('Gym 🔁 every day hab', mon)).toMatchObject({ title: 'Gym 🔁 every day hab', habit: false });
+    expect(readQuickAdd('Gym 🔁 every day 📅 2026-10-30 hab', mon)).toMatchObject({ title: 'Gym 🔁 every day 📅 2026-10-30', habit: true });
+    expect(readQuickAdd('Gym imp', mon)).toMatchObject({ important: true, habit: false });
   });
 });

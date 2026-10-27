@@ -198,7 +198,7 @@ One row per tracked event per local day, in the file of that day's year.
 ```
 date,start,end,hours,project,category,description,all_day,known,calendar,event_id
 2026-10-22,2026-10-22T09:00+02:00,2026-10-22T10:30+02:00,1.5,ACME,Coding,new featureX,false,true,primary,abc123
-2026-10-22,2026-10-22T11:00+02:00,2026-10-22T11:30+02:00,0.5,OOO,,away,false,false,primary,def456
+2026-10-22,2026-10-22T11:00+02:00,2026-10-22T11:30+02:00,0.5,OOO,away,,false,false,primary,def456
 ```
 
 - **`start` and `end`** are the row's own part of the event. For all-day rows they are 00:00 and the next day's 00:00. `hours` then comes from the setting.
