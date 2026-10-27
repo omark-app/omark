@@ -12,6 +12,7 @@ const WORDS: readonly [short: string, full: string, kind: ShortcutKind, weekday?
   ['tom', 'tomorrow', 'tomorrow'],
   ['som', 'someday', 'someday'],
   ['imp', 'important', 'important'],
+  ['hab', 'habit', 'habit'],
   ['mon', 'monday', 'weekday', 0],
   ['tue', 'tuesday', 'weekday', 1],
   ['wed', 'wednesday', 'weekday', 2],
@@ -21,7 +22,7 @@ const WORDS: readonly [short: string, full: string, kind: ShortcutKind, weekday?
   ['sun', 'sunday', 'weekday', 6],
 ];
 
-export type ShortcutKind = 'today' | 'tomorrow' | 'someday' | 'important' | 'weekday';
+export type ShortcutKind = 'today' | 'tomorrow' | 'someday' | 'important' | 'habit' | 'weekday';
 
 /** A shortcut word in the text: `text.slice(start, end) === word`. */
 export interface ShortcutWord {
@@ -60,6 +61,8 @@ export interface QuickAdd {
   /** The last date word's choice; null when none was typed. */
   when: DateChoice | null;
   important: boolean;
+  /** The `hab` word was typed (#44); the caller adds the 🌱 and, with no rule typed, `every day`. */
+  habit: boolean;
 }
 
 /** What adding `text` means: the clean title, the date from the last date word, and the flag. */
@@ -67,8 +70,10 @@ export function readQuickAdd(text: string, ctx: WeekCtx, dismissed: readonly Dis
   const words = shortcutWords(text, dismissed);
   let when: DateChoice | null = null;
   let important = false;
+  let habit = false;
   for (const w of words) {
     if (w.kind === 'important') important = true;
+    else if (w.kind === 'habit') habit = true;
     else if (w.kind === 'weekday') when = { date: nextWeekday(w.weekday!, ctx) };
     else when = w.kind;
   }
@@ -80,7 +85,7 @@ export function readQuickAdd(text: string, ctx: WeekCtx, dismissed: readonly Dis
   title = title.trim();
   // A 📅 date typed in the title is what the saved line keeps (issue #8), so it wins over a date word.
   const typedDate = parseFields(title, false).date;
-  return { title, when: typedDate ? { date: typedDate } : when, important };
+  return { title, when: typedDate ? { date: typedDate } : when, important, habit };
 }
 
 /** The next `weekday` strictly after today, 1 to 7 days on. */

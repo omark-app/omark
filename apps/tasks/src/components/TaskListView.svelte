@@ -3,6 +3,7 @@
   import type { AppStore } from '../lib/store.svelte.ts';
   import type { Updates } from '../lib/updates.svelte.ts';
   import Bucket from './Bucket.svelte';
+  import HabitsGroup from './HabitsGroup.svelte';
   import Stats from './Stats.svelte';
   import Hints from './Hints.svelte';
   import StatusLine from './StatusLine.svelte';
@@ -22,6 +23,7 @@
     onDropPickDate = () => {},
     onSignIn,
     onSearch,
+    onHistory = () => {},
     updates,
     onUpdate,
   }: {
@@ -30,6 +32,7 @@
     onDropPickDate?: OnDropPickDate;
     onSignIn?: () => void;
     onSearch?: () => void;
+    onHistory?: () => void;
     updates?: Updates;
     onUpdate?: () => void;
   } = $props();
@@ -67,6 +70,8 @@
         {#if onSearch}<button class="find" data-testid="search-open" aria-label="Search" onclick={onSearch}>🔍</button>{/if}
       </span>
     </div>
+    <!-- Habit cards scroll sideways under the stats line; a tap opens the edit sheet. -->
+    <HabitsGroup {store} variant="cards" onopen={open} onhistory={onHistory} />
   {/if}
   <!-- Phone gestures cover both panes: Important, not urgent sits in the side pane (#38). -->
   <div
@@ -106,6 +111,7 @@
       {:else}
         <span class="legend">not urgent</span>
       {/if}
+      {#if !phone.value}<HabitsGroup {store} variant="list" onopen={open} onhistory={onHistory} />{/if}
       <!-- Important, not urgent: below the detail when a task is open, on its own otherwise (#38). -->
       <Bucket
         {store}

@@ -57,6 +57,7 @@ Obsidian Tasks–compatible markdown. Tasks are one flat list; buckets are compu
 - `📅 YYYY-MM-DD` = due date. No date = Someday, or Important, not urgent when the task has `⏫` (section 7).
 - `🔁 <rule>` = repeat rule (section 6).
 - `⏫` = Important (added 2026-10-19, #19), Obsidian Tasks' high priority. It can sit anywhere in the line (every `⏫` counts as the one flag); the app writes it right after the title: `- [ ] Call the bank ⏫ 🔁 every day 📅 2026-10-20`. The other priority signs (`🔺 🔼 🔽 ⏬`) stay in the title as text.
+- `🌱` = habit (added 2026-10-26, #44): a repeating task with a finish line, `🌱` or `🌱 30` (own goal, 1–999). The app writes it after `⏫` and before `🔁`: `- [ ] Meditate 10 min ⏫ 🌱 🔁 every day 📅 2026-10-27`. It needs a `🔁` rule other than `when done`; without one it stays in the title as text. See the [habits spec](TaskApp%20habits%20spec.md).
 - Indented `- ` lines under a task are its notes.
 - Line order within the file is the manual order (section 4.3).
 - Anything above `# Tasks` is kept as it is. Files from before #38 have a `# Always` section above `# Tasks` (one `- text` line per reminder). On the next sync the app turns each such line into `- [ ] text ⏫` at the top of `# Tasks`, in the same order, and removes the section; other lines in it stay above `# Tasks`. New files start as just `# Tasks`.
@@ -72,6 +73,7 @@ Obsidian Tasks–compatible markdown. Tasks are one flat list; buckets are compu
 ```
 
 - A completed important task keeps its `⏫`: `- [x] Call the bank ⏫ ✅ 2026-10-20`. A repeating one stays important on its next date.
+- A completed habit keeps its `🌱` (without the goal): `- [x] Meditate 10 min 🌱 🔁 every day ✅ 2026-10-26`. Two more habit lines are boundaries, not completions: `- [x] {title} 🌱 🏆 {date}` (formed) and `- [-] {title} 🌱 ❌ {date}` (dropped). They have no `✅`, so they are kept as they are and never counted in the stats. Habit progress is worked out from `done.md`, never stored (see the [habits spec](TaskApp%20habits%20spec.md)).
 - Nothing is deleted on completion: completing a task moves its line from `tasks.md` to `done.md` with today's date, and its notes go along as indented lines under the done line, byte for byte as they were in `tasks.md`.
 - Completing a recurring task appends its done line, with a copy of its notes, to `done.md` and moves the task in `tasks.md` (notes included) to its next date.
 - A `- [x]` line ticked outside the app (e.g. in Obsidian) moves to `done.md` on the next sync with its notes.
@@ -155,6 +157,7 @@ Moving a task means setting its date:
 - Left: a round complete button. Middle: the title, followed by a faint `≡` when the task has notes. Notes are **not** shown in the list; they appear in the task detail (section 11) or the phone's edit sheet.
 - Right: one **meta label**, clickable to open the date picker:
   - a short date: `Thu` in Tomorrow, This week and Next week, `12 Nov` in Later; overdue tasks show their date in red (`Wed`, or `3 Oct` if more than a week ago);
+  - a habit shows its progress instead (`12/66`, in violet) and no `↻`, and is never shown as overdue (see the [habits spec](TaskApp%20habits%20spec.md));
   - a repeating task shows `↻` in the same place, before its date (`↻ Thu`, or just `↻` when due today); the full rule is in the tooltip and the detail;
   - no label for non-repeating tasks due today or in Someday; on hover the empty spot shows a faint `today` / `no date` so it can still be clicked (desktop only).
 
@@ -221,6 +224,7 @@ Shown compactly, e.g. `Today 4 (3.2) · 7d 23 (19 ↑) · All 412`.
 | `s` | Someday |
 | `r` | Set repeat |
 | `i` | Important on or off |
+| `h` | Habit on or off (a habit needs a repeat rule; at the limit of habits in progress it says so) |
 | `x` | Complete |
 | Enter (or double-click) | Edit: jumps into the detail's title. Enter saves, Shift+Enter starts a new note line, Ctrl+Enter saves from the notes, Esc leaves the field (and saves) |
 | Delete / Backspace | Delete (with undo) |
@@ -235,10 +239,10 @@ Shown compactly, e.g. `Today 4 (3.2) · 7d 23 (19 ↑) · All 412`.
 
 ### 9.2 iPhone (touch)
 
-- A large + button at the bottom opens an add sheet: text field (with shortcut words, 9.4), date chips (Today selected by default, also Tomorrow, This week, Next week, Someday, plus the day of a typed weekday word) and an Important toggle. A chip or the toggle tapped after typing wins over the typed word.
+- A large + button at the bottom opens an add sheet: text field (with shortcut words, 9.4), date chips (Today selected by default, also Tomorrow, This week, Next week, Someday, plus the day of a typed weekday word), an Important toggle and a Habit toggle. A chip or the toggle tapped after typing wins over the typed word.
 - **Tap** a task → edit sheet: title, notes box, due date and repeat summary, the move options below, Delete, Save.
 - **Swipe right** → complete.
-- **Swipe left** → move sheet: Today, Tomorrow, This week, Next week, Pick a date…, Someday, Repeat…, Mark important (or Not important), Delete.
+- **Swipe left** → move sheet: Today, Tomorrow, This week, Next week, Pick a date…, Someday, Repeat…, Mark important (or Not important), Make it a habit (or Not a habit), Delete.
 - Tapping a task's date label opens the date picker directly.
 - A 🔍 button at the top of the list, beside the save status, opens search full-screen (9.3).
 - **Long-press (~0.4 s, finger still) then drag** → move between and within buckets (section 4.4). The row lifts as a floating copy that follows the finger; the page auto-scrolls near the top and bottom edges; page scrolling is blocked only while dragging. No haptic feedback (not available to iPhone web apps). The iOS long-press text callout is disabled on task rows.
@@ -251,20 +255,20 @@ For finding an old task by any word in it, then opening it to read.
 
 - **Opening**: `f` or Ctrl+K (desktop, both views; not while typing in a field or with a sheet open) opens a search panel over the page, command-palette style. On the phone the 🔍 button opens the same search full-screen. Esc, ✕ or a click outside closes it and puts focus back where it was. `f` is configurable (`search`); Ctrl+K is fixed.
 - **Matching**: one free-text box; results update as you type. Every word must appear, in any order and as part of a word, in the title or a note. Case and diacritics are ignored (`zwloknienia` finds `zwłóknienia` and the other way round; `ł` counts as `l`).
-- **Results**: the title with the matched words highlighted, the task's date label as in the list (the bucket name, `Today` or `Someday`, where the row shows none; red when overdue; `↻` when repeating), and the best matching note line when a word matched outside the title. Order: every word in the title first, then words split between title and notes, then note-only matches; within each, earliest date first, undated last. ↑/↓ move through the results, Enter opens one; click or tap works too.
-- **Completed tasks**: only open tasks are searched at first. A last row, "Also search N completed", adds the matches from `done.md` (kept until search closes): struck through, with their ✅ date, newest first within the same order. At most 100 are shown; another word narrows them. Done entries' notes are matched too.
+- **Results**: the title with the matched words highlighted, the task's date label as in the list (the bucket name, `Today` or `Someday`, where the row shows none; red when overdue, never for a habit; `↻` when repeating), and the best matching note line when a word matched outside the title. Order: every word in the title first, then words split between title and notes, then note-only matches; within each, earliest date first, undated last. ↑/↓ move through the results, Enter opens one; click or tap works too.
+- **Completed tasks**: only open tasks are searched at first. A last row, "Also search N completed", adds the matches from `done.md` (kept until search closes): struck through, with their ✅ date, newest first within the same order. At most 100 are shown; another word narrows them. Done entries' notes are matched too. A habit's formed (`🏆`) and dropped (`❌`) lines are not completions and are never results.
 - **Opening a result**: an open task opens in the detail (desktop: the side pane or the board's rail) or the edit sheet (phone). Closing it (Esc, `esc`, Save, ✕) comes back to search with the query and results kept; selecting another task leaves search. A completed task opens a read-only sheet: title, notes, completion date and repeat rule. It can't be reopened from there (backlog).
 - Out of scope: filters, saved searches, search syntax.
 
 ### 9.4 Shortcut words (added 2026-10-19, #19)
 
-Typed anywhere in a task's title: when adding (the phone's add sheet, the desktop add input) or editing (the phone's edit sheet, the desktop detail). Each counts as its 3-letter form or the full word, in any case: `tod` / `today`, `tom` / `tomorrow`, `mon` … `sun` / `monday` … `sunday`, `som` / `someday`, `imp` / `important`. Other forms (`tomo`, `some`) and longer words (`tomato`) stay text.
+Typed anywhere in a task's title: when adding (the phone's add sheet, the desktop add input) or editing (the phone's edit sheet, the desktop detail). Each counts as its 3-letter form or the full word, in any case: `tod` / `today`, `tom` / `tomorrow`, `mon` … `sun` / `monday` … `sunday`, `som` / `someday`, `imp` / `important`, `hab` / `habit`. Other forms (`tomo`, `some`) and longer words (`tomato`) stay text.
 
-- A matched word turns bold on a tint as it is typed (blue for dates, amber for `imp`), and the date chip or the Important toggle follows it.
+- A matched word turns bold on a tint as it is typed (blue for dates, amber for `imp`, violet for `hab`), and the date chip or the Important or Habit toggle follows it. `hab` with no `🔁` typed adds `🔁 every day` and goes to Today.
 - A weekday word is the next such day after today (on a Monday, `mon` is next Monday).
 - Bold words leave the title. With two date words the last one wins; a typed `📅 date` wins over both. Words inside a typed `🔁` rule are never shortcut words.
 - Backspace right after a bold word deletes nothing: it turns the word back into plain text. A space doesn't bring it back; changing the word (deleting a letter and typing it again) does.
-- When editing, only words typed during the edit count: they move or flag the task when it saves (Save, Enter, leaving the field, or the save delay on desktop) and then leave the title. Words the title already had stay plain text, so opening "Call Tom" never moves it.
+- When editing, only words typed during the edit count: they move, flag or make a habit of the task when it saves (Save, Enter, leaving the field, or the save delay on desktop) and then leave the title. Words the title already had stay plain text, so opening "Call Tom" never moves it.
 
 ## 10. Config
 
@@ -287,6 +291,9 @@ Settings in v1:
 | Date label style | `Thu` / `12 Nov` |
 | Bucket for new tasks | Today |
 | Save delay after typing | 1 s |
+| Habits (#44) | `habits` block: at most 3 in progress, goal 66, 1 miss in a row, 10% misses per attempt; shortcut `h` (see the [habits spec](TaskApp%20habits%20spec.md), section 11) |
+
+The `habits` keys are `maxInProgress` (0–99, 0 = no limit), `goal` (1–999), `missesInARow` (0–99) and `missesPerAttempt` (a number, or a percentage of the goal such as `10%`); `shortcuts.habit` is a key. The ranges are in the [habits spec](TaskApp%20habits%20spec.md), section 11.
 
 Bucket rules themselves stay in code.
 
@@ -306,18 +313,18 @@ Two views on desktop, switched with `v` (default from config). **Phones (narrow 
 **Task list** (default):
 - One framed sheet with two panes.
 - **Left pane "tasks"**: the add input, then the buckets stacked (section 4: Today, Tomorrow, This week, Next week, Later, Someday), one-line rows (5.1).
-- **Right pane**: when a task is selected, its **detail** on top and **Important, not urgent** (section 7) right below it; with nothing selected, just the group. The completion **stats** (section 8) sit at the bottom of the right pane.
-- **Task detail**: bucket name, editable title (wraps onto more lines when long), editable notes (one per line), Due (button opening the date picker, red when overdue) with quick chips Today / Tomorrow / This week / Next week / Someday, Repeat (button opening the repeat picker), an Important toggle (Flag), Complete and Delete buttons, and an `esc` close button.
+- **Right pane**: when a task is selected, its **detail** on top and **Important, not urgent** (section 7) right below it; with nothing selected, just the group. Habits in progress get their own **Habits** group above Important, not urgent (and a habit block in the detail); a History dialog lists formed and dropped habits (see the [habits spec](TaskApp%20habits%20spec.md)). The completion **stats** (section 8) sit at the bottom of the right pane.
+- **Task detail**: bucket name, editable title (wraps onto more lines when long), editable notes (one per line), Due (button opening the date picker, red when overdue; a habit is never overdue, its old date reads as today) with quick chips Today / Tomorrow / This week / Next week / Someday, Repeat (button opening the repeat picker), an Important toggle (Flag), Complete and Delete buttons, and an `esc` close button. A habit also gets a habit block under the notes: its progress, Goal (its own or the default), Not a habit and Drop habit.
 - Below the sheet: the keyboard-hint strip and the save status.
 
 **Week board** (desktop only):
-- Left rail: app name and today's date, the stats, then one box that shows Important, not urgent, or the selected task's detail in its place (both would make the rail taller than the window); then the hint strip and save status. `j`/`k` stay on the board.
+- Left rail: app name and today's date, the stats, then the Habits group (when there are habits) above Important, not urgent, or the selected task's detail in their place (both would make the rail taller than the window); then the hint strip and save status. `j`/`k` stay on the board.
 - Main area: the add input, then the buckets in four columns. The buckets keep their order (Today, Tomorrow, This week, Next week, Later, Someday) and are cut into four groups of one or more, stacked within a column. The cuts are chosen so the tallest column is as short as possible, counting a folded or empty bucket as one row (its header) and an open one as one row plus one per task; among equally tall layouts the best balanced one wins (the next tallest column as short as possible, and so on), then the one closest to the default `Today | Tomorrow + This week | Next week | Later + Someday` (fewest buckets out of their default column). Example: Today 3 tasks, Tomorrow 7, This week 2, Next week 3, Later and Someday folded gives `Today | Tomorrow | This week | Next week + Later + Someday` (8 rows tall, against 11 for the default).
 - The layout is worked out when the board is shown (the app opens or reloads, or the view switches to the board) and then kept while you work: completing, adding, moving, dragging or folding never moves a bucket to another column. Starting from the offline cache, it is worked out once more if the first sync brings changes. A bucket that empties meanwhile keeps its place as an empty header.
 - Today, Tomorrow, This week and Next week start open on the board whatever `foldedOnOpen` says (an empty one still starts folded); Later and Someday fold on open as usual. Every bucket header folds and unfolds on click.
 - Columns wrap to two per row on narrower desktop windows (the same four groups in a 2×2 grid) (packing added after v1, 2026-10-18).
 
-**Phone (Task list)**: a compact stats line at the top, the buckets, Important, not urgent at the bottom, a + button at the bottom right. No detail pane; tap opens the edit sheet (9.2).
+**Phone (Task list)**: a compact stats line at the top, a sideways row of habit cards (when there are habits), the buckets, Important, not urgent at the bottom, a + button at the bottom right. No detail pane; tap opens the edit sheet (9.2).
 
 ## 12. Claude Code integration
 
