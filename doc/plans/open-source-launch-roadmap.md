@@ -19,8 +19,8 @@ The longest chain is Omark Time: 3.8 → T.4 → T.5 → T.6/T.7 → a week of A
 | Wave | Items (parallel) | AL |
 |---|---|---|
 | 1 (done 2026-10-27) | 2.2 landing and privacy policy (`apps/site`, wordmark until 2.4 lands); 3.8 Google Drive and the Google sign-in provider; T.2 milestone plan, then T.3 `time-core`; 2.1 demo mode (#31, rebased onto `apps/tasks`); 2.4 icon directions (shown as a page) | approve 4 plans, pick an icon direction, read the privacy policy |
-| 2 | three lanes: storage (3.1 local folder, then 3.2 first-run choice); Time (T.4 Google part #56, then T.5 `apps/time` shell); docs (2.3, then T.8); publish both Google staging projects | approve plans, approve PHILOSOPHY (2.7), consent clicks with `hello@omark.app` |
-| 3 | 3.2 first-run choice; T.5 `apps/time` shell; T.8 Time skill and format docs; 2.5 factory; 3.3/3.4 Omark Entra, Pages and CI | Entra registrations, staging checks |
+| 2 (done 2026-10-27, except 3.2) | three lanes: storage (3.1 local folder, then 3.2 first-run choice); Time (T.4 Google part #56, then T.5 `apps/time` shell); docs (2.3, then T.8); publish both Google staging projects; the deploy race #81 (PR #84) | approve plans, approve PHILOSOPHY (2.7), consent clicks with `hello@omark.app` |
+| 3 | three lanes: Tasks (3.2 first-run choice, then 3.4 once 3.3 is done); Time (local folder in `apps/time` if T.5 left it, T.6 screens, then T.7 demo); docs and factory (the 2.3 moves, then 2.5 factory) | Entra registrations and Pages for Omark Tasks (3.3), DNS for `staging-time.` and `demo-time.`, staging checks |
 | 4 | T.6 screens; T.7 Time demo; T.9 Time production; 3.6 cutover, then 3.7 | T.11 a week on his own calendar, cutover |
 | 5 | 4.1 seeded issues, 2.6 pilot developers, 4.3, milestone 5 | the launch steps |
 
@@ -60,11 +60,11 @@ Each row is one issue and one PR; rows marked Plan get a detailed plan first.
 | 2.1 | Demo storage mode (seeded, IndexedDB-durable, "Reset demo"), `pnpm demo`, `.env.example`, demo deployment at `demo-tasks.omark.app` | 6.3 | large, Plan | M1 |
 | 2.8 | *Done 2026-10-26 (#47, PR #48; repo renamed `omark-app/omark`).* **Monorepo move** (right after 2.1 merges): `apps/web` → `apps/tasks`, `packages/core` → `packages/tasks-core`, storage and sign-in made app-neutral, CI and Promote per app, paths, hooks and docs re-pointed; no behaviour change. AL: rename the repo to `omark` | 6.12 | large, Plan | 2.1 |
 | 2.2 | Landing page at `omark.app` with a card per app (Tasks, Time), privacy policy covering Google data (Limited Use) and terms; live early for Google's review | 6.3.1 | large, Plan | 2.8, 2.4 |
-| 2.3 | Docs set, suite-wide: README, PHILOSOPHY (principles), AGENTS.md (+ `CLAUDE.md` import), CONTRIBUTING, GOVERNANCE, SECURITY, CODE_OF_CONDUCT, LICENSE, `doc/tasks/spec.md`, `doc/format.md`, `doc/architecture.md`, `doc/self-hosting.md`, `doc/factory.md`, `doc/history/` (Omark Time's own docs come in T.8) | 6.7 | large, Plan | 2.8 |
+| 2.3 | *Done 2026-10-27 (#85, PR #88 with the new and rewritten files; the moves follow in a second PR).* Docs set, suite-wide: README, PHILOSOPHY (principles), AGENTS.md (+ `CLAUDE.md` import), CONTRIBUTING, GOVERNANCE, SECURITY, CODE_OF_CONDUCT, LICENSE, `doc/tasks/spec.md`, `doc/format.md`, `doc/architecture.md`, `doc/self-hosting.md`, `doc/factory.md`, `doc/history/` (Omark Time's own docs come in T.8) | 6.7 | large, Plan | 2.8 |
 | 2.4 | *Built 2026-10-26 (#62, PR #64; direction B, Ring).* Icon family: 2–3 directions shown with both the Tasks and Time glyphs → AL picks → full set for both apps in `brand/`, wired into the apps and manifests | 6.6 | large, Plan | 2.8 |
 | 2.5 | Factory generalised: roles, maintainer check by repo role, role-neutral skills (`omark-factory`), guard and templates, labels script (with `app:`, `task`, `needs-info`, `in-progress`), issue forms (Bug, Feature, Task), the Ideas Discussion form, security and Q&A contact links, the skill's "missing required field → `needs-info`" rule, PR template; one factory for both apps | 6.8 | large, Plan | 2.3 |
 | 2.6 | AL: give 2–3 pilot developers Read or Triage; one runs the contributor dry run from a private fork | 6.2, 6.8 | — | 2.5 |
-| 2.7 | AL: approve the PHILOSOPHY principles and wording | 6.7.1 | — | 2.3 |
+| 2.7 | *Done 2026-10-27 (approved in the session).* AL: approve the PHILOSOPHY principles and wording | 6.7.1 | — | 2.3 |
 
 Order: 2.1, then 2.8, then 2.2–2.5. 2.8 went before 2.1 by AL's choice, so #31 (demo mode) rebases onto the new paths.
 
@@ -74,7 +74,7 @@ Build-in-public posts on LinkedIn can start here.
 
 | # | Workstream | Spec | Size | Depends on |
 |---|---|---|---|---|
-| 3.1 | `LocalFolderAdapter` (File System Access API) + folder picking + permission re-prompt | 6.4 | large, Plan | M1 |
+| 3.1 | *Done 2026-10-27 (#86, PR #89).* `LocalFolderAdapter` (File System Access API) + folder picking + permission re-prompt | 6.4 | large, Plan | M1 |
 | 3.2 | First-run choice screen (demo / OneDrive / Google Drive / folder) and a setting to change it | 6.5 | large, Plan | 2.1, 3.1, 3.8 |
 | 3.3 | AL: two Entra registrations ("Omark Tasks", "Omark Tasks Staging"), Pages projects for `tasks.`, `staging-tasks.`, `demo-tasks.` and `omark.app`, Pages secrets, repository variables switched to the Omark values | 6.5, 8 | — | M1 |
 | 3.4 | CI re-pointed to the Omark projects; the bridge kept for my old instance until 3.6 | 6.5 | small | 3.3 |
@@ -93,11 +93,11 @@ Builds [the Omark Time spec](../Omark%20Time%20spec.md). It runs alongside miles
 | T.1 | AL: Google Cloud project "Omark Time Staging" (published, unverified) and a test Google account with a test calendar. *Staging project and client done 2026-10-26 (in Testing until 2.2 is live); `hello@omark.app` doubles as the test account* | Time 10.3, 17 | — | 3.9 |
 | T.2 | Spike (throwaway): colour patch on an invite with `calendar.events.owned`, invites on the primary calendar, recurring instances in incremental sync, the green and red ids, read-only sync with `calendar.events.owned.readonly`; findings into the Time spec; then the milestone plan. *Spike done 2026-10-26 (Time 15.1); the plan waits for 2.8* | Time 15 | small, then Plan | T.1 |
 | T.3 | `packages/time-core`: title parser, event → rows (window, midnight split, all-day, declined, overlaps, time zone), colour decision, CSV and YAML, projects and config models, summaries, chart series, reports | Time 5–7, 9 | large, Plan | T.2 |
-| T.4 | `packages/calendar`: `CalendarSource` interface, Google implementation (calendar list, incremental sync, colour patch with throttling), fake calendar, shared contract test | Time 8, 13 | large, Plan | T.2, 3.8 |
-| T.5 | `apps/time` shell: Google sign-in, first run, storage choice (Google Drive, OneDrive, local folder), sync and colouring loop, rebuild, offline cache; staging at `staging-time.omark.app` | Time 4, 7, 8, 10 | large, Plan | T.3, T.4, 3.1, 3.8 |
+| T.4 | *Done 2026-10-27 (#55 and #56, PR #87).* `packages/calendar`: `CalendarSource` interface, Google implementation (calendar list, incremental sync, colour patch with throttling), fake calendar, shared contract test | Time 8, 13 | large, Plan | T.2, 3.8 |
+| T.5 | *Done 2026-10-27 (#57, PRs #91 and #92; staging waits on the `staging-time` DNS record).* `apps/time` shell: Google sign-in, first run, storage choice (Google Drive, OneDrive, local folder), sync and colouring loop, rebuild, offline cache; staging at `staging-time.omark.app` | Time 4, 7, 8, 10 | large, Plan | T.3, T.4, 3.1, 3.8 |
 | T.6 | Screens: hours summary, charts, fix list, projects, settings, report export | Time 9 | large, Plan | T.5 |
 | T.7 | Demo mode on the fake calendar, deployed at `demo-time.omark.app`; no outside requests | Time 12 | large, Plan | T.5 |
-| T.8 | Agent skill `omark-time`, the Time part of `doc/format.md`, `doc/time/spec.md`, README examples with DuckDB queries | Time 11 | small | T.3 |
+| T.8 | *Done 2026-10-27 (#60, PR #90).* Agent skill `omark-time`, the Time part of `doc/format.md`, `doc/time/spec.md`, README examples with DuckDB queries | Time 11 | small | T.3 |
 | T.9 | AL: production Google Cloud project "Omark Time"; Entra registrations "Omark Time" and "Omark Time Staging"; Pages projects and DNS for `time.`, `staging-time.`, `demo-time.omark.app`; secrets and repository variables | Time 17 | — | T.5 |
 | T.10 | AL: record the verification video (Claude writes the script) and submit Google verification; not a launch blocker | Time 10.3 | — | 2.2, T.5 on staging |
 | T.11 | AL: acceptance on staging with the test account (Time spec 15), then Promote and use `time.omark.app` on his own calendar for at least a week before launch | Time 15 | — | T.6, T.7, T.9 |
