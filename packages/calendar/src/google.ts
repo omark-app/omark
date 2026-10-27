@@ -1,5 +1,5 @@
 import { AuthRequiredError, OfflineError } from '@omark/storage';
-import { EditAccessRequiredError, SyncTokenExpiredError } from '@omark/time-core';
+import { EditAccessRequiredError, SyncTokenExpiredError, parseInstant } from '@omark/time-core';
 import type {
   CalendarEvent,
   CalendarInfo,
@@ -17,6 +17,8 @@ const PAGE = 2500;
 const GREEN = '#51b749';
 const RED = '#dc2127';
 const DEFAULT_TIMEOUT_MS = 20_000;
+/** A longer Retry-After would stall the sync; Google's per-minute quota refills within this. */
+const MAX_RETRY_AFTER_MS = 60_000;
 
 export interface GoogleCalendarOptions {
   /** `fresh`: Google rejected the last token, so get a new one. `@omark/storage`'s `Auth` fits. */
@@ -108,9 +110,16 @@ export class GoogleCalendarSource implements CalendarSource {
     // Google refuses a sync token with any other restriction (timeMin, showDeleted, …).
     if (syncToken !== null) params.set('syncToken', syncToken);
     let nextSyncToken: string | undefined;
-    const items = await this.pages<GoogleEvent>(this.eventsUrl(calendarId), params, (page) => {
-      nextSyncToken = page.nextSyncToken as string | undefined;
-    });
+    let items: GoogleEvent[];
+    try {
+      items = await this.pages<GoogleEvent>(this.eventsUrl(calendarId), params, (page) => {
+        nextSyncToken = page.nextSyncToken as string | undefined;
+      });
+    } catch (e) {
+      // Google documents 410 `fullSyncRequired`; any 410 to a sync token means the same: read it all again.
+      if (syncToken !== null && e instanceof GoogleCalendarError && e.status === 410) throw new SyncTokenExpiredError(e.message);
+      throw e;
+    }
     if (!nextSyncToken) throw new GoogleCalendarError(200, 'Google Calendar sent no sync token');
     const events = items.map((e) => toEvent(calendarId, e));
     // A full read never has cancelled events; Google leaves them out, this makes sure.
@@ -118,7 +127,9 @@ export class GoogleCalendarSource implements CalendarSource {
   }
 
   async readRange(calendarId: string, from: string, to: string): Promise<CalendarEvent[]> {
-    const params = new URLSearchParams({ singleEvents: 'true', maxResults: String(PAGE), timeMin: from, timeMax: to });
+    // Google wants seconds and an offset; time-core's times may have minutes only.
+    const utc = (t: string) => new Date(parseInstant(t)).toISOString();
+    const params = new URLSearchParams({ singleEvents: 'true', maxResults: String(PAGE), timeMin: utc(from), timeMax: utc(to) });
     const items = await this.pages<GoogleEvent>(this.eventsUrl(calendarId), params);
     return items.map((e) => toEvent(calendarId, e)).filter((e) => e.status !== 'cancelled');
   }
@@ -151,8 +162,8 @@ export class GoogleCalendarSource implements CalendarSource {
     try {
       await this.call(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body });
     } catch (e) {
-      // Deleted since it was read: nothing left to colour; the next read returns it as cancelled.
-      if (e instanceof GoogleCalendarError && e.status === 410) return;
+      // Deleted (410) or gone for good (404) since it was read: nothing left to colour.
+      if (e instanceof GoogleCalendarError && (e.status === 410 || e.status === 404)) return;
       throw e;
     }
   }
@@ -178,30 +189,34 @@ export class GoogleCalendarSource implements CalendarSource {
 
   /**
    * One authenticated call, as JSON. 401: a fresh token and one retry, then `AuthRequiredError`.
-   * 429, 403 rate limits and 5xx: wait (`Retry-After`, else 1, 2, 4 … s) and retry, up to `maxRetries`.
+   * 429, 403 rate limits and 5xx: wait (`Retry-After`, at most a minute, else 1, 2, 4 … s) and retry, up to
+   * `maxRetries`. A 403 for a missing scope is `EditAccessRequiredError` on a patch (colouring asks for edit
+   * access) and `AuthRequiredError` on a read (the user unticked a read permission: sign in again).
    */
   private async call(url: string, init: RequestInit): Promise<unknown> {
+    let refreshed = false;
     let fresh = false;
     for (let retry = 0; ; ) {
-      const token = await this.getToken(fresh ? { fresh: true } : undefined);
+      // A token refresh can stall too, so the token gets the same time limit as a request.
+      const token = await this.withTimeout(() => this.getToken(fresh ? { fresh: true } : undefined));
+      fresh = false;
       const headers = { ...(init.headers as Record<string, string> | undefined), Authorization: `Bearer ${token}` };
       const { status, body, retryAfter } = await this.send(url, { ...init, headers });
       if (status >= 200 && status < 300) return body;
       if (status === 401) {
-        if (fresh) throw new AuthRequiredError('Sign-in required');
-        fresh = true;
+        if (refreshed) throw new AuthRequiredError('Sign-in required');
+        refreshed = fresh = true;
         continue;
       }
       const err = (body ?? {}) as GoogleError;
       const reasons = [...(err.error?.errors ?? []), ...(err.error?.details ?? [])].map((r) => r.reason);
       const message = `Google Calendar answered ${status}: ${err.error?.message ?? 'no message'}`;
-      if (status === 410 && reasons.includes('fullSyncRequired')) throw new SyncTokenExpiredError(message);
       if (status === 403 && reasons.some((r) => r === 'insufficientPermissions' || r === 'ACCESS_TOKEN_SCOPE_INSUFFICIENT')) {
-        throw new EditAccessRequiredError(message);
+        throw init.method === 'PATCH' ? new EditAccessRequiredError(message) : new AuthRequiredError(message);
       }
       const rateLimited = status === 403 && reasons.some((r) => r === 'rateLimitExceeded' || r === 'userRateLimitExceeded');
       if ((status === 429 || rateLimited || status >= 500) && retry < this.maxRetries) {
-        await this.sleep(retryAfter ?? 1000 * 2 ** retry);
+        await this.sleep(Math.min(retryAfter ?? 1000 * 2 ** retry, MAX_RETRY_AFTER_MS));
         retry += 1;
         continue;
       }
@@ -210,12 +225,17 @@ export class GoogleCalendarSource implements CalendarSource {
   }
 
   /** One request, body read in full, within the time limit. A fetch TypeError means the network is down. */
-  private async send(url: string, init: RequestInit): Promise<{ status: number; body: unknown; retryAfter: number | null }> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-    try {
-      const res = await this.fetchFn(url, { ...init, signal: controller.signal });
-      const text = await res.text();
+  private send(url: string, init: RequestInit): Promise<{ status: number; body: unknown; retryAfter: number | null }> {
+    return this.withTimeout(async (signal) => {
+      let res: Response;
+      let text: string;
+      try {
+        res = await this.fetchFn(url, { ...init, signal });
+        text = await res.text();
+      } catch (e) {
+        if (e instanceof TypeError) throw new OfflineError('Network unreachable');
+        throw e;
+      }
       let body: unknown = null;
       try {
         body = text === '' ? null : JSON.parse(text);
@@ -223,9 +243,28 @@ export class GoogleCalendarSource implements CalendarSource {
         // A proxy's HTML error page; the status says enough.
       }
       return { status: res.status, body, retryAfter: retryAfterMs(res.headers.get('Retry-After'), this.now()) };
+    });
+  }
+
+  /**
+   * Runs `work` within `timeoutMs`. On timeout its signal is aborted and the call fails with `OfflineError`,
+   * even if `work` ignores the abort (as `@omark/storage`'s request code does).
+   */
+  private async withTimeout<T>(work: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new OfflineError('Google Calendar timed out'));
+      }, this.timeoutMs);
+    });
+    const run = Promise.resolve().then(() => work(controller.signal)); // a synchronous throw rejects too
+    run.catch(() => {}); // a late failure after the timeout must not go unhandled
+    try {
+      return await Promise.race([run, timedOut]);
     } catch (e) {
-      if (controller.signal.aborted) throw new OfflineError('Google Calendar timed out');
-      if (e instanceof TypeError) throw new OfflineError('Network unreachable');
+      if (!(e instanceof OfflineError) && controller.signal.aborted) throw new OfflineError('Google Calendar timed out');
       throw e;
     } finally {
       clearTimeout(timer);

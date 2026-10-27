@@ -12,6 +12,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
+import { addDays, formatLocal, startOfDay } from '@omark/time-core';
 import type { CalendarEvent } from '@omark/time-core';
 import { GoogleCalendarSource } from '../src/google.ts';
 
@@ -52,16 +53,26 @@ function describe(events: CalendarEvent[]): string {
   return `${events.length} events (${cancelled} cancelled, ${series} instances of a series)`;
 }
 
-/** The one write outside GoogleCalendarSource, for --add-all-day; on the test calendar only. */
+const eventUrl = (calendarId: string, eventId: string) =>
+  `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`;
+
+/** Raw reads and writes outside GoogleCalendarSource, to check what it can't see; on the test calendar only. */
+async function raw(token: string, url: string, method = 'GET', body?: unknown): Promise<Record<string, any>> {
+  const res = await fetch(url + (method === 'GET' ? '' : '?sendUpdates=none'), {
+    method,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`${method} failed: ${res.status}`);
+  return (await res.json()) as Record<string, any>;
+}
+
+/** For --add-all-day. */
 async function addAllDay(token: string, calendarId: string): Promise<void> {
   const day = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
   const next = new Date(Date.parse(day) + 86_400_000).toISOString().slice(0, 10);
-  const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?sendUpdates=none`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ summary: 'Omark check', start: { date: day }, end: { date: next } }),
-  });
-  if (!res.ok) throw new Error(`Adding the all-day event failed: ${res.status}`);
+  const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
+  await raw(token, url, 'POST', { summary: 'Omark check', start: { date: day }, end: { date: next } });
   console.log(`Added an all-day event on ${day}`);
 }
 
@@ -100,6 +111,10 @@ async function main() {
     console.log('No uncoloured event to try colours on; add one to the test calendar and run again.');
   } else {
     const { green } = await source.colourIds();
+    // Another app's private property must survive our patches.
+    await raw(token, eventUrl(id, target.id), 'PATCH', { extendedProperties: { private: { omarkCheck: 'other app' } } });
+    const { syncToken: beforeColour } = await source.readChanges(id, token1);
+    token1 = beforeColour;
     await source.setColour(id, target.id, { colorId: green, marker: 'green' });
     const set = await source.readChanges(id, token1);
     const after = set.events.find((e) => e.id === target.id);
@@ -110,16 +125,23 @@ async function main() {
     const cleared = await source.readChanges(id, set.syncToken);
     const back = cleared.events.find((e) => e.id === target.id);
     console.log(`After clearing: ${describe(cleared.events)}; colorId ${back?.colorId}, marker ${back?.marker}`);
+    const left = await raw(token, eventUrl(id, target.id));
+    const priv = (left.extendedProperties?.private ?? {}) as Record<string, string>;
+    console.log(`  raw: colorId present ${'colorId' in left}, omarkTime present ${'omarkTime' in priv}, other app's key kept ${priv.omarkCheck === 'other app'}`);
+    await raw(token, eventUrl(id, target.id), 'PATCH', { extendedProperties: { private: { omarkCheck: null } } });
   }
 
   const allDay = live(full.events).find(isAllDay);
   if (!allDay) {
     console.log('No all-day event: the readRange check is skipped (run with --add-all-day).');
   } else {
+    // Google places all-day events in the calendar's zone, so the ranges are built in it too.
+    const tz = test[0]!.timeZone;
+    const at = (date: string, hours = 0) => formatLocal(startOfDay(date, tz) + hours * 3_600_000, tz);
     const start = (allDay.start as { date: string }).date;
     const end = (allDay.end as { date: string }).date;
-    const dayAfterEnd = await source.readRange(id, `${end}T00:00:00Z`, `${end}T23:59:59Z`);
-    const during = await source.readRange(id, `${start}T12:00:00Z`, `${start}T13:00:00Z`);
+    const dayAfterEnd = await source.readRange(id, at(end), at(addDays(end, 1)));
+    const during = await source.readRange(id, at(start, 12), at(start, 13));
     console.log(`readRange: the all-day event is in a range during it: ${during.some((e) => e.id === allDay.id)}`);
     console.log(`readRange: and not in the day after it ends: ${!dayAfterEnd.some((e) => e.id === allDay.id)}`);
   }

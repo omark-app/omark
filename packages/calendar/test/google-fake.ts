@@ -3,6 +3,7 @@ import type { CalendarEvent, CalendarInfo } from '@omark/time-core';
 import { FakeCalendar } from '../src/fake.ts';
 
 const BASE = '/calendar/v3/';
+const RFC3339 = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(Z|[+-]\d\d:\d\d)$/;
 
 /** Google's event palette (`colors.get`), as the spike read it. */
 export const GOOGLE_PALETTE: Record<string, string> = {
@@ -44,6 +45,8 @@ export class GoogleFake {
   unauthorized = 0;
   /** Answered, one each, before the request is served. */
   rateLimits: RateLimit[] = [];
+  /** Answered as they are, one each, before the request is served (after the rate limits). */
+  answers: Response[] = [];
   /** The next N requests fail as if the network were down. */
   offline = 0;
   /** The sign-in has only `calendar.events.owned.readonly`. */
@@ -76,6 +79,8 @@ export class GoogleFake {
     }
     const limit = this.rateLimits.shift();
     if (limit) return rateLimitAnswer(limit);
+    const answer = this.answers.shift();
+    if (answer) return answer;
 
     const path = url.pathname.slice(BASE.length).split('/').map(decodeURIComponent);
     try {
@@ -130,6 +135,10 @@ export class GoogleFake {
     if (q.get('singleEvents') !== 'true') return error(400, 'invalid', 'This test emulation only answers singleEvents=true.', 'INVALID_ARGUMENT');
     const tz = this.calendar.toJSON().calendars.find((c) => c.id === calendarId)!.timeZone;
     if (q.has('timeMin') || q.has('timeMax')) {
+      // Google answers 400 Bad Request to a time without seconds or offset.
+      if (![q.get('timeMin'), q.get('timeMax')].every((t) => t !== null && RFC3339.test(t))) {
+        return error(400, 'badRequest', 'Bad Request', 'INVALID_ARGUMENT');
+      }
       const events = await this.calendar.readRange(calendarId, q.get('timeMin')!, q.get('timeMax')!);
       return this.page(url, events.map((e) => this.toGoogle(e)), { kind: 'calendar#events', timeZone: tz });
     }
@@ -195,7 +204,7 @@ export class GoogleFake {
             ],
           }
         : {}),
-      ...(e.marker ? { extendedProperties: { private: { omarkTime: e.marker, other: 'kept' } } } : {}),
+      ...(e.marker ? { extendedProperties: { private: { omarkTime: e.marker } } } : {}),
       ...series,
     };
   }
@@ -207,6 +216,12 @@ function json(status: number, body: unknown, headers: Record<string, string> = {
 
 function error(code: number, reason: string, message: string, status: string, domain = 'global', headers: Record<string, string> = {}): Response {
   return json(code, { error: { code, message, errors: [{ domain, reason, message }], status } }, headers);
+}
+
+/** A Google error answer with its reason only in `details` (the newer format), or with no reason at all. */
+export function googleError(code: number, detailsReason?: string): Response {
+  const details = detailsReason ? [{ '@type': 'type.googleapis.com/google.rpc.ErrorInfo', reason: detailsReason }] : [];
+  return json(code, { error: { code, message: `Error ${code}`, status: 'X', details } });
 }
 
 function notFound(): Response {

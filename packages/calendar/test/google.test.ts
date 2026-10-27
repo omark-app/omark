@@ -3,9 +3,9 @@ import { AuthRequiredError, OfflineError } from '@omark/storage';
 import { EditAccessRequiredError, SyncTokenExpiredError } from '@omark/time-core';
 import type { CalendarEvent, CalendarInfo } from '@omark/time-core';
 import { calendarContract } from '../src/contract.ts';
-import { GoogleCalendarSource } from '../src/google.ts';
+import { GoogleCalendarError, GoogleCalendarSource } from '../src/google.ts';
 import type { GoogleCalendarOptions } from '../src/google.ts';
-import { GoogleFake } from './google-fake.ts';
+import { GoogleFake, googleError } from './google-fake.ts';
 
 const CALENDARS: CalendarInfo[] = [
   { id: 'primary', name: 'AL', primary: true, timeZone: 'Europe/Warsaw', owned: true },
@@ -172,12 +172,34 @@ describe('reads', () => {
     expect(eventCalls(google).map((c) => c.url.searchParams.has('syncToken'))).toEqual([false, true, false]);
   });
 
-  test('an expired token on a later page is still SyncTokenExpiredError', async () => {
+  test('any 410 to a sync token means a full read, whatever the reason', async () => {
+    const { google, source } = setup();
+    const { syncToken } = await source.readChanges('primary', null);
+    google.answers = [googleError(410)];
+    await expect(source.readChanges('primary', syncToken)).rejects.toBeInstanceOf(SyncTokenExpiredError);
+    google.answers = [googleError(410)];
+    await expect(source.readChanges('primary', null)).rejects.toThrow(GoogleCalendarError);
+  });
+
+  test('a read with no sync token on its last page is an error', async () => {
+    const { google, source } = setup();
+    google.answers = [new Response(JSON.stringify({ items: [] }), { status: 200 })];
+    await expect(source.readChanges('primary', null)).rejects.toThrow(/no sync token/);
+  });
+
+  test('readRange sends full RFC 3339 times, even for minute-precision input', async () => {
     const { google, source } = setup();
     google.calendar.add(event('a'));
-    const { syncToken } = await source.readChanges('primary', null);
-    google.calendar.expireTokens();
-    await expect(source.readChanges('primary', syncToken)).rejects.toBeInstanceOf(SyncTokenExpiredError);
+    const events = await source.readRange('primary', '2026-10-22T00:00+02:00', '2026-10-23T00:00+02:00');
+    expect(events.map((e) => e.id)).toEqual(['a']);
+    const q = eventCalls(google)[0]!.url.searchParams;
+    expect([q.get('timeMin'), q.get('timeMax')]).toEqual(['2026-10-21T22:00:00.000Z', '2026-10-22T22:00:00.000Z']);
+  });
+
+  test('keeps a tentative status', async () => {
+    const { google, source } = setup();
+    google.calendar.add(event('a', { status: 'tentative' }));
+    expect((await source.readChanges('primary', null)).events[0]!.status).toBe('tentative');
   });
 });
 
@@ -203,6 +225,40 @@ describe('errors and retries', () => {
     expect(time.sleeps).toEqual([1000, 2000, 4000]);
   });
 
+  test('a Retry-After over a minute waits a minute', async () => {
+    const { google, source, time } = setup();
+    google.rateLimits = [{ status: 429, retryAfter: '3600' }];
+    await source.listCalendars();
+    expect(time.sleeps).toEqual([60_000]);
+  });
+
+  test('a Retry-After date waits until then', async () => {
+    const { google, source, time } = setup();
+    google.rateLimits = [{ status: 429, retryAfter: new Date(30_000).toUTCString() }];
+    await source.listCalendars();
+    expect(time.sleeps).toEqual([30_000]);
+  });
+
+  test('a 403 for another reason is not retried', async () => {
+    const { google, source, time } = setup();
+    google.answers = [googleError(403, 'forbiddenForNonOrganizer')];
+    await expect(source.listCalendars()).rejects.toThrow(/403/);
+    expect(time.sleeps).toEqual([]);
+  });
+
+  test('a missing read scope means signing in again, not edit access', async () => {
+    const { google, source } = setup();
+    google.answers = [googleError(403, 'ACCESS_TOKEN_SCOPE_INSUFFICIENT')];
+    await expect(source.readChanges('primary', null)).rejects.toBeInstanceOf(AuthRequiredError);
+  });
+
+  test('gives up on 5xx after maxRetries', async () => {
+    const { google, source, time } = setup(CALENDARS, { maxRetries: 1 });
+    google.rateLimits = [{ status: 503 }, { status: 503 }];
+    await expect(source.listCalendars()).rejects.toThrow(/503/);
+    expect(time.sleeps).toEqual([1000]);
+  });
+
   test('gives up after maxRetries', async () => {
     const { google, source, time } = setup(CALENDARS, { maxRetries: 2 });
     google.rateLimits = [{ status: 429 }, { status: 429 }, { status: 429 }];
@@ -216,6 +272,14 @@ describe('errors and retries', () => {
     expect(await source.listCalendars()).toHaveLength(2);
     expect(tokens).toEqual([undefined, 'fresh']);
     expect(google.calls.map((c) => c.token)).toEqual(['token-1', 'token-2']);
+  });
+
+  test('after a 401, later retries use the fresh token as usual', async () => {
+    const { google, source, tokens } = setup();
+    google.unauthorized = 1;
+    google.answers = [googleError(429), googleError(429)];
+    await source.listCalendars();
+    expect(tokens).toEqual([undefined, 'fresh', undefined, undefined]);
   });
 
   test('a second 401 means signing in again', async () => {
@@ -238,6 +302,16 @@ describe('errors and retries', () => {
         new Promise((_, reject) => init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))),
       timeoutMs: 10,
     });
+    await expect(source.listCalendars()).rejects.toBeInstanceOf(OfflineError);
+  });
+
+  test('a token that never comes times out as OfflineError', async () => {
+    const source = new GoogleCalendarSource({ getToken: () => new Promise(() => {}), timeoutMs: 10 });
+    await expect(source.listCalendars()).rejects.toBeInstanceOf(OfflineError);
+  });
+
+  test('a fetch that ignores the abort still times out', async () => {
+    const source = new GoogleCalendarSource({ getToken: async () => 't', fetch: () => new Promise(() => {}), timeoutMs: 10 });
     await expect(source.listCalendars()).rejects.toBeInstanceOf(OfflineError);
   });
 
@@ -301,16 +375,26 @@ describe('colours', () => {
   test('a failed patch does not hold up the next one', async () => {
     const { google, source } = setup();
     google.calendar.add(event('b'));
-    await expect(source.setColour('primary', 'missing', { colorId: '10', marker: 'green' })).rejects.toThrow(/404/);
+    google.answers = [googleError(400)];
+    await expect(source.setColour('primary', 'b', { colorId: '10', marker: 'green' })).rejects.toThrow(/400/);
     await source.setColour('primary', 'b', { colorId: '10', marker: 'green' });
     expect((await google.calendar.readChanges('primary', null)).events[0]!.colorId).toBe('10');
   });
 
-  test('a patch on a deleted event is done: nothing left to colour', async () => {
+  test('a patch on a deleted or vanished event is done: nothing left to colour', async () => {
     const { google, source } = setup();
     google.calendar.add(event('a'));
     google.calendar.cancel('primary', 'a');
     await expect(source.setColour('primary', 'a', { colorId: '10', marker: 'green' })).resolves.toBeUndefined();
+    await expect(source.setColour('primary', 'never', { colorId: '10', marker: 'green' })).resolves.toBeUndefined();
+    expect(google.calls.filter((c) => c.method === 'PATCH').map((c) => c.rawPath.split('/').at(-1))).toEqual(['a', 'never']);
+  });
+
+  test('a missing edit scope reported only in details is EditAccessRequiredError', async () => {
+    const { google, source } = setup();
+    google.calendar.add(event('a'));
+    google.answers = [googleError(403, 'ACCESS_TOKEN_SCOPE_INSUFFICIENT')];
+    await expect(source.setColour('primary', 'a', { colorId: '10', marker: 'green' })).rejects.toBeInstanceOf(EditAccessRequiredError);
   });
 
   test('colourIds picks green and red by background', async () => {
@@ -322,6 +406,13 @@ describe('colours', () => {
   test('colourIds falls back to 10 and 11', async () => {
     const { google, source } = setup();
     google.palette = { '1': '#a4bdfc' };
+    expect(await source.colourIds()).toEqual({ green: '10', red: '11' });
+  });
+
+  test('colourIds asks again after a failure', async () => {
+    const { google, source } = setup();
+    google.answers = [googleError(400)];
+    await expect(source.colourIds()).rejects.toThrow(/400/);
     expect(await source.colourIds()).toEqual({ green: '10', red: '11' });
   });
 
