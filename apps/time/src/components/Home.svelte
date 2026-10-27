@@ -12,6 +12,8 @@
         return `Offline · ${fix}`;
       case 'signin':
         return 'Sign in again to sync';
+      case 'folder':
+        return `Allow access to ${store.storageName} to sync · ${fix}`;
       case 'failed':
         return `Sync failed: ${store.error ?? 'unknown error'}`;
       default:
@@ -37,6 +39,17 @@
     <div class="row">
       <button class="primary" onclick={() => store.syncNow()}>Sync now</button>
       <button class="secondary" onclick={() => store.signOut({ anyway: true })}>Sign out anyway</button>
+    </div>
+  </section>
+{/if}
+
+{#if store.sync === 'folder'}
+  <section class="card" role="alert">
+    <h2>Allow access to {store.storageName}</h2>
+    <p>Your browser asks again before Omark Time may read and write the folder. If you moved or renamed it, pick it again.</p>
+    <div class="row">
+      <button class="primary" onclick={() => store.allowFolder()}>Allow access</button>
+      <button class="secondary" onclick={() => store.pickFolderAgain()}>Pick the folder again</button>
     </div>
   </section>
 {/if}
@@ -69,6 +82,7 @@
 
 <section class="card">
   <h2>Your files</h2>
+  <p class="muted small" data-testid="storage">In {store.storageName}</p>
   <p data-testid="rows">{store.rows} {store.rows === 1 ? 'row' : 'rows'} of tracked time</p>
   {#if store.colour === 'running'}
     <p data-testid="colouring">Colouring events… {store.colourLeft > 0 ? `${store.colourLeft} left` : ''}</p>

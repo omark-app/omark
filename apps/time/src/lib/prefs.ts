@@ -1,8 +1,8 @@
 import { createStore, get, set } from 'idb-keyval';
 import type { UseStore } from 'idb-keyval';
 
-/** Where this device keeps the files (spec 4.2: per device). Only Google Drive so far. */
-export type StorageKind = 'google-drive';
+/** Where this device keeps the files (spec 4.2: per device). OneDrive comes later. */
+export type StorageKind = 'google-drive' | 'local-folder';
 
 /** This device's own choices, in IndexedDB. */
 export interface DevicePrefs {
