@@ -9,9 +9,11 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "vitest run --root ../.. --project @omark/calendar"
+    "test": "vitest run --root ../.. --project @omark/calendar",
+    "check:google": "node --experimental-transform-types --disable-warning=ExperimentalWarning scripts/check-google.ts"
   },
   "dependencies": {
+    "@omark/storage": "workspace:*",
     "@omark/time-core": "workspace:*"
   },
   "devDependencies": {

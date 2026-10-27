@@ -106,6 +106,9 @@ importers:
 
   packages/calendar:
     dependencies:
+      '@omark/storage':
+        specifier: workspace:*
+        version: link:../storage
       '@omark/time-core':
         specifier: workspace:*
         version: link:../time-core
