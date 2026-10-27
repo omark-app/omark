@@ -86,6 +86,7 @@
         {task}
         ctx={store.ctx}
         labelStyle={store.config.dateLabels}
+        habit={store.habits.get(task.id)}
         selected={store.selectedId === task.id}
         onselect={() => (onopen ? onopen(task.id) : store.select(task.id))}
         oncomplete={() => store.complete(task.id)}

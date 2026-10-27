@@ -4,7 +4,8 @@ name: CI
 # and e2e run for it. Names, hosts and folders are repository variables (README, Environment variables), one
 # set per app: the deploy jobs are named after the app (tasks-preview, tasks-staging) and read TASKS_* ones.
 # CI can also be started by hand (Actions → CI → Run workflow) for when GitHub misses a push; on main that
-# deploys staging too. Production only changes through promote.yml. (doc/TaskApp factory spec.md, section 6)
+# deploys staging too. The Tasks app reaches production only through promote.yml. The site (omark.app) deploys
+# from main via site-production, and PRs get a site-preview. (doc/TaskApp factory spec.md, section 6)
 on:
   pull_request:
     paths-ignore: ['doc/**', '**/*.md']
@@ -77,6 +78,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter tasks e2e --project=${{ matrix.project }}
+      - run: pnpm --filter site e2e --project=${{ matrix.project }}
   tasks-preview:
     # Same-repo PRs only: a fork's PR has no secrets, and its code must never meet ours.
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && vars.DEPLOY_ENABLED == 'true'
@@ -213,3 +215,130 @@ jobs:
           SIGNIN_URL: ${{ vars.TASKS_STAGING_URL }}
           MSAL_TENANT: ${{ vars.TASKS_MSAL_TENANT }}
           ONEDRIVE_SCOPE: ${{ vars.TASKS_ONEDRIVE_SCOPE }}
+  site-preview:
+    # The omark.app landing site (apps/site). Same-repo PRs only, like tasks-preview, and only when the PR touches
+    # the site or what it shares (the design tokens, the lockfile): other PRs skip every step after the check.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && vars.DEPLOY_ENABLED == 'true'
+    needs: [check, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Check the repository variables
+        run: |
+          if [ -z "$CF_SITE_PROJECT" ]; then
+            echo "::error::Set the repository variable CF_SITE_PROJECT (README, Environment variables)."
+            exit 1
+          fi
+        env:
+          CF_SITE_PROJECT: ${{ vars.CF_SITE_PROJECT }}
+      - uses: actions/checkout@v4
+        with:
+          # The whole history, so the diff against the PR's base branch can be taken.
+          fetch-depth: 0
+      - name: Look for site changes
+        id: changed
+        run: |
+          if git diff --quiet "origin/$BASE_REF...HEAD" -- apps/site apps/tasks/src/styles/tokens.css pnpm-lock.yaml; then
+            echo "site=false" >> "$GITHUB_OUTPUT"
+            echo "No site changes: nothing to preview."
+          else
+            echo "site=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          BASE_REF: ${{ github.base_ref }}
+      - if: steps.changed.outputs.site == 'true'
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - if: steps.changed.outputs.site == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - if: steps.changed.outputs.site == 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.changed.outputs.site == 'true'
+        run: pnpm --filter site build
+      - name: Deploy the preview
+        id: preview
+        if: steps.changed.outputs.site == 'true'
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Use the workspace's pinned wrangler; the action can't `pnpm add` it at a workspace root.
+          wranglerVersion: '4.151.1'
+          # Deploy from apps/site: wrangler bundles ./functions next to where it runs, so only the site's own
+          # functions/_middleware.ts ships, never the sign-in helper in the root functions/api/auth.
+          workingDirectory: apps/site
+          command: pages deploy dist --project-name=${{ vars.CF_SITE_PROJECT }} --branch=pr-${{ github.event.number }}
+      - name: Comment the preview link
+        if: steps.changed.outputs.site == 'true'
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.pages-deployment-alias-url || steps.preview.outputs.deployment-url }}
+        with:
+          script: |
+            const marker = '<!-- site-preview -->';
+            const base = process.env.PREVIEW_URL.replace(/\/+$/, '');
+            const sha = context.payload.pull_request.head.sha.slice(0, 7);
+            const body = `${marker}\n**Site preview:** ${base}/\n\n[Privacy policy](${base}/privacy/) · [Terms](${base}/terms/) (\`${sha}\`)`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const old = comments.find((c) => c.body?.startsWith(marker));
+            if (old) await github.rest.issues.updateComment({ owner, repo, comment_id: old.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+  site-production:
+    # The site has no staging and no Promote: a merge to main is the release. To roll back, see apps/site/README.md.
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    needs: [check, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: site
+      cancel-in-progress: false
+    steps:
+      - name: Check the repository variables
+        run: |
+          if [ -z "$CF_SITE_PROJECT" ] || [ -z "$SITE_URL" ]; then
+            echo "::error::Set the repository variables CF_SITE_PROJECT and SITE_URL (README, Environment variables)."
+            exit 1
+          fi
+        env:
+          CF_SITE_PROJECT: ${{ vars.CF_SITE_PROJECT }}
+          SITE_URL: ${{ vars.SITE_URL }}
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter site build
+      - uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: '4.151.1'
+          # From apps/site, so only its own functions ship, not the sign-in helper in the root functions/.
+          workingDirectory: apps/site
+          command: pages deploy dist --project-name=${{ vars.CF_SITE_PROJECT }} --branch=main
+      - name: Check the site is live
+        # The privacy policy must carry Google's Limited Use text, and the site must send its CSP header. The custom
+        # domain can take a moment to serve the new deploy, so try a few times.
+        run: |
+          for try in 1 2 3 4 5; do
+            if curl -fsSL --max-time 20 "$SITE_URL/privacy/" | grep -q "Limited Use" \
+              && curl -sSI --max-time 20 "$SITE_URL/" | grep -qi '^content-security-policy:'; then
+              echo "The site is live."
+              exit 0
+            fi
+            echo "Not live yet (try $try of 5)."
+            sleep 10
+          done
+          echo "::error::$SITE_URL/privacy/ is missing the policy text or the content-security-policy header after the deploy."
+          exit 1
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}

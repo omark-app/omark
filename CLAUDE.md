@@ -10,6 +10,7 @@ A PWA that keeps AL's tasks in plain Markdown files on his OneDrive. Specs: `doc
 - `packages/storage`: OneDrive, the offline cache, sync.
 - `packages/signin` + `functions/`: the sign-in helper (`/api/auth/*`, Cloudflare Pages Functions).
 - `apps/tasks`: the Svelte 5 app and its Playwright e2e (`desktop` = Chrome, `iphone` = WebKit).
+- `apps/site`: the omark.app landing page, privacy policy and terms; static, deploys from main (`apps/site/README.md`).
 - `tools/`: Todoist import, the Claude guard hook, CI helper scripts.
 - `doc/`: specs, plans (`doc/plans/<issue>-<slug>.md`), backlog.
 

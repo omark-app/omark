@@ -8,7 +8,7 @@
     taskId,
     oncommand,
     onclose,
-  }: { store: AppStore; taskId: string; oncommand: (command: 'pickDate' | 'repeat') => void; onclose: () => void } = $props();
+  }: { store: AppStore; taskId: string; oncommand: (command: 'pickDate' | 'repeat' | 'habitRepeat') => void; onclose: () => void } = $props();
 
   const task = $derived(findTask(store.state, taskId));
   $effect(() => {
@@ -26,6 +26,10 @@
     onpickdate={() => oncommand('pickDate')}
     onrepeat={() => oncommand('repeat')}
     onimportant={() => { store.setImportant(taskId, !task.important); onclose(); }}
+    onhabit={() => {
+      if (store.setHabit(taskId, !task.habit) === 'needsRule') oncommand('habitRepeat');
+      else onclose();
+    }}
   />
   <div class="actions">
     <button class="btn danger" onclick={() => { store.remove(taskId); onclose(); }}>Delete</button>

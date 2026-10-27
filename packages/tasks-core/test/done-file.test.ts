@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import {
-  computeStats, doneLine, doneLines, parseDone, parseTasks, serializeDone, serializeTasks, sweepCompleted,
+  computeStats, doneLine, doneLines, droppedLine, formedLine, habitEnd, parseDone, parseTasks, serializeDone, serializeTasks, sweepCompleted,
   type DoneDoc, type State, type Task,
 } from '../src/index.ts';
 
@@ -206,4 +206,48 @@ test('sweeping an undated important repeating tick keeps the flag on both lines 
   const swept = sweepCompleted({ doc, done: parseDone('') }, '2026-10-19', () => 'n1')!;
   expect(serializeTasks(swept.doc)).toBe('# Tasks\n- [ ] Pay ⏫ 🔁 every day 📅 2026-10-20\n');
   expect(serializeDone(swept.done)).toBe('- [x] Pay ⏫ 🔁 every day ✅ 2026-10-19\n');
+});
+
+test('doneLine keeps 🌱 without the goal (#44)', () => {
+  const t: Task = { ...task('Gym', { type: 'weekly', days: [0] }), habit: { goal: 30 } };
+  const l = doneLine(t, '2026-10-26');
+  expect(l.raw).toBe('- [x] Gym 🌱 🔁 every week on Monday ✅ 2026-10-26');
+  expect(l.entry!.habit).toEqual({ goal: null });
+});
+
+test('reads formed and dropped lines as ends, not entries (#44)', () => {
+  const text = '- [x] Read 20 pages 🌱 🏆 2026-10-26\n- [-] Cold shower 🌱 ❌ 2026-07-20\n- [-] Old task ❌ 2026-07-20\n- [x] Both 🌱 🏆 2026-10-26 ✅ 2026-10-26\n';
+  const d = parseDone(text);
+  expect(d.lines.map((l) => [l.entry === null, l.end ?? null])).toEqual([
+    [true, { kind: 'formed', title: 'Read 20 pages', on: '2026-10-26' }],
+    [true, { kind: 'dropped', title: 'Cold shower', on: '2026-07-20' }],
+    [true, null],
+    [false, null],
+  ]);
+  expect(serializeDone(d)).toBe(text);
+  expect(habitEnd('- [x] Read 🌱 🏆 2026-13-45')).toBeNull();
+});
+
+test('formedLine / droppedLine write the spec lines (#44)', () => {
+  expect(formedLine('Read 20 pages', '2026-10-26')).toEqual({
+    entry: null, end: { kind: 'formed', title: 'Read 20 pages', on: '2026-10-26' }, raw: '- [x] Read 20 pages 🌱 🏆 2026-10-26',
+  });
+  expect(droppedLine('Cold shower', '2026-07-20')).toEqual({
+    entry: null, end: { kind: 'dropped', title: 'Cold shower', on: '2026-07-20' }, raw: '- [-] Cold shower 🌱 ❌ 2026-07-20',
+  });
+});
+
+test('sweepCompleted moves a 🏆 line from tasks.md unchanged (#44)', () => {
+  const doc = parseTasks('# Tasks\n- [x] Read 🌱 🏆 2026-10-26\n');
+  const swept = sweepCompleted({ doc, done: parseDone('') }, '2026-10-27', () => 'n1')!;
+  expect(serializeTasks(swept.doc)).toBe('# Tasks\n');
+  expect(serializeDone(swept.done)).toBe('- [x] Read 🌱 🏆 2026-10-26\n');
+  expect(swept.done.lines[0]!.end).toEqual({ kind: 'formed', title: 'Read', on: '2026-10-26' });
+});
+
+test('an undated ticked habit in tasks.md is swept keeping 🌱 and stays a habit on its next date (#44)', () => {
+  const doc = parseTasks('# Tasks\n- [x] Gym 🌱 30 🔁 every day 📅 2026-10-19\n');
+  const swept = sweepCompleted({ doc, done: parseDone('') }, '2026-10-19', () => 'n1')!;
+  expect(serializeDone(swept.done)).toBe('- [x] Gym 🌱 🔁 every day ✅ 2026-10-19\n');
+  expect(serializeTasks(swept.doc)).toBe('# Tasks\n- [ ] Gym 🌱 30 🔁 every day 📅 2026-10-20\n');
 });

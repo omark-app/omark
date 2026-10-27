@@ -92,13 +92,16 @@ export function allTasks(doc: TasksDoc): Task[] {
 }
 
 /**
- * Important first (issue #19), then earliest date, then file order (the sort is stable). In Today that
- * puts overdue tasks above today's (#26). The Important, not urgent group is thus in file order (#38).
+ * Important first (issue #19), then habits (#44), then earliest date, then file order (the sort is stable).
+ * In Today that puts overdue tasks above today's (#26). The Important, not urgent group is thus in file order (#38).
  */
 export function tasksInBucket(doc: TasksDoc, key: BucketKey, ctx: WeekCtx): Task[] {
   return allTasks(doc)
     .filter((t) => bucketOf(t, ctx) === key)
-    .sort((a, b) => Number(b.important === true) - Number(a.important === true) || (a.date ?? '').localeCompare(b.date ?? ''));
+    .sort((a, b) =>
+      Number(b.important === true) - Number(a.important === true)
+      || Number(b.habit !== undefined) - Number(a.habit !== undefined)
+      || (a.date ?? '').localeCompare(b.date ?? ''));
 }
 
 export function bucketRange(key: BucketKey, ctx: WeekCtx): string {
