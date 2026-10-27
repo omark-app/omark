@@ -6,7 +6,7 @@ const FOOTER = '\n\n🤖 Generated with [Claude Code](https://claude.com/claude-
 const PLAN = { user: { login: 'agent-account' }, created_at: '2026-10-27T10:00:00Z', body: `Plan for #7: a thing\n\nFull plan: …${FOOTER}` };
 
 interface FakeIssue {
-  comments: { user: { login: string }; created_at: string; body: string }[];
+  comments: { user: { login: string }; created_at: string; updated_at?: string; body: string }[];
   events: { event: string; actor: { login: string }; created_at: string; label?: { name: string } }[];
   labels: string[];
   roles: Record<string, string>; // login -> role_name; missing = not a collaborator (404)
@@ -54,6 +54,28 @@ describe('planApproval', () => {
 
   it('does not count a label that was removed again', async () => {
     const r = await check({ events: [labelled('maintainer', '2026-10-27T11:00:00Z')], labels: [] });
+    expect(r.approved).toBe(false);
+  });
+
+  it('goes by the latest time the label was added: a maintainer removing it and a contributor adding it back is not approval', async () => {
+    const r = await check({
+      events: [
+        labelled('maintainer', '2026-10-27T11:00:00Z'),
+        { event: 'unlabeled', actor: { login: 'maintainer' }, created_at: '2026-10-27T11:30:00Z', label: { name: 'plan-approved' } },
+        labelled('triager', '2026-10-27T12:00:00Z'),
+      ],
+      labels: ['plan-approved'],
+    });
+    expect(r.approved).toBe(false);
+  });
+
+  it('does not count approvals given before the plan comment was last edited', async () => {
+    const edited = { ...PLAN, updated_at: '2026-10-27T12:00:00Z' };
+    const r = await check({
+      comments: [edited, comment('maintainer', '2026-10-27T11:00:00Z', 'approved')],
+      events: [labelled('maintainer', '2026-10-27T11:00:00Z')],
+      labels: ['plan-approved'],
+    });
     expect(r.approved).toBe(false);
   });
 

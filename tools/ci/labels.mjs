@@ -33,7 +33,7 @@ function originRepo() {
   const url = execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }).trim();
   const m = url.match(/github\.com[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
   if (!m) throw new Error(`can't read owner/repo from origin (${url}); pass it as an argument`);
-  return m[1];
+  return /** @type {string} */ (m[1]);
 }
 
 function main() {

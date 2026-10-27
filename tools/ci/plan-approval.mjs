@@ -18,11 +18,13 @@ const APPROVED = /^approved\b/i;
  */
 export async function planApproval({ repo, issue, api }) {
   const base = `repos/${repo}/issues/${issue}`;
-  /** @type {{ user: { login: string }, created_at: string, body: string | null }[]} */
+  /** @type {{ user: { login: string }, created_at: string, updated_at?: string, body: string | null }[]} */
   const comments = await api(`${base}/comments`);
   const plan = comments.filter((c) => (c.body ?? '').startsWith(`Plan for #${issue}`)).at(-1);
   if (!plan) return { approved: false, reason: `no plan comment ("Plan for #${issue}: …")` };
-  const after = (/** @type {string} */ at) => Date.parse(at) > Date.parse(plan.created_at);
+  // An approval counts for the plan as it stood: editing the plan comment afterwards asks for a new one.
+  const planAt = Math.max(Date.parse(plan.created_at), Date.parse(plan.updated_at ?? plan.created_at));
+  const after = (/** @type {string} */ at) => Date.parse(at) > planAt;
 
   /** @type {{ login: string, at: string, how: 'label' | 'comment' }[]} */
   const candidates = [];
@@ -30,11 +32,10 @@ export async function planApproval({ repo, issue, api }) {
   if (labels.some((/** @type {{ name: string }} */ l) => l.name === 'plan-approved')) {
     /** @type {{ event: string, actor: { login: string } | null, created_at: string, label?: { name: string } }[]} */
     const events = await api(`${base}/events`);
-    for (const e of events) {
-      if (e.event === 'labeled' && e.label?.name === 'plan-approved' && e.actor && after(e.created_at)) {
-        candidates.push({ login: e.actor.login, at: e.created_at, how: 'label' });
-      }
-    }
+    // Only the latest time the label was added counts, so a maintainer removing it can't be undone by
+    // someone else adding it back.
+    const added = events.filter((e) => e.event === 'labeled' && e.label?.name === 'plan-approved').at(-1);
+    if (added?.actor && after(added.created_at)) candidates.push({ login: added.actor.login, at: added.created_at, how: 'label' });
   }
   for (const c of comments) {
     const body = (c.body ?? '').trim();
@@ -72,7 +73,7 @@ function originRepo() {
   const url = execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }).trim();
   const m = url.match(/github\.com[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
   if (!m) throw new Error(`can't read owner/repo from origin (${url}); pass it as the second argument`);
-  return m[1];
+  return /** @type {string} */ (m[1]);
 }
 
 async function main() {
