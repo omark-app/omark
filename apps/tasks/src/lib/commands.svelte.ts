@@ -5,7 +5,8 @@ import type { AppStore } from './store.svelte.ts';
 import { commandFor, keyInput } from './keys.ts';
 
 /** What the views report upward: the app shell owns the pickers. Each carries the task id. */
-export type ShellCommand = 'pickDate' | 'repeat' | 'edit' | 'move';
+/** `habitRepeat` is the repeat picker for making a habit (no `when done`, every day to start). */
+export type ShellCommand = 'pickDate' | 'repeat' | 'habitRepeat' | 'edit' | 'move';
 export type OnCommand = (command: ShellCommand, id: string) => void;
 /** A task was dropped on Later: open the date picker with the suggested date and the row to place it before. */
 export type OnDropPickDate = (id: string, suggested: ISODate, beforeId: string | null) => void;
@@ -70,6 +71,11 @@ export function createCommands(opts: {
       case 'nextWeek': store.moveTo(id, 'next'); break;
       case 'someday': store.moveTo(id, 'someday'); break;
       case 'important': store.setImportant(id, findTask(store.state, id)?.important !== true); break;
+      case 'habit': {
+        const habit = findTask(store.state, id)?.habit !== undefined;
+        if (store.setHabit(id, !habit) === 'needsRule') onCommand('habitRepeat', id);
+        break;
+      }
       case 'complete': store.complete(id); break;
       case 'delete': store.remove(id); break;
       case 'edit':

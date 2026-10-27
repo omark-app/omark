@@ -7,11 +7,21 @@ import type { BucketKey } from './model.ts';
 
 export type Command =
   | 'focusAdd' | 'down' | 'up' | 'today' | 'tomorrow' | 'thisWeek' | 'nextWeek' | 'pickDate' | 'someday'
-  | 'repeat' | 'important' | 'complete' | 'edit' | 'delete' | 'deselect' | 'undo' | 'switchView' | 'search'
+  | 'repeat' | 'important' | 'complete' | 'edit' | 'delete' | 'deselect' | 'undo' | 'switchView' | 'search' | 'habit'
   | 'settings';
 
 /** Values are `KeyboardEvent.key` strings. */
 export type Shortcuts = Record<Command, string[]>;
+
+export interface HabitConfig {
+  /** Habits in progress at once; 0 = no limit. */
+  maxInProgress: number;
+  /** Repetitions to form a habit; a habit's own `🌱 N` wins. */
+  goal: number;
+  missesInARow: number;
+  /** A count, or a share of the goal (rounded down). */
+  missesPerAttempt: number | { percent: number };
+}
 
 export interface Config {
   shortcuts: Shortcuts;
@@ -23,6 +33,7 @@ export interface Config {
   dateLabels: DateLabelStyle;
   newTaskBucket: MovableBucket;
   saveDelaySeconds: number;
+  habits: HabitConfig;
 }
 
 export interface ConfigError {
@@ -51,6 +62,7 @@ export const DEFAULT_CONFIG: Config = {
     undo: ['z'],
     switchView: ['v'],
     search: ['f'],
+    habit: ['h'],
     settings: [','],
   },
   defaultView: 'list',
@@ -60,6 +72,7 @@ export const DEFAULT_CONFIG: Config = {
   dateLabels: 'short',
   newTaskBucket: 'today',
   saveDelaySeconds: 1,
+  habits: { maxInProgress: 3, goal: 66, missesInARow: 1, missesPerAttempt: { percent: 10 } },
 };
 
 export const DEFAULT_CONFIG_YAML = `# Omark Tasks settings.
@@ -88,6 +101,7 @@ shortcuts:
   undo: z
   switchView: v
   search: f
+  habit: h
   settings: ','
 
 # View shown on desktop when the app opens: list or board.
@@ -111,6 +125,17 @@ newTaskBucket: today
 
 # Seconds to wait after you stop typing before saving (0 or more).
 saveDelaySeconds: 1
+
+# Habits (a task with a seed mark becomes a habit; it forms after enough repetitions).
+habits:
+  # Habits in progress at once, 0 to 99 (0 = no limit).
+  maxInProgress: 3
+  # Repetitions to form a habit, 1 to 999. A habit's own seed number wins.
+  goal: 66
+  # Misses allowed in a row before the count restarts, 0 to 99.
+  missesInARow: 1
+  # Misses allowed in one attempt: a whole number (0 to 999) or a share of the goal like 10% (rounded down).
+  missesPerAttempt: 10%
 `;
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -132,5 +157,16 @@ function toConfig(v: Values): Config {
     dateLabels: v.dateLabels as DateLabelStyle,
     newTaskBucket: v.newTaskBucket as MovableBucket,
     saveDelaySeconds: v.saveDelaySeconds as number,
+    habits: {
+      maxInProgress: v['habits.maxInProgress'] as number,
+      goal: v['habits.goal'] as number,
+      missesInARow: v['habits.missesInARow'] as number,
+      missesPerAttempt: missesPerAttempt(v['habits.missesPerAttempt'] as number | string),
+    },
   };
+}
+
+/** The reader gives `6` or `'10%'`; a share of the goal is kept as `{ percent }`. */
+function missesPerAttempt(v: number | string): HabitConfig['missesPerAttempt'] {
+  return typeof v === 'number' ? v : { percent: Number(v.slice(0, -1)) };
 }

@@ -109,6 +109,55 @@ export const TASKS_SCHEMA: Schema = {
       ],
     },
     {
+      id: 'habits',
+      title: 'Habits',
+      // The app's habit violet (tokens.css); a host without it falls back to the default card colours.
+      accent: 'var(--habit-ink)',
+      fields: [
+        {
+          type: 'number',
+          path: ['habits', 'maxInProgress'],
+          label: 'Habits in progress at most',
+          hint: 'A new habit waits until one is formed or dropped. 0 = no limit.',
+          default: 3,
+          min: 0,
+          max: 99,
+          integer: true,
+        },
+        {
+          type: 'number',
+          path: ['habits', 'goal'],
+          label: 'Repetitions to form a habit',
+          hint: 'Each habit can set its own. Research median: 66 days (Lally, 2010).',
+          default: 66,
+          min: 1,
+          max: 999,
+          integer: true,
+        },
+        {
+          type: 'number',
+          path: ['habits', 'missesInARow'],
+          label: 'Misses allowed in a row',
+          hint: '1 = "never miss twice". One more restarts the count.',
+          default: 1,
+          min: 0,
+          max: 99,
+          integer: true,
+        },
+        {
+          type: 'number',
+          path: ['habits', 'missesPerAttempt'],
+          label: 'Misses allowed per attempt',
+          hint: 'A number, or a share of the goal. 10% of 66 = 6.',
+          default: '10%',
+          min: 0,
+          max: 999,
+          integer: true,
+          percent: true,
+        },
+      ],
+    },
+    {
       id: 'keyboard',
       title: 'Keyboard',
       fields: [
@@ -135,11 +184,12 @@ export const TASKS_SCHEMA: Schema = {
             { id: 'undo', label: 'Undo', default: ['z'] },
             { id: 'switchView', label: 'Switch view', default: ['v'] },
             { id: 'search', label: 'Search', default: ['f'] },
+            { id: 'habit', label: 'Habit on or off', default: ['h'] },
             { id: 'settings', label: 'Open settings', default: [','] },
           ],
-          // Commands added after configs were already written (#19, settings page): left unset, their
+          // Commands added after configs were already written (#19, habits, settings page): left unset, their
           // default keys give way to a key the file binds to another command, so an older config never fails.
-          yielding: ['tomorrow', 'important', 'settings'],
+          yielding: ['tomorrow', 'important', 'habit', 'settings'],
           visible: 4,
         },
       ],

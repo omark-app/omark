@@ -30,7 +30,7 @@ Three UTF-8 files, LF line endings, in `C:\Users\alipk\OneDrive\ALAI\TaskApp\`: 
 ```
 
 - `# Tasks` holds task blocks. Anything above it is kept as it is. A block is the task line plus the indented lines under it (its notes).
-- Task line: `- [ ] {title} ⏫ 🔁 {rule} 📅 {date}`. `⏫`, `🔁` and `📅` are each optional; no date means Someday, or **Important, not urgent** when the task has `⏫`.
+- Task line: `- [ ] {title} ⏫ 🌱 🔁 {rule} 📅 {date}`. `⏫`, `🌱`, `🔁` and `📅` are each optional (`🌱` makes a habit, see Habits below); no date means Someday, or **Important, not urgent** when the task has `⏫`.
 - `⏫` marks the task Important (Obsidian Tasks' high priority); TaskApp shows it in amber, first in its bucket. To flag a task, add ` ⏫` right after the title; to unflag it, remove it. The other priority signs (`🔺 🔼 🔽 ⏬`) are only text to TaskApp.
 - **Important, not urgent** (Eisenhower's important-but-not-urgent box) is every open task with `⏫` and no `📅`: things that matter but nothing forces, and reminders of how to act or what to notice. Their order is the line order; to reorder them, move the lines. To add one, append `- [ ] {title} ⏫`.
 - Older files have a `# Always` section above `# Tasks` (one `- text` per line). Don't add one. TaskApp turns each of its lines into `- [ ] text ⏫` at the top of `# Tasks` on its next sync and removes the section.
@@ -38,6 +38,39 @@ Three UTF-8 files, LF line endings, in `C:\Users\alipk\OneDrive\ALAI\TaskApp\`: 
 - Notes: `    - {note}` (four spaces).
 - A `🔁` rule TaskApp can't parse stays in the title and the task counts as non-repeating. Use only the wording below.
 - A `- [x]` line in `tasks.md` moves to `done.md` on the next sync, with its note lines. One with a `✅` date moves as it is. One without gets today's `✅`; if it repeats, the app also keeps the task in place as `- [ ]` on its next date (notes stay with it, and `done.md` gets a copy). Leave such lines for the app unless asked to complete the task, and then complete it as below instead of ticking it.
+
+## Habits
+
+A habit is a repeating task with a finish line: after enough repetitions it counts as formed and leaves the list.
+
+```markdown
+# Tasks
+- [ ] Meditate 10 min 🌱 🔁 every day 📅 2026-10-26
+- [ ] Gym: strength 🌱 30 🔁 every week on Monday, Wednesday, Friday 📅 2026-10-28
+- [ ] No phone before 9:00 ⏫ 🌱 🔁 every day 📅 2026-10-27
+```
+
+- `🌱` marks a habit. A whole number from 1 to 999 right after it (`🌱 30`) is its own goal; with no number the goal comes from `habits.goal` in `config.yaml` (default 66). Write it after `⏫` and before `🔁`.
+- A habit needs a `🔁` rule other than `when done`. A `🌱` on a task with no rule, or with a `when done` rule, is only text in the title.
+- **At most `habits.maxInProgress` open `🌱` tasks** (default 3, `0` = no limit; count them in `tasks.md`). At the limit, don't add another `🌱`: tell AL the limit is reached and that one must be formed or dropped first, or the limit raised. Never remove or change an existing `🌱` to make room.
+- Complete a habit like any repeating task (below): the done line keeps `🌱` but not the goal number. Do it once per period: if it is already done in today's period, say so and write nothing.
+- Never write a formed line (`🏆`) yourself. The app writes it when the count reaches the goal, on its next sync.
+- To drop a habit, delete its block from `tasks.md` and append `- [-] {title} 🌱 ❌ {today}` to `done.md`. To make it an ordinary task, remove `🌱` and leave the rest.
+- Renaming a habit restarts its count, because progress is found by title. Ask before renaming one.
+
+### How is my habit going?
+
+Progress is never stored. Work it out from the habit's rule and `done.md`:
+
+- Count only completions with the habit's exact title and `🌱` that come after the last `🏆` or `❌` line with the same title.
+- Each date of the `🔁` rule opens a **period** that lasts until the day before the next rule date (`every day`: one day; `every week on Monday, Wednesday, Friday`: Mon-Tue, Wed-Thu, Fri-Sun). Rules that stride (`every 3 days`, `every 2 weeks`, `every 3 months` ...) count their strides from the first counted completion.
+- Walk the periods from the one holding the first counted completion up to today. A period with at least one completion is one repetition (two in a period count once). A period that ended with none is a miss. Today's period, not done yet, is pending, not a miss.
+- **Restart**: more misses in a row than `habits.missesInARow` (default 1), or more misses in the attempt than `habits.missesPerAttempt` (default 10% of the goal, rounded down: 6 for 66). The count goes back to 0 and the next completion starts a new attempt; periods before it are not misses. Keep the best count of the earlier attempts.
+- Formed when the count reaches the goal.
+
+Example, `every day`, goal 66, completions on 1 and 2 Oct: on 3 Oct it is 2/66 and pending. On 4 Oct it is still 2/66, 3 Oct was missed, and today is the last chance (one more miss restarts). On 5 Oct it has restarted: 0/66, best 2. With 1, 2 and 4 Oct done it is 3/66 on 4 Oct, with one miss.
+
+A formed or dropped habit leaves two kinds of line in `done.md` (see below); the count starts again from 0 if the same title is added later.
 
 ## Repeat wording
 
@@ -61,7 +94,7 @@ N is a whole number from 1 to 999. A larger N is not a rule: the text stays in t
 
 Nothing is lost: a completed task's notes always go to `done.md` with it.
 
-The done line is `- [x] {title} ⏫ 🔁 {rule} ✅ {today}`. The `⏫` part appears only when the task is important, the `🔁 {rule}` part only when it repeats. The `📅` date never goes to `done.md`. Under it come the task's note lines, byte for byte as they are in `tasks.md` (same indent, marker and spacing); no notes, no extra lines.
+The done line is `- [x] {title} ⏫ 🌱 🔁 {rule} ✅ {today}`. The `⏫` part appears only when the task is important, the `🌱` part only when it is a habit (without its goal number), the `🔁 {rule}` part only when it repeats. The `📅` date never goes to `done.md`. Under it come the task's note lines, byte for byte as they are in `tasks.md` (same indent, marker and spacing); no notes, no extra lines.
 
 Non-repeating: delete the whole block (line and notes) from `tasks.md`, then append the done line to the end of `done.md` with the task's note lines right under it.
 
@@ -87,8 +120,15 @@ Repeating: keep the block, notes included, in `tasks.md` (the sample shows the w
 
 `done.md` is an append-only log, oldest first. Never rewrite its existing lines.
 
+```markdown
+- [x] Meditate 10 min 🌱 🔁 every day ✅ 2026-10-25
+- [x] Read 20 pages 🌱 🏆 2026-10-26
+- [-] Cold shower 🌱 ❌ 2026-07-20
+```
+
 - An entry is a `- [x] … ✅ {date}` line plus the indented lines right under it (its notes). A blank or unindented line ends the entry.
 - Each `- [x]` line with a valid `✅` date counts as one completion. Indented lines are never counted.
+- Two more habit lines are boundaries, not completions (no `✅`, never counted): `- [x] {title} 🌱 🏆 {date}` (formed, written by the app, sometimes with the habit's notes indented under it) and `- [-] {title} 🌱 ❌ {date}` (dropped). Leave them as they are.
 - Older entries are a single line with no notes; leave them so. Leave any other line (free text, headings, a `- [x]` without `✅`) as it is.
 - Append new entries at the end, keeping each entry's notes directly under its own line.
 
@@ -169,4 +209,5 @@ YAML with only the settings that differ from the defaults. Keep its comments. Th
 | `dateLabels` | `short` (Thu, 12 Nov), `iso` |
 | `newTaskBucket` | `today`, `tomorrow`, `week`, `next`, `someday` |
 | `saveDelaySeconds` | number, 0 or more (default 1) |
-| `shortcuts` | map of command to a key or list of keys (`KeyboardEvent.key` names); a key binds to one command only. Commands: focusAdd, down, up, today, tomorrow, thisWeek, nextWeek, pickDate, someday, repeat, important, complete, edit, delete, deselect, undo, switchView, search, settings (default `,`; like `tomorrow` and `important` it gives way to a key the file binds to another command) |
+| `habits` | map with `maxInProgress` (whole number 0-99, default 3, 0 = no limit), `goal` (1-999, default 66), `missesInARow` (0-99, default 1), `missesPerAttempt` (whole number 0-999, or a percentage `0%`-`100%` of the goal; default `10%`) |
+| `shortcuts` | map of command to a key or list of keys (`KeyboardEvent.key` names); a key binds to one command only. Commands: focusAdd, down, up, today, tomorrow, thisWeek, nextWeek, pickDate, someday, repeat, important, habit (default `h`), complete, edit, delete, deselect, undo, switchView, search, settings (default `,`; like `tomorrow`, `important` and `habit` it gives way to a key the file binds to another command) |

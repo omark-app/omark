@@ -15,6 +15,8 @@ function keyName(key: unknown): string {
 }
 
 const PERCENT = /^\d+(\.\d+)?%$/;
+/** An integer field takes a whole percentage, like its count. */
+const WHOLE_PERCENT = /^\d+%$/;
 
 /** Checks one value from the file or the form. Keys fields are checked by `readSettings`. */
 export function checkValue(field: Exclude<Field, KeysField>, raw: unknown): { value: unknown } | { error: string } {
@@ -36,13 +38,13 @@ export function checkValue(field: Exclude<Field, KeysField>, raw: unknown): { va
         if ((!field.integer || Number.isInteger(raw)) && (min === undefined || raw >= min) && (max === undefined || raw <= max)) {
           return { value: raw };
         }
-      } else if (field.percent && typeof raw === 'string' && PERCENT.test(raw) && parseFloat(raw) <= 100) {
+      } else if (field.percent && typeof raw === 'string' && (field.integer ? WHOLE_PERCENT : PERCENT).test(raw) && parseFloat(raw) <= 100) {
         return { value: raw };
       }
       let what = field.integer ? 'a whole number' : 'a number';
       if (max !== undefined) what += ` from ${min ?? 0} to ${max}`;
       else if (min !== undefined) what += ` ≥ ${min}`;
-      if (field.percent) what += ', or a percentage from 0% to 100%';
+      if (field.percent) what += ' or a percentage from 0% to 100%';
       return { error: `${id} must be ${what}` };
     }
     case 'set': {

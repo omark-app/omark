@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { allTasks, DEFAULT_CONFIG, findTask, tasksInBucket } from '@omark/tasks-core';
+import { addDays, allTasks, DEFAULT_CONFIG, findTask, tasksInBucket } from '@omark/tasks-core';
 import type { BucketKey } from '@omark/tasks-core';
 import { FakeOneDrive, MemoryCache } from '@omark/storage';
 import type { CachedFile, LocalCache } from '@omark/storage';
@@ -72,7 +72,9 @@ class CountingDrive extends FakeOneDrive {
 
 async function setup(
   seed: Partial<Record<TaskFile, string>> = { 'tasks.md': SEED_TASKS },
-  opts: { cache?: LocalCache; phone?: boolean; wrap?: (ws: Workspace) => Workspace } = {},
+  opts: {
+    cache?: LocalCache; phone?: boolean; wrap?: (ws: Workspace) => Workspace; confirm?: (message: string) => boolean;
+  } = {},
 ) {
   const drive = new FakeOneDrive(seed);
   const ws = createWorkspace(drive, opts.cache ?? new MemoryCache());
@@ -80,6 +82,7 @@ async function setup(
     workspace: opts.wrap ? opts.wrap(ws) : ws,
     clock,
     isPhone: () => opts.phone ?? false,
+    ...(opts.confirm && { confirm: opts.confirm }),
   });
   /** Flushes, then waits until every queued upload is over (a pull queues behind them). */
   const synced = async (): Promise<void> => {
@@ -984,6 +987,38 @@ describe('shortcut words when editing (#19, AL in the session)', () => {
     expect(findTask(store.state, id)?.important).toBeFalsy();
   });
 
+  it('a typed hab makes the task a habit in the same change, every day when it had no rule (Final 2)', async () => {
+    const { drive, store, synced } = await setup();
+    const learn = idOf(store, 'Learn Polish sign language');
+    store.edit(learn, { title: 'Learn Polish signs', notes: [], habit: true });
+    expect(store.toast).toEqual({ message: 'Now a habit', undo: true });
+    const water = idOf(store, 'Water the plants');
+    store.edit(water, { title: 'Water the plants', notes: [], habit: true });
+    await synced();
+    const text = drive.peek('tasks.md')!;
+    expect(text).toContain('- [ ] Learn Polish signs 🌱 🔁 every day 📅 2026-10-16\n');
+    expect(text).toContain('- [ ] Water the plants 🌱 🔁 every week on Monday 📅 2026-10-19\n');
+    store.undo();
+    store.undo();
+    expect(findTask(store.state, learn)).toMatchObject({ title: 'Learn Polish sign language', repeat: null, date: null });
+    expect(findTask(store.state, learn)?.habit).toBeUndefined();
+  });
+
+  it('a typed hab at the limit saves the rest without 🌱 and says why (Final 2)', async () => {
+    const three = '# Tasks\n- [ ] A 🌱 🔁 every day 📅 2026-10-16\n- [ ] B 🌱 🔁 every day 📅 2026-10-16\n'
+      + '- [ ] C 🌱 🔁 every day 📅 2026-10-16\n- [ ] Stretch\n';
+    const { drive, store, synced } = await setup({ 'tasks.md': three });
+    const id = idOf(store, 'Stretch');
+    store.edit(id, { title: 'Stretch well', notes: [], habit: true });
+    expect(store.toast).toEqual({
+      message: '3 habits in progress already. Finish or drop one first, or raise the limit in Settings.', undo: true,
+    });
+    await synced();
+    expect(drive.peek('tasks.md')).toContain('- [ ] Stretch well 🔁 every day 📅 2026-10-16\n');
+    store.undo();
+    expect(findTask(store.state, id)).toMatchObject({ title: 'Stretch', repeat: null });
+  });
+
   it('an edit that only flags the task says so', async () => {
     const { store } = await setup();
     const id = idOf(store, 'Call the dentist');
@@ -1107,5 +1142,343 @@ describe('writing config.yaml (#45)', () => {
     await done;
     expect(store.configText).toBe('theme: [\n');
     expect(store.configNote).toBe(DROPPED);
+  });
+});
+
+describe('habits (#44)', () => {
+  // Today is Friday 16 Oct 2026.
+  const MEDITATE = '# Tasks\n- [ ] Meditate 🌱 🔁 every day 📅 2026-10-16\n';
+  const ticks = (...days: string[]) => days.map((d) => `- [x] Meditate 🌱 🔁 every day ✅ 2026-10-${d}\n`).join('');
+  const GOAL_3 = 'habits:\n  goal: 3\n';
+  const FORMED = 'Habit formed: Meditate · 3 in 3 days · moved to History';
+
+  it('ticking a habit twice in a day writes one line and says Already done today', async () => {
+    const { drive, store, synced } = await setup({ 'tasks.md': MEDITATE });
+    const id = idOf(store, 'Meditate');
+    store.complete(id);
+    store.complete(id);
+    expect(store.toast).toEqual({ message: 'Already done today · next Sat', undo: false });
+    await synced();
+    expect(drive.peek('done.md')).toBe(ticks('16'));
+    expect(drive.peek('tasks.md')).toBe('# Tasks\n- [ ] Meditate 🌱 🔁 every day 📅 2026-10-17\n');
+    store.undo();
+    expect(findTask(store.state, id)?.date).toBe('2026-10-16'); // the one tick was the one undo step
+  });
+
+  it('a weekly habit done this week, and a monthly one done this period, say so', async () => {
+    const tasks = '# Tasks\n- [ ] Gym 🌱 🔁 every week on Monday 📅 2026-10-19\n'
+      + '- [ ] Budget 🌱 🔁 every month on the 1st 📅 2026-11-01\n';
+    const done = '- [x] Gym 🌱 🔁 every week on Monday ✅ 2026-10-13\n'
+      + '- [x] Budget 🌱 🔁 every month on the 1st ✅ 2026-10-02\n';
+    const { store } = await setup({ 'tasks.md': tasks, 'done.md': done });
+    store.complete(idOf(store, 'Gym'));
+    expect(store.toast).toEqual({ message: 'Already done this week · next Mon', undo: false });
+    store.complete(idOf(store, 'Budget'));
+    expect(store.toast).toEqual({ message: 'Already done this period · next 1 Nov', undo: false });
+    expect(store.state.done.lines).toHaveLength(2);
+  });
+
+  it('a habit on several days a week done today says Already done this period', async () => {
+    const tasks = '# Tasks\n- [ ] Run 🌱 🔁 every week on Monday, Wednesday, Friday 📅 2026-10-19\n';
+    const done = '- [x] Run 🌱 🔁 every week on Monday, Wednesday, Friday ✅ 2026-10-16\n';
+    const { store } = await setup({ 'tasks.md': tasks, 'done.md': done });
+    store.complete(idOf(store, 'Run'));
+    expect(store.toast?.message).toMatch(/^Already done this period · next /);
+  });
+
+  it('a rename that forms the habit moves the selection on, as complete does', async () => {
+    const tasks = '# Tasks\n- [ ] Meditate 🌱 🔁 every day 📅 2026-10-16\n- [ ] Send the invoice 📅 2026-10-16\n';
+    const done = ['14', '15', '16'].map((d) => `- [x] Sit 🌱 🔁 every day ✅ 2026-10-${d}\n`).join('');
+    const { store } = await setup({ 'tasks.md': tasks, 'done.md': done, 'config.yaml': GOAL_3 });
+    const id = idOf(store, 'Meditate');
+    store.select(id);
+    store.edit(id, { title: 'Sit', notes: [], confirmed: true });
+    expect(allTitles(store)).toEqual(['Send the invoice']);
+    expect(store.selectedId).toBe(idOf(store, 'Send the invoice'));
+  });
+
+  it('the tick toast shows the count', async () => {
+    const { store } = await setup({ 'tasks.md': MEDITATE, 'done.md': ticks('14', '15') });
+    store.complete(idOf(store, 'Meditate'));
+    expect(store.toast).toEqual({ message: 'Meditate · 3/66 · next Sat', undo: true });
+  });
+
+  it('the goal-th tick forms the habit; Undo brings both files back', async () => {
+    const { drive, store, synced } = await setup({ 'tasks.md': MEDITATE, 'done.md': ticks('14', '15'), 'config.yaml': GOAL_3 });
+    store.complete(idOf(store, 'Meditate'));
+    expect(allTitles(store)).toEqual([]);
+    expect(store.toast?.message).toBe(FORMED);
+    expect(store.toast?.undo).toBe(true);
+    expect(store.toast?.action?.label).toBe('Keep as task');
+    await synced();
+    expect(drive.peek('done.md')).toBe(`${ticks('14', '15', '16')}- [x] Meditate 🌱 🏆 2026-10-16\n`);
+    expect(drive.peek('tasks.md')).toBe('# Tasks\n');
+    expect(store.history.formed).toMatchObject([{ title: 'Meditate', goal: 3, days: 3 }]);
+
+    store.undo();
+    await synced();
+    expect(drive.peek('tasks.md')).toBe(MEDITATE);
+    expect(drive.peek('done.md')).toBe(ticks('14', '15'));
+  });
+
+  it('Keep as task puts the task back without 🌱 and keeps the formed line', async () => {
+    const { drive, store, synced } = await setup({ 'tasks.md': MEDITATE, 'done.md': ticks('14', '15'), 'config.yaml': GOAL_3 });
+    store.complete(idOf(store, 'Meditate'));
+    store.toast!.action!.run();
+    expect(store.toast).toEqual({ message: 'Kept as a repeating task', undo: true });
+    await synced();
+    expect(drive.peek('tasks.md')).toBe('# Tasks\n- [ ] Meditate 🔁 every day 📅 2026-10-17\n');
+    expect(drive.peek('done.md')).toBe(`${ticks('14', '15', '16')}- [x] Meditate 🌱 🏆 2026-10-16\n`);
+  });
+
+  it('a habit formed on sync is formed once and offers only Keep as task', async () => {
+    const { drive, store, synced } = await setup({ 'tasks.md': MEDITATE, 'done.md': ticks('14', '15'), 'config.yaml': GOAL_3 });
+    await synced();
+    drive.externalWrite('done.md', ticks('14', '15', '16'));
+    await store.refresh();
+    expect(allTitles(store)).toEqual([]);
+    expect(store.toast?.message).toBe(FORMED);
+    expect(store.toast?.undo).toBe(false);
+    expect(store.toast?.action?.label).toBe('Keep as task');
+    await synced();
+    const formed = `${ticks('14', '15', '16')}- [x] Meditate 🌱 🏆 2026-10-16\n`;
+    expect(drive.peek('done.md')).toBe(formed);
+    expect(drive.peek('tasks.md')).toBe('# Tasks\n');
+
+    await store.refresh();
+    await synced();
+    expect(drive.peek('done.md')).toBe(formed);
+    expect(drive.peek('tasks.md')).toBe('# Tasks\n');
+  });
+
+  it('a habit that reached its goal outside the app is formed on open', async () => {
+    const { drive, store } = await setup({ 'tasks.md': MEDITATE, 'done.md': ticks('14', '15', '16'), 'config.yaml': GOAL_3 });
+    expect(allTitles(store)).toEqual([]);
+    expect(store.toast).toMatchObject({ message: FORMED, undo: false });
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.waitFor(() => expect(drive.peek('done.md')).toBe(`${ticks('14', '15', '16')}- [x] Meditate 🌱 🏆 2026-10-16\n`));
+  });
+
+  it('a config.yaml with an error forms nothing, though its defaults would (Final 1)', async () => {
+    // 66 days in a row, ending today: enough for the default goal, not for the 100 that the file asks for.
+    const days = Array.from({ length: 66 }, (_, i) => addDays('2026-10-16', i - 65));
+    const done = days.map((d) => `- [x] Meditate 🌱 🔁 every day ✅ ${d}\n`).join('');
+    const config = 'habits:\n  goal: 100\nfoo: 1\n';
+    const { drive, store, synced } = await setup({ 'tasks.md': MEDITATE, 'done.md': done, 'config.yaml': config });
+    expect(store.configError).not.toBeNull();
+    expect(allTitles(store)).toEqual(['Meditate']);
+    expect(store.toast).toBeNull();
+    await synced();
+    await store.refresh();
+    expect(allTitles(store)).toEqual(['Meditate']);
+    expect(drive.peek('done.md')).toBe(done);
+    // Nor does a change in the app: the goal the file asks for is not known.
+    store.setHabitGoal(idOf(store, 'Meditate'), 50);
+    expect(allTitles(store)).toEqual(['Meditate']);
+    store.undo();
+
+    // Fixed in Obsidian: the goal is 100 and nothing forms; then lowered to 66, it does.
+    drive.externalWrite('config.yaml', 'habits:\n  goal: 100\n');
+    await store.refresh();
+    expect(allTitles(store)).toEqual(['Meditate']);
+    drive.externalWrite('config.yaml', 'habits:\n  goal: 66\n');
+    await store.refresh();
+    expect(allTitles(store)).toEqual([]);
+  });
+
+  describe('a start from the cache forms only after the first pull (Final 1)', () => {
+    /** A cache holding goal 3 and three ticks, written while no store was open to form them. */
+    async function cached(): Promise<{ drive: SlowDrive; cache: MemoryCache }> {
+      const drive = new SlowDrive({ 'tasks.md': MEDITATE, 'done.md': ticks('14', '15', '16'), 'config.yaml': GOAL_3 });
+      const cache = new MemoryCache();
+      const ws = createWorkspace(drive, cache);
+      await ws.open();
+      await ws.refresh();
+      return { drive, cache };
+    }
+
+    it('a goal raised elsewhere while the app was closed is the one that counts', async () => {
+      const { drive, cache } = await cached();
+      drive.externalWrite('config.yaml', 'habits:\n  goal: 10\n');
+      drive.holdReads = true;
+      const store = await createStore({ workspace: createWorkspace(drive, cache), clock, isPhone: () => false });
+      expect(allTitles(store)).toEqual(['Meditate']); // not on the cached goal of 3
+      expect(store.toast).toBeNull();
+      drive.release();
+      await vi.waitFor(() => expect(store.status).toBe('saved'));
+      expect(store.config.habits.goal).toBe(10);
+      expect(allTitles(store)).toEqual(['Meditate']);
+      expect(drive.peek('done.md')).toBe(ticks('14', '15', '16'));
+    });
+
+    it('a pull that brings nothing new forms it then; an offline start waits for the network', async () => {
+      const { drive, cache } = await cached();
+      drive.setOffline(true);
+      const store = await createStore({ workspace: createWorkspace(drive, cache), clock, isPhone: () => false });
+      await vi.waitFor(() => expect(store.status).toBe('offline'));
+      expect(allTitles(store)).toEqual(['Meditate']);
+      drive.setOffline(false);
+      await store.refresh();
+      expect(allTitles(store)).toEqual([]);
+      expect(store.toast).toMatchObject({ message: FORMED, undo: false });
+    });
+  });
+
+  it('setHabitGoal toasts the goal, and a goal the count already reached forms the habit', async () => {
+    const { store } = await setup({ 'tasks.md': MEDITATE, 'done.md': ticks('14', '15', '16') });
+    const id = idOf(store, 'Meditate');
+    store.setHabitGoal(id, 30);
+    expect(store.toast?.message).toBe('Goal 30');
+    expect(store.habits.get(id)?.rules.goal).toBe(30);
+    store.setHabitGoal(id, null);
+    expect(store.toast?.message).toBe('Goal 66');
+    store.setHabitGoal(id, 3);
+    expect(store.toast?.message).toBe(FORMED);
+    expect(store.toast?.action?.label).toBe('Keep as task');
+    expect(allTitles(store)).toEqual([]);
+  });
+
+  it('remove() on a habit writes the dropped line; undo restores', async () => {
+    const { drive, store, synced } = await setup({ 'tasks.md': MEDITATE, 'done.md': ticks('15') });
+    store.remove(idOf(store, 'Meditate'));
+    expect(store.toast).toEqual({ message: 'Dropped habit · Meditate', undo: true });
+    await synced();
+    expect(drive.peek('tasks.md')).toBe('# Tasks\n');
+    expect(drive.peek('done.md')).toBe(`${ticks('15')}- [-] Meditate 🌱 ❌ 2026-10-16\n`);
+    expect(store.history.dropped).toMatchObject([{ title: 'Meditate', best: 1 }]);
+    store.undo();
+    await synced();
+    expect(drive.peek('tasks.md')).toBe(MEDITATE);
+    expect(drive.peek('done.md')).toBe(ticks('15'));
+  });
+
+  describe('starting habits and the limit', () => {
+    const THREE = '# Tasks\n- [ ] A 🌱 🔁 every day 📅 2026-10-16\n- [ ] B 🌱 🔁 every day 📅 2026-10-16\n'
+      + '- [ ] C 🌱 🔁 every day 📅 2026-10-16\n- [ ] Water the plants 🔁 every week on Monday 📅 2026-10-19\n'
+      + '- [ ] Learn Polish sign language\n';
+    const LIMIT = '3 habits in progress already. Finish or drop one first, or raise the limit in Settings.';
+
+    it('setHabit at the limit returns limit and toasts habitLimit', async () => {
+      const { store } = await setup({ 'tasks.md': THREE });
+      const water = idOf(store, 'Water the plants');
+      expect(store.habitCount).toEqual({ inProgress: 3, max: 3 });
+      expect(store.setHabit(water, true)).toBe('limit');
+      expect(store.toast).toEqual({ message: LIMIT, undo: false });
+      expect(findTask(store.state, water)?.habit).toBeUndefined();
+      expect(store.setHabit(idOf(store, 'A'), true)).toBe('ok'); // already one
+      expect(store.setHabit(idOf(store, 'A'), false)).toBe('ok');
+      expect(store.toast).toEqual({ message: 'No longer a habit', undo: true });
+      expect(store.setHabit(water, true)).toBe('ok');
+      expect(store.toast).toEqual({ message: 'Now a habit', undo: true });
+      expect(findTask(store.state, water)?.habit).toEqual({ goal: null });
+      expect(store.habits.has(water)).toBe(true);
+    });
+
+    it('a limit of 0 never refuses', async () => {
+      const { store } = await setup({ 'tasks.md': THREE, 'config.yaml': 'habits:\n  maxInProgress: 0\n' });
+      expect(store.setHabit(idOf(store, 'Water the plants'), true)).toBe('ok');
+      expect(store.habitCount).toEqual({ inProgress: 4, max: 0 });
+    });
+
+    it('a task with no usable rule needs one: nothing changes', async () => {
+      const { store } = await setup({ 'tasks.md': '# Tasks\n- [ ] Learn Polish sign language\n- [ ] Stretch 🔁 every 2 days when done\n' });
+      const before = store.state;
+      expect(store.setHabit(idOf(store, 'Learn Polish sign language'), true)).toBe('needsRule');
+      expect(store.setHabit(idOf(store, 'Stretch'), true)).toBe('needsRule');
+      expect(store.state).toBe(before);
+      expect(store.toast).toBeNull();
+    });
+
+    it('at the limit a task with no usable rule is refused at once, not after the picker (Final 6)', async () => {
+      const { store } = await setup({ 'tasks.md': THREE });
+      const before = store.state;
+      expect(store.setHabit(idOf(store, 'Learn Polish sign language'), true)).toBe('limit');
+      expect(store.toast).toEqual({ message: LIMIT, undo: false });
+      expect(store.state).toBe(before);
+    });
+
+    it('makeHabit sets the rule and 🌱 in one undo step, within the limit', async () => {
+      const { drive, store, synced } = await setup({ 'tasks.md': '# Tasks\n- [ ] Learn Polish sign language\n' });
+      const id = idOf(store, 'Learn Polish sign language');
+      store.makeHabit(id, { type: 'daily' });
+      expect(store.toast).toEqual({ message: 'Now a habit', undo: true });
+      await synced();
+      expect(drive.peek('tasks.md')).toBe('# Tasks\n- [ ] Learn Polish sign language 🌱 🔁 every day 📅 2026-10-16\n');
+      store.undo();
+      expect(findTask(store.state, id)).toMatchObject({ repeat: null, date: null });
+
+      const full = await setup({ 'tasks.md': THREE });
+      const polish = idOf(full.store, 'Learn Polish sign language');
+      full.store.makeHabit(polish, { type: 'daily' });
+      expect(full.store.toast).toEqual({ message: LIMIT, undo: false });
+      expect(findTask(full.store.state, polish)).toMatchObject({ repeat: null });
+    });
+
+    it('add with habit at the limit adds a daily repeating task without 🌱 and toasts addedNotHabit', async () => {
+      const { drive, store, synced } = await setup({ 'tasks.md': THREE });
+      expect(store.add('Journal 5 lines', 'someday', false, true)).toBe(true);
+      expect(store.toast).toEqual({
+        message: '3 habits in progress already. Journal 5 lines added as a repeating task; make it a habit when one is formed or dropped.',
+        undo: true,
+      });
+      await synced();
+      expect(drive.peek('tasks.md')).toBe(`${THREE}- [ ] Journal 5 lines 🔁 every day 📅 2026-10-16\n`);
+      store.undo();
+      expect(allTitles(store)).not.toContain('Journal 5 lines');
+    });
+
+    it('add with habit under the limit adds 🌱 🔁 every day dated today; a typed rule is kept', async () => {
+      const { drive, store, synced } = await setup({ 'tasks.md': '# Tasks\n' });
+      store.add('Journal 5 lines', 'someday', false, true);
+      expect(store.toast).toEqual({ message: 'Added to Today', undo: true });
+      store.add('Gym 🔁 every week on Monday', 'today', true, true);
+      expect(store.toast).toEqual({ message: 'Added to Today', undo: true });
+      store.add('Stretch 🔁 every 2 days when done', 'today', false, true);
+      expect(store.toast).toEqual({ message: 'Added to Today', undo: true });
+      await synced();
+      expect(drive.peek('tasks.md')).toBe(
+        '# Tasks\n- [ ] Journal 5 lines 🌱 🔁 every day 📅 2026-10-16\n- [ ] Gym ⏫ 🌱 🔁 every week on Monday 📅 2026-10-16\n'
+        + '- [ ] Stretch 🔁 every 2 days when done 📅 2026-10-16\n',
+      );
+      expect(store.habitCount).toEqual({ inProgress: 2, max: 3 });
+    });
+  });
+
+  it('renaming a habit with progress asks first', async () => {
+    let answer = false;
+    const asked: string[] = [];
+    const confirm = (m: string) => {
+      asked.push(m);
+      return answer;
+    };
+    const { store } = await setup({ 'tasks.md': MEDITATE, 'done.md': ticks('15') }, { confirm });
+    const id = idOf(store, 'Meditate');
+    store.edit(id, { title: 'Meditate 15 min', notes: [] });
+    expect(asked).toEqual(['Renaming restarts Meditate at 0. Rename?']);
+    expect(findTask(store.state, id)?.title).toBe('Meditate');
+    expect(store.toast).toBeNull();
+    store.edit(id, { title: 'Meditate', notes: ['quietly'] }); // not a rename: no question
+    expect(asked).toHaveLength(1);
+    answer = true;
+    store.edit(id, { title: 'Meditate 15 min', notes: [] });
+    expect(findTask(store.state, id)?.title).toBe('Meditate 15 min');
+    expect(asked).toHaveLength(2);
+    // Already confirmed (the edit sheet asked), then a habit with no progress yet: no question either way.
+    store.edit(id, { title: 'Meditate 20 min', notes: [], confirmed: true });
+    store.edit(id, { title: 'Meditate 25 min', notes: [] });
+    expect(asked).toHaveLength(2);
+    expect(findTask(store.state, id)?.title).toBe('Meditate 25 min');
+  });
+
+  it('habits map updates when the clock passes midnight', async () => {
+    const { store } = await setup({ 'tasks.md': MEDITATE, 'done.md': ticks('15', '16') });
+    const id = idOf(store, 'Meditate');
+    expect(store.habits.get(id)).toMatchObject({ count: 2, doneThisPeriod: true, lastChance: false });
+    now = new Date(2026, 9, 17, 0, 0, 5);
+    store.tick();
+    expect(store.habits.get(id)).toMatchObject({ count: 2, doneThisPeriod: false, period: { start: '2026-10-17' } });
+    now = new Date(2026, 9, 18, 0, 0, 5);
+    store.tick();
+    expect(store.habits.get(id)).toMatchObject({ count: 2, lastChance: true });
   });
 });

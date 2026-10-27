@@ -142,6 +142,32 @@ test('back to the default removes the key', async ({ page }) => {
   await expect.poll(() => driveFile(page, 'config.yaml')).toBe('');
 });
 
+test('the Habits section edits the habits keys', async ({ page }) => {
+  await start(page, '');
+  await openSettings(page);
+  const goal = page.locator('[id="setting-habits.goal"]');
+  const misses = page.locator('[id="setting-habits.missesPerAttempt"]');
+  await expect(goal).toHaveValue('66');
+  await expect(misses).toHaveValue('10%');
+
+  await goal.fill('30');
+  await expect.poll(() => driveFile(page, 'config.yaml')).toBe('habits:\n  goal: 30\n');
+  await misses.fill('25%');
+  await expect.poll(() => driveFile(page, 'config.yaml')).toBe('habits:\n  goal: 30\n  missesPerAttempt: 25%\n');
+
+  // A share over 100% is refused with the reader's reason, and the file stays.
+  await misses.fill('120%');
+  await expect(page.getByTestId('field-error-habits.missesPerAttempt')).toContainText('or a percentage from 0% to 100%');
+  expect(await driveFile(page, 'config.yaml')).toBe('habits:\n  goal: 30\n  missesPerAttempt: 25%\n');
+
+  // Back to the default removes the key, and the emptied habits: map with it.
+  await misses.fill('10%');
+  await misses.blur();
+  await goal.fill('66');
+  await goal.blur();
+  await expect.poll(() => driveFile(page, 'config.yaml')).toBe('');
+});
+
 test('invalid input is refused with a reason', async ({ page }) => {
   const seed = 'theme: dark\n';
   await start(page, seed);

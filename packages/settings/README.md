@@ -92,7 +92,7 @@ The reader and the form use the same schema, so they cannot disagree about what 
 
 ## Adding a section
 
-Example: the Habits section (#44).
+Example: the Habits section, as it is in `TASKS_SCHEMA` (#44, #45).
 
 1. **Describe it.** Add a section to the app's schema (`packages/tasks-core/src/settings-schema.ts`):
 
@@ -120,6 +120,6 @@ Example: the Habits section (#44).
 
    The command that turns the Habits view on or off is a field of the existing Keyboard card: add `{ id: 'habit', label: 'Habit on or off', default: ['h'] }` to the `shortcuts` commands, and add `'habit'` to its `yielding` list so an older config that already binds `h` still reads.
 
-2. **Map the values.** `toConfig` in `packages/tasks-core/src/config.ts` turns the read values into `Config`. Add the lines for the new keys, e.g. `habits: { maxInProgress: v['habits.maxInProgress'], goal: v['habits.goal'], missesInARow: v['habits.missesInARow'], missesPerAttempt: ... }`. Values are keyed by the field's path joined with dots. #44 represents `missesPerAttempt` as `number | { percent: number }`, so turn `'10%'` into `{ percent: 10 }` and a plain number stays a number. Add `habit` to `Config.shortcuts` and to `DEFAULT_CONFIG`, and the new keys to `DEFAULT_CONFIG_YAML`.
+2. **Map the values.** `toConfig` in `packages/tasks-core/src/config.ts` turns the read values into `Config`. Add the lines for the new keys, e.g. `habits: { maxInProgress: v['habits.maxInProgress'], goal: v['habits.goal'], missesInARow: v['habits.missesInARow'], missesPerAttempt: ... }`. Values are keyed by the field's path joined with dots. `Config.habits.missesPerAttempt` is `number | { percent: number }`, so `'10%'` becomes `{ percent: 10 }` and a plain number stays a number (an integer field takes only a whole percentage). Add `habit` to `Config.shortcuts` and to `DEFAULT_CONFIG`, and the new keys to `DEFAULT_CONFIG_YAML`.
 
 3. **Test it.** Add cases to `packages/tasks-core/test/config.test.ts` (a good value, a bad one with its message), and an e2e row in `apps/tasks/e2e/settings.spec.ts` that changes one habit setting and checks the file holds only that key. The page, the writer and the merge need no change.

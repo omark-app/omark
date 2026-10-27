@@ -18,7 +18,7 @@ describe('parseConfig', () => {
     lines.forEach((l, i) => {
       if (/^[A-Za-z]/.test(l)) expect(lines[i - 1]!.startsWith('#')).toBe(true);
     });
-    for (const k of ['shortcuts', 'defaultView', 'firstDayOfWeek', 'foldedOnOpen', 'theme', 'dateLabels', 'newTaskBucket', 'saveDelaySeconds']) {
+    for (const k of ['shortcuts', 'defaultView', 'firstDayOfWeek', 'foldedOnOpen', 'theme', 'dateLabels', 'newTaskBucket', 'saveDelaySeconds', 'habits']) {
       expect(DEFAULT_CONFIG_YAML).toContain(`${k}:`);
     }
     expect(DEFAULT_CONFIG_YAML).toContain('Detect all file extensions');
@@ -167,7 +167,7 @@ describe('settings command and schema', () => {
   });
 
   it('every Config key has a schema field', () => {
-    const ids = new Set(allFields(TASKS_SCHEMA).map((f) => fieldId(f)));
+    const ids = new Set(allFields(TASKS_SCHEMA).map((f) => fieldId(f).split('.')[0]));
     expect(ids).toEqual(new Set(Object.keys(DEFAULT_CONFIG)));
     const d = defaults(TASKS_SCHEMA);
     expect(d.shortcuts).toEqual(DEFAULT_CONFIG.shortcuts);
@@ -175,5 +175,43 @@ describe('settings command and schema', () => {
     expect(d.theme).toBe(DEFAULT_CONFIG.theme);
     expect(d.foldedOnOpen).toEqual(DEFAULT_CONFIG.foldedOnOpen);
     expect(d.saveDelaySeconds).toBe(DEFAULT_CONFIG.saveDelaySeconds);
+    expect(d['habits.goal']).toBe(DEFAULT_CONFIG.habits.goal);
+    expect(parseConfig('').config.habits).toEqual(DEFAULT_CONFIG.habits);
+  });
+});
+
+describe('habits settings (#44)', () => {
+  it('reads the habits section', () => {
+    const r = parseConfig('habits:\n  maxInProgress: 0\n  goal: 30\n  missesInARow: 2\n  missesPerAttempt: 3\n');
+    expect(r.error).toBeNull();
+    expect(r.config.habits).toEqual({ maxInProgress: 0, goal: 30, missesInARow: 2, missesPerAttempt: 3 });
+    expect(parseConfig('habits:\n  missesPerAttempt: 25%\n').config.habits.missesPerAttempt).toEqual({ percent: 25 });
+  });
+
+  it('defaults to 3, 66, 1 and 10%', () => {
+    expect(DEFAULT_CONFIG.habits).toEqual({ maxInProgress: 3, goal: 66, missesInARow: 1, missesPerAttempt: { percent: 10 } });
+  });
+
+  it('rejects bad habit values with the line', () => {
+    expect(parseConfig('theme: dark\nhabits:\n  goal: 0\n').error).toEqual({
+      line: 3, message: 'habits.goal must be a whole number from 1 to 999',
+    });
+    expect(parseConfig('habits:\n  goal: 2.5\n').error?.message).toBe('habits.goal must be a whole number from 1 to 999');
+    expect(parseConfig('habits:\n  maxInProgress: 100\n').error?.message).toBe('habits.maxInProgress must be a whole number from 0 to 99');
+    expect(parseConfig('habits:\n  missesInARow: -1\n').error?.message).toBe('habits.missesInARow must be a whole number from 0 to 99');
+    const pct = 'habits.missesPerAttempt must be a whole number from 0 to 999 or a percentage from 0% to 100%';
+    expect(parseConfig('habits:\n  goal: 5\n  missesPerAttempt: 120%\n').error).toEqual({ line: 3, message: pct });
+    expect(parseConfig('habits:\n  missesPerAttempt: 1000\n').error?.message).toBe(pct);
+    expect(parseConfig('habits:\n  missesPerAttempt: abc\n').error?.message).toBe(pct);
+    expect(parseConfig('habits:\n  foo: 1\n').error).toEqual({ line: 2, message: 'Unknown setting "habits.foo"' });
+    expect(parseConfig('habits: 3\n').error).toEqual({ line: 1, message: 'habits must be a list of "setting: value" lines' });
+    expect(parseConfig('habits:\n  goal: 0\n').config).toEqual(DEFAULT_CONFIG);
+  });
+
+  it('shortcuts.habit defaults to h and yields to an older binding', () => {
+    expect(DEFAULT_CONFIG.shortcuts.habit).toEqual(['h']);
+    const r = parseConfig('shortcuts:\n  today: h\n');
+    expect(r.error).toBeNull();
+    expect(r.config.shortcuts).toMatchObject({ today: ['h'], habit: [] });
   });
 });

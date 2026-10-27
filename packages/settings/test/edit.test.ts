@@ -139,8 +139,8 @@ describe('numberInput', () => {
   it('keeps a percentage as text for a percent field', () => {
     expect(numberInput(misses, '10%')).toEqual({ value: '10%' });
     expect(numberInput(misses, '3')).toEqual({ value: 3 });
-    expect(numberInput(misses, '120%')).toEqual({ error: 'habits.misses must be a number from 0 to 100, or a percentage from 0% to 100%' });
-    expect(numberInput(misses, 'ten')).toEqual({ error: 'habits.misses must be a number from 0 to 100, or a percentage from 0% to 100%' });
+    expect(numberInput(misses, '120%')).toEqual({ error: 'habits.misses must be a number from 0 to 100 or a percentage from 0% to 100%' });
+    expect(numberInput(misses, 'ten')).toEqual({ error: 'habits.misses must be a number from 0 to 100 or a percentage from 0% to 100%' });
   });
 });
 

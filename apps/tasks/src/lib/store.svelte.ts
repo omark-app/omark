@@ -3,17 +3,27 @@ import { mergeSettings } from '@omark/settings';
 import type { Dropped } from '@omark/settings';
 import { BRAND } from '../brand.ts';
 import {
+  addDays,
   addTask,
   bucketName,
   bucketOf,
   BUCKETS,
+  canStartHabit,
   carryIds,
   completeTask,
   computeStats,
+  daysBetween,
   deleteTask,
+  dropHabit,
   editTask,
   findTask,
+  formedHabits,
+  formHabit,
+  habitHistory,
+  habitProgress,
+  habitsInProgress,
   IMPORTANT_GROUP,
+  isUsableHabitRule,
   mergeDoneText,
   mergeTasksText,
   metaLabel,
@@ -23,9 +33,12 @@ import {
   parseDone,
   parseTasks,
   planDrop,
+  restoreTask,
   serializeDone,
   serializeTasks,
   setDate as setDateOp,
+  setHabit as setHabitOp,
+  setHabitGoal as setHabitGoalOp,
   setImportant as setImportantOp,
   setRepeat as setRepeatOp,
   sweepCompleted,
@@ -39,6 +52,9 @@ import type {
   ConfigError,
   DropOutcome,
   DropTarget,
+  DroppedHabit,
+  FormedHabit,
+  HabitProgress,
   ISODate,
   DateChoice,
   RepeatRule,
@@ -53,9 +69,15 @@ import type { Clock } from './clock.ts';
 import * as msg from './messages.ts';
 
 export type View = 'list' | 'board';
+export interface ToastAction {
+  label: string;
+  run: () => void;
+}
 export interface Toast {
   message: string;
   undo: boolean;
+  /** A second button before Undo (Keep as task); clicking it runs `run` and hides the toast. */
+  action?: ToastAction;
 }
 
 /**
@@ -97,24 +119,55 @@ export interface AppStore {
   readonly stats: Stats;
   /** Set when the offline cache could not be used (e.g. iOS private mode); edits then live only in memory. */
   readonly cacheWarning: string | null;
-  /** Adds a task (to the configured bucket by default); false when the title is blank. */
-  add(title: string, when?: DateChoice, important?: boolean): boolean;
+  /** Every open habit task's progress, by id (habits spec 5). */
+  readonly habits: ReadonlyMap<string, HabitProgress>;
+  /** Habits in progress against the limit (0 = no limit, spec 10.1). */
+  readonly habitCount: { inProgress: number; max: number };
+  /** The formed and dropped habits of done.md, newest first (spec 9.5). */
+  readonly history: { formed: FormedHabit[]; dropped: DroppedHabit[] };
+  /**
+   * Adds a task (to the configured bucket by default); false when the title is blank. `habit` (a typed
+   * `hab`) also makes it a habit, with `🔁 every day` when no rule was typed; at the limit it is added as
+   * an ordinary repeating task and the toast says so (spec 10.1).
+   */
+  add(title: string, when?: DateChoice, important?: boolean, habit?: boolean): boolean;
   select(id: string | null): void;
   selectNext(delta: 1 | -1): void;
   moveTo(id: string, when: DateChoice): void;
   setDate(id: string, date: ISODate | null, beforeId?: string | null): void;
   /** Applies a move or reorder; a drop on Later changes nothing and returns `pickDate` for the UI to open. */
   drop(id: string, target: DropTarget): DropOutcome;
+  /** A habit already done in today's period is not completed again; the toast says so (habits spec 6). */
   complete(id: string): void;
+  /** Deletes a task; a habit is dropped instead (habits spec 8). */
   remove(id: string): void;
   /**
    * Trims the title and notes and drops blank notes; a blank title or an edit that changes nothing is ignored.
-   * `when` and `important` come from shortcut words typed in the title (issue #19) and land in the same change.
+   * `when`, `important` and `habit` come from shortcut words typed in the title (issue #19) and land in the
+   * same change; `habit` works as in `add`, but at the limit the toast is the limit one (spec 10.1).
+   * Renaming a habit with progress asks first (`deps.confirm`) unless `confirmed` says the UI already did.
    */
-  edit(id: string, patch: { title: string; notes: string[]; when?: DateChoice | null; important?: boolean }): void;
+  edit(
+    id: string,
+    patch: {
+      title: string; notes: string[]; when?: DateChoice | null; important?: boolean; habit?: boolean; confirmed?: boolean;
+    },
+  ): void;
   setRepeat(id: string, rule: RepeatRule | null): void;
   /** Flags or unflags a task as Important (issue #19). */
   setImportant(id: string, important: boolean): void;
+  /**
+   * Makes the task a habit or an ordinary repeating task again. Turning it on needs room under the limit
+   * (`limit`: a toast says so, checked first) and a usable rule (`needsRule`: nothing changes, so the UI
+   * can open the repeat picker).
+   */
+  setHabit(id: string, on: boolean): 'ok' | 'limit' | 'needsRule';
+  /** The repeat picker's habit mode: the rule and 🌱 in one undo step, within the limit. */
+  makeHabit(id: string, rule: RepeatRule): void;
+  /** True when another habit may start; otherwise the limit toast says why (spec 10.1). */
+  habitRoom(): boolean;
+  /** The habit's own goal, or null for the configured one. */
+  setHabitGoal(id: string, goal: number | null): void;
   undo(): void;
   /**
    * Replaces config.yaml with `text` (the whole new file): applies it at once and saves it like a task
@@ -158,6 +211,8 @@ export interface StoreDeps {
   durableCache?: boolean;
   /** Keeps `syncedAt` across sessions (the app uses localStorage). */
   syncedAtStore?: { load(): Date | null; save(at: Date): void };
+  /** Asks the user a yes/no question (the app uses `window.confirm`). Default: always yes. */
+  confirm?: (message: string) => boolean;
 }
 
 const TOAST_MS = 4200;
@@ -191,6 +246,7 @@ function loadState(doc: State['doc'], doneText: string, today: ISODate): State {
 
 export async function createStore(deps: StoreDeps): Promise<AppStore> {
   const { workspace, clock, isPhone } = deps;
+  const confirm = deps.confirm ?? (() => true);
   const snap = await workspace.open();
 
   // The file texts the store's edits start from (Ruling 21): what it last adopted or saved.
@@ -224,11 +280,18 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   let packed: { packs: number; columns: BucketKey[][] } | null = null;
   /** A start from the cache packs again when the first successful pull brings changes. */
   let repackOnPull = snap.fromCache;
+  /** A start from the cache forms outside progress only once a pull has succeeded (`settleOutside`). */
+  let settleOnPull = snap.fromCache;
   let toast = $state.raw<Toast | null>(null);
   let status = $state<SyncStatus>(workspace.status());
   // Opening without a cache pulled before this point, so a `saved` status here is a fresh sync.
   let syncedAt = $state.raw<Date | null>(status === 'saved' ? clock.now() : (deps.syncedAtStore?.load() ?? null));
   const stats = $derived(computeStats(state.done, ctx.today));
+  const habits = $derived(
+    new Map(habitsInProgress(state.doc).map((t) => [t.id, habitProgress(t, state.done, ctx.today, config.habits)])),
+  );
+  const habitCount = $derived({ inProgress: habitsInProgress(state.doc).length, max: config.habits.maxInProgress });
+  const history = $derived(habitHistory(state.done, config.habits));
   /** The user changed something that has not reached OneDrive since (cleared when all is saved). */
   let unsynced = false;
   workspace.onStatus((s) => {
@@ -255,8 +318,17 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
 
   // ---- toasts, saving -------------------------------------------------------------------------------
 
-  function show(message: string, undo: boolean): void {
-    toast = { message, undo };
+  /** Shows a toast; its `action` button also hides it before it runs. */
+  function show(message: string, undo: boolean, action?: ToastAction): void {
+    const hideAndRun = (a: ToastAction): ToastAction => ({
+      label: a.label,
+      run: () => {
+        toast = null;
+        clearTimeout(toastTimer);
+        a.run();
+      },
+    });
+    toast = action ? { message, undo, action: hideAndRun(action) } : { message, undo };
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => {
       toast = null;
@@ -324,6 +396,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     for (const fn of [...pending]) fn();
     const next = workspace.texts();
     const configIn = next.config !== base.config;
+    let newConfig = false;
     if (configIn) {
       // Like tasks.md: a config edit not staged yet is merged onto the new text, setting by setting.
       let text = next.config;
@@ -335,10 +408,15 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
         }
       }
       base.config = next.config;
-      if (text !== configText) applyConfig(text);
+      if (text !== configText) {
+        applyConfig(text);
+        newConfig = true;
+      }
     }
     if (next.tasks === base.tasks && next.done === base.done) {
       if (configIn && isDirty()) scheduleSave();
+      // A lower goal or looser miss rules can form a habit.
+      if (newConfig) settleOutside();
       return false;
     }
 
@@ -356,6 +434,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
       undoStack = [];
       if (selectedId !== null && !findTask(state, selectedId)) selectedId = null;
     }
+    if (outside || newConfig) settleOutside();
     if (isDirty()) scheduleSave();
     return outside;
   }
@@ -389,8 +468,13 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
 
   // ---- changes ---------------------------------------------------------------------------------------
 
-  /** Makes `next` the state with undo, a toast and a save. False (and nothing happens) if nothing changed. */
+  /**
+   * Makes `next` the state with undo, a toast and a save. False (and nothing happens) if nothing changed.
+   * A habit the change brought to its goal is formed in the same step, and the toast says so instead.
+   */
   function commit(next: State, message: string): boolean {
+    const formed = settle(next);
+    if (formed) next = formed.state;
     // A change that alters neither file (moving a task to the bucket it is in, setting the same
     // repeat, dropping a task where it already is) gets no toast and no undo entry.
     if (
@@ -404,9 +488,89 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     unsynced = true;
     if (undoStack.length > UNDO_LIMIT) undoStack.shift();
     state = next;
-    show(message, true);
+    show(formed?.message ?? message, true, formed?.keep);
     scheduleSave();
     return true;
+  }
+
+  // ---- habits ----------------------------------------------------------------------------------------
+
+  /**
+   * Forms every open habit of `s` that has reached its goal (habits spec 7): it leaves tasks.md and done.md
+   * gets its 🏆 line, after which the count starts again, so a habit is never formed twice. Null when none
+   * had. The toast is for the last one formed, and its Keep as task puts that one back without 🌱. Nothing
+   * forms while config.yaml has an error: its defaults are not the goal the file asks for.
+   */
+  function settle(s: State): { state: State; message: string; keep: ToastAction } | null {
+    if (configError !== null) return null;
+    let out = s;
+    let formed: { message: string; keep: ToastAction } | null = null;
+    for (const id of formedHabits(s, ctx.today, config.habits)) {
+      const task = findTask(out, id)!;
+      const p = habitProgress(task, out.done, ctx.today, config.habits);
+      // Not formed any more when an earlier habit of the same title was.
+      const r = p.formedOn === null ? null : formHabit(out, id, ctx.today);
+      if (!r) continue;
+      out = r.state;
+      const days = daysBetween(p.since ?? ctx.today, ctx.today) + 1;
+      formed = { message: msg.habitFormed(task.title, p.rules.goal, days), keep: keepAsTask(r.task, r.at) };
+    }
+    return formed && { state: out, ...formed };
+  }
+
+  function keepAsTask(task: Task, at: number): ToastAction {
+    const { habit: _, ...plain } = task;
+    return { label: 'Keep as task', run: () => void commit(restoreTask(state, plain, at), msg.keptAsTask()) };
+  }
+
+  /**
+   * Forms the habits that reached their goal outside the app (seen on open or in a refresh, Review Focus 4).
+   * There is no step to undo back to, so the toast offers only Keep as task; so after a start from the cache
+   * nothing forms before a pull has brought in the goal as it is now.
+   */
+  function settleOutside(): void {
+    if (settleOnPull) return;
+    const formed = settle(state);
+    if (!formed) return;
+    state = formed.state;
+    // An older state would bring the formed habit back unformed.
+    undoStack = [];
+    if (selectedId !== null && !findTask(state, selectedId)) selectedId = null;
+    show(formed.message, false, formed.keep);
+    scheduleSave();
+  }
+
+  /** True when another habit may start; otherwise the toast says why (spec 10.1). */
+  function habitRoom(): boolean {
+    if (canStartHabit(state.doc, config.habits)) return true;
+    show(msg.habitLimit(config.habits.maxInProgress), false);
+    return false;
+  }
+
+  function setHabit(id: string, on: boolean): 'ok' | 'limit' | 'needsRule' {
+    const task = findTask(state, id);
+    if (!task || (task.habit !== undefined) === on) return 'ok';
+    // The limit first: at it, a missing rule is not worth picking (spec 10.1, "Nothing changes").
+    if (on && !habitRoom()) return 'limit';
+    if (on && !isUsableHabitRule(task.repeat)) return 'needsRule';
+    const fallback = neighbour(id);
+    if (commit(setHabitOp(state, id, on), on ? msg.nowHabit() : msg.notHabit())) keepVisible(id, fallback);
+    return 'ok';
+  }
+
+  function makeHabit(id: string, rule: RepeatRule): void {
+    const task = findTask(state, id);
+    if (!task) return;
+    if (!isUsableHabitRule(rule)) return setRepeat(id, rule);
+    if (task.habit === undefined && !habitRoom()) return;
+    const fallback = neighbour(id);
+    const next = setHabitOp(setRepeatOp(state, id, rule, ctx.today), id, true);
+    if (commit(next, task.habit ? msg.repeats(rule) : msg.nowHabit())) keepVisible(id, fallback);
+  }
+
+  function setHabitGoal(id: string, goal: number | null): void {
+    const fallback = neighbour(id);
+    if (commit(setHabitGoalOp(state, id, goal), msg.habitGoal(goal ?? config.habits.goal))) keepVisible(id, fallback);
   }
 
   function movedMessage(s: State, id: string): string {
@@ -420,10 +584,22 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     if (commit(next, movedMessage(next, id))) keepVisible(id, fallback);
   }
 
-  function add(title: string, when: DateChoice = config.newTaskBucket, important = false): boolean {
+  function add(title: string, when: DateChoice = config.newTaskBucket, important = false, habit = false): boolean {
     const res = addTask(state, title, when, ctx, undefined, important);
     if (!res) return false;
-    commit(res.state, msg.added(bucketName(bucketOf(findTask(res.state, res.id)!, ctx))));
+    let next = res.state;
+    let message: string | null = null;
+    if (habit) {
+      const typed = findTask(next, res.id)!;
+      // `hab` with no rule typed means every day; the date `when` gave stays (Someday becomes today).
+      if (!typed.repeat) next = setRepeatOp(next, res.id, { type: 'daily' }, ctx.today);
+      // A typed `when done` rule can't have a habit: the task is kept as typed.
+      if (isUsableHabitRule(findTask(next, res.id)!.repeat)) {
+        if (canStartHabit(state.doc, config.habits)) next = setHabitOp(next, res.id, true);
+        else message = msg.addedNotHabit(config.habits.maxInProgress, typed.title);
+      }
+    }
+    commit(next, message ?? msg.added(bucketName(bucketOf(findTask(next, res.id)!, ctx))));
     return true;
   }
 
@@ -448,25 +624,49 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   function complete(id: string): void {
     const task = findTask(state, id);
     if (!task) return;
+    const before = task.habit ? habitProgress(task, state.done, ctx.today, config.habits) : null;
+    if (before?.doneThisPeriod) {
+      // One repetition per period: a second tick would look like progress (habits spec 6).
+      const { start, end } = before.period;
+      const days = daysBetween(start, end) + 1;
+      show(msg.alreadyDone(days === 1 ? 'today' : days === 7 ? 'this week' : 'this period', addDays(end, 1), ctx), false);
+      return;
+    }
     const fallback = neighbour(id);
     const from = bucketOf(task, ctx);
     const res = completeTask(state, id, ctx.today);
-    commit(res.state, res.next ? msg.doneRepeat(res.next, ctx) : msg.done(task.title));
+    commit(res.state, completedMessage(task, res));
     // A repeating task that moved on to another bucket counts as having left (prototype).
     const after = findTask(state, id);
     if (selectedId === id && (!after || bucketOf(after, ctx) !== from)) selectedId = fallback;
     else keepVisible(id, fallback);
   }
 
+  /** `Done · …`, or for a habit its count after the tick. */
+  function completedMessage(task: Task, res: { state: State; next: ISODate | null }): string {
+    if (!res.next) return msg.done(task.title);
+    const after = task.habit ? findTask(res.state, task.id) : null;
+    if (!after) return msg.doneRepeat(res.next, ctx);
+    const p = habitProgress(after, res.state.done, ctx.today, config.habits);
+    return msg.habitTick(task.title, p.count, p.rules.goal, res.next, ctx);
+  }
+
   function remove(id: string): void {
     const task = findTask(state, id);
     if (!task) return;
     const fallback = neighbour(id);
-    if (commit(deleteTask(state, id), msg.deleted(task.title))) keepVisible(id, fallback);
+    // Deleting a habit drops it: done.md keeps a ❌ line for History (habits spec 8).
+    const [next, message] = task.habit
+      ? [dropHabit(state, id, ctx.today), msg.droppedHabit(task.title)]
+      : [deleteTask(state, id), msg.deleted(task.title)];
+    if (commit(next, message)) keepVisible(id, fallback);
   }
 
   function edit(
-    id: string, patch: { title: string; notes: string[]; when?: DateChoice | null; important?: boolean },
+    id: string,
+    patch: {
+      title: string; notes: string[]; when?: DateChoice | null; important?: boolean; habit?: boolean; confirmed?: boolean;
+    },
   ): void {
     const task = findTask(state, id);
     if (!task) return;
@@ -474,15 +674,34 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     const notes = patch.notes.map((n) => n.trim()).filter((n) => n !== '');
     const moves = patch.when != null;
     const flags = patch.important === true && task.important !== true;
-    if (title === '' || (title === task.title && sameList(notes, task.notes) && !moves && !flags)) return;
+    const starts = patch.habit === true && task.habit === undefined;
+    if (title === '' || (title === task.title && sameList(notes, task.notes) && !moves && !flags && !starts)) return;
     let next = title === task.title && sameList(notes, task.notes) ? state : editTask(state, id, { title, notes });
     if (moves) next = moveToBucket(next, id, patch.when!, ctx);
     if (flags) next = setImportantOp(next, id, true);
-    // A typed `som` takes a task out of Important, not urgent without changing its date (#38).
+    // A typed `hab`, as in `add`: every day when no rule is set; a `when done` rule stays as it is.
+    let habitMessage: string | null = null;
+    if (starts && findTask(next, id)?.habit === undefined) {
+      if (!findTask(next, id)!.repeat) next = setRepeatOp(next, id, { type: 'daily' }, ctx.today);
+      if (isUsableHabitRule(findTask(next, id)!.repeat)) {
+        if (canStartHabit(state.doc, config.habits)) {
+          next = setHabitOp(next, id, true);
+          habitMessage = msg.nowHabit();
+        } else habitMessage = msg.habitLimit(config.habits.maxInProgress);
+      }
+    }
     const after = findTask(next, id);
+    // Progress is found by title, so a rename starts a habit at 0 (habits spec 8).
+    if (task.habit && after && after.title !== task.title && !patch.confirmed) {
+      const p = habitProgress(task, state.done, ctx.today, config.habits);
+      if ((p.count > 0 || p.best > 0) && !confirm(msg.renameHabit(task.title))) return;
+    }
+    // A typed `som` takes a task out of Important, not urgent without changing its date (#38).
     const moved = after?.date !== task.date || (after !== null && bucketOf(after, ctx) !== bucketOf(task, ctx));
-    if (moved) commitMove(id, next);
-    else commit(next, flags ? msg.markedImportant() : msg.saved());
+    // A rename onto a title with history can form the habit: the task leaves, as in `complete`.
+    const fallback = neighbour(id);
+    const message = habitMessage ?? (moved ? movedMessage(next, id) : flags ? msg.markedImportant() : msg.saved());
+    if (commit(next, message)) keepVisible(id, fallback);
   }
 
   function setRepeat(id: string, rule: RepeatRule | null): void {
@@ -519,6 +738,8 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     unsynced = true;
     applyConfig(text);
     scheduleSave();
+    // A lower goal or looser miss rules can form a habit.
+    settleOutside();
   }
 
   // ---- view ------------------------------------------------------------------------------------------
@@ -591,6 +812,12 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     await serial(async () => {
       adoptRemote();
       repackOnPull = false;
+      // The first pull that reached OneDrive: form what the files as they are now say, changed or not.
+      const reached = workspace.status() !== 'offline' && workspace.status() !== 'signin';
+      if (settleOnPull && reached) {
+        settleOnPull = false;
+        settleOutside();
+      }
     });
   }
 
@@ -603,6 +830,9 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   // During the first pull this can run before `refreshOnce` adopts, so it may pack the board too.
   workspace.onRemoteChange(() => void serial(async () => adoptRemote()).catch((e: unknown) => console.error(e)));
 
+  // Habits that reached their goal in Obsidian or by Claude are formed now (after a start from the cache,
+  // after the first pull).
+  settleOutside();
   // Lines ticked in Obsidian were swept on load: write them out.
   if (isDirty()) scheduleSave();
   // Started from the cache without the network (a hanging one must not hold up the list): pull now.
@@ -624,6 +854,9 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     get status() { return status; },
     get syncedAt() { return syncedAt; },
     get stats() { return stats; },
+    get habits() { return habits; },
+    get habitCount() { return habitCount; },
+    get history() { return history; },
     cacheWarning: deps.cacheWarning ?? null,
     add,
     select(id) {
@@ -638,6 +871,10 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     edit,
     setRepeat,
     setImportant,
+    setHabit,
+    makeHabit,
+    habitRoom,
+    setHabitGoal,
     undo,
     writeConfig,
     registerPending(fn) {
