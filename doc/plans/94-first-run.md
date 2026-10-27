@@ -39,7 +39,7 @@
 - [ ] Settings has a Storage card naming the current storage, with buttons for the others (folder only where supported); switching asks first when edits are not saved yet, then opens the other storage; switching back opens the first one's files again, edits included.
 - [ ] Demo builds show neither screen nor card.
 - [ ] `.env.example` lists `VITE_DEMO_URL`.
-- [ ] The v1 spec (moved to `doc/tasks/spec.md` by the docs lane) describes the first-run screen and the Storage card. *Written after the docs lane's move merges.*
+- [ ] The Tasks spec (`doc/tasks/spec.md`) describes the first-run screen and the Storage card.
 
 ## Tests I'll write first
 
