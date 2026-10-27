@@ -36,7 +36,7 @@ let cookie: string;
 const navigate = vi.fn();
 const TASKS = { cookiePrefix: 'taskapp', providers: { microsoft: 'Microsoft' } };
 const BOTH = { cookiePrefix: 'taskapp', providers: { microsoft: 'Microsoft', google: 'Google' } };
-const mk = (timeoutMs?: number, app: { cookiePrefix: string; providers: Record<string, string> } = TASKS) =>
+const mk = (timeoutMs?: number, app: { cookiePrefix: string; providers: Record<string, string>; appName?: string } = TASKS) =>
   createAuth({ ...app, fetch: api.fetch as typeof fetch, navigate, cookies: () => cookie, now: () => now, timeoutMs });
 
 beforeEach(() => {
@@ -269,11 +269,18 @@ describe('createAuth (sign-in helper)', () => {
       await expect(mk().handleRedirect()).rejects.toThrow(new Error('Sign-in failed'));
     });
 
-    it('explains the scope error: sign in again and allow Drive access', async () => {
+    it('explains the scope error: sign in again and tick the Drive box', async () => {
       at('https://tasks.example/?signin_error=scope&provider=google');
-      await expect(mk(undefined, BOTH).handleRedirect()).rejects.toThrow(
-        'Sign in again and allow access to your files in Google Drive',
+      await expect(mk(undefined, { ...BOTH, appName: 'Omark Tasks' }).handleRedirect()).rejects.toThrow(
+        new Error(
+          "Google didn't give Omark Tasks access to its files. Sign in again and tick the box that lets it see, edit, create and delete its own Google Drive files.",
+        ),
       );
+    });
+
+    it('calls the app "the app" in the scope error when it has no name', async () => {
+      at('https://tasks.example/?signin_error=scope&provider=google');
+      await expect(mk(undefined, BOTH).handleRedirect()).rejects.toThrow("Google didn't give the app access to its files.");
     });
 
     it('does nothing on a normal start', async () => {

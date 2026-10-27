@@ -24,8 +24,8 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 const PROVIDERS_TIMEOUT_MS = 3_000;
 
 /** What `/api/auth/callback` sends back as `?signin_error=`. */
-const signinErrors = (provider: string): Record<string, string> => ({
-  scope: `Sign in again and allow access to your files in ${provider} Drive`,
+const signinErrors = (provider: string, appName: string): Record<string, string> => ({
+  scope: `${provider} didn't give ${appName} access to its files. Sign in again and tick the box that lets it see, edit, create and delete its own ${provider} Drive files.`,
   cancelled: 'Sign-in was cancelled',
   expired: 'The sign-in took too long or was started in another window; sign in again',
   failed: `${provider} did not accept the sign-in`,
@@ -37,6 +37,8 @@ export interface AuthOptions {
   cookiePrefix: string;
   /** The sign-in providers: id in the helper → name for error texts. The first is the default. */
   providers: Record<string, string>;
+  /** The app's name for error texts; "the app" when not given. */
+  appName?: string;
   fetch?: typeof fetch;
   /** Leaves the page for the sign-in (a top-level navigation). */
   navigate?: (url: string) => void;
@@ -123,7 +125,7 @@ export function createAuth(opts: AuthOptions): Auth {
       window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
       // hasOwn, so `?provider=constructor` or `?signin_error=toString` read as unknown.
       const id = provider !== null && Object.hasOwn(opts.providers, provider) ? provider : defaultProvider;
-      const errors = signinErrors(opts.providers[id] ?? '');
+      const errors = signinErrors(opts.providers[id] ?? '', opts.appName ?? 'the app');
       throw new Error(Object.hasOwn(errors, reason) ? errors[reason] : 'Sign-in failed');
     },
     async signIn(provider) {

@@ -107,7 +107,7 @@ export async function boot(): Promise<BootResult> {
     return signedIn(auth, () => ({ place: ONEDRIVE, adapter }), inMemory);
   }
 
-  const auth = createAuth({ cookiePrefix: 'taskapp', providers: SIGN_IN_NAMES });
+  const auth = createAuth({ cookiePrefix: 'taskapp', providers: SIGN_IN_NAMES, appName: BRAND.app });
   const getToken = (o?: { fresh?: boolean }) => auth.getToken(o);
   // Only a Google session opens Google Drive; any other (an old `signed_in=1` too) is OneDrive, as before.
   return signedIn(
