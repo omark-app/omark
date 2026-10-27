@@ -49,16 +49,19 @@ test('picking an account signs in with it, and that choice is offered first next
 });
 
 test('a signed-in device opens its storage without the first-run screen, and remembers it', async ({ page }) => {
-  await openApp(page, { auth: 'expired', files: { 'tasks.md': TODAY_TASKS } });
+  // A fake build without a stubbed account is signed in with Microsoft.
+  await openApp(page, { files: { 'tasks.md': TODAY_TASKS } });
   await expect(row(page, 'On OneDrive')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'Use my OneDrive' })).toHaveCount(0);
   expect(await savedChoice(page)).toBe('microsoft');
 });
 
 test('a remembered choice that is not signed in asks before opening anything', async ({ page }) => {
-  await rememberChoice(page, 'google');
-  await openApp(page, { auth: 'expired', providers: ['microsoft', 'google'], files: { 'tasks.md': TODAY_TASKS } });
-  await expect(page.getByText('Sign in to open your tasks in Google Drive, or choose another place.')).toBeVisible();
+  // Signed in with Google (whose drive holds the files), but this device chose OneDrive.
+  await rememberChoice(page, 'microsoft');
+  await openApp(page, { auth: 'google', providers: ['microsoft', 'google'], files: { 'tasks.md': TODAY_TASKS } });
+  await expect(page.getByText('Sign in to open your tasks in OneDrive, or choose another place.')).toBeVisible();
+  await expect(page.getByTestId('first-run-choices').getByRole('button').first()).toHaveText('Use my OneDrive');
   await expect(row(page, 'On OneDrive')).toHaveCount(0);
 });
 
@@ -86,13 +89,16 @@ test.describe('on a computer', () => {
     const card = page.getByTestId('settings-section-storage');
     await expect(card).toContainText('Your tasks are in OneDrive.');
     await card.getByRole('button', { name: 'Use a folder on this computer' }).click();
+    // The page reloads where it was, on Settings.
+    await expect(card).toContainText('Your tasks are in the folder Tasks.');
+    await page.goto('/');
     await expect(row(page, 'In the folder')).toHaveCount(1);
     await expect(row(page, 'On OneDrive')).toHaveCount(0);
     expect(await folderFile(page, 'tasks.md')).not.toContain('On OneDrive');
 
     await page.goto('/#settings');
-    await expect(card).toContainText('Your tasks are in the folder Tasks.');
     await card.getByRole('button', { name: 'Use OneDrive' }).click();
+    await expect(card).toContainText('Your tasks are in OneDrive.');
     await page.goto('/');
     await expect(row(page, 'On OneDrive')).toHaveCount(1);
     expect(await savedChoice(page)).toBe('microsoft');
