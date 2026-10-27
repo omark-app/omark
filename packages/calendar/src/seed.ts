@@ -4,7 +4,6 @@ import { local } from './wall-time.ts';
 
 const DAYS_BEFORE = 10;
 const DAYS_AFTER = 4;
-const MINUTE = 60_000;
 
 const PROJECTS_CSV = [
   'code,description,client,rate,currency,archived',
