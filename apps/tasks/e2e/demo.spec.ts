@@ -69,6 +69,13 @@ test('opens on the sample tasks, with no sign-in', async ({ page }) => {
   await expect(page.getByTestId('sync-banner')).toHaveCount(0);
 });
 
+test('Settings has no Storage card: the demo keeps its tasks in this browser only', async ({ page }) => {
+  await open(page);
+  await page.evaluate(() => (location.hash = 'settings'));
+  await expect(page.getByTestId('settings-section-general')).toBeVisible();
+  await expect(page.getByTestId('settings-section-storage')).toHaveCount(0);
+});
+
 test('an added task, a completion and a note survive a reload', async ({ page, isMobile }) => {
   await open(page);
   await addTask(page, isMobile, 'Buy stamps');

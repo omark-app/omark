@@ -156,12 +156,16 @@
   const loseEdits = (doing: string, storageName: string): string =>
     `You have changes that aren't saved to ${storageName} yet. ${doing} will lose them. Continue?`;
 
+  const waitingEdits = (storageName: string): string =>
+    `You have changes that aren't saved to ${storageName} yet. They stay on this device and are saved when you switch back. Switch anyway?`;
+
   /**
    * Pending edits go to the cache first; if some would still be lost (memory-only cache, or the cache write
    * failed), the user decides. False when they are not saved or the user says no. Edits in the cache stay
-   * there through a sign-in redirect or a switch of storage, and are saved when that storage opens again.
+   * there through a sign-in redirect or a switch of storage, and are saved when that storage opens again;
+   * `leaving` (switching to another storage) asks about those too, as they then wait out of sight.
    */
-  async function editsKept(doing: string): Promise<boolean> {
+  async function editsKept(doing: string, leaving = false): Promise<boolean> {
     if (result?.kind !== 'ready') return true;
     try {
       await result.store.flush();
@@ -169,7 +173,8 @@
       signInError = `Could not save your changes before ${doing.toLowerCase()}: ${message(e)}`;
       return false;
     }
-    return !result.store.wouldLoseEdits() || window.confirm(loseEdits(doing, result.storageName));
+    if (result.store.wouldLoseEdits()) return window.confirm(loseEdits(doing, result.storageName));
+    return !leaving || !result.store.hasUnsyncedEdits() || window.confirm(waitingEdits(result.storageName));
   }
 
   /** Signs in again by redirect, which leaves the page, with the provider the open storage belongs to. */
@@ -187,14 +192,16 @@
   /**
    * Keeps the tasks in `to` from now on, on this device (the first-run screen, Settings, Pick the folder
    * again): a reload, a sign-in redirect, or the folder picker first. `again`: the folder in use is picked
-   * once more (it moved, or access was refused); its offline copy carries over.
+   * once more (it moved, or access was refused); its offline copy carries over. `pick`: show the folder
+   * picker even when a folder is saved.
    */
-  async function useStorage(to: StorageChoice, again = false): Promise<void> {
+  async function useStorage(to: StorageChoice, opts: { again?: boolean; pick?: boolean } = {}): Promise<void> {
     if (result === null || !result.storage) return;
     signInError = null;
-    if (!(await editsKept('Switching storage'))) return;
+    const same = result.kind === 'ready' && result.provider === to;
+    if (!(await editsKept(opts.again ? 'Picking the folder again' : 'Switching storage', !same))) return;
     try {
-      await result.storage.use(to, { again });
+      await result.storage.use(to, opts);
     } catch (e) {
       signInError = to === 'folder' ? `Could not open the folder: ${message(e)}` : `Sign-in failed: ${message(e)}`;
     }
@@ -272,7 +279,7 @@
   <FirstRun
     options={result.options}
     {remembered}
-    onchoose={(choice) => useStorage(choice, choice === 'folder' && remembered === 'folder')}
+    onchoose={(choice) => useStorage(choice, { pick: true })}
     error={signInError}
   />
 {:else}
@@ -289,13 +296,13 @@
   {#if result.folder && (folderRefused || store.status === 'offline')}
     <p class="folder-note" role="status" data-testid="folder-again">
       {folderRefused ? `Access to ${storageName} was refused.` : `If ${storageName} was moved or renamed, pick it again.`}
-      <button type="button" class="again" onclick={() => useStorage('folder', true)}>Pick the folder again</button>
+      <button type="button" class="again" onclick={() => useStorage('folder', { again: true })}>Pick the folder again</button>
     </p>
   {/if}
   {#if onSettings}
     {@const storage = result.storage}
     {#snippet storageCard()}
-      {#if storage}<StorageCard current={provider} {storageName} {storage} onswitch={(to) => useStorage(to)} />{/if}
+      {#if storage}<StorageCard current={provider} {storageName} {storage} onswitch={(to, pick) => useStorage(to, { pick })} />{/if}
     {/snippet}
     <div class="settings-page">
       <SettingsPage

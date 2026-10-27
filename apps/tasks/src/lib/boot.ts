@@ -63,10 +63,14 @@ export interface OpenFolder {
   conflicts(): Promise<string[]>;
 }
 
-/** The storages this build and browser can offer: the sign-in helper's providers, and a folder where the browser can pick one. */
+/**
+ * The storages this build and browser can offer: the sign-in helper's providers, and a folder where the
+ * browser can pick one; `savedFolder` names the folder already picked on this device, if any.
+ */
 export interface StorageOptions {
   providers: StorageProvider[];
   folders: boolean;
+  savedFolder: string | null;
 }
 
 /**
@@ -76,8 +80,12 @@ export interface StorageOptions {
  */
 export interface StorageSwitch {
   options(): Promise<StorageOptions>;
-  /** `again`: picking the folder in use once more (it moved, or access was refused); its offline copy carries over. */
-  use(to: StorageChoice, opts?: { again?: boolean }): Promise<boolean>;
+  /**
+   * For a folder, the one saved on this device opens again, unless `pick` (show the picker, for another
+   * folder) or `again` (pick the folder in use once more as it moved or access was refused: its offline copy
+   * carries over).
+   */
+  use(to: StorageChoice, opts?: { again?: boolean; pick?: boolean }): Promise<boolean>;
 }
 
 /**
@@ -157,14 +165,17 @@ export async function boot(): Promise<BootResult> {
   const storage = storageSwitch(accounts);
   const choice = loadChoice();
   // A saved folder is looked for only where it could open: chosen, or nothing chosen yet.
-  const folder = choice === null || choice === 'folder' ? await savedFolder() : null;
+  const saved = choice === null || choice === 'folder' ? await savedFolder() : { folder: null, sure: true };
+  const folder = saved.folder;
   // A saved folder opens either way, so the sign-in client is not started for it.
-  const signedIn = folder ? null : await accounts.session(choice);
-  const start = decideStart({ choice, signedIn, folder: folder !== null });
+  const session = folder ? { provider: null, sure: true } : await accounts.session(choice);
+  const start = decideStart({ choice, signedIn: session.provider, folder: folder !== null });
   if (start.open === 'choose') {
     return { kind: 'choose', options: await storage.options(), remembered: start.remembered, storage };
   }
-  if (start.save) saveChoice(start.open);
+  // A start that had to guess (the folder lookup or the sign-in client too slow) opens, but saves nothing,
+  // so the next start looks again rather than keeping the guess for good.
+  if (start.save && saved.sure && session.sure) saveChoice(start.open);
   const result = start.open === 'folder' && folder ? await openFolder(folder) : await accounts.open(start.open as StorageProvider);
   return { ...result, storage };
 }
@@ -173,7 +184,8 @@ export async function boot(): Promise<BootResult> {
 interface Accounts {
   /** Null in fake builds without a stubbed account, which count as signed in with Microsoft. */
   auth: Auth | null;
-  session(choice: StorageChoice | null): Promise<StorageProvider | null>;
+  /** `sure` is false when the sign-in client was too slow to start and the provider is a guess. */
+  session(choice: StorageChoice | null): Promise<{ provider: StorageProvider | null; sure: boolean }>;
   open(provider: StorageProvider): Promise<Ready>;
 }
 
@@ -201,7 +213,7 @@ function fakeAccounts(): Accounts {
   const auth = stub ? (window.__taskappAuth = createAuthStub(stub, window.__TASKAPP_PROVIDERS__)) : null;
   return {
     auth,
-    session: async (choice) => (auth ? sessionOf(auth, choice) : 'microsoft'),
+    session: async (choice) => (auth ? sessionOf(auth, choice) : { provider: 'microsoft', sure: true }),
     async open(provider) {
       if (provider === 'google') {
         const drive = new FakeGoogleDrive(seed, GOOGLE_FOLDER);
@@ -231,16 +243,21 @@ function providerOf(id: string | null): StorageProvider | null {
 
 /**
  * The provider signed in with, after reading a sign-in redirect's result if there was one (null: signed
- * out). If the sign-in client takes longer than `AUTH_START_MS` to start, the session the cookie hints at
- * (else the chosen account, else Microsoft), so the store opens from what is cached: the list shows, and the
- * first token request fails as offline or sign-in needed instead of the app hanging on "Loading…".
+ * out). If the sign-in client takes longer than `AUTH_START_MS` to start, a guess (`sure` false): the
+ * session the cookie hints at, else the chosen account, else Microsoft. The store then opens from what is
+ * cached: the list shows, and the first token request fails as offline or sign-in needed instead of the app
+ * hanging on "Loading…".
  */
-async function sessionOf(auth: Auth, choice: StorageChoice | null): Promise<StorageProvider | null> {
+async function sessionOf(
+  auth: Auth,
+  choice: StorageChoice | null,
+): Promise<{ provider: StorageProvider | null; sure: boolean }> {
   if (!(await settlesWithin(auth.handleRedirect(), AUTH_START_MS))) {
     console.warn(`${BRAND.app}: sign-in did not finish starting; opening the cached copy`);
-    return providerOf(auth.signedInProvider()) ?? (choice === 'folder' || choice === null ? 'microsoft' : choice);
+    const guess = providerOf(auth.signedInProvider()) ?? (choice === 'folder' || choice === null ? 'microsoft' : choice);
+    return { provider: guess, sure: false };
   }
-  return auth.isSignedIn() ? (providerOf(auth.signedInProvider()) ?? 'microsoft') : null;
+  return { provider: auth.isSignedIn() ? (providerOf(auth.signedInProvider()) ?? 'microsoft') : null, sure: true };
 }
 
 async function openAccount(
@@ -255,24 +272,31 @@ async function openAccount(
 
 /**
  * Changing storage. The choice is saved first, so the next start opens it: then a reload, a sign-in with
- * the chosen provider when not signed in with it, or (for a folder) the picker before anything is saved.
- * Each storage keeps its own offline cache, so nothing is copied or deleted, and edits not yet saved wait in
- * theirs until the user switches back.
+ * the chosen provider when not signed in with it, or for a folder the one saved on this device (unless
+ * `pick` or `again`), else the picker before anything is saved. Each storage keeps its own offline cache,
+ * so nothing is copied or deleted, and edits not yet saved wait in theirs until the user switches back.
+ * Rejects when the browser won't keep the choice (site data blocked), as the next start could not know it.
  */
 function storageSwitch(accounts: Accounts): StorageSwitch {
+  const remember = (choice: StorageChoice): void => {
+    if (!saveChoice(choice)) throw new Error("this browser doesn't let the app remember the choice (site data blocked?)");
+  };
   return {
     async options() {
       const providers = accounts.auth ? knownProviders(await accounts.auth.availableProviders()) : ['microsoft'];
-      return { providers: providers as StorageProvider[], folders: folderSupported(window) };
+      const folders = folderSupported(window);
+      const saved = folders ? (await savedFolder()).folder : null;
+      return { providers: providers as StorageProvider[], folders, savedFolder: saved?.handle.name ?? null };
     },
     async use(to, opts = {}) {
       if (to === 'folder') {
-        if (!(await chooseFolder(opts))) return false;
-        saveChoice('folder');
+        const reuse = !opts.pick && !opts.again && (await savedFolder()).folder !== null;
+        if (!reuse && !(await chooseFolder(opts))) return false;
+        remember('folder');
         location.reload();
         return true;
       }
-      saveChoice(to);
+      remember(to);
       const auth = accounts.auth;
       if (!auth || (auth.isSignedIn() && providerOf(auth.signedInProvider()) === to)) location.reload();
       else await auth.signIn(to);
@@ -298,14 +322,16 @@ const SAVED_FOLDER_MS = 3_000;
 
 /**
  * The folder picked on this device, or null. Only where the browser can pick folders (elsewhere none can
- * have been saved), and never holding start-up up: IndexedDB can hang on open (WebKit).
+ * have been saved), and never holding start-up up: IndexedDB can hang on open (WebKit). `sure` is false
+ * when it did not answer in time, so a folder may be saved after all.
  */
-async function savedFolder(): Promise<FolderChoice | null> {
-  if (!folderSupported(window)) return null;
+async function savedFolder(): Promise<{ folder: FolderChoice | null; sure: boolean }> {
+  if (!folderSupported(window)) return { folder: null, sure: true };
   let found: FolderChoice | null = null;
   const load = new SavedFolder(FOLDER_DB).load().then((f) => (found = f));
-  if (!(await settlesWithin(load, SAVED_FOLDER_MS))) console.warn(`${BRAND.app}: the picked folder did not load in time`);
-  return found;
+  if (await settlesWithin(load, SAVED_FOLDER_MS)) return { folder: found, sure: true };
+  console.warn(`${BRAND.app}: the picked folder did not load in time`);
+  return { folder: null, sure: false };
 }
 
 /**

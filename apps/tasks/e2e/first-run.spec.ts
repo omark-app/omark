@@ -106,6 +106,48 @@ test.describe('on a computer', () => {
   });
 });
 
+test.describe('an edit not saved yet', () => {
+  test.skip(({ isMobile }) => isMobile, 'switches to a folder (desktop Chrome and Edge)');
+
+  test('waits on this device through a switch to a folder and back, after asking', async ({ page }) => {
+    await installFolderPicker(page);
+    // The cache survives reloads, as in the real app; the fake OneDrive is seeded afresh on each load.
+    await page.addInitScript(() => {
+      (window as unknown as { __TASKAPP_FAKE_DURABLE__: boolean }).__TASKAPP_FAKE_DURABLE__ = true;
+    });
+    await openApp(page, { files: { 'tasks.md': TODAY_TASKS } });
+    await expect(row(page, 'On OneDrive')).toHaveCount(1);
+    await page.evaluate(() => (window as unknown as { __taskappFake: { setOffline(o: boolean): void } }).__taskappFake.setOffline(true));
+    await page.getByTestId('add-input').fill('Waiting edit');
+    await page.getByTestId('add-input').press('Enter');
+    await expect(page.getByTestId('sync-banner')).toContainText("Can't reach OneDrive");
+
+    const asked: string[] = [];
+    page.once('dialog', (d) => {
+      asked.push(d.message());
+      void d.accept();
+    });
+    // The hash, not a page load: a load would bring the fake OneDrive back online.
+    await page.evaluate(() => (location.hash = 'settings'));
+    const card = page.getByTestId('settings-section-storage');
+    await card.getByRole('button', { name: 'Use a folder on this computer' }).click();
+    await expect(card).toContainText('Your tasks are in the folder Tasks.');
+    expect(asked).toEqual([
+      "You have changes that aren't saved to OneDrive yet. They stay on this device and are saved when you switch back. Switch anyway?",
+    ]);
+    expect(await folderFile(page, 'tasks.md')).not.toContain('Waiting edit');
+
+    await card.getByRole('button', { name: 'Use OneDrive' }).click();
+    await expect(card).toContainText('Your tasks are in OneDrive.');
+    // The folder picked before is offered by name, and opens without the picker.
+    await expect(card.getByRole('button', { name: 'Use the folder Tasks' })).toBeVisible();
+    // Back to the list by hash: a load would seed the fake OneDrive afresh, without the edit it now holds.
+    await page.evaluate(() => (location.hash = ''));
+    await expect(row(page, 'Waiting edit')).toHaveCount(1);
+    await expect(row(page, 'On OneDrive')).toHaveCount(1);
+  });
+});
+
 test('Settings offers the storages this browser supports', async ({ page, isMobile }) => {
   await openApp(page, { auth: 'expired', providers: ['microsoft', 'google'] });
   await page.goto('/#settings');

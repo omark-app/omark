@@ -200,6 +200,8 @@ export interface AppStore {
    * OneDrive nor in a cache that survives a reload. Call after `flush()`.
    */
   wouldLoseEdits(): boolean;
+  /** True while some edits have not reached the storage yet (kept in the cache or not). Call after `flush()`. */
+  hasUnsyncedEdits(): boolean;
 }
 
 export interface StoreDeps {
@@ -897,6 +899,9 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     wouldLoseEdits() {
       // After a flush, a store still dirty means staging (the cache write) failed.
       return isDirty() || (unsynced && !deps.durableCache);
+    },
+    hasUnsyncedEdits() {
+      return isDirty() || unsynced;
     },
     tick,
   };

@@ -109,6 +109,13 @@
   <p class="file">This page writes <span class="mono">{schema.file}</span> and keeps its comments. Only changed settings are written.</p>
 {/snippet}
 
+{#snippet extraCard(section: { id: string; title: string; body: Snippet })}
+  <section class="card" id="settings-{section.id}" data-testid="settings-section-{section.id}">
+    <h2>{section.title}</h2>
+    {@render section.body()}
+  </section>
+{/snippet}
+
 {#snippet resetButton()}
   <button type="button" class="btn" data-testid="reset-defaults" onclick={reset}>Reset to defaults</button>
   {#if status}<span class="status">{@render status()}</span>{/if}
@@ -132,6 +139,10 @@
     {/if}
 
     {#if editing}
+      <!-- The app's own cards stay in reach while the file is edited as text (say, a file that does not read). -->
+      {#each extraSections as section (section.id)}
+        {@render extraCard(section)}
+      {/each}
       <section class="card" id="settings-{CONFIG_ID}">
         <h2>config.yaml</h2>
         {@render fileLine()}
@@ -149,10 +160,7 @@
 
         <div class="cards">
           {#each extraSections as section (section.id)}
-            <section class="card" id="settings-{section.id}" data-testid="settings-section-{section.id}">
-              <h2>{section.title}</h2>
-              {@render section.body()}
-            </section>
+            {@render extraCard(section)}
           {/each}
           {#each schema.sections as section (section.id)}
             <section

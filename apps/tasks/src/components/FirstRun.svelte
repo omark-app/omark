@@ -30,9 +30,12 @@
     folder: 'Use a folder on this computer',
   };
 
+  // A remembered account comes first even when the helper did not list it in time (it lists just the
+  // default after 3 s), so "Sign in to open your tasks in Google Drive" always has its button.
   const choices = $derived.by(() => {
     const all: StorageChoice[] = [...options.providers, ...(options.folders ? ['folder' as const] : [])];
-    return remembered && all.includes(remembered) ? [remembered, ...all.filter((c) => c !== remembered)] : all;
+    if (!remembered || (remembered === 'folder' && !options.folders)) return all;
+    return [remembered, ...all.filter((c) => c !== remembered)];
   });
 
   const intro = $derived(

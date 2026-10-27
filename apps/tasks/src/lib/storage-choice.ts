@@ -21,12 +21,13 @@ export function loadChoice(storage: ChoiceStore = local): StorageChoice | null {
   }
 }
 
-/** Saves this device's choice. With storage blocked it is not kept, and start-up asks again next time. */
-export function saveChoice(choice: StorageChoice, storage: ChoiceStore = local): void {
+/** Saves this device's choice. False when storage is blocked: the next start decides from the session and the saved folder again. */
+export function saveChoice(choice: StorageChoice, storage: ChoiceStore = local): boolean {
   try {
     storage().setItem(CHOICE_KEY, choice);
+    return true;
   } catch {
-    // Blocked: the next start decides from the session and the saved folder again.
+    return false;
   }
 }
 

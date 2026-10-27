@@ -55,6 +55,17 @@
 - **Old e2e texts:** several specs click "Sign in with Microsoft". They are updated in this PR, and it says so.
 - **Unsynced edits left behind on a switch** stay in that storage's cache and sync when the user switches back. The confirm says so. A device that never switches back keeps them in IndexedDB; that is shown, not hidden.
 
+## Changes after review
+
+- Switching to another storage asks first whenever edits have not reached the storage yet: "They stay on this device and are saved when you switch back." It asks "… will lose them" when they would be lost (a memory-only cache). The store gains `hasUnsyncedEdits()`.
+- A start that had to guess, because the folder lookup (3 s) or the sign-in client (15 s) was too slow, opens what it guessed but saves no choice. The next start then looks again.
+- A remembered account always gets its button on the first-run screen, even when the helper's list came back late.
+- Picking a folder on the first-run screen no longer carries an old folder's offline copy over; only the same folder (`isSameEntry`) keeps it.
+- Settings offers a folder already picked by name ("Use the folder Tasks"), which opens without the picker, plus "Pick another folder".
+- With site data blocked, switching says the choice can't be remembered instead of failing silently.
+- The app's own Settings cards also show while `config.yaml` is edited as text.
+- Left as they are: a cancelled sign-in shows the start-up error first, and the first-run screen only after "Try again". That is the same as before this change.
+
 ## Out of scope
 
 - Copying files between storages (a later issue, per the spec).

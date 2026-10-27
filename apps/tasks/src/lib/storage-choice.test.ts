@@ -26,9 +26,10 @@ describe('loadChoice and saveChoice', () => {
     expect(loadChoice(() => s)).toBeNull();
   });
 
-  it('read blocked storage as no choice, and saving to it does not throw', () => {
+  it('read blocked storage as no choice, and saving to it says it was not kept', () => {
     expect(loadChoice(blocked)).toBeNull();
-    expect(() => saveChoice('folder', blocked)).not.toThrow();
+    expect(saveChoice('folder', blocked)).toBe(false);
+    expect(saveChoice('folder', () => memoryStorage())).toBe(true);
   });
 });
 
@@ -38,6 +39,8 @@ describe('decideStart', () => {
 
   it('with no choice yet, opens a saved folder, else the signed-in account, else asks', () => {
     expect(decideStart({ choice: null, signedIn: 'google', folder: true })).toEqual({ open: 'folder', save: true });
+    expect(decideStart({ choice: null, signedIn: 'microsoft', folder: true })).toEqual({ open: 'folder', save: true });
+    expect(decideStart({ choice: null, signedIn: null, folder: true })).toEqual({ open: 'folder', save: true });
     expect(decideStart({ choice: null, signedIn: 'google', folder: false })).toEqual({ open: 'google', save: true });
     expect(decideStart({ choice: null, signedIn: 'microsoft', folder: false })).toEqual({ open: 'microsoft', save: true });
     expect(decideStart({ choice: null, signedIn: null, folder: false })).toEqual({ open: 'choose', remembered: null });
