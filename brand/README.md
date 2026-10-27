@@ -28,6 +28,7 @@ Run `pnpm --filter @omark/brand render` after any change to `src/`. The test fai
 | `apps/tasks/public/icons/staging/` (same six) | the Tasks staging build |
 | `png/time/` (same six) | the Time app (see below) |
 | `png/omark/` (same six) | the Omark landing page |
+| `apps/site/public/favicon.svg` | the landing page favicon (written by render; don't edit it there) |
 | `png/omark-avatar-500.png` | GitHub and social avatars |
 | `png/social-preview.png` (1280x640) | the repo social preview and link cards |
 | `svg/omark-mark.svg`, `svg/tasks.svg`, `svg/time.svg` | full-bleed sources for other tools |

@@ -40,6 +40,10 @@ describe('outputs', () => {
     for (const o of rgba) expect(colourType(o.path), o.path).toBe(6);
   });
 
+  it('the landing page favicon is drawn here, not copied by hand', () => {
+    expect(svgs.map((o) => o.path)).toContain('apps/site/public/favicon.svg');
+  });
+
   it.each(svgs.map((o) => [o.path, o] as const))('every SVG output on disk matches iconSvg: %s', (path, o) => {
     expect(read(path).toString('utf8')).toBe(o.svg());
   });
