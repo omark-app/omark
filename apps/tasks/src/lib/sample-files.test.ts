@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allTasks, bucketOf, DEFAULT_CONFIG_YAML, parseDone, parseTasks, serializeTasks } from '@omark/tasks-core';
+import { allTasks, bucketOf, DEFAULT_CONFIG_YAML, habitProgress, parseConfig, parseDone, parseTasks, serializeTasks } from '@omark/tasks-core';
 import { fakeSeed, sampleFiles } from './sample-files.ts';
 
 const WEDNESDAY = '2026-10-21';
@@ -38,6 +38,19 @@ describe('sampleFiles', () => {
     const entries = parseDone(files['done.md']).lines.filter((l) => l.entry !== null);
     expect(entries.length).toBeGreaterThanOrEqual(3);
     for (const l of entries) expect(l.entry!.doneOn! < WEDNESDAY).toBe(true);
+  });
+
+  it('has two habits under way, within the default limit', () => {
+    const { habits } = parseConfig(files['config.yaml']).config;
+    const done = parseDone(files['done.md']);
+    const open = tasks.filter((t) => t.habit);
+    expect(open.length).toBe(2);
+    expect(open.length).toBeLessThanOrEqual(habits.maxInProgress);
+    for (const t of open) {
+      const p = habitProgress(t, done, WEDNESDAY, habits);
+      expect(p.count, t.title).toBeGreaterThan(0);
+      expect(p.formedOn, t.title).toBeNull();
+    }
   });
 
   it('config.yaml is the defaults', () => {

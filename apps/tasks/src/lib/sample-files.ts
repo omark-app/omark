@@ -12,7 +12,8 @@ export function fakeSeed(testSeed: Partial<Record<TaskFile, string>> | undefined
 
 /**
  * Files the demo drive starts with, so the demo (and a PR preview) is worth opening on the phone: every bucket,
- * Important, not urgent, a repeat, notes and a few completions. Dates are relative to `today`.
+ * Important, not urgent, a repeat, two habits under way, notes and a few completions. Dates are relative to
+ * `today`.
  */
 export function sampleFiles(today: ISODate): Record<TaskFile, string> {
   const ctx = { today, weekStart: 0 };
@@ -24,6 +25,8 @@ export function sampleFiles(today: ISODate): Record<TaskFile, string> {
 - [ ] Walk before the first coffee ⏫
 - [ ] One tab at a time ⏫
 - [ ] Notice when I interrupt people ⏫
+- [ ] Read 20 pages 🌱 🔁 every day 📅 ${today}
+- [ ] Floss 🌱 30 🔁 every day 📅 ${today}
 - [ ] Call the dentist about the crown 📅 ${today}
     - ask about zirconia
     - bring the old x-ray
@@ -35,7 +38,10 @@ export function sampleFiles(today: ISODate): Record<TaskFile, string> {
 - [ ] Learn to bake sourdough
 - [ ] Plan a climbing trip
 `;
-  const done = `- [x] Pay the electricity bill ✅ ${d(-1)}
+  // A daily habit's done lines, oldest first: 12 days of reading, 5 of flossing.
+  const habitDays = (title: string, days: number) =>
+    Array.from({ length: days }, (_, i) => `- [x] ${title} 🌱 🔁 every day ✅ ${d(i - days)}\n`).join('');
+  const done = `${habitDays('Read 20 pages', 12)}${habitDays('Floss', 5)}- [x] Pay the electricity bill ✅ ${d(-1)}
 - [x] Water the plants 🔁 every week on Monday ✅ ${d(-2)}
 - [x] Reply to the school ✅ ${d(-2)}
 - [x] Back up the photos ✅ ${d(-5)}
