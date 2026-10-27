@@ -155,7 +155,7 @@ Moving a task means setting its date:
 ### 5.1 Task row (one line, vertical space is precious)
 
 - An important task has an amber circle and an amber title, in light and dark.
-- Left: a round complete button. Middle: the title, followed by a faint `≡` when the task has notes. Notes are **not** shown in the list; they appear in the task detail (section 11) or the phone's edit sheet.
+- Left: a round complete button. Middle: the title, followed by a faint `≡` when the task has notes. Notes are **not** shown in the list; they appear in the task detail (section 11) or the phone's edit sheet. A web link in the title (`https://…`, `www.…`, or Markdown `[label](https://…)`, shown by its label) is clickable: it opens in a new browser tab, or in the default browser from the installed app, without selecting the task.
 - Right: one **meta label**, clickable to open the date picker:
   - a short date: `Thu` in Tomorrow, This week and Next week, `12 Nov` in Later; overdue tasks show their date in red (`Wed`, or `3 Oct` if more than a week ago);
   - a habit shows its progress instead (`12/66`, in violet) and no `↻`, and is never shown as overdue (see the [habits spec](TaskApp%20habits%20spec.md));
@@ -241,7 +241,7 @@ Shown compactly, e.g. `Today 4 (3.2) · 7d 23 (19 ↑) · All 412`.
 ### 9.2 iPhone (touch)
 
 - A large + button at the bottom opens an add sheet: text field (with shortcut words, 9.4), date chips (Today selected by default, also Tomorrow, This week, Next week, Someday, plus the day of a typed weekday word), an Important toggle and a Habit toggle. A chip or the toggle tapped after typing wins over the typed word.
-- **Tap** a task → edit sheet: title, notes box, due date and repeat summary, the move options below, Delete, Save.
+- **Tap** a task → edit sheet: title, notes box, the links found in them (each opens in the browser), due date and repeat summary, the move options below, Delete, Save.
 - **Swipe right** → complete.
 - **Swipe left** → move sheet: Today, Tomorrow, This week, Next week, Pick a date…, Someday, Repeat…, Mark important (or Not important), Make it a habit (or Not a habit), Delete.
 - Tapping a task's date label opens the date picker directly.
@@ -258,7 +258,7 @@ For finding an old task by any word in it, then opening it to read.
 - **Matching**: one free-text box; results update as you type. Every word must appear, in any order and as part of a word, in the title or a note. Case and diacritics are ignored (`zwloknienia` finds `zwłóknienia` and the other way round; `ł` counts as `l`).
 - **Results**: the title with the matched words highlighted, the task's date label as in the list (the bucket name, `Today` or `Someday`, where the row shows none; red when overdue, never for a habit; `↻` when repeating), and the best matching note line when a word matched outside the title. Order: every word in the title first, then words split between title and notes, then note-only matches; within each, earliest date first, undated last. ↑/↓ move through the results, Enter opens one; click or tap works too.
 - **Completed tasks**: only open tasks are searched at first. A last row, "Also search N completed", adds the matches from `done.md` (kept until search closes): struck through, with their ✅ date, newest first within the same order. At most 100 are shown; another word narrows them. Done entries' notes are matched too. A habit's formed (`🏆`) and dropped (`❌`) lines are not completions and are never results.
-- **Opening a result**: an open task opens in the detail (desktop: the side pane or the board's rail) or the edit sheet (phone). Closing it (Esc, `esc`, Save, ✕) comes back to search with the query and results kept; selecting another task leaves search. A completed task opens a read-only sheet: title, notes, completion date and repeat rule. It can't be reopened from there (backlog).
+- **Opening a result**: an open task opens in the detail (desktop: the side pane or the board's rail) or the edit sheet (phone). Closing it (Esc, `esc`, Save, ✕) comes back to search with the query and results kept; selecting another task leaves search. A completed task opens a read-only sheet: title, notes (their links clickable), completion date and repeat rule. It can't be reopened from there (backlog).
 - Out of scope: filters, saved searches, search syntax.
 
 ### 9.4 Shortcut words (added 2026-10-19, #19)
@@ -325,7 +325,7 @@ Two views on desktop, switched with `v` (default from config). **Phones (narrow 
 - One framed sheet with two panes.
 - **Left pane "tasks"**: the add input, then the buckets stacked (section 4: Today, Tomorrow, This week, Next week, Later, Someday), one-line rows (5.1).
 - **Right pane**: when a task is selected, its **detail** on top and **Important, not urgent** (section 7) right below it; with nothing selected, just the group. Habits in progress get their own **Habits** group above Important, not urgent (and a habit block in the detail); a History dialog lists formed and dropped habits (see the [habits spec](TaskApp%20habits%20spec.md)). The completion **stats** (section 8) sit at the bottom of the right pane.
-- **Task detail**: bucket name, editable title (wraps onto more lines when long), editable notes (one per line), Due (button opening the date picker, red when overdue; a habit is never overdue, its old date reads as today) with quick chips Today / Tomorrow / This week / Next week / Someday, Repeat (button opening the repeat picker), an Important toggle (Flag), Complete and Delete buttons, and an `esc` close button. A habit also gets a habit block under the notes: its progress, Goal (its own or the default), Not a habit and Drop habit.
+- **Task detail**: bucket name, editable title (wraps onto more lines when long), editable notes (one per line), the links found in the title and notes (each opens in a new tab), Due (button opening the date picker, red when overdue; a habit is never overdue, its old date reads as today) with quick chips Today / Tomorrow / This week / Next week / Someday, Repeat (button opening the repeat picker), an Important toggle (Flag), Complete and Delete buttons, and an `esc` close button. A habit also gets a habit block under the notes: its progress, Goal (its own or the default), Not a habit and Drop habit.
 - Below the sheet: the keyboard-hint strip and the save status.
 
 **Week board** (desktop only):

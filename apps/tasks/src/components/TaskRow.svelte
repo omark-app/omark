@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { describeRepeat, habitLabel, metaLabel } from '@omark/tasks-core';
+  import { describeRepeat, habitLabel, linkText, metaLabel } from '@omark/tasks-core';
   import type { DateLabelStyle, HabitProgress, Task, WeekCtx } from '@omark/tasks-core';
+  import LinkedText from './LinkedText.svelte';
 
   let {
     task,
@@ -46,9 +47,9 @@
 <!-- Keyboard users select with j/k, so the click handler is a pointer convenience. -->
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div bind:this={el} class="task" class:sel={selected} class:imp={task.important} class:habit={hab !== null} data-testid="task-row" data-id={task.id} data-important={task.important === true} data-habit={hab !== null} {draggable} onclick={onselect} {ondragstart} {ondragend}>
-  <button class="check" data-testid="task-check" aria-label="Complete {task.title}" onclick={(e) => { e.stopPropagation(); oncomplete?.(); }}></button>
+  <button class="check" data-testid="task-check" aria-label="Complete {linkText(task.title)}" onclick={(e) => { e.stopPropagation(); oncomplete?.(); }}></button>
   <div class="title">
-    {task.title}{#if task.notes.length > 0}<span class="ni" title="{task.notes.length} note{task.notes.length > 1 ? 's' : ''}">≡</span>{/if}
+    <LinkedText text={task.title} />{#if task.notes.length > 0}<span class="ni" title="{task.notes.length} note{task.notes.length > 1 ? 's' : ''}">≡</span>{/if}
     {#if hab?.tag}<span class="htag" class:last={habit?.lastChance} data-testid="habit-tag" aria-label={hab.tag}><span class="htext">{hab.tag}</span></span>{/if}
   </div>
   {#if hab && habit}
