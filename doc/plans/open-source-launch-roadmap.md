@@ -18,13 +18,15 @@ The longest chain is Omark Time: 3.8 → T.4 → T.5 → T.6/T.7 → a week of A
 
 | Wave | Items (parallel) | AL |
 |---|---|---|
-| 1 | 2.2 landing and privacy policy (`apps/site`, wordmark until 2.4 lands); 3.8 Google Drive and the Google sign-in provider; T.2 milestone plan, then T.3 `time-core`; 2.1 demo mode (#31, rebased onto `apps/tasks`); 2.4 icon directions (shown as a page) | approve 4 plans, pick an icon direction, read the privacy policy |
-| 2 | 3.1 local folder; T.4 `calendar` (the interface and fake can start in wave 1, the Google part needs 3.8's provider); 2.3 docs; 2.4 full icon set; publish both Google projects once 2.2 is live | approve plans, approve PHILOSOPHY (2.7), consent clicks with `hello@omark.app` |
+| 1 (done 2026-10-27) | 2.2 landing and privacy policy (`apps/site`, wordmark until 2.4 lands); 3.8 Google Drive and the Google sign-in provider; T.2 milestone plan, then T.3 `time-core`; 2.1 demo mode (#31, rebased onto `apps/tasks`); 2.4 icon directions (shown as a page) | approve 4 plans, pick an icon direction, read the privacy policy |
+| 2 | three lanes: storage (3.1 local folder, then 3.2 first-run choice); Time (T.4 Google part #56, then T.5 `apps/time` shell); docs (2.3, then T.8); publish both Google staging projects | approve plans, approve PHILOSOPHY (2.7), consent clicks with `hello@omark.app` |
 | 3 | 3.2 first-run choice; T.5 `apps/time` shell; T.8 Time skill and format docs; 2.5 factory; 3.3/3.4 Omark Entra, Pages and CI | Entra registrations, staging checks |
 | 4 | T.6 screens; T.7 Time demo; T.9 Time production; 3.6 cutover, then 3.7 | T.11 a week on his own calendar, cutover |
 | 5 | 4.1 seeded issues, 2.6 pilot developers, 4.3, milestone 5 | the launch steps |
 
 Clashes to watch: 2.1 and 2.2 both add a deploy job to `ci.yml`, and 3.1 and 3.8 both add an adapter to `packages/storage`. New files keep these small; whichever PR merges second rebases.
+
+**After wave 1** (9 PRs in a day, about 15 rounds of conflict fixing): from wave 2 a wave is at most three lanes, each in a different area (a package, another app, docs), and work inside one app runs one after another. Each PR merges as soon as it is green, not in a batch at the end. Previews deploy after `check`, and sessions run only the e2e specs they touch; CI runs the full suite (#76).
 
 Legend: **AL** = a step only AL can do (`needs-human`). **Plan** = a detailed TDD plan in `doc/plans/` is written and approved before the work starts.
 

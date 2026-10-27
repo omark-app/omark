@@ -100,7 +100,7 @@ Remote Control (driving the local PC session from the phone) is not used for fac
 A PR is ready for me when:
 
 1. The new behaviour, or the bug, has a test that was written first and failed before the change. The PR body quotes the failing line.
-2. `pnpm typecheck`, `pnpm test`, `pnpm e2e` and `pnpm --filter tasks build` pass in the session, then in CI.
+2. `pnpm typecheck`, `pnpm test`, `pnpm --filter tasks build` and the e2e specs the change touches pass in the session. The full `pnpm e2e` passes in CI. (Running it everywhere locally made parallel sessions slow and flaky; CI runs both projects side by side in about 5 minutes.)
 3. The PR body follows the template, links the issue, and has the preview link.
 4. Claude has reviewed its own diff fresh (a review subagent with no memory of writing it) against the issue or the approved plan, and fixed what it found.
 5. For large work: every acceptance criterion in the plan is met or explicitly moved out.
@@ -135,11 +135,11 @@ The real-OneDrive smoke (`pnpm e2e:real`) stays manual, since its sign-in lasts 
 
 | Workflow | When | Does |
 |---|---|---|
-| `ci.yml` | PR opened or updated | check; e2e, one job per Playwright project (`e2e (desktop)`, `e2e (iphone)`) in parallel; then a preview job that deploys the demo build and comments the link |
+| `ci.yml` | PR opened or updated | check; e2e, one job per Playwright project (`e2e (desktop)`, `e2e (iphone)`) in parallel; and, once check passes, a preview job that deploys the demo build and comments the link |
 | `ci.yml` | Push to `main` | check; both e2e jobs; then a small deploy job that builds once for staging and production, deploys to staging, and keeps the files as a workflow artifact; beside it `tasks-demo` builds and deploys the demo |
 | `promote.yml` | By hand (`workflow_dispatch`) | Production deploy (below) |
 
-- The preview, staging and demo deploys wait for check and both e2e jobs.
+- PR previews wait for check only, so they appear while e2e runs; a PR is still ready only when e2e is green. The staging, demo and site deploys wait for check and both e2e jobs.
 - e2e runs in Playwright's own container image (`mcr.microsoft.com/playwright`), whose version must match `@playwright/test`; `workflows.test.ts` checks it. It keeps Playwright's default workers: 4 made the iPhone job slower (#35).
 - check and e2e start together, so a green run doesn't wait for check. If check fails, a small job after it (`stop-on-check-failure`) cancels the run, so the e2e jobs stop early and check still shows as failed.
 - Every job has a time limit (`timeout-minutes`): check 10, stop-on-check-failure 5, e2e 20, preview, staging deploy, demo deploy and Promote 15.

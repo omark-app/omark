@@ -50,16 +50,17 @@ If anything about the expected behaviour is unclear, ask one clear question, add
 
 1. For each behaviour: write the test, run it, **see it fail**, save the failing line for the PR, then write the code.
 2. Small work turning out bigger: stop, relabel `size:large`, comment why, go to **Plan**.
-3. Before pushing, run `pnpm typecheck`, `pnpm test`, `pnpm e2e` and `pnpm --filter tasks build`. All green, or don't push.
+3. Before pushing, run `pnpm typecheck`, `pnpm test`, `pnpm --filter tasks build` and the e2e specs the change touches (`pnpm --filter <app> e2e <spec>`). All green, or don't push. The full `pnpm e2e` runs in CI; run it here only when the change reaches across the whole app (storage, sync, the app shell).
 4. Commit in small steps with short imperative messages.
 
 ## Hand over
 
 1. Push and open the PR from `.github/pull_request_template.md`: `Closes #<n>`, size, what changed for AL, the tests written first with their failing line, and things to try on the phone.
-2. Run a review subagent with no memory of the work: give it the issue (or plan) and `git diff main...HEAD` and ask for bugs, missed acceptance criteria and untested paths. Fix what holds up, re-run the four commands, push.
-3. When CI is green, the preview comment appears. Make sure the PR body links it.
+2. Run a review subagent with no memory of the work: give it the issue (or plan) and `git diff main...HEAD` and ask for bugs, missed acceptance criteria and untested paths. Fix what holds up, re-run the checks in Implement step 3, push.
+3. The preview comment appears once `check` passes; make sure the PR body links it. The PR is ready only when every CI job, e2e included, is green.
 4. Remove `in-progress`. Tell AL in one or two lines: what changed, the preview link, what to try.
 5. Fix CI failures and answer review comments until the PR is green. Never merge.
+6. Keep it mergeable: when main moves and the PR conflicts, merge main in (never rebase pushed work), re-run the checks and push. For `pnpm-lock.yaml`, take main's copy and run `pnpm install`.
 
 ## Blocked
 

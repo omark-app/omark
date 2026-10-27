@@ -259,9 +259,15 @@ describe('workflows', () => {
     expect(e2e.steps!.map((s) => s.run)).toContain('pnpm --filter tasks e2e --project=${{ matrix.project }}');
   });
 
-  it('deploys only after check and every e2e job', () => {
-    for (const name of ['tasks-preview', 'tasks-staging', 'tasks-demo', 'site-preview', 'site-production']) {
+  it('deploys staging, the demo and the site only after check and every e2e job', () => {
+    for (const name of ['tasks-staging', 'tasks-demo', 'site-production']) {
       expect(jobsOf('ci.yml').find(([n]) => n === name)![1].needs, name).toEqual(['check', 'e2e']);
+    }
+  });
+
+  it('deploys PR previews once check passes, without waiting for e2e', () => {
+    for (const name of ['tasks-preview', 'site-preview']) {
+      expect(jobsOf('ci.yml').find(([n]) => n === name)![1].needs, name).toEqual(['check']);
     }
   });
 
