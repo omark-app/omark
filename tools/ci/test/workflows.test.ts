@@ -130,7 +130,7 @@ describe('workflows', () => {
       'TASKS_PROD_FOLDER', 'TASKS_STAGING_FOLDER', 'TASKS_PREVIEW_HOST_SUFFIXES',
       'TASKS_ONEDRIVE_SCOPE', 'TASKS_MSAL_TENANT',
       'CF_TASKS_DEMO_PROJECT', 'TASKS_DEMO_URL', 'TASKS_REAL_USE_URL', 'CF_SITE_PROJECT', 'SITE_URL',
-      'CF_TIME_STAGING_PROJECT', 'CF_TIME_ZONE_ID', 'TIME_STAGING_DOMAIN', 'TIME_STAGING_HOST', 'TIME_STAGING_URL',
+      'CF_TIME_STAGING_PROJECT', 'TIME_STAGING_HOST', 'TIME_STAGING_URL',
     ];
     const used = new Set(FILES.flatMap((f) => [...text(f).matchAll(/\bvars\.(\w+)/g)].map((m) => m[1]!)));
     expect(used.size).toBeGreaterThan(1);
@@ -358,6 +358,14 @@ describe('workflows', () => {
     for (const job of [preview, staging.steps!]) {
       const deploy = job.find((s) => s.uses?.startsWith('cloudflare/wrangler-action@'))!;
       expect((deploy.with as Record<string, string>).command).toMatch(/^pages deploy apps\/time\/dist /);
+    }
+    // The project only: CI's token can't change omark.app's DNS, so the domain was set up by hand.
+    for (const job of [preview, staging.steps!]) {
+      expect(job.find((s) => s.run === 'node tools/ci/ensure-pages-project.mjs')!.env).toEqual({
+        CLOUDFLARE_API_TOKEN: '${{ secrets.CLOUDFLARE_API_TOKEN }}',
+        CLOUDFLARE_ACCOUNT_ID: '${{ secrets.CLOUDFLARE_ACCOUNT_ID }}',
+        CF_PROJECT: '${{ vars.CF_TIME_STAGING_PROJECT }}',
+      });
     }
     const check = staging.steps!.find((s) => s.run === 'node tools/ci/check-google-signin.mjs')!;
     expect(check.env).toEqual({ SIGNIN_URL: '${{ vars.TIME_STAGING_URL }}' });

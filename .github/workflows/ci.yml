@@ -359,9 +359,9 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # The project only, as for tasks-demo: CI's token can't change omark.app's DNS, so the custom domain
+          # and its record were set up once by hand.
           CF_PROJECT: ${{ vars.CF_TIME_STAGING_PROJECT }}
-          PAGES_DOMAIN: ${{ vars.TIME_STAGING_DOMAIN }}
-          CF_ZONE_ID: ${{ vars.CF_TIME_ZONE_ID }}
       - name: Deploy the preview
         id: preview
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
@@ -444,9 +444,9 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # The project only, as for tasks-demo: CI's token can't change omark.app's DNS, so the custom domain
+          # and its record were set up once by hand.
           CF_PROJECT: ${{ vars.CF_TIME_STAGING_PROJECT }}
-          PAGES_DOMAIN: ${{ vars.TIME_STAGING_DOMAIN }}
-          CF_ZONE_ID: ${{ vars.CF_TIME_ZONE_ID }}
       - if: steps.tip.outputs.latest == 'true'
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:

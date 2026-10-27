@@ -33,7 +33,7 @@ Until 1–3 land, the shell runs on the fake calendar and fake drive, and the st
 
 Already there: the "Omark Time Staging" Google project has the Calendar and Drive APIs on, and its Web client has `https://staging-time.omark.app/api/auth/callback` as a redirect URI.
 
-Done by Claude (2026-10-27): the Pages project `omark-time-staging` with the custom domain `staging-time.omark.app` (waiting for DNS), and the repository variables `CF_TIME_STAGING_PROJECT`, `TIME_STAGING_HOST`, `TIME_STAGING_URL`, `TIME_STAGING_DOMAIN` and `CF_TIME_ZONE_ID` (the omark.app zone).
+Done by Claude (2026-10-27): the Pages project `omark-time-staging` with the custom domain `staging-time.omark.app` (waiting for DNS), and the repository variables `CF_TIME_STAGING_PROJECT`, `TIME_STAGING_HOST`, `TIME_STAGING_URL`, `TIME_STAGING_DOMAIN` and `CF_TIME_ZONE_ID` (the omark.app zone). CI reads only the first three: its Cloudflare token can't change omark.app's DNS, so the jobs pass just the project, as `tasks-demo` does.
 
 AL does (Claude's session may not change DNS or Pages secrets):
 - the DNS record: `CNAME staging-time` → `omark-time-staging.pages.dev`, proxied, in the omark.app zone;
