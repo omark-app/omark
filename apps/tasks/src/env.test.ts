@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { realUseUrl, storageMode } from './env.ts';
+import { demoUrl, realUseUrl, storageMode } from './env.ts';
 
 describe('storageMode', () => {
   it.each([
@@ -22,5 +22,15 @@ describe('realUseUrl', () => {
   });
   it('trims a set value', () => {
     expect(realUseUrl(' https://example.test/real ')).toBe('https://example.test/real');
+  });
+});
+
+describe('demoUrl', () => {
+  it('defaults to the public demo when unset or blank', () => {
+    expect(demoUrl(undefined)).toBe('https://demo-tasks.omark.app');
+    expect(demoUrl('  ')).toBe('https://demo-tasks.omark.app');
+  });
+  it('trims a set value', () => {
+    expect(demoUrl(' https://demo.example.test ')).toBe('https://demo.example.test');
   });
 });

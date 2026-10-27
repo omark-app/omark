@@ -35,7 +35,7 @@ export async function openApp(
     files?: Partial<Record<FileName, string>>;
     now?: string;
     fakeTimers?: boolean;
-    auth?: 'signed-out' | 'google' | 'google-expired';
+    auth?: 'signed-out' | 'expired' | 'google' | 'google-expired';
     providers?: string[];
   } = {},
 ): Promise<void> {
@@ -74,3 +74,46 @@ export async function externalWrite(page: Page, name: FileName, text: string): P
   );
 }
 
+/**
+ * Stands in for the folder picker with a real directory handle from Chrome's origin-private file system
+ * (`Tasks`), which IndexedDB can keep across reloads like a picked folder's. The permission prompt of a
+ * later visit is simulated: while localStorage has `e2e-folder-permission`, the handle reports it, and
+ * `requestPermission` grants access and clears it.
+ */
+export async function installFolderPicker(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const w = window as unknown as Record<string, unknown>;
+    w.showDirectoryPicker = async () => (await navigator.storage.getDirectory()).getDirectoryHandle('Tasks', { create: true });
+    const proto = FileSystemHandle.prototype as unknown as Record<string, unknown>;
+    proto.queryPermission = async () => localStorage.getItem('e2e-folder-permission') ?? 'granted';
+    proto.requestPermission = async () => {
+      localStorage.removeItem('e2e-folder-permission');
+      return 'granted';
+    };
+  });
+}
+
+/** The file's text in the picked folder, or null if it does not exist. */
+export function folderFile(page: Page, name: FileName): Promise<string | null> {
+  return page.evaluate(async (n) => {
+    const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('Tasks', { create: true });
+    try {
+      return await (await (await dir.getFileHandle(n)).getFile()).text();
+    } catch {
+      return null;
+    }
+  }, name);
+}
+
+/** Writes a file in the picked folder as another program (an editor, a sync client) would. */
+export async function folderWrite(page: Page, name: string, text: string): Promise<void> {
+  await page.evaluate(
+    async ([n, t]) => {
+      const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('Tasks', { create: true });
+      const stream = await (await dir.getFileHandle(n!, { create: true })).createWritable();
+      await stream.write(t!);
+      await stream.close();
+    },
+    [name, text],
+  );
+}

@@ -1,55 +1,10 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { openApp } from './helpers';
-import type { FileName } from './helpers';
+import { folderFile, folderWrite, installFolderPicker, openApp } from './helpers';
 
 const row = (page: Page, title: string) => page.getByTestId('task-row').filter({ hasText: title });
 const FOLDER_BUTTON = 'Use a folder on this computer';
 // Tasks are dated today (openApp's clock), so they show in the open Today bucket.
-
-/**
- * Stands in for the folder picker with a real directory handle from Chrome's origin-private file system
- * (`Tasks`), which IndexedDB can keep across reloads like a picked folder's. The permission prompt of a
- * later visit is simulated: while localStorage has `e2e-folder-permission`, the handle reports it, and
- * `requestPermission` grants access and clears it.
- */
-async function installFolderPicker(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    const w = window as unknown as Record<string, unknown>;
-    w.showDirectoryPicker = async () => (await navigator.storage.getDirectory()).getDirectoryHandle('Tasks', { create: true });
-    const proto = FileSystemHandle.prototype as unknown as Record<string, unknown>;
-    proto.queryPermission = async () => localStorage.getItem('e2e-folder-permission') ?? 'granted';
-    proto.requestPermission = async () => {
-      localStorage.removeItem('e2e-folder-permission');
-      return 'granted';
-    };
-  });
-}
-
-/** The file's text in the picked folder, or null if it does not exist. */
-function folderFile(page: Page, name: FileName): Promise<string | null> {
-  return page.evaluate(async (n) => {
-    const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('Tasks', { create: true });
-    try {
-      return await (await (await dir.getFileHandle(n)).getFile()).text();
-    } catch {
-      return null;
-    }
-  }, name);
-}
-
-/** Writes a file in the picked folder as another program (an editor, a sync client) would. */
-async function folderWrite(page: Page, name: string, text: string): Promise<void> {
-  await page.evaluate(
-    async ([n, t]) => {
-      const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('Tasks', { create: true });
-      const stream = await (await dir.getFileHandle(n!, { create: true })).createWritable();
-      await stream.write(t!);
-      await stream.close();
-    },
-    [name, text],
-  );
-}
 
 const refocus = (page: Page) => page.evaluate(() => window.dispatchEvent(new Event('focus')));
 
@@ -158,7 +113,7 @@ test.describe('a folder on this computer', () => {
 test('where folders are not supported, the sign-in screen does not offer one', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'desktop Chrome has the API; the iPhone project is WebKit, which has not');
   await openApp(page, { auth: 'signed-out' });
-  await expect(page.getByRole('button', { name: 'Sign in with Microsoft' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Use my OneDrive' })).toBeVisible();
   await expect(page.getByRole('button', { name: FOLDER_BUTTON })).toHaveCount(0);
   await expect(page.getByText('A folder on this computer works in Chrome or Edge on a computer.')).toBeVisible();
 });

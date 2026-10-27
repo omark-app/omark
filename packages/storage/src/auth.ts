@@ -23,7 +23,7 @@ const CSRF_HEADER = 'X-TaskApp-Auth';
 /** An access token is renewed this long before it expires. */
 const RENEW_BEFORE_MS = 60_000;
 const DEFAULT_TIMEOUT_MS = 15_000;
-/** The sign-in screen waits for the providers list, so it gets a shorter limit than a token call. */
+/** The first-run screen waits for the providers list, so it gets a shorter limit than a token call. */
 const PROVIDERS_TIMEOUT_MS = 3_000;
 
 /** What `/api/auth/callback` sends back as `?signin_error=`. */

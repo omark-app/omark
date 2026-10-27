@@ -5,7 +5,7 @@ import type { TaskFile } from './workspace.ts';
 /**
  * The account an e2e test pretends to have, set as `window.__TASKAPP_AUTH_STUB__` before the app loads.
  * Only the fake-storage build reads it (see `boot`). All but `google` are a Microsoft account:
- * - `signed-out`: no account, so the sign-in screen shows;
+ * - `signed-out`: no account, so the first-run screen shows;
  * - `expired`: signed in, but every token refresh needs a fresh sign-in;
  * - `redirect-error`: returning from the sign-in page fails, so the app cannot start;
  * - `stalled-start`: the sign-in library never finishes starting (a hung library), and tokens need a sign-in;
