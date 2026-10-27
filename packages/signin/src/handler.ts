@@ -6,7 +6,8 @@ export type { Env } from './providers.ts';
 
 /** What differs between apps. */
 export interface AuthOptions {
-  provider: Provider;
+  /** Where users can sign in, by id (the `?provider=` value). The first is the default: it is used when `login` names none, and for sessions sealed before there were several. */
+  providers: Record<string, Provider>;
   /** Every cookie is named `<cookiePrefix>_…`. The name is sealed into the cookie's value, so changing it signs everyone out. */
   cookiePrefix: string;
 }
@@ -37,7 +38,7 @@ interface Cookies {
   login: Cookie;
   /** The account name, sealed, for `login_hint`. */
   hint: Cookie;
-  /** Readable by the app (no secret in it): a session cookie probably exists, so boot skips the sign-in screen. */
+  /** Readable by the app (no secret in it): holds the provider's id, so a session cookie probably exists and boot skips the sign-in screen. */
   signedIn: Cookie;
 }
 
@@ -51,18 +52,22 @@ const cookieNames = (prefix: string): Cookies => ({
 /** Token endpoint errors that only a fresh sign-in fixes (the refresh token expired or was revoked, consent withdrawn). */
 const SIGN_IN_ERRORS: readonly string[] = ['invalid_grant', 'interaction_required', 'consent_required', 'login_required'];
 
+/** `p` is the provider's id; absent means the default one (cookies sealed before there were several). */
 interface LoginState {
   state: string;
   verifier: string;
   /** ms since the epoch */
   exp: number;
+  p?: string;
 }
 interface Session {
   rt: string;
   exp: number;
+  p?: string;
 }
 interface Hint {
   username: string;
+  p?: string;
 }
 
 interface Tokens {
@@ -70,18 +75,26 @@ interface Tokens {
   expires_in: number;
   refresh_token?: string;
   id_token?: string;
+  /** Space-separated granted scopes (Google sends it on every grant). */
+  scope?: string;
 }
 type Redeemed = { kind: 'ok'; tokens: Tokens } | { kind: 'signin' } | { kind: 'unavailable' };
 
-interface Context {
+interface Base {
   request: Request;
   url: URL;
+  env: Env;
+  options: AuthOptions;
   cookies: Map<string, string>;
   names: Cookies;
-  provider: ProviderConfig;
   key: CryptoKey;
   fetch: typeof fetch;
   now: number;
+}
+/** A request once it is known which provider it is for. */
+interface Context extends Base {
+  providerId: string;
+  provider: ProviderConfig;
 }
 
 /**
@@ -89,15 +102,17 @@ interface Context {
  * JavaScript. `login` and `callback` run the provider's authorization code flow with PKCE as a confidential
  * web app, so the refresh token lasts longer than an SPA's (Microsoft: 90 days instead of 24 hours); it
  * lives only in an encrypted HttpOnly cookie. `token` trades it for an access token, the only token the app
- * ever sees, and stores the new refresh token. `logout` deletes the cookies. Nothing is kept on the server,
- * and tokens are never logged.
+ * ever sees, and stores the new refresh token. `logout` deletes the cookies. `providers` lists the sign-in
+ * choices that are configured. Nothing is kept on the server, and tokens are never logged.
  */
 export async function handleAuth(request: Request, env: Env, options: AuthOptions, deps: Deps = {}): Promise<Response> {
   const url = new URL(request.url);
   const route = url.pathname.replace(/^\/api\/auth\/?/, '').replace(/\/$/, '');
-  const method = route === 'login' || route === 'callback' ? 'GET' : route === 'token' || route === 'logout' ? 'POST' : null;
+  const method =
+    route === 'login' || route === 'callback' || route === 'providers' ? 'GET' : route === 'token' || route === 'logout' ? 'POST' : null;
   if (method === null) return json(404, { error: 'not_found' });
   if (request.method !== method) return json(405, { error: 'method_not_allowed' }, [], { Allow: method });
+  if (route === 'providers') return json(200, { providers: configured(env, options) });
   if (!env.COOKIE_KEY) {
     console.error('Omark sign-in: COOKIE_KEY is not set');
     return json(500, { error: 'not_configured' });
@@ -109,30 +124,48 @@ export async function handleAuth(request: Request, env: Env, options: AuthOption
     console.error('Omark sign-in: COOKIE_KEY is not 32 base64-encoded bytes');
     return json(500, { error: 'not_configured' });
   }
-  const provider = options.provider.configure(env);
-  if (typeof provider === 'string') {
-    console.error(`Omark sign-in: ${provider}`);
-    return json(500, { error: 'not_configured' });
-  }
-  const ctx: Context = {
+  const base: Base = {
     request,
     url,
+    env,
+    options,
     cookies: parseCookies(request.headers.get('Cookie')),
     names: cookieNames(options.cookiePrefix),
-    provider,
     key,
     fetch: deps.fetch ?? ((...args) => globalThis.fetch(...args)),
     now: (deps.now ?? Date.now)(),
   };
-  if (route === 'login') return login(ctx);
-  if (route === 'callback') return callback(ctx);
-  if (!sameOrigin(ctx)) return json(403, { error: 'forbidden' });
-  return route === 'token' ? token(ctx) : logout(ctx);
+  if (route === 'login') return login(base);
+  if (route === 'callback') return callback(base);
+  if (!sameOrigin(base)) return json(403, { error: 'forbidden' });
+  return route === 'token' ? token(base) : logout(base);
+}
+
+const defaultProvider = (options: AuthOptions): string => Object.keys(options.providers)[0]!;
+/** hasOwn, so `constructor` or `toString` are not providers. */
+const hasProvider = (options: AuthOptions, id: string): boolean => Object.hasOwn(options.providers, id);
+
+/** The ids of the providers whose settings are all there, in the app's order. */
+const configured = (env: Env, options: AuthOptions): string[] =>
+  Object.keys(options.providers).filter((id) => typeof options.providers[id]!.configure(env) !== 'string');
+
+/** Reads the provider's settings; a response (500 not_configured) when they are missing. The id must exist. */
+function withProvider(base: Base, id: string): Context | Response {
+  const provider = base.options.providers[id]!.configure(base.env);
+  if (typeof provider === 'string') {
+    console.error(`Omark sign-in: ${provider}`);
+    return json(500, { error: 'not_configured' });
+  }
+  return { ...base, providerId: id, provider };
 }
 
 const redirectUri = (ctx: Context) => `${ctx.url.origin}/api/auth/callback`;
 
-async function login(ctx: Context): Promise<Response> {
+async function login(base: Base): Promise<Response> {
+  const id = base.url.searchParams.get('provider') ?? defaultProvider(base.options);
+  if (!hasProvider(base.options, id)) return json(400, { error: 'unknown_provider' });
+  const ctx = withProvider(base, id);
+  if (ctx instanceof Response) return ctx;
   const state = randomToken();
   const verifier = randomToken();
   const params = new URLSearchParams({
@@ -144,11 +177,13 @@ async function login(ctx: Context): Promise<Response> {
     state,
     code_challenge: await pkceChallenge(verifier),
     code_challenge_method: 'S256',
+    ...ctx.provider.authorizeParams,
   });
   const { hint: HINT, login: LOGIN } = ctx.names;
   const hint = await unseal<Hint>(ctx.key, HINT.name, ctx.cookies.get(HINT.name));
-  if (hint?.username) params.set('login_hint', hint.username);
-  const sealed = await seal(ctx.key, LOGIN.name, { state, verifier, exp: ctx.now + LOGIN_MAX_AGE * 1000 } satisfies LoginState);
+  // An account name only means something to the provider that gave it.
+  if (hint?.username && (hint.p ?? defaultProvider(ctx.options)) === id) params.set('login_hint', hint.username);
+  const sealed = await seal(ctx.key, LOGIN.name, { state, verifier, exp: ctx.now + LOGIN_MAX_AGE * 1000, p: id } satisfies LoginState);
   return redirect(`${ctx.provider.authorizeUrl}?${params}`, [
     serializeCookie(LOGIN.name, sealed, { path: LOGIN.path, maxAge: LOGIN_MAX_AGE }),
   ]);
@@ -156,23 +191,28 @@ async function login(ctx: Context): Promise<Response> {
 
 /**
  * The provider's return. Any failure goes back to the app as `/?signin_error=<reason>`, which it shows:
- * `cancelled`, `expired` (no or stale sign-in state: start again), `failed` or `unavailable`.
+ * `cancelled`, `expired` (no or stale sign-in state: start again), `scope` (not every permission was granted),
+ * `failed` or `unavailable`. Once the provider is known from the sign-in state, `&provider=<id>` names it.
  */
-async function callback(ctx: Context): Promise<Response> {
-  const { hint: HINT, login: LOGIN } = ctx.names;
+async function callback(base: Base): Promise<Response> {
+  const { hint: HINT, login: LOGIN } = base.names;
   const clearLogin = serializeCookie(LOGIN.name, '', { path: LOGIN.path, maxAge: 0 });
-  const back = (reason: string) => redirect(`/?signin_error=${reason}`, [clearLogin]);
-  const q = ctx.url.searchParams;
+  const back = (reason: string, id?: string) => redirect(`/?signin_error=${reason}${id ? `&provider=${id}` : ''}`, [clearLogin]);
+  const q = base.url.searchParams;
+  const login = await unseal<LoginState>(base.key, LOGIN.name, base.cookies.get(LOGIN.name));
+  const id = login?.p ?? defaultProvider(base.options);
+  const known = login && login.exp >= base.now && hasProvider(base.options, id) ? id : undefined;
   const error = q.get('error');
   if (error) {
     console.warn(`Omark sign-in: authorize answered ${error}`);
-    return back(error === 'access_denied' ? 'cancelled' : 'failed');
+    return back(error === 'access_denied' ? 'cancelled' : 'failed', known);
   }
-  const login = await unseal<LoginState>(ctx.key, LOGIN.name, ctx.cookies.get(LOGIN.name));
   const state = q.get('state');
-  if (!login || login.exp < ctx.now || !state || state !== login.state) return back('expired');
+  if (!login || !known || !state || state !== login.state) return back('expired');
+  const ctx = withProvider(base, id);
+  if (ctx instanceof Response) return ctx;
   const code = q.get('code');
-  if (!code) return back('failed');
+  if (!code) return back('failed', id);
 
   const redeemed = await redeem(ctx, {
     grant_type: 'authorization_code',
@@ -181,31 +221,42 @@ async function callback(ctx: Context): Promise<Response> {
     code_verifier: login.verifier,
     scope: ctx.provider.signinScope,
   });
-  if (redeemed.kind !== 'ok') return back(redeemed.kind === 'signin' ? 'failed' : 'unavailable');
-  const { refresh_token: rt, id_token } = redeemed.tokens;
-  if (!rt) return back('failed');
+  if (redeemed.kind !== 'ok') return back(redeemed.kind === 'signin' ? 'failed' : 'unavailable', id);
+  const { refresh_token: rt, id_token, scope } = redeemed.tokens;
+  // The user can untick permissions on the consent screen; a session without them would only fail later.
+  const granted = typeof scope === 'string' ? scope.split(' ') : [];
+  if (ctx.provider.requiredScopes?.some((required) => !granted.includes(required))) {
+    console.warn('Omark sign-in: the grant lacks a required scope');
+    return back('scope', id);
+  }
+  if (!rt) return back('failed', id);
 
   let session: string[];
   try {
     session = await sessionCookies(ctx, rt);
   } catch {
     console.error('Omark sign-in: the refresh token does not fit in the session cookies');
-    return back('failed');
+    return back('failed', id);
   }
   const cookies = [clearLogin, ...session];
   const username = usernameFrom(id_token);
   if (username) {
-    const hint = await seal(ctx.key, HINT.name, { username } satisfies Hint);
+    const hint = await seal(ctx.key, HINT.name, { username, p: id } satisfies Hint);
     cookies.push(serializeCookie(HINT.name, hint, { path: HINT.path, maxAge: HINT_MAX_AGE }));
   }
   return redirect('/', cookies);
 }
 
 /** `{ accessToken, expiresAt }` (ms since the epoch); 401 `{ signin: true }` when only signing in helps; 503 when the provider cannot be reached. */
-async function token(ctx: Context): Promise<Response> {
-  const SESSION = ctx.names.session;
-  const session = await unseal<Session>(ctx.key, SESSION.name, readChunkedCookie(ctx.cookies, SESSION.name));
-  if (!session || typeof session.rt !== 'string' || session.exp < ctx.now) return json(401, { signin: true }, clearSession(ctx));
+async function token(base: Base): Promise<Response> {
+  const SESSION = base.names.session;
+  const session = await unseal<Session>(base.key, SESSION.name, readChunkedCookie(base.cookies, SESSION.name));
+  if (!session || typeof session.rt !== 'string' || session.exp < base.now) return json(401, { signin: true }, clearSession(base));
+  const id = session.p ?? defaultProvider(base.options);
+  // A provider the app no longer offers: only a new sign-in helps.
+  if (!hasProvider(base.options, id)) return json(401, { signin: true }, clearSession(base));
+  const ctx = withProvider(base, id);
+  if (ctx instanceof Response) return ctx;
   const redeemed = await redeem(ctx, { grant_type: 'refresh_token', refresh_token: session.rt, scope: ctx.provider.scope });
   if (redeemed.kind === 'signin') return json(401, { signin: true }, clearSession(ctx));
   if (redeemed.kind === 'unavailable') return json(503, { error: 'unavailable' });
@@ -218,7 +269,7 @@ async function token(ctx: Context): Promise<Response> {
   );
 }
 
-const logout = (ctx: Context): Response => {
+const logout = (ctx: Base): Response => {
   const HINT = ctx.names.hint;
   return json(200, { ok: true }, [...clearSession(ctx), serializeCookie(HINT.name, '', { path: HINT.path, maxAge: 0 })]);
 };
@@ -227,14 +278,14 @@ const logout = (ctx: Context): Response => {
 async function sessionCookies(ctx: Context, rt: string): Promise<string[]> {
   const { session: SESSION, signedIn: SIGNED_IN } = ctx.names;
   const maxAge = ctx.provider.sessionMaxAge;
-  const sealed = await seal(ctx.key, SESSION.name, { rt, exp: ctx.now + maxAge * 1000 } satisfies Session);
+  const sealed = await seal(ctx.key, SESSION.name, { rt, exp: ctx.now + maxAge * 1000, p: ctx.providerId } satisfies Session);
   return [
     ...chunkedCookies(SESSION.name, sealed, { path: SESSION.path, maxAge }),
-    serializeCookie(SIGNED_IN.name, '1', { path: SIGNED_IN.path, maxAge, httpOnly: false }),
+    serializeCookie(SIGNED_IN.name, ctx.providerId, { path: SIGNED_IN.path, maxAge, httpOnly: false }),
   ];
 }
 
-const clearSession = (ctx: Context): string[] => {
+const clearSession = (ctx: Base): string[] => {
   const { session: SESSION, signedIn: SIGNED_IN } = ctx.names;
   return [
     ...clearChunkedCookies(SESSION.name, { path: SESSION.path }),
@@ -246,7 +297,7 @@ const clearSession = (ctx: Context): string[] => {
  * CSRF check for the POST endpoints: the custom header, an `Origin` equal to this origin, and (where the
  * browser sends it) `Sec-Fetch-Site: same-origin`. Browsers send `Origin` on every POST.
  */
-function sameOrigin(ctx: Context): boolean {
+function sameOrigin(ctx: Base): boolean {
   const headers = ctx.request.headers;
   if (headers.get(CSRF_HEADER) !== '1') return false;
   if (headers.get('Origin') !== ctx.url.origin) return false;

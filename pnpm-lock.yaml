@@ -98,6 +98,16 @@ importers:
         specifier: ^22.20.5
         version: 22.20.5
 
+  packages/calendar:
+    dependencies:
+      '@omark/time-core':
+        specifier: workspace:*
+        version: link:../time-core
+    devDependencies:
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+
   packages/signin: {}
 
   packages/storage:

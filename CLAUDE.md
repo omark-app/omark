@@ -6,6 +6,7 @@ A PWA that keeps AL's tasks in plain Markdown files on his OneDrive. Specs: `doc
 
 - `packages/tasks-core`: parsing and logic, pure (no DOM, network or storage).
 - `packages/time-core`: Omark Time's logic, pure (no DOM, network or storage).
+- `packages/calendar`: calendar sources for Omark Time (the fake, later Google).
 - `packages/storage`: OneDrive, the offline cache, sync.
 - `packages/signin` + `functions/`: the sign-in helper (`/api/auth/*`, Cloudflare Pages Functions).
 - `apps/tasks`: the Svelte 5 app and its Playwright e2e (`desktop` = Chrome, `iphone` = WebKit).
