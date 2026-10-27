@@ -47,13 +47,15 @@ function forkProblems(wf: Workflow): string[] {
 
 describe('workflows', () => {
   it('gives every deployed build the CI run number; a Promote rebuild gets the promoted run’s', () => {
-    const builds = (f: string) =>
+    // The site has no build number, so it is listed in the set of builds but left out of the BUILD_NUMBER check.
+    const builds = (f: string, re = /^pnpm --filter .+ build$/) =>
       jobsOf(f).flatMap(([name, j]) =>
-        (j.steps ?? []).filter((s) => /^pnpm --filter .+ build$/.test(s.run ?? '')).map((s) => ({ name, run: s.run, env: (s.env ?? {}) as Record<string, string> })),
+        (j.steps ?? []).filter((s) => re.test(s.run ?? '')).map((s) => ({ name, run: s.run, env: (s.env ?? {}) as Record<string, string> })),
       );
-    const ci = builds('ci.yml');
-    expect(ci.map((b) => b.name).sort()).toEqual(['tasks-demo', 'tasks-preview', 'tasks-staging']);
-    for (const b of ci) expect(b.run, b.name).toBe('pnpm --filter tasks build');
+    const all = builds('ci.yml');
+    expect(all.map((b) => b.name).sort()).toEqual(['site-preview', 'site-production', 'tasks-demo', 'tasks-preview', 'tasks-staging']);
+    const ci = all.filter((b) => !b.name.startsWith('site-'));
+    for (const b of all) expect(b.run, b.name).toBe(`pnpm --filter ${b.name.startsWith('site-') ? 'site' : 'tasks'} build`);
     for (const b of ci) expect(b.env.BUILD_NUMBER, b.name).toBe('${{ github.run_number }}');
     const promote = builds('promote.yml');
     expect(promote).toHaveLength(1);
@@ -102,6 +104,8 @@ describe('workflows', () => {
       ['ci.yml', 'tasks-staging', ['CF_TASKS_STAGING_PROJECT', 'TASKS_STAGING_HOST', 'TASKS_STAGING_URL']],
       ['ci.yml', 'tasks-preview', ['CF_TASKS_STAGING_PROJECT']],
       ['ci.yml', 'tasks-demo', ['CF_TASKS_DEMO_PROJECT', 'TASKS_DEMO_URL']],
+      ['ci.yml', 'site-production', ['CF_SITE_PROJECT', 'SITE_URL']],
+      ['ci.yml', 'site-preview', ['CF_SITE_PROJECT']],
     ];
     for (const [f, job, vars] of expected) {
       const step = first(f, job);
@@ -120,7 +124,7 @@ describe('workflows', () => {
       'TASKS_PROD_HOST', 'TASKS_PROD_URL',
       'TASKS_PROD_FOLDER', 'TASKS_STAGING_FOLDER', 'TASKS_PREVIEW_HOST_SUFFIXES',
       'TASKS_ONEDRIVE_SCOPE', 'TASKS_MSAL_TENANT',
-      'CF_TASKS_DEMO_PROJECT', 'TASKS_DEMO_URL', 'TASKS_REAL_USE_URL',
+      'CF_TASKS_DEMO_PROJECT', 'TASKS_DEMO_URL', 'TASKS_REAL_USE_URL', 'CF_SITE_PROJECT', 'SITE_URL',
     ];
     const used = new Set(FILES.flatMap((f) => [...text(f).matchAll(/\bvars\.(\w+)/g)].map((m) => m[1]!)));
     expect(used.size).toBeGreaterThan(1);
@@ -256,7 +260,7 @@ describe('workflows', () => {
   });
 
   it('deploys only after check and every e2e job', () => {
-    for (const name of ['tasks-preview', 'tasks-staging', 'tasks-demo']) {
+    for (const name of ['tasks-preview', 'tasks-staging', 'tasks-demo', 'site-preview', 'site-production']) {
       expect(jobsOf('ci.yml').find(([n]) => n === name)![1].needs, name).toEqual(['check', 'e2e']);
     }
   });
@@ -276,7 +280,34 @@ describe('workflows', () => {
 
   it('gives every job a time limit', () => {
     const limits = Object.fromEntries(FILES.flatMap((f) => jobsOf(f).map(([n, j]) => [n, j['timeout-minutes']])));
-    expect(limits).toEqual({ check: 10, 'stop-on-check-failure': 5, e2e: 20, 'tasks-preview': 15, 'tasks-staging': 15, 'tasks-demo': 15, promote: 15 });
+    expect(limits).toEqual({ check: 10, 'stop-on-check-failure': 5, e2e: 20, 'tasks-preview': 15, 'tasks-staging': 15, 'tasks-demo': 15, 'site-preview': 15, 'site-production': 15, promote: 15 });
+  });
+
+  it('site jobs deploy only apps/site', () => {
+    for (const name of ['site-preview', 'site-production']) {
+      const job = jobsOf('ci.yml').find(([n]) => n === name)![1];
+      const deploy = job.steps!.filter((s) => s.uses?.startsWith('cloudflare/wrangler-action@'));
+      expect(deploy, name).toHaveLength(1);
+      const w = deploy[0]!.with as Record<string, string>;
+      // From apps/site, so wrangler bundles only its functions, never the sign-in helper at the root.
+      expect(w.workingDirectory, name).toBe('apps/site');
+      expect(w.command, name).toMatch(/^pages deploy dist --project-name=\$\{\{ vars\.CF_SITE_PROJECT \}\} /);
+      const branch = name === 'site-production' ? '--branch=main' : '--branch=pr-${{ github.event.number }}';
+      expect(w.command, name).toContain(` ${branch}`);
+    }
+  });
+
+  it('deploys the site to production only from main, and previews it only for PRs', () => {
+    const jobs = Object.fromEntries(jobsOf('ci.yml'));
+    expect(jobs['site-production']!.if!.startsWith(MAIN_ONLY)).toBe(true);
+    expect(jobs['site-production']!.if).toContain("vars.DEPLOY_ENABLED == 'true'");
+    expect(jobs['site-preview']!.if).toContain(FORK_GUARD);
+    expect(jobs['site-preview']!.if).toContain("vars.DEPLOY_ENABLED == 'true'");
+  });
+
+  it('runs the site’s e2e in the e2e job', () => {
+    const e2e = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1];
+    expect(e2e.steps!.map((s) => s.run)).toContain('pnpm --filter site e2e --project=${{ matrix.project }}');
   });
 
   it('never uses pull_request_target', () => {
