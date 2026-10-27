@@ -6,7 +6,7 @@ Updated 2026-10-22 for the suite:
 - the monorepo move (2.8);
 - suite-wide landing, docs, icons and factory;
 - Google Drive storage (3.8–3.9);
-- a new **milestone T** that builds [Omark Time](../Omark%20Time%20spec.md) alongside milestone 3.
+- a new **milestone T** that builds [Omark Time](../time/spec.md) alongside milestone 3.
 
 The launch waits for both apps. Row numbers already in use are unchanged.
 
@@ -86,7 +86,7 @@ Build-in-public posts on LinkedIn can start here.
 
 ## Milestone T: Omark Time
 
-Builds [the Omark Time spec](../Omark%20Time%20spec.md). It runs alongside milestone 3 and starts once the monorepo move (2.8) has merged. Its first planned item is the T.2 plan, which splits the build into issues.
+Builds [the Omark Time spec](../time/spec.md). It runs alongside milestone 3 and starts once the monorepo move (2.8) has merged. Its first planned item is the T.2 plan, which splits the build into issues.
 
 | # | Workstream | Spec | Size | Depends on |
 |---|---|---|---|---|

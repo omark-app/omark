@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript 5.9, Vitest 3, `yaml` 2.9 (already used by `tasks-core`).
 
-**Spec:** [`doc/Omark Time spec.md`](../Omark%20Time%20spec.md), sections 5–7 and 9 (and 8 for the colour decision). Milestone plan: [53-omark-time-milestone.md](53-omark-time-milestone.md).
+**Spec:** [`doc/time/spec.md`](../time/spec.md), sections 5–7 and 9 (and 8 for the colour decision). Milestone plan: [53-omark-time-milestone.md](53-omark-time-milestone.md).
 
 ## What changes for AL
 

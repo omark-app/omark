@@ -111,7 +111,7 @@ Omark is built mostly by AI agents, through GitHub issues and pull requests, in 
 | [SECURITY.md](SECURITY.md) | Reporting a problem; what the sign-in helper keeps |
 | [doc/format.md](doc/format.md) | The file formats |
 | [doc/self-hosting.md](doc/self-hosting.md) | Run your own copy |
-| [The Tasks spec](doc/TaskApp%20v1%20spec.md), [the Omark Time spec](doc/Omark%20Time%20spec.md) | What each app does, in detail |
+| [The Tasks spec](doc/tasks/spec.md), [the Omark Time spec](doc/time/spec.md) | What each app does, in detail |
 
 ## Licence
 
