@@ -22,6 +22,7 @@
     note = null,
     status,
     defaultText,
+    extraSections = [],
   }: {
     schema: Schema;
     text: string;
@@ -35,6 +36,8 @@
     status?: Snippet;
     /** What Reset to defaults writes. */
     defaultText: string;
+    /** The app's own cards, shown before the file's settings and listed in the nav (e.g. where the files are kept). */
+    extraSections?: { id: string; title: string; body: Snippet }[];
   } = $props();
 
   const RESET_QUESTION = 'Reset every setting to its default? Comments you added are lost.';
@@ -64,7 +67,11 @@
     resets++;
   }
 
-  const navItems = $derived([...schema.sections.map((s) => ({ id: s.id, title: s.title })), { id: CONFIG_ID, title: 'config.yaml' }]);
+  const navItems = $derived([
+    ...extraSections.map((s) => ({ id: s.id, title: s.title })),
+    ...schema.sections.map((s) => ({ id: s.id, title: s.title })),
+    { id: CONFIG_ID, title: 'config.yaml' },
+  ]);
 
   // The nav marks the first card in the upper part of the screen.
   let current = $state('');
@@ -141,6 +148,12 @@
         </nav>
 
         <div class="cards">
+          {#each extraSections as section (section.id)}
+            <section class="card" id="settings-{section.id}" data-testid="settings-section-{section.id}">
+              <h2>{section.title}</h2>
+              {@render section.body()}
+            </section>
+          {/each}
           {#each schema.sections as section (section.id)}
             <section
               class="card"

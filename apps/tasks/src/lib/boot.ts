@@ -24,7 +24,9 @@ import type { TaskFile, Workspace } from './workspace.ts';
 import type { AuthStub, AuthStubState } from './auth-stub.ts';
 import { systemClock } from './clock.ts';
 import { cacheName, folderStorageName, legacyCacheApplies, SIGN_IN_NAMES, STORAGE_NAMES, syncedAtKey } from './environment.ts';
-import type { StorageKind } from './environment.ts';
+import type { StorageKind, StorageProvider } from './environment.ts';
+import { decideStart, loadChoice, saveChoice } from './storage-choice.ts';
+import type { StorageChoice } from './storage-choice.ts';
 import { installLifecycle } from './lifecycle.ts';
 import { createStore } from './store.svelte.ts';
 import type { AppStore } from './store.svelte.ts';
@@ -61,13 +63,31 @@ export interface OpenFolder {
   conflicts(): Promise<string[]>;
 }
 
+/** The storages this build and browser can offer: the sign-in helper's providers, and a folder where the browser can pick one. */
+export interface StorageOptions {
+  providers: StorageProvider[];
+  folders: boolean;
+}
+
+/**
+ * Changing where this device keeps its tasks (none in demo builds): `options` lists what can be picked,
+ * `use` saves the choice and opens it (a reload, a sign-in redirect, or the folder picker first). `use`
+ * resolves false when the user cancels the folder picker.
+ */
+export interface StorageSwitch {
+  options(): Promise<StorageOptions>;
+  /** `again`: picking the folder in use once more (it moved, or access was refused); its offline copy carries over. */
+  use(to: StorageChoice, opts?: { again?: boolean }): Promise<boolean>;
+}
+
 /**
  * `ready`: the store is open; `auth` (null in demo, fake and folder mode) lets the UI sign in again when the
  * status reads `sign in needed`, and `folder` (only in folder mode) allows access again instead; `updates`
- * loads newer builds; `provider` is the sign-in the storage belongs to, so signing in again keeps to it (the
- * helper forgets it on a failed token request); `storageName` is what the texts call the storage.
- * `signin`: no signed-in account; the UI offers `providers` and calls `auth.signIn(provider)`, and a folder
- * on this computer when `folders` (the browser can pick one).
+ * loads newer builds; `provider` is the storage open (for an account, the sign-in it belongs to, so signing
+ * in again keeps to it: the helper forgets it on a failed token request); `storageName` is what the texts
+ * call the storage; `storage` changes it (null in demo builds).
+ * `choose`: the first-run screen. Nothing is chosen yet, or the choice can't be opened (`remembered`, offered
+ * first); `options` is what can be picked, and `storage.use` picks.
  */
 export type BootResult =
   | {
@@ -78,8 +98,9 @@ export type BootResult =
       updates: Updates;
       provider: StorageKind;
       storageName: string;
+      storage: StorageSwitch | null;
     }
-  | { kind: 'signin'; auth: Auth; providers: string[]; folders: boolean };
+  | { kind: 'choose'; options: StorageOptions; remembered: StorageChoice | null; storage: StorageSwitch };
 type Ready = Extract<BootResult, { kind: 'ready' }>;
 
 const PHONE_QUERY = '(max-width: 719.98px)';
@@ -122,8 +143,9 @@ const isPhone = (): boolean => window.matchMedia(PHONE_QUERY).matches;
  * `window.__TASKAPP_AUTH_STUB__` set it goes through the sign-in path too, with a stubbed account.
  * Real mode signs in through the sign-in helper (`/api/auth`) and opens the storage of the provider signed in
  * with (OneDrive, or Google Drive), caching in IndexedDB, falling back to memory (with `store.cacheWarning`)
- * when IndexedDB is unusable. A folder picked on this device (`chooseFolder`) opens before either, with no
- * sign-in. Rejects if the sign-in redirect or the cache fails; the UI shows the error with a
+ * when IndexedDB is unusable. A folder picked on this device (`chooseFolder`) needs no sign-in.
+ * Outside demo mode, this device's storage choice decides which of these opens (`decideStart`), or whether the
+ * first-run screen shows. Rejects if the sign-in redirect or the cache fails; the UI shows the error with a
  * way to try again.
  */
 export async function boot(): Promise<BootResult> {
@@ -131,37 +153,132 @@ export async function boot(): Promise<BootResult> {
     const demo = await openDemo(toISODate(new Date()), { reset: takeDemoReset() });
     return ready(createWorkspace(demo.drive, demo.cache), demo, null, ONEDRIVE);
   }
-  // A folder picked on this device comes before any sign-in.
-  const folder = await savedFolder();
-  if (folder) return openFolder(folder);
-  if (STORAGE_MODE === 'fake') {
-    const seed = fakeSeed(window.__TASKAPP_SEED__);
-    if (window.__TASKAPP_AUTH_STUB__?.startsWith('google')) return fakeGoogle(seed, window.__TASKAPP_AUTH_STUB__);
-    const drive = new FakeOneDrive(seed);
-    window.__taskappFake = drive;
-    if (window.__TASKAPP_FAKE_DURABLE__) {
-      drive.setOffline(!navigator.onLine);
-      const opened = await openCache(ONEDRIVE);
-      return ready(createWorkspace(drive, opened.cache), opened, null, ONEDRIVE);
-    }
-    const stub = window.__TASKAPP_AUTH_STUB__;
-    if (!stub) return ready(createWorkspace(drive, new MemoryCache()), MEMORY, null, ONEDRIVE);
-    const auth = (window.__taskappAuth = createAuthStub(stub, window.__TASKAPP_PROVIDERS__));
-    const adapter = tokenGated(drive, () => auth.getToken());
-    return signedIn(auth, () => ({ place: ONEDRIVE, adapter }), inMemory);
+  const accounts = STORAGE_MODE === 'fake' ? fakeAccounts() : realAccounts();
+  const storage = storageSwitch(accounts);
+  const choice = loadChoice();
+  // A saved folder is looked for only where it could open: chosen, or nothing chosen yet.
+  const folder = choice === null || choice === 'folder' ? await savedFolder() : null;
+  // A saved folder opens either way, so the sign-in client is not started for it.
+  const signedIn = folder ? null : await accounts.session(choice);
+  const start = decideStart({ choice, signedIn, folder: folder !== null });
+  if (start.open === 'choose') {
+    return { kind: 'choose', options: await storage.options(), remembered: start.remembered, storage };
   }
+  if (start.save) saveChoice(start.open);
+  const result = start.open === 'folder' && folder ? await openFolder(folder) : await accounts.open(start.open as StorageProvider);
+  return { ...result, storage };
+}
 
+/** The sign-in side of a build: the session start-up finds, and opening an account's storage. */
+interface Accounts {
+  /** Null in fake builds without a stubbed account, which count as signed in with Microsoft. */
+  auth: Auth | null;
+  session(choice: StorageChoice | null): Promise<StorageProvider | null>;
+  open(provider: StorageProvider): Promise<Ready>;
+}
+
+function realAccounts(): Accounts {
   const auth = createAuth({ cookiePrefix: 'taskapp', providers: SIGN_IN_NAMES, appName: BRAND.app });
   const getToken = (o?: { fresh?: boolean }) => auth.getToken(o);
-  // Only a Google session opens Google Drive; any other (an old `signed_in=1` too) is OneDrive, as before.
-  return signedIn(
+  return {
     auth,
-    (provider) =>
+    session: (choice) => sessionOf(auth, choice),
+    open: (provider) =>
       provider === 'google'
-        ? { place: GOOGLE, adapter: new GoogleDriveAdapter({ folder: GOOGLE_FOLDER, getToken }) }
-        : { place: ONEDRIVE, adapter: new OneDriveAdapter({ root: ONEDRIVE_ROOT, folder: ONEDRIVE_FOLDER, getToken }) },
-    openCache,
-  );
+        ? openAccount(auth, GOOGLE, new GoogleDriveAdapter({ folder: GOOGLE_FOLDER, getToken }), openCache)
+        : openAccount(auth, ONEDRIVE, new OneDriveAdapter({ root: ONEDRIVE_ROOT, folder: ONEDRIVE_FOLDER, getToken }), openCache),
+  };
+}
+
+/**
+ * Fake builds: a fake drive seeded from `window.__TASKAPP_SEED__` (a fake Google Drive for Google), exposed
+ * as `window.__taskappFake`. With `__TASKAPP_AUTH_STUB__` the stubbed account signs in; without it, the build
+ * counts as signed in with Microsoft and opens at once. `__TASKAPP_FAKE_DURABLE__` caches in IndexedDB.
+ */
+function fakeAccounts(): Accounts {
+  const seed = fakeSeed(window.__TASKAPP_SEED__);
+  const stub = window.__TASKAPP_AUTH_STUB__;
+  const auth = stub ? (window.__taskappAuth = createAuthStub(stub, window.__TASKAPP_PROVIDERS__)) : null;
+  return {
+    auth,
+    session: async (choice) => (auth ? sessionOf(auth, choice) : 'microsoft'),
+    async open(provider) {
+      if (provider === 'google') {
+        const drive = new FakeGoogleDrive(seed, GOOGLE_FOLDER);
+        window.__taskappFake = drive;
+        const getToken = async () => (auth ? auth.getToken() : 'fake-google-token');
+        const adapter = new GoogleDriveAdapter({ folder: GOOGLE_FOLDER, getToken, fetch: drive.fetch });
+        return openAccount(auth, GOOGLE, adapter, inMemory);
+      }
+      const drive = new FakeOneDrive(seed);
+      window.__taskappFake = drive;
+      if (window.__TASKAPP_FAKE_DURABLE__) {
+        drive.setOffline(!navigator.onLine);
+        const opened = await openCache(ONEDRIVE);
+        return ready(createWorkspace(drive, opened.cache), opened, null, ONEDRIVE);
+      }
+      if (!auth) return ready(createWorkspace(drive, new MemoryCache()), MEMORY, null, ONEDRIVE);
+      return openAccount(auth, ONEDRIVE, tokenGated(drive, () => auth.getToken()), inMemory);
+    },
+  };
+}
+
+/** Only a Google session is Google; any other (an old `signed_in=1` too) is Microsoft, as before. */
+function providerOf(id: string | null): StorageProvider | null {
+  if (id === null) return null;
+  return id === 'google' ? 'google' : 'microsoft';
+}
+
+/**
+ * The provider signed in with, after reading a sign-in redirect's result if there was one (null: signed
+ * out). If the sign-in client takes longer than `AUTH_START_MS` to start, the session the cookie hints at
+ * (else the chosen account, else Microsoft), so the store opens from what is cached: the list shows, and the
+ * first token request fails as offline or sign-in needed instead of the app hanging on "Loading…".
+ */
+async function sessionOf(auth: Auth, choice: StorageChoice | null): Promise<StorageProvider | null> {
+  if (!(await settlesWithin(auth.handleRedirect(), AUTH_START_MS))) {
+    console.warn(`${BRAND.app}: sign-in did not finish starting; opening the cached copy`);
+    return providerOf(auth.signedInProvider()) ?? (choice === 'folder' || choice === null ? 'microsoft' : choice);
+  }
+  return auth.isSignedIn() ? (providerOf(auth.signedInProvider()) ?? 'microsoft') : null;
+}
+
+async function openAccount(
+  auth: Auth | null,
+  place: Place,
+  adapter: StorageAdapter,
+  cache: (place: Place) => Promise<{ cache: LocalCache } & CacheInfo>,
+): Promise<Ready> {
+  const opened = await cache(place);
+  return ready(createWorkspace(adapter, opened.cache), opened, auth, place);
+}
+
+/**
+ * Changing storage. The choice is saved first, so the next start opens it: then a reload, a sign-in with
+ * the chosen provider when not signed in with it, or (for a folder) the picker before anything is saved.
+ * Each storage keeps its own offline cache, so nothing is copied or deleted, and edits not yet saved wait in
+ * theirs until the user switches back.
+ */
+function storageSwitch(accounts: Accounts): StorageSwitch {
+  return {
+    async options() {
+      const providers = accounts.auth ? knownProviders(await accounts.auth.availableProviders()) : ['microsoft'];
+      return { providers: providers as StorageProvider[], folders: folderSupported(window) };
+    },
+    async use(to, opts = {}) {
+      if (to === 'folder') {
+        if (!(await chooseFolder(opts))) return false;
+        saveChoice('folder');
+        location.reload();
+        return true;
+      }
+      saveChoice(to);
+      const auth = accounts.auth;
+      if (!auth || (auth.isSignedIn() && providerOf(auth.signedInProvider()) === to)) location.reload();
+      else await auth.signIn(to);
+      return true;
+    },
+  };
 }
 
 /**
@@ -214,46 +331,11 @@ async function openFolder({ handle, id }: FolderChoice): Promise<BootResult> {
   return { ...result, folder };
 }
 
-/** Fake builds with a `google` stub: signed in with Google, the real adapter over a fake Google Drive. */
-function fakeGoogle(seed: Partial<Record<TaskFile, string>>, stub: AuthStubState): Promise<BootResult> {
-  const drive = new FakeGoogleDrive(seed, GOOGLE_FOLDER);
-  window.__taskappFake = drive;
-  const auth = (window.__taskappAuth = createAuthStub(stub, window.__TASKAPP_PROVIDERS__));
-  const adapter = new GoogleDriveAdapter({ folder: GOOGLE_FOLDER, getToken: () => auth.getToken(), fetch: drive.fetch });
-  return signedIn(auth, () => ({ place: GOOGLE, adapter }), inMemory);
-}
-
 /**
  * How long start-up waits for the sign-in client to start (reading a sign-in redirect's result). Every
  * later token request has the adapter's own time limit; this one runs before the list can show.
  */
 export const AUTH_START_MS = 15_000;
-
-/**
- * Reports a failed sign-in redirect if there was one; opens the store when an account is signed in, on the
- * storage `open` picks for its provider. If that takes longer than `AUTH_START_MS`, the store opens anyway
- * from what is cached: the list shows, and the first token request fails as offline or sign-in needed
- * instead of the app hanging on "Loading…".
- */
-async function signedIn(
-  auth: Auth,
-  open: (provider: string | null) => { place: Place; adapter: StorageAdapter },
-  cache: (place: Place) => Promise<{ cache: LocalCache } & CacheInfo>,
-): Promise<BootResult> {
-  if (!(await settlesWithin(auth.handleRedirect(), AUTH_START_MS))) {
-    console.warn(`${BRAND.app}: sign-in did not finish starting; opening the cached copy`);
-  } else if (!auth.isSignedIn()) {
-    return {
-      kind: 'signin',
-      auth,
-      providers: knownProviders(await auth.availableProviders()),
-      folders: folderSupported(window),
-    };
-  }
-  const { place, adapter } = open(auth.signedInProvider());
-  const opened = await cache(place);
-  return ready(createWorkspace(adapter, opened.cache), opened, auth, place);
-}
 
 /** The providers this app has buttons for, in the helper's order; Microsoft when none is left. */
 function knownProviders(ids: string[]): string[] {
@@ -307,7 +389,7 @@ async function ready(workspace: Workspace, cache: CacheInfo, auth: Auth | null, 
   installLifecycle(store);
   const timing = STORAGE_MODE === 'fake' ? window.__TASKAPP_UPDATE_TIMING__ : undefined;
   const updates = installUpdates(store, { ...timing });
-  return { kind: 'ready', store, auth, folder: null, updates, provider: place.provider, storageName: place.storageName };
+  return { kind: 'ready', store, auth, folder: null, updates, provider: place.provider, storageName: place.storageName, storage: null };
 }
 
 /** The cache's IndexedDB database before it was keyed by folder (it only ever held the default folder's files on the deployed origin). */

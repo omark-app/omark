@@ -52,6 +52,7 @@ Props:
 | `defaultText` | what "Reset to defaults" writes (the commented default file) |
 | `note` | optional message above the cards, e.g. that a change made elsewhere won |
 | `status` | optional snippet shown beside the file's buttons, e.g. the save status |
+| `extraSections` | optional `{ id, title, body }[]`: the app's own cards (`body` is a snippet), shown before the file's settings and listed in the nav, e.g. where the files are kept |
 
 A file that does not read opens the page on the text editor, at the problem line.
 

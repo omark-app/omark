@@ -27,28 +27,28 @@ const signInWith = (page: Page) =>
 
 test('with Google set up, the sign-in screen offers both, and the Google button signs in with Google', async ({ page }) => {
   await openApp(page, { auth: 'signed-out', providers: ['microsoft', 'google'] });
-  await expect(page.getByText('Your tasks live in plain files in your OneDrive or Google Drive. Sign in to open them.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Sign in with Microsoft' })).toBeVisible();
-  await page.getByRole('button', { name: 'Sign in with Google' }).click();
+  await expect(page.getByText('Your tasks live in three plain Markdown files. Choose where to keep them.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Use my OneDrive' })).toBeVisible();
+  await page.getByRole('button', { name: 'Use my Google Drive' }).click();
   await expect.poll(() => signInWith(page)).toEqual(['google']);
-  await page.getByRole('button', { name: 'Sign in with Microsoft' }).click();
+  await page.getByRole('button', { name: 'Use my OneDrive' }).click();
   await expect.poll(() => signInWith(page)).toEqual(['google', 'microsoft']);
 });
 
 test('without Google set up, the sign-in screen has only Microsoft', async ({ page }) => {
   await openApp(page, { auth: 'signed-out' });
-  await expect(page.getByText('Your tasks live in plain files in your OneDrive. Sign in to open them.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Sign in with Microsoft' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Sign in with Google' })).toHaveCount(0);
+  await expect(page.getByText('Your tasks live in three plain Markdown files. Choose where to keep them.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Use my OneDrive' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Use my Google Drive' })).toHaveCount(0);
   // the button names its provider; auth.signIn keeps the plain `/api/auth/login` for the default
-  await page.getByRole('button', { name: 'Sign in with Microsoft' }).click();
+  await page.getByRole('button', { name: 'Use my OneDrive' }).click();
   await expect.poll(() => signInWith(page)).toEqual(['microsoft']);
 });
 
 test('with only Google set up, its button signs in with Google', async ({ page }) => {
   await openApp(page, { auth: 'signed-out', providers: ['google'] });
-  await expect(page.getByText('Your tasks live in plain files in your Google Drive. Sign in to open them.')).toBeVisible();
-  await page.getByRole('button', { name: 'Sign in with Google' }).click();
+  await expect(page.getByText('Your tasks live in three plain Markdown files. Choose where to keep them.')).toBeVisible();
+  await page.getByRole('button', { name: 'Use my Google Drive' }).click();
   await expect.poll(() => signInWith(page)).toEqual(['google']);
 });
 

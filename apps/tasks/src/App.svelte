@@ -3,7 +3,8 @@
   import type { DoneEntry, ISODate } from '@omark/tasks-core';
   import SettingsPage from '@omark/settings/SettingsPage.svelte';
   import { BRAND } from './brand.ts';
-  import { boot, chooseFolder } from './lib/boot.ts';
+  import { boot } from './lib/boot.ts';
+  import type { StorageChoice } from './lib/storage-choice.ts';
   import { conflictNote } from './lib/folder-note.ts';
   import type { BootResult } from './lib/boot.ts';
   import TaskListView from './components/TaskListView.svelte';
@@ -17,7 +18,8 @@
   import EditSheet from './components/EditSheet.svelte';
   import MoveSheet from './components/MoveSheet.svelte';
   import Fab from './components/Fab.svelte';
-  import SignIn from './components/SignIn.svelte';
+  import FirstRun from './components/FirstRun.svelte';
+  import StorageCard from './components/StorageCard.svelte';
   import SearchPanel from './components/SearchPanel.svelte';
   import DoneSheet from './components/DoneSheet.svelte';
   import StatusLine from './components/StatusLine.svelte';
@@ -155,22 +157,26 @@
     `You have changes that aren't saved to ${storageName} yet. ${doing} will lose them. Continue?`;
 
   /**
-   * Signs in by redirect, which leaves the page. Pending edits go to the cache first; if some would
-   * still be lost (memory-only cache, or the cache write failed), the user decides. Without `provider`,
-   * the helper's default. Signing in again passes the provider the open storage belongs to.
+   * Pending edits go to the cache first; if some would still be lost (memory-only cache, or the cache write
+   * failed), the user decides. False when they are not saved or the user says no. Edits in the cache stay
+   * there through a sign-in redirect or a switch of storage, and are saved when that storage opens again.
    */
-  async function signIn(provider?: string): Promise<void> {
-    if (result === null || !result.auth) return;
-    signInError = null;
-    if (result.kind === 'ready') {
-      try {
-        await result.store.flush();
-      } catch (e) {
-        signInError = `Could not save your changes before signing in: ${message(e)}`;
-        return;
-      }
-      if (result.store.wouldLoseEdits() && !window.confirm(loseEdits('Signing in again', result.storageName))) return;
+  async function editsKept(doing: string): Promise<boolean> {
+    if (result?.kind !== 'ready') return true;
+    try {
+      await result.store.flush();
+    } catch (e) {
+      signInError = `Could not save your changes before ${doing.toLowerCase()}: ${message(e)}`;
+      return false;
     }
+    return !result.store.wouldLoseEdits() || window.confirm(loseEdits(doing, result.storageName));
+  }
+
+  /** Signs in again by redirect, which leaves the page, with the provider the open storage belongs to. */
+  async function signIn(provider: string): Promise<void> {
+    if (result?.kind !== 'ready' || !result.auth) return;
+    signInError = null;
+    if (!(await editsKept('Signing in again'))) return;
     try {
       await result.auth.signIn(provider);
     } catch (e) {
@@ -179,15 +185,18 @@
   }
 
   /**
-   * Picks a folder on this computer and starts again on it. `again`: the folder in use is picked once more
-   * (it moved, or access was refused); its offline copy carries over.
+   * Keeps the tasks in `to` from now on, on this device (the first-run screen, Settings, Pick the folder
+   * again): a reload, a sign-in redirect, or the folder picker first. `again`: the folder in use is picked
+   * once more (it moved, or access was refused); its offline copy carries over.
    */
-  async function useFolder(again = false): Promise<void> {
+  async function useStorage(to: StorageChoice, again = false): Promise<void> {
+    if (result === null || !result.storage) return;
     signInError = null;
+    if (!(await editsKept('Switching storage'))) return;
     try {
-      if (await chooseFolder({ again })) window.location.reload();
+      await result.storage.use(to, { again });
     } catch (e) {
-      signInError = `Could not open the folder: ${message(e)}`;
+      signInError = to === 'folder' ? `Could not open the folder: ${message(e)}` : `Sign-in failed: ${message(e)}`;
     }
   }
 
@@ -258,8 +267,14 @@
   </div>
 {:else if result === null}
   <p class="notice">Loading…</p>
-{:else if result.kind === 'signin'}
-  <SignIn providers={result.providers} onsignin={signIn} folders={result.folders} onfolder={() => useFolder()} error={signInError} />
+{:else if result.kind === 'choose'}
+  {@const remembered = result.remembered}
+  <FirstRun
+    options={result.options}
+    {remembered}
+    onchoose={(choice) => useStorage(choice, choice === 'folder' && remembered === 'folder')}
+    error={signInError}
+  />
 {:else}
   {@const store = result.store}
   {@const provider = result.provider}
@@ -274,10 +289,14 @@
   {#if result.folder && (folderRefused || store.status === 'offline')}
     <p class="folder-note" role="status" data-testid="folder-again">
       {folderRefused ? `Access to ${storageName} was refused.` : `If ${storageName} was moved or renamed, pick it again.`}
-      <button type="button" class="again" onclick={() => useFolder(true)}>Pick the folder again</button>
+      <button type="button" class="again" onclick={() => useStorage('folder', true)}>Pick the folder again</button>
     </p>
   {/if}
   {#if onSettings}
+    {@const storage = result.storage}
+    {#snippet storageCard()}
+      {#if storage}<StorageCard current={provider} {storageName} {storage} onswitch={(to) => useStorage(to)} />{/if}
+    {/snippet}
     <div class="settings-page">
       <SettingsPage
         schema={TASKS_SCHEMA}
@@ -287,6 +306,7 @@
         apps={{ current: 'Omark Tasks', other: { label: 'Omark Time', href: timeSettingsUrl(location.host) } }}
         note={store.configNote}
         defaultText={DEFAULT_CONFIG_YAML}
+        extraSections={storage ? [{ id: 'storage', title: 'Storage', body: storageCard }] : []}
       >
         {#snippet status()}<StatusLine status={store.status} {updates} onupdate={update} settingsLink={false} />{/snippet}
       </SettingsPage>

@@ -65,7 +65,7 @@ async function addNote(page: Page, isMobile: boolean, title: string, note: strin
 test('opens on the sample tasks, with no sign-in', async ({ page }) => {
   await open(page);
   await expect(row(page, 'Send the invoice')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Sign in with Microsoft' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Use my OneDrive' })).toHaveCount(0);
   await expect(page.getByTestId('sync-banner')).toHaveCount(0);
 });
 
