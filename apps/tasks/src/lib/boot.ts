@@ -1,14 +1,20 @@
 import {
+  conflictCopies,
   createAuth,
   FakeGoogleDrive,
+  folderSupported,
   FakeOneDrive,
   GoogleDriveAdapter,
   IdbCache,
+  LocalFolderAdapter,
   MemoryCache,
   migrateCache,
   OneDriveAdapter,
+  pickFolder,
+  requestFolderAccess,
+  SavedFolder,
 } from '@omark/storage';
-import type { Auth, LocalCache, StorageAdapter } from '@omark/storage';
+import type { Auth, FolderChoice, LocalCache, StorageAdapter } from '@omark/storage';
 import { toISODate } from '@omark/tasks-core';
 import { BRAND } from '../brand.ts';
 import { GOOGLE_FOLDER, HOSTS, ONEDRIVE_FOLDER, ONEDRIVE_ROOT, STORAGE_MODE } from '../env.ts';
@@ -17,8 +23,8 @@ import { createWorkspace, TASK_FILES } from './workspace.ts';
 import type { TaskFile, Workspace } from './workspace.ts';
 import type { AuthStub, AuthStubState } from './auth-stub.ts';
 import { systemClock } from './clock.ts';
-import { cacheName, legacyCacheApplies, SIGN_IN_NAMES, STORAGE_NAMES, syncedAtKey } from './environment.ts';
-import type { StorageProvider } from './environment.ts';
+import { cacheName, folderStorageName, legacyCacheApplies, SIGN_IN_NAMES, STORAGE_NAMES, syncedAtKey } from './environment.ts';
+import type { StorageKind } from './environment.ts';
 import { installLifecycle } from './lifecycle.ts';
 import { createStore } from './store.svelte.ts';
 import type { AppStore } from './store.svelte.ts';
@@ -47,15 +53,34 @@ declare global {
 }
 
 /**
- * `ready`: the store is open; `auth` (null in demo and fake mode) lets the UI sign in again when the status reads
- * `sign in needed`; `updates` loads newer builds; `provider` is the sign-in the storage belongs to, so
- * signing in again keeps to it (the helper forgets it on a failed token request); `storageName` is what
- * the texts call the storage.
- * `signin`: no signed-in account; the UI offers `providers` and calls `auth.signIn(provider)`.
+ * A picked folder that is open: `allow` asks for access again (from a click) and, once given, re-reads the
+ * files; `conflicts` names the sync clients' conflict copies in it.
+ */
+export interface OpenFolder {
+  allow(): Promise<boolean>;
+  conflicts(): Promise<string[]>;
+}
+
+/**
+ * `ready`: the store is open; `auth` (null in demo, fake and folder mode) lets the UI sign in again when the
+ * status reads `sign in needed`, and `folder` (only in folder mode) allows access again instead; `updates`
+ * loads newer builds; `provider` is the sign-in the storage belongs to, so signing in again keeps to it (the
+ * helper forgets it on a failed token request); `storageName` is what the texts call the storage.
+ * `signin`: no signed-in account; the UI offers `providers` and calls `auth.signIn(provider)`, and a folder
+ * on this computer when `folders` (the browser can pick one).
  */
 export type BootResult =
-  | { kind: 'ready'; store: AppStore; auth: Auth | null; updates: Updates; provider: StorageProvider; storageName: string }
-  | { kind: 'signin'; auth: Auth; providers: string[] };
+  | {
+      kind: 'ready';
+      store: AppStore;
+      auth: Auth | null;
+      folder: OpenFolder | null;
+      updates: Updates;
+      provider: StorageKind;
+      storageName: string;
+    }
+  | { kind: 'signin'; auth: Auth; providers: string[]; folders: boolean };
+type Ready = Extract<BootResult, { kind: 'ready' }>;
 
 const PHONE_QUERY = '(max-width: 719.98px)';
 
@@ -71,13 +96,22 @@ interface CacheInfo {
 const MEMORY: CacheInfo = { cacheWarning: null, durableCache: false };
 const inMemory = async (): Promise<{ cache: LocalCache } & CacheInfo> => ({ cache: new MemoryCache(), ...MEMORY });
 
-/** The storage and folder the files live in. Each has its own cache and synced-at key, and its name in the texts. */
+/**
+ * The storage and folder the files live in (for a picked folder, its id). Each has its own cache and
+ * synced-at key, and its name in the texts.
+ */
 interface Place {
-  provider: StorageProvider;
+  provider: StorageKind;
   folder: string;
+  storageName: string;
 }
-const ONEDRIVE: Place = { provider: 'microsoft', folder: ONEDRIVE_FOLDER };
-const GOOGLE: Place = { provider: 'google', folder: GOOGLE_FOLDER };
+const ONEDRIVE: Place = { provider: 'microsoft', folder: ONEDRIVE_FOLDER, storageName: STORAGE_NAMES.microsoft };
+const GOOGLE: Place = { provider: 'google', folder: GOOGLE_FOLDER, storageName: STORAGE_NAMES.google };
+
+/** The IndexedDB database that keeps the picked folder's handle. */
+const FOLDER_DB = 'taskapp:picked-folder';
+/** Lets the browser open the picker where it was last time. */
+const PICKER_ID = 'omark-tasks';
 
 const isPhone = (): boolean => window.matchMedia(PHONE_QUERY).matches;
 
@@ -88,7 +122,8 @@ const isPhone = (): boolean => window.matchMedia(PHONE_QUERY).matches;
  * `window.__TASKAPP_AUTH_STUB__` set it goes through the sign-in path too, with a stubbed account.
  * Real mode signs in through the sign-in helper (`/api/auth`) and opens the storage of the provider signed in
  * with (OneDrive, or Google Drive), caching in IndexedDB, falling back to memory (with `store.cacheWarning`)
- * when IndexedDB is unusable. Rejects if the sign-in redirect or the cache fails; the UI shows the error with a
+ * when IndexedDB is unusable. A folder picked on this device (`chooseFolder`) opens before either, with no
+ * sign-in. Rejects if the sign-in redirect or the cache fails; the UI shows the error with a
  * way to try again.
  */
 export async function boot(): Promise<BootResult> {
@@ -96,6 +131,9 @@ export async function boot(): Promise<BootResult> {
     const demo = await openDemo(toISODate(new Date()), { reset: takeDemoReset() });
     return ready(createWorkspace(demo.drive, demo.cache), demo, null, ONEDRIVE);
   }
+  // A folder picked on this device comes before any sign-in.
+  const folder = await new SavedFolder(FOLDER_DB).load();
+  if (folder) return openFolder(folder);
   if (STORAGE_MODE === 'fake') {
     const seed = fakeSeed(window.__TASKAPP_SEED__);
     if (window.__TASKAPP_AUTH_STUB__?.startsWith('google')) return fakeGoogle(seed, window.__TASKAPP_AUTH_STUB__);
@@ -124,6 +162,37 @@ export async function boot(): Promise<BootResult> {
         : { place: ONEDRIVE, adapter: new OneDriveAdapter({ root: ONEDRIVE_ROOT, folder: ONEDRIVE_FOLDER, getToken }) },
     openCache,
   );
+}
+
+/**
+ * Shows the folder picker (needs a click) and keeps the folder picked, so the next start opens it.
+ * False when the user cancels.
+ */
+export async function chooseFolder(): Promise<boolean> {
+  const handle = await pickFolder(window, PICKER_ID);
+  if (!handle) return false;
+  await new SavedFolder(FOLDER_DB).save(handle);
+  return true;
+}
+
+/**
+ * Opens the picked folder, with an offline cache of its own. When the browser wants permission again, the
+ * store opens from that cache with status `sign in needed`, and `folder.allow()` (from a click) asks.
+ */
+async function openFolder({ handle, id }: FolderChoice): Promise<BootResult> {
+  const place: Place = { provider: 'folder', folder: id, storageName: folderStorageName(handle.name) };
+  const opened = await openCache(place);
+  const result = await ready(createWorkspace(new LocalFolderAdapter(handle), opened.cache), opened, null, place);
+  const store = result.store;
+  const folder: OpenFolder = {
+    async allow() {
+      if (!(await requestFolderAccess(handle))) return false;
+      await store.refresh();
+      return true;
+    },
+    conflicts: () => conflictCopies(handle, [...TASK_FILES]),
+  };
+  return { ...result, folder };
 }
 
 /** Fake builds with a `google` stub: signed in with Google, the real adapter over a fake Google Drive. */
@@ -155,7 +224,12 @@ async function signedIn(
   if (!(await settlesWithin(auth.handleRedirect(), AUTH_START_MS))) {
     console.warn(`${BRAND.app}: sign-in did not finish starting; opening the cached copy`);
   } else if (!auth.isSignedIn()) {
-    return { kind: 'signin', auth, providers: knownProviders(await auth.availableProviders()) };
+    return {
+      kind: 'signin',
+      auth,
+      providers: knownProviders(await auth.availableProviders()),
+      folders: folderSupported(window),
+    };
   }
   const { place, adapter } = open(auth.signedInProvider());
   const opened = await cache(place);
@@ -207,14 +281,14 @@ function syncedAtStore(place: Place) {
   };
 }
 
-async function ready(workspace: Workspace, cache: CacheInfo, auth: Auth | null, place: Place): Promise<BootResult> {
+async function ready(workspace: Workspace, cache: CacheInfo, auth: Auth | null, place: Place): Promise<Ready> {
   const store = await createStore({
     workspace, clock: systemClock, isPhone, syncedAtStore: syncedAtStore(place), confirm: (m) => window.confirm(m), ...cache,
   });
   installLifecycle(store);
   const timing = STORAGE_MODE === 'fake' ? window.__TASKAPP_UPDATE_TIMING__ : undefined;
   const updates = installUpdates(store, { ...timing });
-  return { kind: 'ready', store, auth, updates, provider: place.provider, storageName: STORAGE_NAMES[place.provider] };
+  return { kind: 'ready', store, auth, folder: null, updates, provider: place.provider, storageName: place.storageName };
 }
 
 /** The cache's IndexedDB database before it was keyed by folder (it only ever held the default folder's files on the deployed origin). */
@@ -232,7 +306,7 @@ async function openCache(place: Place): Promise<{ cache: LocalCache } & CacheInf
     cache = new IdbCache(cacheName(place.provider, place.folder));
     await cache.get('tasks.md');
   } catch {
-    return { cache: new MemoryCache(), cacheWarning: cacheWarning(STORAGE_NAMES[place.provider]), durableCache: false };
+    return { cache: new MemoryCache(), cacheWarning: cacheWarning(place.storageName), durableCache: false };
   }
   if (place.provider === 'microsoft') await migrateLegacyCache(cache);
   // Ask the browser not to evict the cache under storage pressure (it may hold unsynced edits).

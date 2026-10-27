@@ -75,17 +75,24 @@ export const STORAGE_NAMES: Record<StorageProvider, string> = { microsoft: 'OneD
 /** The sign-in providers this app offers: id in the sign-in helper → its name. The first is the default. */
 export const SIGN_IN_NAMES: Record<StorageProvider, string> = { microsoft: 'Microsoft', google: 'Google' };
 
+/** Where the files live: a signed-in account's storage, or a folder picked on this computer. */
+export type StorageKind = StorageProvider | 'folder';
+
+/** What the texts call a picked folder. */
+export const folderStorageName = (name: string): string => `the folder ${name}`;
+
 /**
- * The offline cache's IndexedDB name. OneDrive keeps the name it has always had; Google Drive gets its own,
- * so one adapter never sees the other's cached files or version tags.
+ * The offline cache's IndexedDB name. OneDrive keeps the name it has always had; Google Drive and each
+ * picked folder (`folder` is then its id) get their own, so one adapter never sees another's cached files
+ * or version tags.
  */
-export function cacheName(provider: StorageProvider, folder: string): string {
-  return provider === 'google' ? `taskapp:google:${folder}` : `taskapp:${folder}`;
+export function cacheName(kind: StorageKind, folder: string): string {
+  return kind === 'microsoft' ? `taskapp:${folder}` : `taskapp:${kind}:${folder}`;
 }
 
 /** The localStorage key for when that cache last synced: one per cache, OneDrive's as it has always been. */
-export function syncedAtKey(provider: StorageProvider, folder: string): string {
-  return provider === 'google' ? `taskapp:synced-at:google:${folder}` : `taskapp:synced-at:${folder}`;
+export function syncedAtKey(kind: StorageKind, folder: string): string {
+  return kind === 'microsoft' ? `taskapp:synced-at:${folder}` : `taskapp:synced-at:${kind}:${folder}`;
 }
 
 /** The old offline copy was made for the production folder only, so only that folder migrates it. */

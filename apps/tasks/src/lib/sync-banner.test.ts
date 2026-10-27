@@ -30,6 +30,16 @@ describe('sync banner', () => {
     );
   });
 
+  it('asks to allow access again to a folder instead of signing in', () => {
+    const at = new Date(2026, 9, 18, 11, 2);
+    expect(bannerText('signin', false, at, now, 'the folder Tasks', 'allow')).toBe(
+      'Allow access again to reach the folder Tasks since 11:02 — showing your last saved copy',
+    );
+    expect(bannerText('offline', false, at, now, 'the folder Tasks', 'allow')).toBe(
+      "Can't reach the folder Tasks since 11:02 — showing your last saved copy",
+    );
+  });
+
   it('gives the day when the last sync was not today', () => {
     expect(sinceText(new Date(2026, 9, 18, 9, 5), now)).toBe('09:05');
     expect(sinceText(new Date(2026, 9, 17, 23, 59), now)).toBe('Sat 23:59');

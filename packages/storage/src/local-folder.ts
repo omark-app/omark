@@ -100,24 +100,25 @@ export async function requestFolderAccess(folder: FolderHandle): Promise<boolean
   return ((await folder.requestPermission?.(READWRITE)) ?? 'granted') === 'granted';
 }
 
-/** What `pickFolder` needs of `window`. */
+/** What `pickFolder` needs of `window` (TypeScript's DOM types leave it out). */
 export interface FolderPicker {
   showDirectoryPicker?: (opts: { id: string; mode: 'readwrite' }) => Promise<unknown>;
 }
 
 /** Can this browser pick a folder? Chrome and Edge on a computer; not Safari, Firefox or phones. */
-export function folderSupported(win: FolderPicker): boolean {
-  return typeof win.showDirectoryPicker === 'function';
+export function folderSupported(win: object): boolean {
+  return typeof (win as FolderPicker).showDirectoryPicker === 'function';
 }
 
 /**
  * Shows the folder picker for reading and writing (needs a click). `id` lets the browser reopen it where
  * it was last time. Null when the user cancels.
  */
-export async function pickFolder(win: FolderPicker, id: string): Promise<FolderHandle | null> {
-  if (!win.showDirectoryPicker) return null;
+export async function pickFolder(win: object, id: string): Promise<FolderHandle | null> {
+  const { showDirectoryPicker } = win as FolderPicker;
+  if (!showDirectoryPicker) return null;
   try {
-    return (await win.showDirectoryPicker({ id, mode: 'readwrite' })) as FolderHandle;
+    return (await showDirectoryPicker.call(win, { id, mode: 'readwrite' })) as FolderHandle;
   } catch (e) {
     if (isError(e, 'AbortError')) return null;
     throw e;

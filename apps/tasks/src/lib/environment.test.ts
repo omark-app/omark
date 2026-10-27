@@ -3,6 +3,7 @@ import {
   cacheName,
   syncedAtKey,
   envForHost,
+  folderStorageName,
   folderFor,
   googleFolderFor,
   hostConfig,
@@ -114,6 +115,16 @@ describe('cacheName', () => {
   });
   it('names each storage', () => {
     expect(STORAGE_NAMES).toEqual({ microsoft: 'OneDrive', google: 'Google Drive' });
+  });
+});
+
+describe('folder storage', () => {
+  it('gives each picked folder its own cache and synced-at key', () => {
+    expect(cacheName('folder', '6f1c')).toBe('taskapp:folder:6f1c');
+    expect(syncedAtKey('folder', '6f1c')).toBe('taskapp:synced-at:folder:6f1c');
+  });
+  it('names the folder in the texts', () => {
+    expect(folderStorageName('Tasks')).toBe('the folder Tasks');
   });
 });
 
