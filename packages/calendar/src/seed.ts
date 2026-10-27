@@ -1,5 +1,6 @@
-import { addDays, formatLocal, weekday } from '@omark/time-core';
+import { addDays, weekday } from '@omark/time-core';
 import type { CalendarEvent, CalendarInfo, ResponseStatus } from '@omark/time-core';
+import { local } from './wall-time.ts';
 
 const DAYS_BEFORE = 10;
 const DAYS_AFTER = 4;
@@ -94,20 +95,3 @@ function toEvent(id: string, item: Item, date: string, tz: string): CalendarEven
   };
 }
 
-/** The zone's offset from UTC at an instant, in ms (read from formatLocal). */
-function offsetMs(ms: number, tz: string): number {
-  const m = /([+-])(\d{2}):(\d{2})$/.exec(formatLocal(ms, tz))!;
-  return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) * MINUTE;
-}
-
-/**
- * A local wall time as an RFC 3339 instant with the zone's offset at that
- * instant. A wall time that does not exist (the hour skipped on a DST day)
- * moves forward to the first valid instant.
- */
-function local(date: string, minutes: number, tz: string): { dateTime: string } {
-  const wall = Date.parse(`${date}T00:00:00Z`) + minutes * MINUTE;
-  const guess = wall - offsetMs(wall, tz);
-  const ms = wall - offsetMs(guess, tz);
-  return { dateTime: formatLocal(ms, tz).replace(/(T\d\d:\d\d)([+-])/, '$1:00$2') };
-}

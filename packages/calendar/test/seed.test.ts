@@ -11,6 +11,7 @@ import {
 import type { CalendarEvent, EventRow } from '@omark/time-core';
 import { FakeCalendar } from '../src/fake.ts';
 import { demoSeed } from '../src/seed.ts';
+import { local } from '../src/wall-time.ts';
 
 const TODAY = '2026-10-26';
 const TZ = 'Europe/Warsaw';
@@ -132,4 +133,16 @@ test('another day gives the same shape, moved, in Jerusalem too', () => {
     if ('date' in e.start!) continue;
     expect((b[i]!.start as { dateTime: string }).dateTime.slice(11, 19)).toBe((e.start as { dateTime: string }).dateTime.slice(11, 19));
   }
+});
+
+test.each([
+  ['Santiago, skipped midnight', '2026-09-06', 0, 'America/Santiago', '2026-09-06T01:00:00-03:00'],
+  ['New York, skipped 02:30', '2026-03-08', 150, 'America/New_York', '2026-03-08T03:30:00-04:00'],
+  ['New York, repeated 01:30', '2026-11-01', 90, 'America/New_York', '2026-11-01T01:30:00-05:00'],
+  ['Warsaw, repeated 02:30', '2026-10-25', 150, 'Europe/Warsaw', '2026-10-25T02:30:00+01:00'],
+  ['Warsaw, skipped 02:30', '2026-03-29', 150, 'Europe/Warsaw', '2026-03-29T03:30:00+02:00'],
+  ['Cairo, skipped midnight', '2026-04-24', 0, 'Africa/Cairo', '2026-04-24T01:00:00+03:00'],
+  ['an ordinary time', '2026-06-10', 570, 'America/Santiago', '2026-06-10T09:30:00-04:00'],
+])('wall time: %s', (_name, date, minutes, zone, expected) => {
+  expect(local(date, minutes, zone)).toEqual({ dateTime: expected });
 });
