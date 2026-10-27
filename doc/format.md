@@ -126,7 +126,7 @@ A habit is a repeating task with a finish line. After enough repetitions it coun
 
   `🏆` is formed (written by the app when the count reaches the goal), `- [-] … ❌` is dropped.
 
-The full rules, periods, misses and restarts are in [the habits spec](TaskApp%20habits%20spec.md).
+The full rules, periods, misses and restarts are in [the habits spec](tasks/habits-spec.md).
 
 ### Repeat rules
 
@@ -248,7 +248,7 @@ The format is a subset of the [Obsidian Tasks](https://publish.obsidian.md/tasks
 
 ## Omark Time
 
-Omark Time reads calendar events whose titles follow one format and writes their hours to CSV files. The calendar is the source of truth: the event files can always be rebuilt from it. The full behaviour is in [the Omark Time spec](Omark%20Time%20spec.md); this part is what another tool or an agent needs to read and write compatible data.
+Omark Time reads calendar events whose titles follow one format and writes their hours to CSV files. The calendar is the source of truth: the event files can always be rebuilt from it. The full behaviour is in [the Omark Time spec](time/spec.md); this part is what another tool or an agent needs to read and write compatible data.
 
 ### The title format
 

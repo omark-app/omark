@@ -1,7 +1,7 @@
 # TaskApp habits spec
 
 Status: approved by AL, 2026-10-26. Issue #44. Changed before approval (AL): at most 3 habits in progress (section 10.1). The calls in section 13 are accepted.
-Source: AL's brainstorm in the session of 2026-10-26. Related: [v1 spec](TaskApp%20v1%20spec.md) (sections 3, 5–7 and 10 change), [settings page spec](Omark%20settings%20page%20spec.md) (#45).
+Source: AL's brainstorm in the session of 2026-10-26. Related: [v1 spec](spec.md) (sections 3, 5–7 and 10 change), [settings page spec](../Omark%20settings%20page%20spec.md) (#45).
 Mockups: https://claude.ai/artifact/VwN7ULDERA3tsd2JoMatWt (desktop, phone, row states, detail, history, settings); source in `doc/mockups/habits/`.
 
 Calls marked *(my call)* were made by Claude, not by AL; section 13 lists them for checking.

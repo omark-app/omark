@@ -59,6 +59,12 @@ export class FolderFiles implements TextFiles {
     return 'saved';
   }
 
+  /** A change this device made that has not reached the folder yet (a failed read is not one). */
+  async hasUnsynced(): Promise<boolean> {
+    for (const name of this.syncs.keys()) if ((await this.cache.get(name))?.dirty) return true;
+    return false;
+  }
+
   onStatus(cb: () => void): () => void {
     this.listeners.add(cb);
     return () => this.listeners.delete(cb);

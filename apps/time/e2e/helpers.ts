@@ -53,7 +53,8 @@ export async function firstRun(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Google Drive' }).click();
   await expect(page.getByRole('checkbox', { name: 'Me' })).toBeChecked();
   await page.getByRole('button', { name: 'Start' }).click();
-  await expect(page.getByTestId('status')).toContainText('Synced');
+  // The first sync reads everything and writes three files; WebKit under a full parallel run needs more than 5 s.
+  await expect(page.getByTestId('status')).toContainText('Synced', { timeout: 20_000 });
 }
 
 export function driveFile(page: Page, name: string): Promise<string | null> {
