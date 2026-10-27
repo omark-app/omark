@@ -4,6 +4,7 @@ import { PAGES, expectNoSideScroll } from './pages';
 // Hosts a page may link to. Add one only when a page genuinely needs it.
 const ALLOWED_HOSTS = [
   'omark.app',
+  'demo-tasks.omark.app',
   'github.com',
   'developers.google.com',
   'policies.google.com',
@@ -31,6 +32,13 @@ for (const path of PAGES) {
     const response = await page.request.get('/favicon.svg');
     expect(response.status()).toBe(200);
     expect(response.headers()['content-type']).toContain('image/svg+xml');
+  });
+
+  test(`Omark logo on ${path}`, async ({ page }) => {
+    await page.goto(path);
+    const logo = page.locator('.site-header img.brand-icon');
+    await expect(logo).toHaveAttribute('src', '/img/icon-omark.svg');
+    await expect.poll(() => logo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
   });
 
   test(`no dead links on ${path}`, async ({ page }) => {

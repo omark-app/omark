@@ -29,11 +29,9 @@ A PR that changes a sign-in scope or cookie must update `src/privacy/index.html`
 
 When these ship, turn the "Coming soon" label into a link:
 
-- 2.1: Tasks "Try the demo" to https://demo-tasks.omark.app
 - 3.3 / 3.6: Tasks "Open" to https://tasks.omark.app
 - 2.3: the PHILOSOPHY link
 - 4.3: the GitHub repo and CONTRIBUTING links
 - T.7: Time demo to https://demo-time.omark.app
 - T.9: Time "Open" to https://time.omark.app
-- 2.4: icons into the `.brand-icon` and `.app-icon` slots (files in `brand/`, see `brand/README.md`). The favicon (`public/favicon.svg`) is written by `pnpm --filter @omark/brand render`; change it in `brand/`, not here.
 - 3.5: `/.well-known/microsoft-identity-association.json`
