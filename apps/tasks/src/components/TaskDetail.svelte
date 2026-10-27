@@ -4,6 +4,7 @@
   import type { AppStore } from '../lib/store.svelte.ts';
   import { autogrow } from '../lib/autogrow.ts';
   import { createTaskEdit } from '../lib/task-edit.svelte.ts';
+  import HabitBlock from './HabitBlock.svelte';
   import ShortcutField from './ShortcutField.svelte';
 
   let {
@@ -21,16 +22,21 @@
 
   const bucket = $derived(bucketOf(task, store.ctx));
   const bucketName = $derived(nameOf(bucket));
-  const over = $derived(task.date !== null && task.date < store.ctx.today);
+  // A habit is never overdue (habits spec 3): its old date is a missed period, not a late task.
+  const over = $derived(!task.habit && task.date !== null && task.date < store.ctx.today);
   const chips = $derived(dateChoices(store.ctx));
   const current = $derived(currentChoice(task, store.ctx));
+  const progress = $derived(task.habit ? store.habits.get(id) : undefined);
 
   // A focused field keeps its text even before it is typed in. Unmounting (another task, deselect, the
   // task gone) commits.
   // svelte-ignore state_referenced_locally
   const edit = createTaskEdit(store, id, (field) => document.activeElement === (field === 'title' ? titleEl : notesEl));
 
-  /** Commits the typed text to the store now. `settle` puts the stored values back in the fields. */
+  /**
+   * Commits the typed text to the store now. `settle` puts the stored values back in the fields; only then
+   * (Enter, leaving the fields) is a habit renamed, so the debounced save never asks.
+   */
   function commit(settle = false): void {
     clearTimeout(timer);
     timer = undefined;
@@ -50,8 +56,10 @@
   }
 
   function blurred(e: FocusEvent): void {
-    // Moving between the two fields keeps what is typed (e.g. the new note line after Shift+Enter).
-    commit(e.relatedTarget !== titleEl && e.relatedTarget !== notesEl);
+    // Moving between the two fields keeps what is typed (e.g. the new note line after Shift+Enter). So does
+    // the window or tab losing focus: nothing was decided, so a habit rename doesn't ask.
+    const away = e.relatedTarget === null && !document.hasFocus();
+    commit(e.relatedTarget !== titleEl && e.relatedTarget !== notesEl && !away);
   }
 
   export function focusTitle(): void {
@@ -81,10 +89,10 @@
 
 <div class="detail" data-testid="detail">
   <div class="top">
-    <span class="lab">Task · {bucketName}</span>
+    <span class="lab">{#if task.habit}<span class="hab">Habit</span>{:else}Task{/if} · {bucketName}</span>
     <button class="xbtn" title="Close (Esc)" onclick={() => store.select(null)}>esc</button>
   </div>
-  <div class:imp={task.important}>
+  <div class:imp={task.important} class:habit={task.habit !== undefined}>
     <ShortcutField
       bind:input={titleEl}
       bind:value={edit.title}
@@ -111,6 +119,7 @@
       onblur={blurred}
     ></textarea>
   </div>
+  {#if task.habit && progress}<HabitBlock {store} {task} {progress} />{/if}
   <div class="fields">
     <div class="row">
       <span class="lab k">Due</span>
@@ -166,6 +175,9 @@
   .chipb.flag { display: inline-flex; align-items: center; gap: 6px; color: var(--imp); }
   .chipb.flag.on { background: var(--imp); border-color: var(--imp); color: var(--on-imp); }
   .imp { --sf-ink: var(--imp); }
+  /* A habit that is also important is violet (habits spec 9.1). */
+  .habit { --sf-ink: var(--habit-ink); }
+  .hab { color: var(--habit-ink); }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 6px; }
   .btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 7px 13px; font: 500 13px var(--sans); cursor: pointer; }
   .btn:hover { border-color: var(--faint); }

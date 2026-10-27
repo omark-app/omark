@@ -4,6 +4,7 @@
   import type { Updates } from '../lib/updates.svelte.ts';
   import { BRAND } from '../brand.ts';
   import Bucket from './Bucket.svelte';
+  import HabitsGroup from './HabitsGroup.svelte';
   import Stats from './Stats.svelte';
   import Hints from './Hints.svelte';
   import StatusLine from './StatusLine.svelte';
@@ -21,6 +22,7 @@
     onDropPickDate = () => {},
     onSignIn,
     storageName,
+    onHistory = () => {},
     updates,
     onUpdate,
   }: {
@@ -30,6 +32,7 @@
     onSignIn?: () => void;
     /** What the sync banner calls the storage (OneDrive when not given). */
     storageName?: string;
+    onHistory?: () => void;
     updates?: Updates;
     onUpdate?: () => void;
   } = $props();
@@ -66,6 +69,7 @@
         {/key}
       </div>
     {:else}
+      <HabitsGroup {store} variant="list" onopen={(id) => store.select(id)} onhistory={onHistory} />
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div class="rblock group" {ondblclick}>
         <Bucket {store} key={IMPORTANT_GROUP.key} name={IMPORTANT_GROUP.name} onpickdate={pick} ondroppickdate={onDropPickDate} />

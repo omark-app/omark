@@ -202,7 +202,9 @@ function syncedAtStore(place: Place) {
 }
 
 async function ready(workspace: Workspace, cache: CacheInfo, auth: Auth | null, place: Place): Promise<BootResult> {
-  const store = await createStore({ workspace, clock: systemClock, isPhone, syncedAtStore: syncedAtStore(place), ...cache });
+  const store = await createStore({
+    workspace, clock: systemClock, isPhone, syncedAtStore: syncedAtStore(place), confirm: (m) => window.confirm(m), ...cache,
+  });
   installLifecycle(store);
   const timing = STORAGE_MODE === 'fake' ? window.__TASKAPP_UPDATE_TIMING__ : undefined;
   const updates = installUpdates(store, { ...timing });

@@ -3,7 +3,18 @@
   import type { RepeatRule } from '@omark/tasks-core';
   import type { AppStore } from '../lib/store.svelte.ts';
 
-  let { store, taskId, onclose }: { store: AppStore; taskId: string; onclose: () => void } = $props();
+  let {
+    store,
+    taskId,
+    habit = false,
+    onclose,
+  }: {
+    store: AppStore;
+    taskId: string;
+    /** Making a habit: every day to start, no `No repeat`, and saving makes the habit. */
+    habit?: boolean;
+    onclose: () => void;
+  } = $props();
 
   type Kind = 'none' | RepeatRule['type'];
 
@@ -16,10 +27,13 @@
 
   // The form starts from the task's current rule; after that it is the user's to edit.
   // svelte-ignore state_referenced_locally
-  const rule = task?.repeat ?? null;
+  const rule = habit ? null : (task?.repeat ?? null);
   // svelte-ignore state_referenced_locally
   const anchor = task?.date ?? store.ctx.today;
-  let kind = $state<Kind>(rule?.type ?? 'none');
+  // svelte-ignore state_referenced_locally
+  let kind = $state<Kind>(rule?.type ?? (habit ? 'daily' : 'none'));
+  // A habit has no `when done`: it needs a rule with set days.
+  const noAfter = $derived(habit || task?.habit !== undefined);
   let days = $state<number[]>(rule?.type === 'weekly' ? [...rule.days] : [dayOfWeek(anchor)]);
   let weekN = $state(rule?.type === 'weekly' ? (rule.n ?? 1) : 1);
   let monthDay = $state(rule?.type === 'monthly' ? rule.day : Number(anchor.slice(8)));
@@ -53,7 +67,9 @@
       every: { type: 'every', n: count(everyN), unit: everyUnit },
       after: { type: 'after', n: count(afterN) },
     };
-    store.setRepeat(taskId, rules[kind]);
+    const chosen = rules[kind];
+    if (habit && chosen) store.makeHabit(taskId, chosen);
+    else store.setRepeat(taskId, chosen);
     onclose();
   }
 
@@ -67,8 +83,8 @@
   <h3>{task.title}</h3>
   <div class="sub">Repeat</div>
   <form class="list" novalidate onsubmit={(e) => { e.preventDefault(); save(); }}>
-    <label><input type="radio" name="rep" value="none" bind:group={kind} data-autofocus /> No repeat</label>
-    <label><input type="radio" name="rep" value="daily" bind:group={kind} /> Every day</label>
+    {#if !habit}<label><input type="radio" name="rep" value="none" bind:group={kind} data-autofocus /> No repeat</label>{/if}
+    <label><input type="radio" name="rep" value="daily" bind:group={kind} data-autofocus={habit ? true : undefined} /> Every day</label>
     <label><input type="radio" name="rep" value="weekdays" bind:group={kind} /> Weekdays</label>
     <label>
       <input type="radio" name="rep" value="weekly" bind:group={kind} /> Every
@@ -96,10 +112,12 @@
         <option value="months">months</option>
       </select>
     </label>
-    <label>
-      <input type="radio" name="rep" value="after" bind:group={kind} />
-      <input class="fld small" type="number" min="1" max={MAX_INTERVAL} aria-label="Days after completion" bind:value={afterN} onfocus={pick('after')} /> days after I complete it
-    </label>
+    {#if !noAfter}
+      <label>
+        <input type="radio" name="rep" value="after" bind:group={kind} />
+        <input class="fld small" type="number" min="1" max={MAX_INTERVAL} aria-label="Days after completion" bind:value={afterN} onfocus={pick('after')} /> days after I complete it
+      </label>
+    {/if}
     <div class="actions">
       <button type="button" class="btn ghost" onclick={onclose}>Cancel</button>
       <button type="submit" class="btn primary">Save</button>

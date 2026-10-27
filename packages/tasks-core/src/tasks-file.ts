@@ -1,4 +1,4 @@
-import type { DoneEntry, ISODate, Item, RepeatRule, Task, TasksDoc } from './model.ts';
+import type { DoneEntry, HabitMark, ISODate, Item, RepeatRule, Task, TasksDoc } from './model.ts';
 import { formatRepeat, parseRepeat } from './repeat-format.ts';
 
 let lastId = 0;
@@ -16,15 +16,18 @@ const DONE = '✅';
 const REPEAT = '🔁';
 /** Obsidian Tasks' high priority, which TaskApp reads as Important (issue #19). */
 const IMPORTANT = '⏫';
+/** The habit mark (#44). */
+const HABIT = '🌱';
 /** Emoji presentation selector: some editors write it after a field emoji, where it changes nothing. */
 const VS16 = '\uFE0F';
 /** Where a 🔁 rule's text ends: a ` #tag`, or any Obsidian Tasks field emoji. */
-const RULE_END = /[ \t]#[^\s#]|📅|✅|🔁|⏳|🛫|➕|❌|🆔|⛔|🏁|⏫|🔼|🔽|⏬|🔺/u;
+const RULE_END = /[ \t]#[^\s#]|📅|✅|🔁|⏳|🛫|➕|❌|🆔|⛔|🏁|⏫|🔼|🔽|⏬|🔺|🌱|🏆/u;
 
 /** Stable text of a task's semantic fields; equal keys mean nothing the file stores has changed. */
-export function taskKey(t: Pick<Task, 'title' | 'notes' | 'date' | 'repeat' | 'important'>): string {
+export function taskKey(t: Pick<Task, 'title' | 'notes' | 'date' | 'repeat' | 'important' | 'habit'>): string {
   const key: unknown[] = [t.title, t.notes, t.date, t.repeat ? formatRepeat(t.repeat) : null];
   if (t.important) key.push(true);
+  if (t.habit) key.push(`${HABIT}${t.habit.goal ?? ''}`);
   return JSON.stringify(key);
 }
 
@@ -159,6 +162,7 @@ function parseItems(lines: string[], newId: () => string): Item[] {
         date: f.date,
         repeat: f.repeat,
         ...(f.important && { important: true }),
+        ...(f.habit && { habit: f.habit }),
         raw: block,
         rawKey: null,
       };
@@ -168,7 +172,10 @@ function parseItems(lines: string[], newId: () => string): Item[] {
       // An undated `- [x]` (ticked in Obsidian without a ✅ date) is still done; doneOn is null.
       const f = parseFields(done![1]!, true);
       const notes = block.slice(1).map(noteText);
-      const entry: DoneEntry = { title: f.title, repeat: f.repeat, doneOn: f.doneOn, notes, ...(f.important && { important: true }) };
+      const entry: DoneEntry = {
+        title: f.title, repeat: f.repeat, doneOn: f.doneOn, notes,
+        ...(f.important && { important: true }), ...(f.habit && { habit: f.habit }),
+      };
       items.push({ kind: 'done', entry, date: f.date, raw: block });
     }
   }
@@ -188,6 +195,7 @@ export function taskLines(t: Task): string[] {
   if (t.raw && t.rawKey !== null && taskKey(t) === t.rawKey) return t.raw;
   const head = ['- [ ]', t.title];
   if (t.important) head.push(IMPORTANT);
+  if (t.habit) head.push(t.habit.goal === null ? HABIT : `${HABIT} ${t.habit.goal}`);
   if (t.repeat) head.push(`${REPEAT} ${formatRepeat(t.repeat)}`);
   if (t.date) head.push(`${DUE} ${t.date}`);
   return [head.filter((p) => p !== '').join(' '), ...noteLines(t)];
@@ -200,8 +208,11 @@ export function taskLines(t: Task): string[] {
  */
 export function readBack(t: Task): Task {
   const f = parseFields(OPEN_LINE.exec(taskLines(t)[0]!)![1]!, false);
-  const { important: _, ...rest } = t;
-  const read: Task = { ...rest, title: f.title, date: f.date, repeat: f.repeat, ...(f.important && { important: true }) };
+  const { important: _, habit: __, ...rest } = t;
+  const read: Task = {
+    ...rest, title: f.title, date: f.date, repeat: f.repeat,
+    ...(f.important && { important: true }), ...(f.habit && { habit: f.habit }),
+  };
   return taskKey(read) === taskKey(t) ? t : read;
 }
 
@@ -222,6 +233,15 @@ export interface Fields {
   repeat: RepeatRule | null;
   doneOn: ISODate | null;
   important: boolean;
+  /** The 🌱 field; on a task line only with a usable 🔁 rule, on a done line always. */
+  habit: HabitMark | null;
+  /** The date after the end mark `parseFields` was given (🏆 or ❌), on done lines. */
+  endOn: ISODate | null;
+}
+
+/** A 🌱 habit needs a rule that repeats on a schedule; `when done` rules have no periods to count. */
+export function isUsableHabitRule(rule: RepeatRule | null): boolean {
+  return rule !== null && rule.type !== 'after';
 }
 
 /**
@@ -230,9 +250,10 @@ export interface Fields {
  * reads fields from the end) and earlier ones stay in the title; this also means a canonical rewrite,
  * which appends the fields, always reads back as written. A 🔁 rule runs to the next ` #tag`, the next
  * field emoji or the end of the line, and is taken only when `parseRepeat` accepts it. Other emoji and
- * tags stay in the title.
+ * tags stay in the title. Every 🌱 is the habit mark, the last `🌱 N` (1–999) giving its goal, but only on a
+ * done line or with a usable rule (#44). `endMark` also takes that emoji's date, for habit end lines.
  */
-export function parseFields(text: string, isDone: boolean): Fields {
+export function parseFields(text: string, isDone: boolean, endMark?: '🏆' | '❌'): Fields {
   const spans: [number, number][] = [];
 
   const takeDate = (emoji: string): ISODate | null => {
@@ -248,6 +269,7 @@ export function parseFields(text: string, isDone: boolean): Fields {
 
   const date = takeDate(DUE);
   const doneOn = isDone ? takeDate(DONE) : null;
+  const endOn = isDone && endMark ? takeDate(endMark) : null;
 
   let rule: { value: RepeatRule; span: [number, number] } | null = null;
   for (let at = text.indexOf(REPEAT); at >= 0; at = text.indexOf(REPEAT, at + REPEAT.length)) {
@@ -268,12 +290,27 @@ export function parseFields(text: string, isDone: boolean): Fields {
     spans.push([at, text.startsWith(VS16, end) ? end + VS16.length : end]);
   }
 
+  let habit: HabitMark | null = null;
+  if (isDone || isUsableHabitRule(repeat)) {
+    for (let at = text.indexOf(HABIT); at >= 0; at = text.indexOf(HABIT, at + HABIT.length)) {
+      habit ??= { goal: null };
+      let end = at + HABIT.length;
+      if (text.startsWith(VS16, end)) end += VS16.length;
+      const goal = /^[ \t]*(\d{1,3})(?!\d)/.exec(text.slice(end));
+      if (goal && Number(goal[1]) >= 1) {
+        habit = { goal: Number(goal[1]) };
+        end += goal[0].length;
+      }
+      spans.push([at, end]);
+    }
+  }
+
   // Remove right to left so earlier offsets stay valid; each gap becomes one space.
   let title = text;
   for (const [s, e] of spans.sort((a, b) => b[0] - a[0])) {
     title = `${title.slice(0, s).trimEnd()} ${title.slice(e).trimStart()}`;
   }
-  return { title: title.trim(), date, repeat, doneOn, important };
+  return { title: title.trim(), date, repeat, doneOn, important, habit, endOn };
 }
 
 /** Where 🔁 rule text runs in `text`: from each 🔁 to the next ` #tag`, field emoji or the end. */

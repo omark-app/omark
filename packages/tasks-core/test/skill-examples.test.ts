@@ -68,4 +68,36 @@ describe('SKILL.md', () => {
       expect(formatRepeat(parsed!), text).toBe(text);
     }
   });
+
+  describe('habit examples (#44)', () => {
+    const tasksBlock = blocks.find((b) => b.startsWith('# Tasks') && b.includes('🌱'));
+    const doneBlock = blocks.find((b) => b.startsWith('- [x]') && b.includes('🏆'));
+
+    test('the tasks.md habit lines parse to the documented fields', () => {
+      expect(tasksBlock).toBeDefined();
+      const tasks = parseTasks(tasksBlock!).items.flatMap((it) => (it.kind === 'task' ? [it.task] : []));
+      expect(tasks.map((t) => [t.title, t.habit, t.important === true, t.repeat && formatRepeat(t.repeat), t.date])).toEqual([
+        ['Meditate 10 min', { goal: null }, false, 'every day', '2026-10-26'],
+        ['Gym: strength', { goal: 30 }, false, 'every week on Monday, Wednesday, Friday', '2026-10-28'],
+        ['No phone before 9:00', { goal: null }, true, 'every day', '2026-10-27'],
+      ]);
+    });
+
+    test('the done.md habit lines are a completion, a formed line and a dropped line', () => {
+      expect(doneBlock).toBeDefined();
+      const doc = parseDone(doneBlock!);
+      const entries = doc.lines.flatMap((l) => (l.entry ? [l.entry] : []));
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({ title: 'Meditate 10 min', habit: { goal: null }, doneOn: '2026-10-25' });
+      expect(doc.lines.flatMap((l) => (l.end ? [l.end] : []))).toEqual([
+        { kind: 'formed', title: 'Read 20 pages', on: '2026-10-26' },
+        { kind: 'dropped', title: 'Cold shower', on: '2026-07-20' },
+      ]);
+    });
+
+    test('a 🌱 without a usable rule is not a habit', () => {
+      const items = parseTasks('# Tasks\n- [ ] Walk 🌱\n- [ ] Walk more 🌱 🔁 every 3 days when done\n').items;
+      expect(items.flatMap((it) => (it.kind === 'task' ? [it.task.habit] : []))).toEqual([undefined, undefined]);
+    });
+  });
 });

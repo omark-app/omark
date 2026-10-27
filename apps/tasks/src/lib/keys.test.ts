@@ -19,6 +19,10 @@ describe('commandFor', () => {
     expect(commandFor(ev('i'), sc)).toBe('important');
   });
 
+  it('maps h to habit (#44)', () => {
+    expect(commandFor(ev('h'), sc)).toBe('habit');
+  });
+
   it('maps j to down and ArrowUp to up', () => {
     expect(commandFor(ev('j'), sc)).toBe('down');
     expect(commandFor(ev('ArrowUp'), sc)).toBe('up');
