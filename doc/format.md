@@ -5,9 +5,9 @@ Version: 1.0
 Omark keeps your data in plain files that any editor, script or AI agent can read and write. This page describes them well enough that someone could write a compatible tool. Where it and the code disagree, it is a bug in one of them: please open an issue.
 
 - [Omark Tasks](#omark-tasks): `tasks.md`, `done.md`, `config.yaml`.
-- [Omark Time](#omark-time): coming with its own docs.
+- [Omark Time](#omark-time): calendar event titles, `events-YYYY.csv`, `projects.csv`, `config.yaml`.
 
-The examples and tables on this page are checked against `packages/tasks-core` by `tools/ci/test/docs.test.ts`.
+The examples and tables on this page are checked against `packages/tasks-core` and `packages/time-core` by `tools/ci/test/docs.test.ts`.
 
 ## Omark Tasks
 
@@ -248,4 +248,118 @@ The format is a subset of the [Obsidian Tasks](https://publish.obsidian.md/tasks
 
 ## Omark Time
 
-Omark Time's title format (`CODE; Category; description`) and its CSV files are specified in [the Omark Time spec](Omark%20Time%20spec.md), sections 5–7. They are written up here as part of the agent docs for Omark Time (#60).
+Omark Time reads calendar events whose titles follow one format and writes their hours to CSV files. The calendar is the source of truth: the event files can always be rebuilt from it. The full behaviour is in [the Omark Time spec](Omark%20Time%20spec.md); this part is what another tool or an agent needs to read and write compatible data.
+
+### The title format
+
+```
+CODE; Category; description
+```
+
+- **CODE** is required: 2–20 characters, letters `A–Z`, digits `0–9` and `_`, starting with a letter. It is case-insensitive in titles and stored in upper case everywhere else.
+- **Category** is optional free text, such as `Coding`, `CS` or `Meetings`.
+- **description** is optional free text.
+- Spaces around `;` are optional and trimmed. Only the first two `;` split the title; later ones stay in the description.
+- An event is **structured** when its first part is a valid code and either the title has a `;` or the whole title is a known code (one in `projects.csv`). Other events are ignored.
+- A structured event's code is **known** when it is in `projects.csv`, archived or not. Unknown codes are still tracked, with `known` = `false`, so they can be fixed.
+
+How titles read when `ACME` is the only project:
+
+| title | code | category | description | known |
+| --- | --- | --- | --- | --- |
+| `ACME; Coding; new featureX` | ACME | Coding | new featureX | yes |
+| `ACME;Coding` | ACME | Coding | (none) | yes |
+| `ACME; ; quick call` | ACME | (none) | quick call | yes |
+| `ACME; CS; ticket 12; then 13` | ACME | CS | ticket 12; then 13 | yes |
+| `acme; coding; new featureX` | ACME | coding | new featureX | yes |
+| `acme` | ACME | (none) | (none) | yes |
+| `OOO; away` | OOO | away | (none) | no |
+| `Lunch; with Tom` | LUNCH | with Tom | (none) | no |
+| `Lunch` | not structured | | | |
+| `Call: John` | not structured | | | |
+| `Q&A; prep` | not structured | | | |
+
+A writer puts one space after each `;` and leaves out empty trailing parts: `ACME`, `ACME; Coding`, `ACME; Coding; new feature`.
+
+### What counts
+
+- Every structured event in the chosen calendars that starts between `track_from` and 90 days from today.
+- Declined and cancelled events never count. Events shown as free and unanswered invites do.
+- **Time zone:** dates and times are in the primary calendar's time zone.
+- **Midnight:** an event that crosses midnight becomes one row per local day.
+- **All-day events** count `all_day_hours` per day.
+- **Overlaps** each count fully.
+- **Done and planned:** a row whose `end` is at or before now is done; later rows are planned. Summaries and reports count only done time unless asked.
+
+### Files
+
+UTF-8 CSV (RFC 4180: comma-separated, a header row, a field in double quotes when it holds `,`, `"` or a line break, with `""` for a quote inside), written with LF line endings and a final newline; read with LF or CRLF and an optional BOM. They sit in one folder: `Omark Time` in My Drive, `Apps/Omark Time` in OneDrive, or a folder the user picks. Unknown columns and keys are kept.
+
+#### `events-YYYY.csv`
+
+One row per tracked event per local day, in the file of that day's year. [doc/time/examples/events-2026.csv](time/examples/events-2026.csv) is a full example.
+
+```csv
+date,start,end,hours,project,category,description,all_day,known,calendar,event_id
+2026-10-22,2026-10-22T09:00+02:00,2026-10-22T10:30+02:00,1.5,ACME,Coding,new featureX,false,true,primary,abc123
+2026-10-22,2026-10-22T11:00+02:00,2026-10-22T11:30+02:00,0.5,OOO,away,,false,false,primary,def456
+```
+
+| column | value |
+| --- | --- |
+| `date` | the row's local day, `YYYY-MM-DD` |
+| `start`, `end` | the row's own part of the event, local time with offset (`2026-10-22T09:00+02:00`; seconds only when not zero). All-day rows run from 00:00 to the next day's 00:00 |
+| `hours` | the exact length, at most 4 decimals, no trailing zeros (`1.5`, `0.3333`, `8`); for all-day rows, `all_day_hours` |
+| `project` | the code, upper case |
+| `category`, `description` | as typed in the title; empty when missing |
+| `all_day`, `known` | `true` or `false` |
+| `calendar` | the Google calendar id (`primary` for the primary calendar) |
+| `event_id` | the event's id; each instance of a recurring event has its own |
+
+- A row's key is `calendar` + `event_id` + `date`.
+- Rows are sorted by `start` (as an instant), then `calendar`, then `event_id`.
+- **The app owns these files.** It rewrites them from the calendar on every sync, so hand edits are lost. Change the calendar event instead.
+- The column order is fixed. New columns are only added at the end.
+- **Adding up hours:** turn each row's `hours` into whole seconds (`round(hours × 3600)`), add the seconds, and convert back once. Adding the 4-decimal values directly drifts (three 20-minute rows would make 0.9999 hours).
+
+#### `projects.csv`
+
+```csv
+code,description,client,rate,currency,archived
+ACME,Acme Corp website rebuild,Acme Corp,120,EUR,
+MYAPP,My app - product work,,,,
+OLD,Old client,Old Co,90,PLN,2026-06-30
+```
+
+| column | value |
+| --- | --- |
+| `code` | as in the title format, upper case, unique |
+| `description` | free text |
+| `client` | free text, optional; groups projects in reports |
+| `rate` | a decimal per hour, optional |
+| `currency` | an ISO 4217 code, required when `rate` is set |
+| `archived` | a date, or empty. An archived project is still known (its events stay counted) but is no longer offered for new events |
+
+Codes are never renamed: that would make past events unknown. Archive the old project and add a new one.
+
+#### `config.yaml`
+
+```yaml
+calendars: [primary]   # Google calendar ids to read
+track_from: 2026-01-01 # first day that counts
+all_day_hours: 8
+week_start: monday
+colour_events: false  # set by the "Colour my events" setting
+```
+
+| key | meaning | default |
+| --- | --- | --- |
+| `calendars` | the Google calendar ids to read | `[primary]` |
+| `track_from` | the first day that counts | 1 January of this year |
+| `all_day_hours` | hours an all-day event counts for, 0.25 to 24 | `8` |
+| `week_start` | the first day of the week, for weekly summaries | `monday` |
+| `colour_events` | colour structured events green (known) or red (unknown) in the calendar | `false` |
+
+### Colours
+
+With `colour_events` on, the app sets a structured event's colour to green (Google colour 10) for a known code and red (11) for an unknown one, and marks it with the private extended property `omarkTime` = `green` or `red`. It changes no other field. A tool that creates events doesn't need to set colours; the app does it on its next sync.

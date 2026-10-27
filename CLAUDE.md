@@ -10,6 +10,7 @@ The repo's skills live in `.claude/skills/`:
 
 - `taskapp-factory`: the issue flow step by step, with the comment and label wording.
 - `taskapp-files`: how to read and edit `tasks.md`, `done.md` and `config.yaml`.
+- `omark-time`: how to add Omark Time events, answer questions about hours from its CSV files, and draft a client report.
 
 `.claude/settings.json` wires up the hooks: the guard (`tools/claude-guard/guard.mjs`) that blocks pushes to `main`, merges and Promote, and the cloud session-start hook in `.claude/hooks/` ([doc/factory.md](doc/factory.md)).
 

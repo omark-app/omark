@@ -6,6 +6,10 @@ import {
   allTasks, completeTask, DEFAULT_CONFIG, formatRepeat, nextDate, parseDone, parseRepeat, parseTasks, serializeDone,
   serializeTasks,
 } from '../../../packages/tasks-core/src/index.ts';
+import {
+  buildReport, defaultTimeConfigText, EVENT_COLUMNS, formatHours, parseEventsFile, parseProjects, parseTitle,
+  PROJECT_COLUMNS, reportToMarkdown, serializeEventsFile, serializeProjects, summarise,
+} from '../../../packages/time-core/src/index.ts';
 
 // The suite's docs set (#85, launch spec 6.7). CI skips PRs that change only `doc/**` and `*.md`, so these
 // checks run on a docs change only when a maintainer or agent runs `pnpm test` before pushing.
@@ -196,5 +200,102 @@ describe('doc/format.md', () => {
   test('every shortcut command is listed', () => {
     const commands = tableRows('| command | default keys |').map((cells) => unquote(cells[0]!));
     expect(commands.sort()).toEqual(Object.keys(DEFAULT_CONFIG.shortcuts).sort());
+  });
+});
+
+/** Cells of every row under `header` (after the separator) up to the first non-table line. */
+function tableIn(text: string, header: string): string[][] {
+  const lines = text.split('\n');
+  const at = lines.findIndex((l) => l.trim() === header);
+  if (at < 0) return [];
+  const rows: string[][] = [];
+  for (let i = at + 2; i < lines.length && lines[i]!.startsWith('|'); i++) {
+    rows.push(lines[i]!.split('|').slice(1, -1).map((c) => c.trim().replace(/^`|`$/g, '')));
+  }
+  return rows;
+}
+
+// Omark Time for agents (#60): the format, the skill and the DuckDB examples, checked against time-core.
+describe('Omark Time docs', () => {
+  const format = read('doc/format.md');
+  const skill = read('.claude/skills/omark-time/SKILL.md');
+  const readme = read('README.md');
+  const eventsText = read('doc/time/examples/events-2026.csv');
+  const projectsText = read('doc/time/examples/projects.csv');
+  const { rows, badLines } = parseEventsFile(eventsText);
+  const projects = parseProjects(projectsText);
+  const october = { from: '2026-10-01', to: '2026-10-31' };
+  const now = Date.now();
+
+  test('the skill has its frontmatter', () => {
+    expect(skill).toMatch(/^---\nname: omark-time\ndescription: .+\n---\n/);
+  });
+
+  test('the example files are what the app writes', () => {
+    expect(badLines).toEqual([]);
+    expect(rows.length).toBeGreaterThanOrEqual(10);
+    expect(serializeEventsFile(rows)).toBe(eventsText);
+    expect(projects.problems).toEqual([]);
+    expect(serializeProjects(projects)).toBe(projectsText);
+  });
+
+  test('every example row has already ended, so done hours do not depend on the day the test runs', () => {
+    expect(rows.every((r) => Date.parse(r.end) <= now)).toBe(true);
+  });
+
+  test('format.md lists the files\' columns and config keys as the app writes them', () => {
+    expect(format).toContain('\n' + EVENT_COLUMNS.join(',') + '\n');
+    expect(format).toContain('\n' + PROJECT_COLUMNS.join(',') + '\n');
+    const keys = defaultTimeConfigText('2026-01-01').split('\n').filter(Boolean).map((l) => l.split(':')[0]);
+    expect(tableIn(format, '| key | meaning | default |').map((r) => r[0])).toEqual(keys);
+  });
+
+  const titles = tableIn(format, '| title | code | category | description | known |');
+  test('format.md has the title table', () => {
+    expect(titles.length).toBeGreaterThanOrEqual(8);
+  });
+
+  test.each(titles)('title %s', (title, code, category, description, known) => {
+    const parsed = parseTitle(title!, new Set(['ACME']));
+    if (code === 'not structured') {
+      expect(parsed).toBeNull();
+      return;
+    }
+    const none = (c: string) => (c === '(none)' ? '' : c);
+    expect(parsed).toEqual({ code, category: none(category!), description: none(description!), known: known === 'yes' });
+  });
+
+  test('README: hours per project and category in October match the app\'s summary', () => {
+    const table = tableIn(readme, '| project | category | hours |');
+    const summary = summarise(rows, october, now);
+    const expected = summary.projects.flatMap((p) => p.categories.map((c) => [p.code, c.name, formatHours(c.done)]));
+    expect(table.map((r) => r.join('|')).sort()).toEqual(expected.map((r) => r.join('|')).sort());
+  });
+
+  test('README: the weekly trend matches the app\'s summary per week', () => {
+    const table = tableIn(readme, '| week | project | hours |');
+    expect(table.length).toBeGreaterThanOrEqual(4);
+    const weeks = [...new Set(table.map((r) => r[0]!))];
+    const expected = weeks.flatMap((from) => {
+      const to = new Date(Date.parse(`${from}T00:00Z`) + 6 * 86400_000).toISOString().slice(0, 10);
+      return summarise(rows, { from, to }, now).projects.map((p) => [from, p.code, formatHours(p.done)]);
+    });
+    expect(table.map((r) => r.join('|')).sort()).toEqual(expected.map((r) => r.join('|')).sort());
+  });
+
+  const reportOptions = { range: october, client: 'Acme Corp', rounding: 0 as const, includePlanned: false, nowMs: now };
+
+  test('skill: the client totals match the app\'s report', () => {
+    const table = tableIn(skill, '| project | hours | currency | amount |');
+    const report = buildReport(rows, projects.projects, reportOptions);
+    expect(table).toEqual(
+      report.projects.map((p) => [p.code, formatHours(p.hours), p.money?.currency ?? '', p.money ? p.money.amount.toFixed(2) : '']),
+    );
+  });
+
+  test('skill: the report example is the app\'s Markdown export', () => {
+    const block = /^````markdown\n([\s\S]*?)^````$/m.exec(skill);
+    expect(block).not.toBeNull();
+    expect(block![1]).toBe(reportToMarkdown(buildReport(rows, projects.projects, reportOptions)));
   });
 });
