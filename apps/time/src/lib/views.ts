@@ -3,19 +3,19 @@ import type { DateRange, Project } from '@omark/time-core';
 
 export type View = 'hours' | 'charts' | 'fix' | 'projects' | 'report' | 'settings';
 
-/** The views, in the order the navigation shows them; the hash is `#/<id>`. */
-export const VIEWS: readonly { id: View; label: string }[] = [
-  { id: 'hours', label: 'Hours' },
-  { id: 'charts', label: 'Charts' },
-  { id: 'fix', label: 'Fix list' },
-  { id: 'projects', label: 'Projects' },
-  { id: 'report', label: 'Report' },
-  { id: 'settings', label: 'Settings' },
+/** The views, in the order the navigation shows them; the hash is `#/<id>`. `short` fits a phone's bottom bar. */
+export const VIEWS: readonly { id: View; label: string; short: string }[] = [
+  { id: 'hours', label: 'Hours', short: 'Hours' },
+  { id: 'charts', label: 'Charts', short: 'Charts' },
+  { id: 'fix', label: 'Fix list', short: 'Fix' },
+  { id: 'projects', label: 'Projects', short: 'Projects' },
+  { id: 'report', label: 'Report', short: 'Report' },
+  { id: 'settings', label: 'Settings', short: 'Settings' },
 ];
 
 /** The view a `location.hash` names; hours for anything else. */
 export function viewOf(hash: string): View {
-  const id = /^#\/(\w+)$/.exec(hash)?.[1];
+  const id = /^#\/?(\w+)$/.exec(hash)?.[1];
   return VIEWS.find((v) => v.id === id)?.id ?? 'hours';
 }
 
@@ -37,6 +37,14 @@ export function reportFileName(ext: 'csv' | 'md', range: DateRange, what: { code
 export function eventLink(links: Record<string, string>, calendar: string, eventId: string): string | null {
   const link = links[keyOf(calendar, eventId)];
   return link && /^https:\/\/(www\.google\.com\/calendar|calendar\.google\.com)\//.test(link) ? link : null;
+}
+
+/** Omark Tasks' settings, on the matching host (as Tasks links to Time's: `timeSettingsUrl` in apps/tasks). */
+export function tasksSettingsUrl(host: string): string {
+  const h = host.toLowerCase();
+  if (h.startsWith('staging-time.')) return 'https://staging-tasks.omark.app/#settings';
+  if (h.startsWith('demo-time.')) return 'https://demo-tasks.omark.app/#settings';
+  return 'https://tasks.omark.app/#settings';
 }
 
 /** The project form's start: the code given (from the fix list), upper case. */

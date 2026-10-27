@@ -48,13 +48,22 @@ export async function openTime(page: Page, seed: FakeSeed = {}): Promise<void> {
   await page.waitForFunction(() => window.__omarkTime !== undefined);
 }
 
-/** Goes through the first run: Google Drive, the primary calendar, Start; waits for the first sync. */
+/** Opens a view through the navigation (a side bar on the desktop, a bottom bar on the phone). */
+export async function openView(page: Page, name: 'Hours' | 'Charts' | 'Fix list' | 'Projects' | 'Report' | 'Settings'): Promise<void> {
+  await page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name, exact: false }).first().click();
+}
+
+/**
+ * Goes through the first run: Google Drive, the primary calendar, Start; waits for the first sync, then opens
+ * Settings, where the calendars, colouring, Rebuild and the row count are.
+ */
 export async function firstRun(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Google Drive' }).click();
   await expect(page.getByRole('checkbox', { name: 'Me' })).toBeChecked();
   await page.getByRole('button', { name: 'Start' }).click();
   // The first sync reads everything and writes three files; WebKit under a full parallel run needs more than 5 s.
   await expect(page.getByTestId('status')).toContainText('Synced', { timeout: 20_000 });
+  await openView(page, 'Settings');
 }
 
 export function driveFile(page: Page, name: string): Promise<string | null> {

@@ -82,6 +82,11 @@
    - Time's cards: the calendars and "Colour my events" from #57; track from as a date input; storage; Rebuild; Sign out.
 8. **The outside-request check and the phone pass.** An e2e that lists every request, and screenshots on both projects in both themes.
 
+## As built
+
+- **Settings is Time's own view**, as the first risk below foresaw. `@omark/settings`' reader refuses any key outside its schema ("Unknown setting"). Time's `config.yaml` also holds `calendars`, `track_from` and a boolean `colour_events`, which its field types can't express. So the view has its own fields for all of them, and links to Omark Tasks' settings.
+- **The phone's bottom bar** uses short labels ("Fix" for "Fix list"); each link keeps its full name for screen readers.
+
 ## Risks
 
 - **`SettingsPage` was built for Tasks.** If it can't hold Time's cards beside it, Time keeps the custom cards on a page of its own and links between the two.

@@ -50,6 +50,10 @@ export class TimeStore {
   projects = $state.raw<Project[]>([]);
   /** Google Calendar's page per event with an unknown code (`keyOf(calendar, id)`). */
   links = $state.raw<Record<string, string>>({});
+  /** config.yaml as it is now, for the settings page's text editor. */
+  configText = $state('');
+  /** A code the fix list asked the projects view to start a new project with. */
+  newCode = $state<string | null>(null);
   colour = $state<ColourState>('off');
   colourLeft = $state(0);
   /** How many tracker colours a clear would take off; set while the clear is offered. */
@@ -76,6 +80,28 @@ export class TimeStore {
   private stopped = false;
 
   constructor(private readonly deps: AppDeps) {}
+
+  /** Now, and today in the primary calendar's time zone, for the screens. */
+  nowMs(): number {
+    return this.deps.now();
+  }
+
+  get todayDate(): string {
+    return this.today();
+  }
+
+  /** The settings page's edit of config.yaml: the whole new text; then a sync, as the calendars or window may change. */
+  writeConfigText(text: string): Promise<void> {
+    return this.guard(async () => {
+      if (!this.place) return;
+      const today = this.today();
+      const base = await this.place.files.read(CONFIG, defaultTimeConfigText(today));
+      await this.place.files.write(CONFIG, text, base);
+      this.configText = text;
+      this.config = parseTimeConfig(text, today).config;
+      await this.syncNow();
+    });
+  }
 
   /** The first run offers a folder on this computer only where the browser can pick one. */
   get canPickFolder(): boolean {
@@ -181,6 +207,14 @@ export class TimeStore {
 
   rebuild(): Promise<void> {
     return this.syncNow({ rebuild: true });
+  }
+
+  /** A settings change (track from, all-day hours, week start): written to config.yaml, then a sync. */
+  setConfig(changes: Partial<Pick<TimeConfig, 'trackFrom' | 'allDayHours' | 'weekStart'>>): Promise<void> {
+    return this.guard(async () => {
+      await this.writeConfig(changes);
+      await this.syncNow();
+    });
   }
 
   setCalendars(ids: string[]): Promise<void> {
@@ -378,6 +412,7 @@ export class TimeStore {
       const result = await sync({ source: this.deps.source, files: place.files, state: place.state, now: this.deps.now }, opts);
       this.last = result;
       this.config = result.config;
+      await this.readConfig().catch(() => {});
       this.showSummary(result);
       this.links = result.state.links;
       this.syncedAt = this.deps.now();
@@ -428,7 +463,8 @@ export class TimeStore {
   private async readConfig(): Promise<void> {
     if (!this.place) return;
     const today = this.today();
-    this.config = parseTimeConfig(await this.place.files.read(CONFIG, defaultTimeConfigText(today)), today).config;
+    this.configText = await this.place.files.read(CONFIG, defaultTimeConfigText(today));
+    this.config = parseTimeConfig(this.configText, today).config;
   }
 
   private async writeConfig(changes: Partial<TimeConfig>): Promise<void> {
@@ -437,6 +473,7 @@ export class TimeStore {
     const base = await this.place.files.read(CONFIG, defaultTimeConfigText(today));
     const text = setTimeConfig(base, changes, today);
     await this.place.files.write(CONFIG, text, base);
+    this.configText = text;
     this.config = parseTimeConfig(text, today).config;
   }
 

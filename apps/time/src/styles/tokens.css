@@ -12,6 +12,8 @@
   --danger: #C63B3B;
   --good: #2C8A55;
   --shadow: 0 1px 2px rgba(16, 22, 34, .06), 0 10px 32px rgba(16, 22, 34, .07);
+  /* Chart series, in order; told apart by lightness as well as hue. */
+  --c1: #237047; --c2: #2B59D6; --c3: #C2762B; --c4: #8A4FBF; --c5: #1F8A99; --c6: #B5475E; --c7: #6B7A2A; --c8: #677084;
   --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   --sans: "Geist", ui-sans-serif, "Segoe UI", system-ui, sans-serif;
 }
@@ -19,6 +21,7 @@
   :root:not([data-theme="light"]) {
     --bg: #0D1015; --surface: #141820; --ink: #E3E6EB; --muted: #8B94A5; --faint: #586071;
     --line: #252B36; --chip: #1A202A; --accent: #5DC78C; --on-accent: #0D1015;
+    --c1: #5DC78C; --c2: #87A4FF; --c3: #F0A35E; --c4: #C29BF0; --c5: #5CC9D6; --c6: #F08AA0; --c7: #B9C76A; --c8: #8B94A5;
     --danger: #F07474; --good: #5DC78C; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 32px rgba(0,0,0,.35);
     color-scheme: dark;
   }
