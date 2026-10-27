@@ -135,7 +135,8 @@ describe('docs set', () => {
   ];
   const codeFiles = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' })
     .split('\n')
-    .filter((f) => f !== '' && !f.endsWith('.md') && !f.startsWith('doc/') && f !== 'tools/ci/test/docs.test.ts');
+    .filter((f) => f !== '' && !f.endsWith('.md') && !f.startsWith('doc/') && f !== 'tools/ci/test/docs.test.ts')
+    .filter((f) => existsSync(resolve(root, f)));
   test('no code or config file cites a moved doc', () => {
     const stale = codeFiles.flatMap((f) => moved.filter((m) => readFileSync(resolve(root, f), 'utf8').includes(m)).map((m) => `${f}: ${m}`));
     expect(stale).toEqual([]);
