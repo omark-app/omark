@@ -14,3 +14,4 @@ export * from './summary.ts';
 export * from './charts.ts';
 export * from './fix-list.ts';
 export * from './report.ts';
+export * from './merge.ts';
