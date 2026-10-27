@@ -60,7 +60,7 @@ Existing tests stay as they are. Three files change shape but not behaviour: `ha
 
 - **Drive API v2 retires.** Google calls v3 current but still serves v2, with no end date announced. If v2 goes, the fallback is check-then-write on v3: read `headRevisionId`, write, then look in the revision list for a revision between ours and the base, and treat that as a 412. Only `write` in the adapter changes.
 - **Desktop edits change the file id** (not checked, above). The worst case is a second `tasks.md`; nothing is lost.
-- **Two devices on their first run at once** can create two folders or two files of the same name. The adapter always uses the oldest (`orderBy=createdTime`) and trashes its own duplicate (trash, not delete).
+- **Two devices' first run while Drive's list lags**, or restoring an older "Omark Tasks" folder from the trash, can leave two files with the same name. On the next start the app uses the oldest, and edits saved only in the newer file drop out of the app. They are still in Drive, in that file. Follow-up #67 covers merging them. The usual case (both devices see each other) ends with one file and a 412 merge.
 - **Testing-mode refresh tokens expire after 7 days** on the staging project. The app then shows "Sign in again", as for an expired Microsoft session.
 - **Merge conflicts** with 2.1 (`boot.ts`'s fake branch, `.env.example`) and #45 (`SignIn.svelte` neighbours). My edits there stay small; I merge main before the PR.
 
