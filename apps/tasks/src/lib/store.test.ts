@@ -153,6 +153,15 @@ describe('app store', () => {
     );
   });
 
+  it('completing a task with 🔁 text it cannot read keeps it and says so (#79)', async () => {
+    const { drive, store, synced } = await setup({ 'tasks.md': '# Tasks\n- [ ] x 🔁 every blue moon 📅 2026-10-16\n' });
+    store.complete(idOf(store, 'x 🔁 every blue moon'));
+    expect(store.toast?.message).toBe("Done · its 🔁 rule can't be read, so the task stays");
+    await synced();
+    expect(drive.peek('tasks.md')).toBe('# Tasks\n- [ ] x 🔁 every blue moon 📅 2026-10-16\n');
+    expect(drive.peek('done.md')).toBe('- [x] x 🔁 every blue moon ✅ 2026-10-16\n');
+  });
+
   it('undo restores both files', async () => {
     const { drive, store, synced } = await setup();
     store.complete(idOf(store, 'Water the plants'));

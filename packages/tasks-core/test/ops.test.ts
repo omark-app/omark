@@ -330,3 +330,25 @@ describe('addTask with Tomorrow, a date and Important (#19)', () => {
     readsBack(r.state);
   });
 });
+
+describe('completeTask with 🔁 text it cannot read (#79)', () => {
+  const s0 = (): State => {
+    let n = 0;
+    return { doc: parseTasks('# Tasks\n- [ ] x 🔁 every blue moon 📅 2026-10-16\n    - note\n- [ ] y\n', () => `id${++n}`), done: parseDone('') };
+  };
+  test('logs the completion and keeps the task as it was', () => {
+    const s = s0();
+    const r = completeTask(s, 'id1', TODAY);
+    expect(r.next).toBeNull();
+    expect(r.kept).toBe(true);
+    expect(serializeTasks(r.state.doc)).toBe(serializeTasks(s.doc));
+    expect(serializeDone(r.state.done)).toBe('- [x] x 🔁 every blue moon ✅ 2026-10-16\n    - note\n');
+  });
+  test('a one-off task without 🔁 text still leaves tasks.md', () => {
+    const s = s0();
+    const id = allTasks(s.doc).find((t) => t.title === 'y')!.id;
+    const r = completeTask(s, id, TODAY);
+    expect(r.kept).toBeUndefined();
+    expect(allTasks(r.state.doc).map((t) => t.title)).toEqual(['x 🔁 every blue moon']);
+  });
+});

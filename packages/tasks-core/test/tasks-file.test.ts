@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { parseTasks, serializeTasks, taskKey, type Item, type Task, type TasksDoc } from '../src/index.ts';
 
@@ -499,4 +499,45 @@ test('writes 🌱 after ⏫ and before 🔁 (#44)', () => {
   const text = serializeTasks({ ...doc, items: [{ kind: 'task', task: t }] });
   expect(text).toBe('# Tasks\n- [ ] No phone ⏫ 🌱 30 🔁 every day 📅 2026-10-27\n');
   expect(tasksOf(parseTasks(text))[0]!.habit).toEqual({ goal: 30 });
+});
+
+/** True when `s` holds a character outside the BMP (an emoji such as 📅), checked without a regex. */
+const hasAstral = (s: string): boolean => [...s].some((c) => c.codePointAt(0)! > 0xffff);
+
+test('rules and dates read the same where the engine misses emoji alternation with the u flag (#79)', () => {
+  // iOS WebKit (AL's iPhone, iOS 26.6.1): a u-flag regex with emoji alternatives never matches.
+  const exec = RegExp.prototype.exec;
+  RegExp.prototype.exec = function (this: RegExp, s: string) {
+    if (this.unicode && this.source.includes('|') && hasAstral(this.source)) return null;
+    return exec.call(this, s);
+  };
+  try {
+    const doc = parseTasks(
+      '# Tasks\n- [ ] leki 🔁 every 2 days 📅 2026-10-29\n- [ ] dep 🔁 every week on Sunday 📅 2026-11-01\n' +
+        '- [ ] call 🔁 every month on the 7th #home 📅 2026-11-07\n- [x] b1 🔁 every day ✅ 2026-10-24\n',
+    );
+    const [leki, dep, call] = tasksOf(doc);
+    expect(leki).toMatchObject({ title: 'leki', repeat: { type: 'every', n: 2, unit: 'days' }, date: '2026-10-29' });
+    expect(dep).toMatchObject({ title: 'dep', repeat: { type: 'weekly', days: [6] }, date: '2026-11-01' });
+    expect(call).toMatchObject({ title: 'call #home', repeat: { type: 'monthly', day: 7 }, date: '2026-11-07' });
+    expect(doc.items[3]).toMatchObject({ kind: 'done', entry: { title: 'b1', repeat: { type: 'daily' }, doneOn: '2026-10-24' } });
+  } finally {
+    RegExp.prototype.exec = exec;
+  }
+});
+
+test('no regex in tasks-core holds an emoji (#79)', () => {
+  // Such regexes fail on iOS WebKit, so field emoji are found with indexOf instead.
+  const dir = new URL('../src/', import.meta.url);
+  const offenders: string[] = [];
+  for (const name of readdirSync(dir).filter((f) => f.endsWith('.ts'))) {
+    readFileSync(new URL(name, dir), 'utf8').split('\n').forEach((line, i) => {
+      const code = line.trim();
+      if (code.startsWith('//') || code.startsWith('*')) return;
+      const literal = /(?:^|[=(,:!&|?{};\s])\/(?![*/])((?:[^/\\\n[]|\\.|\[(?:[^\]\\\n]|\\.)*\])+)\/[dgimsuyv]*/.exec(code);
+      const built = /new RegExp\(/.test(code) && /['"`][dgimsy]*u[dgimsy]*['"`]\s*\)/.test(code);
+      if ((literal && hasAstral(literal[1]!)) || built) offenders.push(`${name}:${i + 1}`);
+    });
+  }
+  expect(offenders).toEqual([]);
 });
