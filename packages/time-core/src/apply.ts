@@ -61,6 +61,18 @@ export function applyChanges(files: YearFiles, events: CalendarEvent[], ctx: Row
 }
 
 /**
+ * Drop every row of one calendar, in every year: before a full read of it (a rebuild, an expired sync
+ * token), since a full read leaves out the events deleted meanwhile. The input is not changed.
+ */
+export function removeCalendar(files: YearFiles, calendarId: string): Result {
+  const next = new Map<string, EventRow[]>();
+  for (const [year, rows] of files) {
+    if (rows.some((r) => r.calendar === calendarId)) next.set(year, rows.filter((r) => r.calendar !== calendarId));
+  }
+  return finish(files, next);
+}
+
+/**
  * Set `known` on every row from the current project codes. The input is not
  * changed. It only flips `known` on rows that exist: when the set of known
  * codes changes, events titled with a bare code (`OOO`, no `;`) gain or lose
