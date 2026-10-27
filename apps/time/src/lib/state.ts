@@ -24,6 +24,8 @@ export interface DeviceState {
   colourQueue: ColourJob[];
   /** The whole window has been planned for colouring since colouring was turned on. */
   colourPlanned: boolean;
+  /** Patches that take the tracker's colours off, after colouring was turned off and the user said so. */
+  clearQueue: ColourJob[];
 }
 
 export const freshState = (): DeviceState => ({
@@ -33,6 +35,7 @@ export const freshState = (): DeviceState => ({
   timeZone: null,
   colourQueue: [],
   colourPlanned: false,
+  clearQueue: [],
 });
 
 export interface StateStore {
