@@ -34,8 +34,9 @@ let api: ReturnType<typeof helper>;
 let now: number;
 let cookie: string;
 const navigate = vi.fn();
-const TASKS = { cookiePrefix: 'taskapp', providerName: 'Microsoft' };
-const mk = (timeoutMs?: number, app = TASKS) =>
+const TASKS = { cookiePrefix: 'taskapp', providers: { microsoft: 'Microsoft' } };
+const BOTH = { cookiePrefix: 'taskapp', providers: { microsoft: 'Microsoft', google: 'Google' } };
+const mk = (timeoutMs?: number, app: { cookiePrefix: string; providers: Record<string, string>; appName?: string } = TASKS) =>
   createAuth({ ...app, fetch: api.fetch as typeof fetch, navigate, cookies: () => cookie, now: () => now, timeoutMs });
 
 beforeEach(() => {
@@ -119,6 +120,86 @@ describe('createAuth (sign-in helper)', () => {
     expect(api.fetch).not.toHaveBeenCalled();
   });
 
+  it('signIn with a provider other than the default navigates to /api/auth/login?provider=<id>', async () => {
+    await mk(undefined, BOTH).signIn('google');
+    expect(navigate).toHaveBeenCalledWith('/api/auth/login?provider=google');
+  });
+
+  it('signIn with the default provider keeps the plain /api/auth/login, as before', async () => {
+    await mk(undefined, BOTH).signIn('microsoft');
+    expect(navigate).toHaveBeenLastCalledWith('/api/auth/login');
+    await mk().signIn('microsoft');
+    expect(navigate).toHaveBeenLastCalledWith('/api/auth/login');
+  });
+
+  it('signIn without a provider uses the one last seen signed in, else the default', async () => {
+    cookie = 'taskapp_signed_in=google';
+    await mk(undefined, BOTH).signIn();
+    expect(navigate).toHaveBeenLastCalledWith('/api/auth/login?provider=google');
+    cookie = 'other=1';
+    await mk(undefined, BOTH).signIn();
+    expect(navigate).toHaveBeenLastCalledWith('/api/auth/login');
+    cookie = 'taskapp_signed_in=1';
+    await mk(undefined, BOTH).signIn();
+    expect(navigate).toHaveBeenLastCalledWith('/api/auth/login');
+  });
+
+  it('signedInProvider reads the provider from the hint cookie; 1 is the default provider', () => {
+    cookie = 'taskapp_signed_in=google';
+    expect(mk(undefined, BOTH).signedInProvider()).toBe('google');
+    cookie = 'other=1; taskapp_signed_in=1';
+    expect(mk(undefined, BOTH).signedInProvider()).toBe('microsoft');
+    cookie = 'taskapp_signed_in=microsoft';
+    expect(mk(undefined, BOTH).signedInProvider()).toBe('microsoft');
+    cookie = 'other=1';
+    expect(mk(undefined, BOTH).signedInProvider()).toBeNull();
+    cookie = 'taskapp_signed_in=';
+    expect(mk(undefined, BOTH).signedInProvider()).toBeNull();
+  });
+
+  it.each(['nope', 'constructor', 'toString'])('signedInProvider reads a cookie value that is no provider (%s) as the default', (value) => {
+    cookie = `taskapp_signed_in=${value}`;
+    expect(mk(undefined, BOTH).signedInProvider()).toBe('microsoft');
+  });
+
+  it('isSignedIn is true for a signed-in Google session too', () => {
+    cookie = 'taskapp_signed_in=google';
+    expect(mk(undefined, BOTH).isSignedIn()).toBe(true);
+  });
+
+  it('availableProviders asks GET /api/auth/providers', async () => {
+    api.status(200, { providers: ['microsoft', 'google'] });
+    expect(await mk(undefined, BOTH).availableProviders()).toEqual(['microsoft', 'google']);
+    expect(api.calls[0]!.url).toBe('/api/auth/providers');
+  });
+
+  it.each([
+    ['a 503', () => api.status(503)],
+    ['no network', () => api.down()],
+    ['a body without a list', () => api.status(200, { nope: 1 })],
+    ['an empty list', () => api.status(200, { providers: [] })],
+  ])('availableProviders falls back to the default provider on %s', async (_, reply) => {
+    reply();
+    expect(await mk(undefined, BOTH).availableProviders()).toEqual(['microsoft']);
+  });
+
+  it('availableProviders gives up after 3 s, not the token time limit, and falls back to the default', async () => {
+    vi.useFakeTimers();
+    try {
+      api.hang();
+      let result: string[] | undefined;
+      void mk(undefined, BOTH)
+        .availableProviders()
+        .then((r) => (result = r));
+      await vi.advanceTimersByTimeAsync(2_999);
+      expect(result).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(result).toEqual(['microsoft']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('isSignedIn reads the helper’s readable hint cookie', () => {
     expect(mk().isSignedIn()).toBe(true);
     cookie = 'other=1';
@@ -128,7 +209,7 @@ describe('createAuth (sign-in helper)', () => {
   });
 
   it("isSignedIn reads the app's own cookie", () => {
-    const time = { cookiePrefix: 'omark_time', providerName: 'Microsoft' };
+    const time = { cookiePrefix: 'omark_time', providers: { microsoft: 'Microsoft' } };
     expect(mk(undefined, time).isSignedIn()).toBe(false);
     cookie = 'other=1; omark_time_signed_in=1';
     expect(mk(undefined, time).isSignedIn()).toBe(true);
@@ -156,13 +237,50 @@ describe('createAuth (sign-in helper)', () => {
       at('https://tasks.example/?signin_error=failed');
       await expect(mk().handleRedirect()).rejects.toThrow('Microsoft did not accept the sign-in');
       at('https://tasks.example/?signin_error=failed');
-      await expect(mk(undefined, { cookiePrefix: 'omark_time', providerName: 'Google' }).handleRedirect()).rejects.toThrow(
+      await expect(mk(undefined, { cookiePrefix: 'omark_time', providers: { google: 'Google' } }).handleRedirect()).rejects.toThrow(
         'Google did not accept the sign-in',
       );
       at('https://tasks.example/?signin_error=unavailable');
-      await expect(mk(undefined, { cookiePrefix: 'omark_time', providerName: 'Google' }).handleRedirect()).rejects.toThrow(
+      await expect(mk(undefined, { cookiePrefix: 'omark_time', providers: { google: 'Google' } }).handleRedirect()).rejects.toThrow(
         'Google could not be reached; check the connection and sign in again',
       );
+    });
+
+    it('names the provider from ?provider= in the error and removes it from the address bar', async () => {
+      at('https://tasks.example/?signin_error=failed&provider=google&x=1');
+      await expect(mk(undefined, BOTH).handleRedirect()).rejects.toThrow('Google did not accept the sign-in');
+      expect(replaceState).toHaveBeenCalledWith(null, '', '/?x=1');
+    });
+
+    it('uses the default provider when ?provider= is absent or unknown', async () => {
+      at('https://tasks.example/?signin_error=unavailable');
+      await expect(mk(undefined, BOTH).handleRedirect()).rejects.toThrow('Microsoft could not be reached');
+      at('https://tasks.example/?signin_error=unavailable&provider=nope');
+      await expect(mk(undefined, BOTH).handleRedirect()).rejects.toThrow('Microsoft could not be reached');
+    });
+
+    it.each(['constructor', 'toString', '__proto__'])('uses the default provider for ?provider=%s', async (provider) => {
+      at(`https://tasks.example/?signin_error=failed&provider=${provider}`);
+      await expect(mk(undefined, BOTH).handleRedirect()).rejects.toThrow(new Error('Microsoft did not accept the sign-in'));
+    });
+
+    it.each(['constructor', 'toString', '__proto__', 'nope'])('gives the plain "Sign-in failed" for ?signin_error=%s', async (reason) => {
+      at(`https://tasks.example/?signin_error=${reason}`);
+      await expect(mk().handleRedirect()).rejects.toThrow(new Error('Sign-in failed'));
+    });
+
+    it('explains the scope error: sign in again and tick the Drive box', async () => {
+      at('https://tasks.example/?signin_error=scope&provider=google');
+      await expect(mk(undefined, { ...BOTH, appName: 'Omark Tasks' }).handleRedirect()).rejects.toThrow(
+        new Error(
+          "Google didn't give Omark Tasks access to its files. Sign in again and tick the box that lets it see, edit, create and delete its own Google Drive files.",
+        ),
+      );
+    });
+
+    it('calls the app "the app" in the scope error when it has no name', async () => {
+      at('https://tasks.example/?signin_error=scope&provider=google');
+      await expect(mk(undefined, BOTH).handleRedirect()).rejects.toThrow("Google didn't give the app access to its files.");
     });
 
     it('does nothing on a normal start', async () => {

@@ -27,6 +27,7 @@ A super simple personal task app replacing the parts of Todoist actually used: d
 
 - **OneDrive** via Microsoft Graph, called directly from the browser.
 - Sign-in with a Microsoft account through the sign-in helper (a token broker on the same origin: auth code + PKCE as a confidential web app, the refresh token in an encrypted HttpOnly cookie, a 90-day rolling session). Graph is still called from the browser with a short-lived access token. Requires a one-time free Microsoft Entra app registration that accepts personal accounts. (It replaced MSAL.js, whose SPA refresh tokens last 24 hours and whose hidden-iframe renewal Safari and Brave block.)
+- **Google Drive** (added with issue #61) is a second storage, through the same sign-in helper with the `drive.file` scope: the app sees only files it created, kept in one My Drive folder (`Omark Tasks`; `Omark Tasks Staging` on staging). Writes use the Drive v2 `If-Match` etag. See `doc/plans/61-google-drive.md`.
 - **Folder**: `OneDrive/ALAI/TaskApp/` (inside the existing Obsidian vault), chosen by the user. This needs the `Files.ReadWrite` scope.
   - For a later public release the default becomes the app's own folder (`Files.ReadWrite.AppFolder`) — see backlog.
 - Storage sits behind an adapter interface so other providers can be added later.
@@ -346,7 +347,7 @@ TypeScript monorepo (pnpm workspaces):
 | Package | Responsibility |
 |---|---|
 | `packages/tasks-core` | Pure TS with no UI or IO: parse/serialize `tasks.md`, `done.md` and `config.yaml`; bucket logic; recurrence; stats; search matching and ranking; three-way merge; config defaults and validation |
-| `packages/storage` | Storage adapter interface, OneDrive (Graph) implementation, sign-in client, in-memory fake for tests, offline cache and write queue |
+| `packages/storage` | Storage adapter interface, OneDrive (Graph) and Google Drive (`drive.file`) implementations, sign-in client, in-memory fake for tests, offline cache and write queue |
 | `packages/signin` | The sign-in helper behind `/api/auth/*` (served by `functions/` at the repo root as Cloudflare Pages Functions) |
 | `apps/tasks` | Svelte 5 + Vite PWA: UI, keyboard and touch handling, service worker |
 | `tools/todoist-import` | One-time import script |

@@ -25,19 +25,33 @@ export function fitsNotes(notes: Locator): Promise<boolean> {
 /**
  * Opens the app on a fake OneDrive seeded with `files`, with the browser clock fixed at `now`
  * (local time, default 2026-10-16 09:00). `fakeTimers` instead installs a fake clock that starts at
- * `now` and runs, so a test can `page.clock.fastForward` the app's timers.
+ * `now` and runs, so a test can `page.clock.fastForward` the app's timers. `auth` boots through sign-in
+ * with that stubbed account (`google`: signed in with Google, on a fake Google Drive seeded with `files`);
+ * `providers` are the sign-in providers the stubbed helper offers (default just Microsoft).
  */
 export async function openApp(
   page: Page,
-  opts: { files?: Partial<Record<FileName, string>>; now?: string; fakeTimers?: boolean } = {},
+  opts: {
+    files?: Partial<Record<FileName, string>>;
+    now?: string;
+    fakeTimers?: boolean;
+    auth?: 'signed-out' | 'google' | 'google-expired';
+    providers?: string[];
+  } = {},
 ): Promise<void> {
   const files = opts.files ?? {};
   const now = new Date(opts.now ?? '2026-10-16T09:00:00');
   if (opts.fakeTimers) await page.clock.install({ time: now });
   else await page.clock.setFixedTime(now);
-  await page.addInitScript((seed) => {
-    (window as unknown as { __TASKAPP_SEED__: unknown }).__TASKAPP_SEED__ = seed;
-  }, files);
+  await page.addInitScript(
+    ([seed, auth, providers]) => {
+      const w = window as unknown as Record<string, unknown>;
+      w.__TASKAPP_SEED__ = seed;
+      if (auth) w.__TASKAPP_AUTH_STUB__ = auth;
+      if (providers) w.__TASKAPP_PROVIDERS__ = providers;
+    },
+    [files, opts.auth ?? null, opts.providers ?? null] as const,
+  );
   await page.goto('/');
 }
 

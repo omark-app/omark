@@ -3,6 +3,9 @@ export { AuthRequiredError, OfflineError, PreconditionFailedError } from './erro
 export { FakeOneDrive } from './fake-onedrive.ts';
 export { OneDriveAdapter } from './onedrive-adapter.ts';
 export type { DriveRoot, OneDriveAdapterOptions } from './onedrive-adapter.ts';
+export { FakeGoogleDrive } from './fake-google-drive.ts';
+export { GoogleDriveAdapter } from './google-drive-adapter.ts';
+export type { GoogleDriveAdapterOptions } from './google-drive-adapter.ts';
 export { createAuth } from './auth.ts';
 export type { Auth, AuthOptions } from './auth.ts';
 export { IdbCache, MemoryCache, migrateCache } from './cache.ts';
