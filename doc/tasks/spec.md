@@ -1,7 +1,7 @@
 # TaskApp v1 spec
 
 Status: agreed in grilling session 2026-10-16 and refined with a clickable UI prototype the same day.
-Source: [[TaskApp ideation]]. Out-of-scope ideas: [[TaskApp backlog]].
+Source: AL's first ideas note (since removed; its spirit is in [PHILOSOPHY.md](../../PHILOSOPHY.md)). Out-of-scope ideas: [the backlog](../TaskApp%20backlog.md).
 UI reference: the throwaway prototype on branch `prototype/ui` (`prototype/taskapp-ui-prototype.html`), also published at https://claude.ai/artifact/UP8SDp2tQ4Ku76a1UKS2wz. Where it and this spec disagree, this spec wins.
 
 ## 1. Goal and audience
@@ -59,7 +59,7 @@ Obsidian Tasks–compatible markdown. Tasks are one flat list; buckets are compu
 - `📅 YYYY-MM-DD` = due date. No date = Someday, or Important, not urgent when the task has `⏫` (section 7).
 - `🔁 <rule>` = repeat rule (section 6).
 - `⏫` = Important (added 2026-10-19, #19), Obsidian Tasks' high priority. It can sit anywhere in the line (every `⏫` counts as the one flag); the app writes it right after the title: `- [ ] Call the bank ⏫ 🔁 every day 📅 2026-10-20`. The other priority signs (`🔺 🔼 🔽 ⏬`) stay in the title as text.
-- `🌱` = habit (added 2026-10-26, #44): a repeating task with a finish line, `🌱` or `🌱 30` (own goal, 1–999). The app writes it after `⏫` and before `🔁`: `- [ ] Meditate 10 min ⏫ 🌱 🔁 every day 📅 2026-10-27`. It needs a `🔁` rule other than `when done`; without one it stays in the title as text. See the [habits spec](TaskApp%20habits%20spec.md).
+- `🌱` = habit (added 2026-10-26, #44): a repeating task with a finish line, `🌱` or `🌱 30` (own goal, 1–999). The app writes it after `⏫` and before `🔁`: `- [ ] Meditate 10 min ⏫ 🌱 🔁 every day 📅 2026-10-27`. It needs a `🔁` rule other than `when done`; without one it stays in the title as text. See the [habits spec](habits-spec.md).
 - Indented `- ` lines under a task are its notes.
 - Line order within the file is the manual order (section 4.3).
 - Anything above `# Tasks` is kept as it is. Files from before #38 have a `# Always` section above `# Tasks` (one `- text` line per reminder). On the next sync the app turns each such line into `- [ ] text ⏫` at the top of `# Tasks`, in the same order, and removes the section; other lines in it stay above `# Tasks`. New files start as just `# Tasks`.
@@ -75,7 +75,7 @@ Obsidian Tasks–compatible markdown. Tasks are one flat list; buckets are compu
 ```
 
 - A completed important task keeps its `⏫`: `- [x] Call the bank ⏫ ✅ 2026-10-20`. A repeating one stays important on its next date.
-- A completed habit keeps its `🌱` (without the goal): `- [x] Meditate 10 min 🌱 🔁 every day ✅ 2026-10-26`. Two more habit lines are boundaries, not completions: `- [x] {title} 🌱 🏆 {date}` (formed) and `- [-] {title} 🌱 ❌ {date}` (dropped). They have no `✅`, so they are kept as they are and never counted in the stats. Habit progress is worked out from `done.md`, never stored (see the [habits spec](TaskApp%20habits%20spec.md)).
+- A completed habit keeps its `🌱` (without the goal): `- [x] Meditate 10 min 🌱 🔁 every day ✅ 2026-10-26`. Two more habit lines are boundaries, not completions: `- [x] {title} 🌱 🏆 {date}` (formed) and `- [-] {title} 🌱 ❌ {date}` (dropped). They have no `✅`, so they are kept as they are and never counted in the stats. Habit progress is worked out from `done.md`, never stored (see the [habits spec](habits-spec.md)).
 - Nothing is deleted on completion: completing a task moves its line from `tasks.md` to `done.md` with today's date, and its notes go along as indented lines under the done line, byte for byte as they were in `tasks.md`.
 - Completing a recurring task appends its done line, with a copy of its notes, to `done.md` and moves the task in `tasks.md` (notes included) to its next date.
 - A task whose line has `🔁` text the app can't read as a rule (say `🔁 every blue moon`) may be a recurring task misread, so completing it logs the done line and leaves the task in `tasks.md` as it was. The toast says the rule can't be read; fix the rule or delete the task.
@@ -160,7 +160,7 @@ Moving a task means setting its date:
 - Left: a round complete button. Middle: the title, followed by a faint `≡` when the task has notes. Notes are **not** shown in the list; they appear in the task detail (section 11) or the phone's edit sheet. A web link in the title (`https://…`, `www.…`, or Markdown `[label](https://…)`, shown by its label) is clickable: it opens in a new browser tab, or in the default browser from the installed app, without selecting the task.
 - Right: one **meta label**, clickable to open the date picker:
   - a short date: `Thu` in Tomorrow, This week and Next week, `12 Nov` in Later; overdue tasks show their date in red (`Wed`, or `3 Oct` if more than a week ago);
-  - a habit shows its progress instead (`12/66`, in violet) and no `↻`, and is never shown as overdue (see the [habits spec](TaskApp%20habits%20spec.md));
+  - a habit shows its progress instead (`12/66`, in violet) and no `↻`, and is never shown as overdue (see the [habits spec](habits-spec.md));
   - a repeating task shows `↻` in the same place, before its date (`↻ Thu`, or just `↻` when due today); the full rule is in the tooltip and the detail;
   - no label for non-repeating tasks due today or in Someday; on hover the empty spot shows a faint `today` / `no date` so it can still be clicked (desktop only).
 
@@ -304,9 +304,9 @@ Settings in v1:
 | Date label style | `Thu` / `12 Nov` |
 | Bucket for new tasks | Today |
 | Save delay after typing | 1 s |
-| Habits (#44) | `habits` block: at most 3 in progress, goal 66, 1 miss in a row, 10% misses per attempt; shortcut `h` (see the [habits spec](TaskApp%20habits%20spec.md), section 11) |
+| Habits (#44) | `habits` block: at most 3 in progress, goal 66, 1 miss in a row, 10% misses per attempt; shortcut `h` (see the [habits spec](habits-spec.md), section 11) |
 
-The `habits` keys are `maxInProgress` (0–99, 0 = no limit), `goal` (1–999), `missesInARow` (0–99) and `missesPerAttempt` (a number, or a percentage of the goal such as `10%`); `shortcuts.habit` is a key. The ranges are in the [habits spec](TaskApp%20habits%20spec.md), section 11.
+The `habits` keys are `maxInProgress` (0–99, 0 = no limit), `goal` (1–999), `missesInARow` (0–99) and `missesPerAttempt` (a number, or a percentage of the goal such as `10%`); `shortcuts.habit` is a key. The ranges are in the [habits spec](habits-spec.md), section 11.
 
 Bucket rules themselves stay in code.
 
@@ -326,7 +326,7 @@ Two views on desktop, switched with `v` (default from config). **Phones (narrow 
 **Task list** (default):
 - One framed sheet with two panes.
 - **Left pane "tasks"**: the add input, then the buckets stacked (section 4: Today, Tomorrow, This week, Next week, Later, Someday), one-line rows (5.1).
-- **Right pane**: when a task is selected, its **detail** on top and **Important, not urgent** (section 7) right below it; with nothing selected, just the group. Habits in progress get their own **Habits** group above Important, not urgent (and a habit block in the detail); a History dialog lists formed and dropped habits (see the [habits spec](TaskApp%20habits%20spec.md)). The completion **stats** (section 8) sit at the bottom of the right pane.
+- **Right pane**: when a task is selected, its **detail** on top and **Important, not urgent** (section 7) right below it; with nothing selected, just the group. Habits in progress get their own **Habits** group above Important, not urgent (and a habit block in the detail); a History dialog lists formed and dropped habits (see the [habits spec](habits-spec.md)). The completion **stats** (section 8) sit at the bottom of the right pane.
 - **Task detail**: bucket name, editable title (wraps onto more lines when long), editable notes (one per line), the links found in the title and notes (each opens in a new tab), Due (button opening the date picker, red when overdue; a habit is never overdue, its old date reads as today) with quick chips Today / Tomorrow / This week / Next week / Someday, Repeat (button opening the repeat picker), an Important toggle (Flag), Complete and Delete buttons, and an `esc` close button. A habit also gets a habit block under the notes: its progress, Goal (its own or the default), Not a habit and Drop habit.
 - Below the sheet: the keyboard-hint strip and the save status.
 

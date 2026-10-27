@@ -1,6 +1,6 @@
 # Omark Time milestone T: plan (#53)
 
-Splits roadmap milestone T (T.1–T.11) into issues. Implements [the Omark Time spec](../Omark%20Time%20spec.md); the spike (T.2) is done and its findings are in spec section 15.1. Each code issue gets its own detailed plan when its turn comes, except T.3 and T.4, planned now in [54-time-core.md](54-time-core.md) and [55-calendar.md](55-calendar.md).
+Splits roadmap milestone T (T.1–T.11) into issues. Implements [the Omark Time spec](../time/spec.md); the spike (T.2) is done and its findings are in spec section 15.1. Each code issue gets its own detailed plan when its turn comes, except T.3 and T.4, planned now in [54-time-core.md](54-time-core.md) and [55-calendar.md](55-calendar.md).
 
 ## What changes for AL
 

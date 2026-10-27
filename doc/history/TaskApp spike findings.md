@@ -1,5 +1,7 @@
 # TaskApp spike findings
 
+> Historical, may be out of date. Kept as the record of the v1 sign-in and OneDrive spike (2026-10-16).
+
 Results of the real-device checks for the MSAL sign-in and OneDrive thin slice (build plan Task 4). Each check is recorded as PASS or FAIL with a note. If any check fails, stop and bring the findings to the user before Milestone 2.
 
 Build tested: `v1-build` at c255253 (spike screen), uploaded to Cloudflare Pages production and served at https://tasks.alipka.com on 2026-10-16. Entra app "TaskApp" in the user's own tenant (`alipkagmail.onmicrosoft.com`), personal Microsoft accounts only, redirect URIs `https://tasks.alipka.com/` and `http://localhost:5173/`.

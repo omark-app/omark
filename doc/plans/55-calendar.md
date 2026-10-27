@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript 5.9, Vitest 3, `fetch` (part 2). No new third-party dependency.
 
-**Spec:** [`doc/Omark Time spec.md`](../Omark%20Time%20spec.md), sections 6, 8, 10, 12, 13 and the spike findings in 15.1. Milestone plan: [53-omark-time-milestone.md](53-omark-time-milestone.md). Time-core plan: [54-time-core.md](54-time-core.md).
+**Spec:** [`doc/time/spec.md`](../time/spec.md), sections 6, 8, 10, 12, 13 and the spike findings in 15.1. Milestone plan: [53-omark-time-milestone.md](53-omark-time-milestone.md). Time-core plan: [54-time-core.md](54-time-core.md).
 
 ## What changes for AL
 

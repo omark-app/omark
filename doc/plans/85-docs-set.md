@@ -13,13 +13,14 @@ Roadmap item 2.3. Spec: [open source launch spec](../TaskApp%20open%20source%20l
 ## Two PRs
 
 - **PR A: new and rewritten files only.** `README.md`, `PHILOSOPHY.md`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `GOVERNANCE.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `LICENSE`, `doc/format.md`, `doc/architecture.md`, `doc/self-hosting.md`, `doc/factory.md`, and the docs test. No file is moved or renamed. The new docs link the old files where they are today.
-- **PR B: the moves**, once the coordinator says no other PR touches these files:
-  - `doc/TaskApp v1 spec.md` → `doc/tasks/spec.md`, generalised: the seven stale statements (spec section 5) fixed, the launch features added (demo, Google Drive, first run as far as built).
-  - `doc/TaskApp habits spec.md` and `doc/Omark settings page spec.md` → `doc/tasks/`.
-  - To `doc/history/`, each with a one-line "historical, may be out of date" note and no Cloudflare account or zone IDs: `TaskApp spike findings.md`, `TaskApp v1 acceptance checklist.md`, and the factory spec and cloud environment once `doc/factory.md` covers them.
-  - `doc/TaskApp ideation.md` removed (its spirit is in PHILOSOPHY). `doc/TaskApp backlog.md` stays until its items become issues or Ideas (roadmap 4.1), then goes.
-  - `doc/history/19-quick-dates-important.md` generalised as the example plan.
-  - Every link to a moved file fixed, in docs, skills and code comments.
+- **PR B: the moves**, once the coordinator says no other PR touches these files. Moves and link fixes only, so it is quick to review:
+  - `doc/TaskApp v1 spec.md` → `doc/tasks/spec.md`, `doc/TaskApp habits spec.md` → `doc/tasks/habits-spec.md`, `doc/Omark Time spec.md` → `doc/time/spec.md` (#60's `doc/time/spec.md`).
+  - To `doc/history/`, each with a one-line "historical, may be out of date" note: `TaskApp spike findings.md`, `TaskApp v1 acceptance checklist.md`. Neither holds Cloudflare account or zone IDs.
+  - `doc/TaskApp ideation.md` removed (its spirit is in PHILOSOPHY).
+  - Every relative link to a moved file fixed. Old plans keep their path mentions as the record of what they changed.
+  - Stay where they are: `doc/Omark settings page spec.md` (shared by both apps), the launch spec, the backlog (until roadmap 4.1), and `doc/plans/`.
+  - Moved to 2.5, which rewrites the factory docs and the guard: the factory spec and the cloud environment notes to `doc/history/` (code comments in `ci.yml`, `promote.yml`, `environment.ts`, `promote-check.mjs` and the guard cite the factory spec's path).
+  - Left for later content work, not a move: generalising the Tasks spec (the seven stale statements, the launch features) and `doc/history/19-quick-dates-important.md` as the example plan.
 
 ## Acceptance criteria
 
