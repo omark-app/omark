@@ -148,3 +148,15 @@ export async function sync(deps: SyncDeps, opts: { rebuild?: boolean } = {}): Pr
     state: next,
   };
 }
+
+/** Rows and the fix count from the files as this device has them, without the calendar (offline). */
+export async function readSummary(files: TextFiles, state: StateStore, now: () => number): Promise<{ rows: number; fixCount: number }> {
+  const timeZone = (await state.load()).timeZone ?? 'UTC';
+  const today = localDate(now(), timeZone);
+  const config = parseTimeConfig(await files.read(CONFIG, defaultTimeConfigText(today)), today).config;
+  const rows = [];
+  for (const year of years(config.trackFrom, windowEnd(today))) {
+    rows.push(...parseEventsFile(await files.read(eventsFileName(year), EMPTY_YEAR)).rows);
+  }
+  return { rows: rows.length, fixCount: buildFixList(rows).count };
+}
