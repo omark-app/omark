@@ -48,16 +48,22 @@ function main() {
     console.log(`${repo}: every label is up to date.`);
     return 0;
   }
-  const current = new Map(existing.map((l) => [l.name.toLowerCase(), l.name]));
+  const current = new Map(existing.map((l) => [l.name.toLowerCase(), l]));
+  // gh's own error text reaches the terminal if a call fails.
+  /** @type {import('node:child_process').ExecFileSyncOptions} */
+  const quiet = { stdio: ['ignore', 'ignore', 'inherit'] };
   for (const l of create) {
-    console.log(`create ${l.name}`);
-    if (apply) execFileSync('gh', ['api', `repos/${repo}/labels`, '-f', `name=${l.name}`, '-f', `color=${l.color}`, '-f', `description=${l.description}`], { stdio: 'ignore' });
+    console.log(`create ${l.name} (#${l.color}): ${l.description}`);
+    if (apply) execFileSync('gh', ['api', `repos/${repo}/labels`, '-f', `name=${l.name}`, '-f', `color=${l.color}`, '-f', `description=${l.description}`], quiet);
   }
   for (const l of update) {
-    const old = /** @type {string} */ (current.get(l.name.toLowerCase()));
+    const old = /** @type {Label} */ (current.get(l.name.toLowerCase()));
     console.log(`update ${l.name}`);
+    if (old.name !== l.name) console.log(`  name: ${old.name} -> ${l.name}`);
+    if (old.color.toLowerCase() !== l.color.toLowerCase()) console.log(`  colour: #${old.color} -> #${l.color}`);
+    if ((old.description ?? '') !== l.description) console.log(`  description: "${old.description ?? ''}" -> "${l.description}"`);
     if (apply) {
-      execFileSync('gh', ['api', '-X', 'PATCH', `repos/${repo}/labels/${encodeURIComponent(old)}`, '-f', `new_name=${l.name}`, '-f', `color=${l.color}`, '-f', `description=${l.description}`], { stdio: 'ignore' });
+      execFileSync('gh', ['api', '-X', 'PATCH', `repos/${repo}/labels/${encodeURIComponent(old.name)}`, '-f', `new_name=${l.name}`, '-f', `color=${l.color}`, '-f', `description=${l.description}`], quiet);
     }
   }
   if (!apply) console.log('Nothing changed. Run again with --apply to make these changes.');

@@ -13,7 +13,7 @@ The factory was first built for one person; [its original spec](history/TaskApp%
 | Community | Posts and votes on ideas in Discussions, reports bugs |
 | GitHub Actions | Checks, e2e, previews, staging and demo deploys, Promote |
 
-Maintainers are the accounts with the Maintain or Admin role on the repository, listed in `.github/CODEOWNERS` ([GOVERNANCE.md](../GOVERNANCE.md)). An agent finds out whom it works for from its own account's role (`gh api repos/<owner>/<repo>/collaborators/<login>/permission`).
+Maintainers are the accounts `.github/CODEOWNERS` names on `main`, each with the Maintain or Admin role ([GOVERNANCE.md](../GOVERNANCE.md)). Only a maintainer can change that file, and anyone who can read the repository can read it, so an agent finds out whom it works for by looking its own login up there.
 
 ## The issue flow
 
@@ -37,9 +37,9 @@ Anything else is **large**. When in doubt, large. File formats, sync and merge, 
 ### Plans for large work
 
 1. Write `doc/plans/<n>-<slug>.md` on the issue's branch: **What changes for users**, **Acceptance criteria** (checkboxes), **Tests I'll write first**, **Risks**, **Out of scope**.
-2. Post a summary on the issue, starting `Plan for #<n>:`, label it `plan-review`, and stop. A contributor may open a draft PR with the plan instead.
-3. A maintainer approves with the `plan-approved` label or a comment starting with "approved".
-4. Before writing code, the agent runs `node tools/ci/plan-approval.mjs <n>`. It counts an approval only when the account that gave it (the one that added the label, from the issue's events, or wrote the comment) has the Maintain or Admin role, only after the latest `Plan for #<n>` comment, and never from a comment an agent wrote (one with the Claude Code footer). So a contributor's agent, which runs as the contributor, can't approve its own plan, and a comment can't fake an approval. Exit code 0 means go.
+2. Post a summary on the issue (also when the plan sits in a draft PR), in a comment whose first line starts `Plan for #<n>:`, label it `plan-review`, and stop.
+3. A maintainer approves with the `plan-approved` label or a comment whose first line is "approved".
+4. Before writing code, the agent runs `node tools/ci/plan-approval.mjs <n>` (from a fork it checks the upstream repository). It counts an approval only when the account that gave it is in `CODEOWNERS` on `main`: the account that last added the label (from the issue's events), or the one that wrote the comment. Only approvals after the latest `Plan for #<n>` comment and its last edit count, and never a comment an agent wrote (one with the Claude Code footer). So a contributor's agent, which runs as the contributor, can't approve its own plan, and a comment can't fake an approval. Exit 0 means go, 1 not approved, 2 the check couldn't run.
 5. A change of direction mid-way means an updated plan, a new `Plan for #<n>` comment and a new approval.
 
 ### Labels
@@ -118,7 +118,7 @@ The guard is best-effort: it reads the command line and can't see what a script 
 ### What a contributor's agent needs
 
 - Node 22 or newer, pnpm 10, and the four commands in [AGENTS.md](../AGENTS.md#commands). Playwright's Chromium and WebKit for the e2e (`pnpm --filter tasks exec playwright install chromium webkit`).
-- `gh`, signed in as the contributor, for issues, comments and pull requests from their fork.
+- `gh` 2.48 or newer, signed in as the contributor, for issues, comments and pull requests from their fork.
 - No secrets: everything runs on fake storage and a fake calendar.
 - In a Claude cloud session, the contributor's own cloud environment pointed at their fork, with the settings below.
 

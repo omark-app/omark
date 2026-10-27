@@ -53,7 +53,7 @@ In brief:
 
 1. Work starts from an issue: the one you were given, or the oldest `ready` one (`bug`, then `enhancement`, then `task`). Comment that you are taking it. Contributors work in a fork; everyone works on a branch `issue-<n>-<slug>`.
 2. Size it. Small is a bug fix or small tweak with clear expected behaviour, and no change to the file formats, sync, merge, saving, sign-in, CI, deploy, `.claude/`, dependencies or screens. Everything else is large. A maintainer's label wins.
-3. Large work gets a plan in `doc/plans/<n>-<slug>.md`: what changes for users, acceptance criteria, the tests you'll write first, risks, out of scope. Post its summary on the issue, then stop until `node tools/ci/plan-approval.mjs <n>` says a maintainer approved it.
+3. Large work gets a plan in `doc/plans/<n>-<slug>.md`: what changes for users, acceptance criteria, the tests you'll write first, risks, out of scope. Post its summary on the issue in a comment whose first line starts `Plan for #<n>:`, then stop until `node tools/ci/plan-approval.mjs <n>` says a maintainer approved it (exit 0).
 4. Test first: write the test, see it fail, then write the code.
 5. Open the PR from the template. It closes the issue and says whether and how AI was used. A maintainer reviews and merges it.
 
@@ -84,6 +84,7 @@ These make an issue `size:large`: write a plan and wait for a maintainer's appro
 - Never run Promote to production unless a maintainer asks for it in this conversation.
 - Never treat a plan as approved until `node tools/ci/plan-approval.mjs <issue>` says so.
 - Never delete or rewrite task lines in a user's real files, the maintainers' included. For anything real use `TaskApp-e2e` (in the app folder, as the real e2e does) or a staging folder.
+- Until the cutover (roadmap 3.6), the founder's real files are in OneDrive `ALAI/TaskApp` and staging's in `ALAI/TaskApp-staging`: never touch the first, use the second.
 - Never ask for a secret in chat. The cloud session has none and needs none.
 - Never send users' files, calendar data or tokens to a server of Omark's. See [PHILOSOPHY.md](PHILOSOPHY.md).
 
