@@ -36,7 +36,7 @@ Three UTF-8 files, LF line endings, in `C:\Users\alipk\OneDrive\ALAI\TaskApp\`: 
 - Older files have a `# Always` section above `# Tasks` (one `- text` per line). Don't add one. TaskApp turns each of its lines into `- [ ] text ⏫` at the top of `# Tasks` on its next sync and removes the section.
 - Dates are `YYYY-MM-DD`, local time.
 - Notes: `    - {note}` (four spaces).
-- A `🔁` rule TaskApp can't parse stays in the title and the task counts as non-repeating. Use only the wording below.
+- A `🔁` rule TaskApp can't parse stays in the title and the task counts as non-repeating, but completing it never deletes it: the app logs the done line and keeps the task as it is (see Completing a task). Use only the wording below.
 - A `- [x]` line in `tasks.md` moves to `done.md` on the next sync, with its note lines. One with a `✅` date moves as it is. One without gets today's `✅`; if it repeats, the app also keeps the task in place as `- [ ]` on its next date (notes stay with it, and `done.md` gets a copy). Leave such lines for the app unless asked to complete the task, and then complete it as below instead of ticking it.
 
 ## Habits
@@ -97,6 +97,8 @@ Nothing is lost: a completed task's notes always go to `done.md` with it.
 The done line is `- [x] {title} ⏫ 🌱 🔁 {rule} ✅ {today}`. The `⏫` part appears only when the task is important, the `🌱` part only when it is a habit (without its goal number), the `🔁 {rule}` part only when it repeats. The `📅` date never goes to `done.md`. Under it come the task's note lines, byte for byte as they are in `tasks.md` (same indent, marker and spacing); no notes, no extra lines.
 
 Non-repeating: delete the whole block (line and notes) from `tasks.md`, then append the done line to the end of `done.md` with the task's note lines right under it.
+
+Has `🔁` text that isn't a valid rule: it may be a repeating task with a typo, so do what the app does. Append the done line and its notes to `done.md`, leave the block in `tasks.md` as it is, and tell the user the rule can't be read (fix the wording below, or delete the task).
 
 ```markdown
 - [x] Call the dentist ✅ 2026-10-19

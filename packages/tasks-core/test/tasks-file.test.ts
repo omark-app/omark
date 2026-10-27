@@ -1,6 +1,9 @@
 import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 import { expect, test } from 'vitest';
-import { parseTasks, serializeTasks, taskKey, type Item, type Task, type TasksDoc } from '../src/index.ts';
+import { parseTasks, ruleSpans, serializeTasks, taskKey, type Item, type Task, type TasksDoc } from '../src/index.ts';
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
 const SPEC = fixture('spec-example.md');
@@ -501,14 +504,25 @@ test('writes 🌱 after ⏫ and before 🔁 (#44)', () => {
   expect(tasksOf(parseTasks(text))[0]!.habit).toEqual({ goal: 30 });
 });
 
-/** True when `s` holds a character outside the BMP (an emoji such as 📅), checked without a regex. */
-const hasAstral = (s: string): boolean => [...s].some((c) => c.codePointAt(0)! > 0xffff);
+/**
+ * True when `s` holds an emoji or symbol character (U+2190–U+2BFF: arrows, ⏫ ⏳, ✅ ❌ ➕, ⛔; and everything
+ * beyond the BMP: 📅 🔁 🌱 …), checked without a regex. `\u{…}` and `\uXXXX` escapes count as what they stand for.
+ */
+const hasEmoji = (s: string): boolean => {
+  const text = s
+    .replace(/\\u\{([0-9a-fA-F]+)\}/g, (_, h: string) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, h: string) => String.fromCharCode(parseInt(h, 16)));
+  return [...text].some((c) => {
+    const cp = c.codePointAt(0)!;
+    return cp > 0xffff || (cp >= 0x2190 && cp <= 0x2bff);
+  });
+};
 
 test('rules and dates read the same where the engine misses emoji alternation with the u flag (#79)', () => {
   // iOS WebKit (AL's iPhone, iOS 26.6.1): a u-flag regex with emoji alternatives never matches.
   const exec = RegExp.prototype.exec;
   RegExp.prototype.exec = function (this: RegExp, s: string) {
-    if (this.unicode && this.source.includes('|') && hasAstral(this.source)) return null;
+    if (this.unicode && this.source.includes('|') && hasEmoji(this.source)) return null;
     return exec.call(this, s);
   };
   try {
@@ -521,23 +535,31 @@ test('rules and dates read the same where the engine misses emoji alternation wi
     expect(dep).toMatchObject({ title: 'dep', repeat: { type: 'weekly', days: [6] }, date: '2026-11-01' });
     expect(call).toMatchObject({ title: 'call #home', repeat: { type: 'monthly', day: 7 }, date: '2026-11-07' });
     expect(doc.items[3]).toMatchObject({ kind: 'done', entry: { title: 'b1', repeat: { type: 'daily' }, doneOn: '2026-10-24' } });
+    // The add box's word highlighting stops the rule at the same place.
+    const typed = 'leki 🔁 every 2 days ✅ x';
+    expect(ruleSpans(typed)).toEqual([[5, typed.indexOf('✅')]]);
   } finally {
     RegExp.prototype.exec = exec;
   }
 });
 
 test('no regex in tasks-core holds an emoji (#79)', () => {
-  // Such regexes fail on iOS WebKit, so field emoji are found with indexOf instead.
-  const dir = new URL('../src/', import.meta.url);
+  // Such regexes fail on iOS WebKit, so field emoji are found with indexOf instead. Every regex literal
+  // is checked, and every RegExp(…) call, which must be given a plain string with no emoji.
+  const root = fileURLToPath(new URL('../src/', import.meta.url));
   const offenders: string[] = [];
-  for (const name of readdirSync(dir).filter((f) => f.endsWith('.ts'))) {
-    readFileSync(new URL(name, dir), 'utf8').split('\n').forEach((line, i) => {
-      const code = line.trim();
-      if (code.startsWith('//') || code.startsWith('*')) return;
-      const literal = /(?:^|[=(,:!&|?{};\s])\/(?![*/])((?:[^/\\\n[]|\\.|\[(?:[^\]\\\n]|\\.)*\])+)\/[dgimsuyv]*/.exec(code);
-      const built = /new RegExp\(/.test(code) && /['"`][dgimsy]*u[dgimsy]*['"`]\s*\)/.test(code);
-      if ((literal && hasAstral(literal[1]!)) || built) offenders.push(`${name}:${i + 1}`);
-    });
+  for (const name of readdirSync(root, { recursive: true, encoding: 'utf8' }).filter((f) => f.endsWith('.ts'))) {
+    const file = ts.createSourceFile(name, readFileSync(join(root, name), 'utf8'), ts.ScriptTarget.Latest, true);
+    const flag = (node: ts.Node) => offenders.push(`${name}:${file.getLineAndCharacterOfPosition(node.getStart()).line + 1}`);
+    const visit = (node: ts.Node): void => {
+      if (ts.isRegularExpressionLiteral(node) && hasEmoji(node.text)) flag(node);
+      if ((ts.isCallExpression(node) || ts.isNewExpression(node)) && ts.isIdentifier(node.expression) && node.expression.text === 'RegExp') {
+        const pattern = node.arguments?.[0];
+        if (!pattern || !ts.isStringLiteralLike(pattern) || hasEmoji(pattern.text)) flag(node);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(file);
   }
   expect(offenders).toEqual([]);
 });
