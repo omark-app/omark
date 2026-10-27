@@ -6,6 +6,7 @@
   import { createTaskEdit } from '../lib/task-edit.svelte.ts';
   import HabitBlock from './HabitBlock.svelte';
   import ShortcutField from './ShortcutField.svelte';
+  import TaskLinks from './TaskLinks.svelte';
 
   let {
     store,
@@ -119,6 +120,7 @@
       onblur={blurred}
     ></textarea>
   </div>
+  <TaskLinks title={edit.title} notes={edit.notes} />
   {#if task.habit && progress}<HabitBlock {store} {task} {progress} />{/if}
   <div class="fields">
     <div class="row">

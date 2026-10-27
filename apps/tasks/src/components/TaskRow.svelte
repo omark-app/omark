@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { describeRepeat, habitLabel, metaLabel } from '@omark/tasks-core';
+  import { describeRepeat, habitLabel, linkParts, metaLabel } from '@omark/tasks-core';
   import type { DateLabelStyle, HabitProgress, Task, WeekCtx } from '@omark/tasks-core';
 
   let {
@@ -36,6 +36,7 @@
   });
 
   const label = $derived(metaLabel(task, ctx, labelStyle));
+  const parts = $derived(linkParts(task.title));
   const empty = $derived(label.text === null && !label.repeat);
   const hab = $derived(habit ? habitLabel(task, habit, ctx, labelStyle) : null);
   const tip = $derived(
@@ -48,7 +49,8 @@
 <div bind:this={el} class="task" class:sel={selected} class:imp={task.important} class:habit={hab !== null} data-testid="task-row" data-id={task.id} data-important={task.important === true} data-habit={hab !== null} {draggable} onclick={onselect} {ondragstart} {ondragend}>
   <button class="check" data-testid="task-check" aria-label="Complete {task.title}" onclick={(e) => { e.stopPropagation(); oncomplete?.(); }}></button>
   <div class="title">
-    {task.title}{#if task.notes.length > 0}<span class="ni" title="{task.notes.length} note{task.notes.length > 1 ? 's' : ''}">≡</span>{/if}
+    <!-- A link opens in a new tab (in the installed app, the default browser), never selecting the row. -->
+    {#each parts as p, i (i)}{#if p.href}<a href={p.href} target="_blank" rel="noopener noreferrer" onclick={(e) => e.stopPropagation()}>{p.text}</a>{:else}{p.text}{/if}{/each}{#if task.notes.length > 0}<span class="ni" title="{task.notes.length} note{task.notes.length > 1 ? 's' : ''}">≡</span>{/if}
     {#if hab?.tag}<span class="htag" class:last={habit?.lastChance} data-testid="habit-tag" aria-label={hab.tag}><span class="htext">{hab.tag}</span></span>{/if}
   </div>
   {#if hab && habit}
@@ -91,6 +93,8 @@
   .hbar { display: inline-block; width: 44px; height: 4px; margin: 0 6px; border-radius: 2px; background: color-mix(in srgb, var(--habit) 20%, var(--surface)); vertical-align: middle; overflow: hidden; }
   .hbar span { display: block; height: 4px; background: var(--habit); }
   .hwhen { margin-left: 4px; }
+  .title a { color: inherit; text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 2px; cursor: pointer; }
+  .title a:hover { text-decoration-color: currentColor; }
   .ni { margin-left: 6px; font-size: 12px; color: var(--faint); }
   .meta { margin-top: 1px; padding: 1px 5px; border: 0; border-radius: 5px; background: none; cursor: pointer; font: 12px/1.45 var(--mono); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .meta:hover { background: var(--chip); color: var(--ink); }
