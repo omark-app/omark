@@ -82,9 +82,10 @@ jobs:
       - run: pnpm --filter tasks e2e --project=${{ matrix.project }}
       - run: pnpm --filter site e2e --project=${{ matrix.project }}
   tasks-preview:
-    # Same-repo PRs only: a fork's PR has no secrets, and its code must never meet ours.
+    # Same-repo PRs only: a fork's PR has no secrets, and its code must never meet ours. It waits for check
+    # but not e2e, so AL can look while e2e runs; the PR is ready only once e2e is green too.
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && vars.DEPLOY_ENABLED == 'true'
-    needs: [check, e2e]
+    needs: [check]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -275,8 +276,9 @@ jobs:
   site-preview:
     # The omark.app landing site (apps/site). Same-repo PRs only, like tasks-preview, and only when the PR touches
     # the site or what it shares (the design tokens, the lockfile): other PRs skip every step after the check.
+    # Like tasks-preview, it waits for check but not e2e.
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && vars.DEPLOY_ENABLED == 'true'
-    needs: [check, e2e]
+    needs: [check]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

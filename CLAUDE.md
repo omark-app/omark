@@ -26,11 +26,13 @@ A PWA that keeps AL's tasks in plain Markdown files on his OneDrive. Specs: `doc
 ## Definition of done
 
 - [ ] A test written first that failed before the change; the PR quotes the failing line.
-- [ ] All four commands pass here, then in CI.
+- [ ] `pnpm typecheck`, `pnpm test`, the build and the e2e specs the change touches pass here; the full `pnpm e2e` passes in CI.
 - [ ] The PR follows the template, closes the issue and has the preview link.
 - [ ] A fresh-eyes review subagent (no memory of writing it) checked the diff against the issue or plan, and its findings are fixed.
 - [ ] Large work: every acceptance criterion in the plan is met or explicitly moved out.
 - [ ] Docs for changed behaviour are updated (README, the v1 spec, the `taskapp-files` skill when formats change).
+
+When main moves and the PR conflicts, merge main in (never rebase pushed work). For `pnpm-lock.yaml`, take main's copy and run `pnpm install`.
 
 Existing tests change only when the behaviour they cover is meant to change; the PR says which and why. When sync or storage changed, list `pnpm e2e:real` (manual) under "try this".
 
