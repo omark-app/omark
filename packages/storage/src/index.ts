@@ -13,3 +13,13 @@ export { IdbDrive } from './idb-drive.ts';
 export type { CachedFile, LocalCache } from './cache.ts';
 export { FileSync } from './file-sync.ts';
 export type { FileSyncOptions, SyncStatus } from './file-sync.ts';
+export {
+  conflictCopies,
+  folderAccess,
+  folderSupported,
+  LocalFolderAdapter,
+  pickFolder,
+  requestFolderAccess,
+  SavedFolder,
+} from './local-folder.ts';
+export type { FolderChoice, FolderFileHandle, FolderHandle, FolderPermission, FolderPicker } from './local-folder.ts';

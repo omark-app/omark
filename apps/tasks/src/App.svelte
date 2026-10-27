@@ -3,7 +3,8 @@
   import type { DoneEntry, ISODate } from '@omark/tasks-core';
   import SettingsPage from '@omark/settings/SettingsPage.svelte';
   import { BRAND } from './brand.ts';
-  import { boot } from './lib/boot.ts';
+  import { boot, chooseFolder } from './lib/boot.ts';
+  import { conflictNote } from './lib/folder-note.ts';
   import type { BootResult } from './lib/boot.ts';
   import TaskListView from './components/TaskListView.svelte';
   import WeekBoardView from './components/WeekBoardView.svelte';
@@ -43,6 +44,10 @@
   let result = $state.raw<BootResult | null>(null);
   let error = $state<string | null>(null);
   let signInError = $state<string | null>(null);
+  /** Sync clients' conflict copies in the picked folder. */
+  let conflicts = $state<string[]>([]);
+  /** The browser or the user refused access to the picked folder. */
+  let folderRefused = $state(false);
   let sheet = $state<OpenSheet | null>(null);
   // Settings is its own page at #settings, so browser back leaves it.
   const loadedOnSettings = location.hash === '#settings';
@@ -65,6 +70,7 @@
     (r) => {
       result = r;
       if (r.kind === 'ready') r.updates.setBusy(busy);
+      void checkConflicts();
     },
     (e: unknown) => {
       error = message(e);
@@ -173,6 +179,36 @@
   }
 
   /**
+   * Picks a folder on this computer and starts again on it. `again`: the folder in use is picked once more
+   * (it moved, or access was refused); its offline copy carries over.
+   */
+  async function useFolder(again = false): Promise<void> {
+    signInError = null;
+    try {
+      if (await chooseFolder({ again })) window.location.reload();
+    } catch (e) {
+      signInError = `Could not open the folder: ${message(e)}`;
+    }
+  }
+
+  /** The banner's Allow access: asks for the picked folder again (needs this click), then re-reads it. */
+  async function allowFolder(): Promise<void> {
+    if (result?.kind !== 'ready' || !result.folder) return;
+    try {
+      folderRefused = !(await result.folder.allow());
+    } catch (e) {
+      signInError = `Could not open the folder: ${message(e)}`;
+    }
+    void checkConflicts();
+  }
+
+  /** Looks for conflict copies in the picked folder: at start and when the app regains focus. */
+  async function checkConflicts(): Promise<void> {
+    if (result?.kind !== 'ready' || !result.folder) return;
+    conflicts = await result.folder.conflicts();
+  }
+
+  /**
    * Something is in progress (a sheet, search, a drag, a focused field or a draft in the add field), so a
    * newer build waits instead of reloading the page under the user. Edits in the task detail need no
    * rule: the store commits them before it saves.
@@ -212,7 +248,7 @@
   });
 </script>
 
-<svelte:window {onkeydown} {onhashchange} />
+<svelte:window {onkeydown} {onhashchange} onfocus={() => void checkConflicts()} />
 
 {#if error !== null}
   <div class="notice">
@@ -223,14 +259,24 @@
 {:else if result === null}
   <p class="notice">Loading…</p>
 {:else if result.kind === 'signin'}
-  <SignIn providers={result.providers} onsignin={signIn} error={signInError} />
+  <SignIn providers={result.providers} onsignin={signIn} folders={result.folders} onfolder={() => useFolder()} error={signInError} />
 {:else}
   {@const store = result.store}
   {@const provider = result.provider}
-  {@const onSignIn = result.auth ? () => signIn(provider) : undefined}
+  {@const onSignIn = result.auth ? () => signIn(provider) : result.folder ? allowFolder : undefined}
+  {@const reconnect = result.folder ? 'allow' : 'signin'}
+  {@const folderNote = conflictNote(conflicts)}
   {@const storageName = result.storageName}
   {@const updates = result.updates}
   {#if signInError}<p class="signin-error" role="alert">{signInError}</p>{/if}
+  {#if folderNote}<p class="folder-note" role="status" data-testid="folder-note">{folderNote}</p>{/if}
+  <!-- A folder that was moved or renamed, or whose access was refused, is picked again from here. -->
+  {#if result.folder && (folderRefused || store.status === 'offline')}
+    <p class="folder-note" role="status" data-testid="folder-again">
+      {folderRefused ? `Access to ${storageName} was refused.` : `If ${storageName} was moved or renamed, pick it again.`}
+      <button type="button" class="again" onclick={() => useFolder(true)}>Pick the folder again</button>
+    </p>
+  {/if}
   {#if onSettings}
     <div class="settings-page">
       <SettingsPage
@@ -247,7 +293,7 @@
     </div>
   {:else}
     {#if store.view === 'board' && !phone.value}
-      <WeekBoardView {store} onCommand={openSheet} onDropPickDate={openDropDate} {onSignIn} {storageName} onHistory={() => (historyOpen = true)} {updates} onUpdate={update} />
+      <WeekBoardView {store} onCommand={openSheet} onDropPickDate={openDropDate} {onSignIn} {storageName} {reconnect} onHistory={() => (historyOpen = true)} {updates} onUpdate={update} />
     {:else}
       <TaskListView
         {store}
@@ -255,6 +301,7 @@
         onDropPickDate={openDropDate}
         {onSignIn}
         {storageName}
+        {reconnect}
         onSearch={() => search.open()}
         onHistory={() => (historyOpen = true)}
         {updates}
@@ -292,5 +339,7 @@
   .retry { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 14px; font: 500 14px var(--sans); cursor: pointer; }
   /* The page has its own padding: it takes over the app's side and top padding (the notch inset stays). */
   .settings-page { margin: -18px -16px 0; }
+  .folder-note { max-width: 1160px; margin: 0 auto 12px; font: 12px/1.5 var(--mono); color: var(--ink); }
+  .again { margin-left: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 4px 11px; font: 500 13px var(--sans); cursor: pointer; }
   .signin-error { max-width: 1160px; margin: 0 auto 12px; font: 12px var(--mono); color: var(--danger); }
 </style>

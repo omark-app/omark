@@ -1,13 +1,18 @@
 <script lang="ts">
   import type { AppStore } from '../lib/store.svelte.ts';
   import { bannerText, QUIET_SYNC_MS } from '../lib/sync-banner.ts';
+  import type { Reconnect } from '../lib/sync-banner.ts';
 
-  /** `onsignin` adds a Sign in button while a sign-in is needed. `storageName` is what the texts call the storage. */
+  /**
+   * `onsignin` adds a button while a sign-in is needed: Sign in, or Allow access when `reconnect` is
+   * `allow` (a picked folder). `storageName` is what the texts call the storage.
+   */
   let {
     store,
     onsignin,
     storageName = 'OneDrive',
-  }: { store: AppStore; onsignin?: () => void; storageName?: string } = $props();
+    reconnect = 'signin',
+  }: { store: AppStore; onsignin?: () => void; storageName?: string; reconnect?: Reconnect } = $props();
 
   // A sync that is quick stays quiet; one still running after a few seconds gets the banner too.
   let slow = $state(false);
@@ -20,14 +25,14 @@
     return () => clearTimeout(timer);
   });
 
-  const text = $derived(bannerText(store.status, slow, store.syncedAt, new Date(), storageName));
+  const text = $derived(bannerText(store.status, slow, store.syncedAt, new Date(), storageName, reconnect));
 </script>
 
 {#if text}
   <div class="banner" class:problem={store.status !== 'syncing'} role="status" data-testid="sync-banner">
     <span>{text}</span>
     {#if store.status === 'signin' && onsignin}
-      <button type="button" class="signin" onclick={onsignin}>Sign in</button>
+      <button type="button" class="signin" onclick={onsignin}>{reconnect === 'allow' ? 'Allow access' : 'Sign in'}</button>
     {/if}
   </div>
 {/if}

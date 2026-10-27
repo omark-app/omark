@@ -15,6 +15,7 @@
   import TaskDetail from './TaskDetail.svelte';
   import { createCommands, createPhone, selectedTask } from '../lib/commands.svelte.ts';
   import type { OnCommand, OnDropPickDate } from '../lib/commands.svelte.ts';
+  import type { Reconnect } from '../lib/sync-banner.ts';
 
   let {
     store,
@@ -22,6 +23,7 @@
     onDropPickDate = () => {},
     onSignIn,
     storageName,
+    reconnect,
     onHistory = () => {},
     updates,
     onUpdate,
@@ -32,6 +34,8 @@
     onSignIn?: () => void;
     /** What the sync banner calls the storage (OneDrive when not given). */
     storageName?: string;
+    /** How the sync banner's button reaches the storage again: sign in (the default), or allow access to a folder. */
+    reconnect?: Reconnect;
     onHistory?: () => void;
     updates?: Updates;
     onUpdate?: () => void;
@@ -79,7 +83,7 @@
     <StatusLine status={store.status} {updates} onupdate={onUpdate} />
   </aside>
   <div class="main">
-    <SyncBanner {store} onsignin={onSignIn} {storageName} />
+    <SyncBanner {store} onsignin={onSignIn} {storageName} {reconnect} />
     {#if store.cacheWarning}<p class="warn" role="status">{store.cacheWarning}</p>{/if}
     {#if store.configError}<ConfigBanner error={store.configError} />{/if}
     <AddInput bind:this={addInput} {store} />

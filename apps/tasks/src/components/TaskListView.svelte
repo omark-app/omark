@@ -18,6 +18,7 @@
   import { rowGestures } from '../lib/gestures.ts';
   import { applyDrop } from '../lib/drag/drop-target.ts';
   import type { OnCommand, OnDropPickDate } from '../lib/commands.svelte.ts';
+  import type { Reconnect } from '../lib/sync-banner.ts';
 
   let {
     store,
@@ -25,6 +26,7 @@
     onDropPickDate = () => {},
     onSignIn,
     storageName,
+    reconnect,
     onSearch,
     onHistory = () => {},
     updates,
@@ -36,6 +38,8 @@
     onSignIn?: () => void;
     /** What the sync banner calls the storage (OneDrive when not given). */
     storageName?: string;
+    /** How the sync banner's button reaches the storage again: sign in (the default), or allow access to a folder. */
+    reconnect?: Reconnect;
     onSearch?: () => void;
     onHistory?: () => void;
     updates?: Updates;
@@ -63,7 +67,7 @@
 <svelte:window {onkeydown} />
 
 <div class="wrap">
-  <SyncBanner {store} onsignin={onSignIn} {storageName} />
+  <SyncBanner {store} onsignin={onSignIn} {storageName} {reconnect} />
   {#if store.cacheWarning}<p class="warn" role="status">{store.cacheWarning}</p>{/if}
   {#if store.configError}<ConfigBanner error={store.configError} />{/if}
   <!-- Phones have no footer: the save status sits beside the stats (problems are in the sync banner above). -->

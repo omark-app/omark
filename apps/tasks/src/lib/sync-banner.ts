@@ -1,6 +1,8 @@
 import { dayMonth, toISODate, weekCtx, weekdayShort } from '@omark/tasks-core';
 import type { SyncStatus } from '@omark/storage';
 
+export type Reconnect = 'signin' | 'allow';
+
 /** `syncing` stays quiet (the faint status word) unless it lasts longer than this. */
 export const QUIET_SYNC_MS = 4000;
 
@@ -19,6 +21,7 @@ export function sinceText(at: Date, now: Date): string {
  * The banner for a sync that is not fine, or null when the faint status word says enough: `saved`, and
  * `syncing` until it has lasted `QUIET_SYNC_MS` (`slow`). `syncedAt` is when this device last had every
  * file in step with the storage (`storageName`); the list on screen is that copy plus edits made since.
+ * `reconnect` is how the storage is reached again: `signin` for an account, `allow` for a picked folder.
  */
 export function bannerText(
   status: SyncStatus,
@@ -26,6 +29,7 @@ export function bannerText(
   syncedAt: Date | null,
   now: Date,
   storageName = 'OneDrive',
+  reconnect: Reconnect = 'signin',
 ): string | null {
   const since = syncedAt ? ` since ${sinceText(syncedAt, now)}` : '';
   switch (status) {
@@ -36,6 +40,6 @@ export function bannerText(
     case 'offline':
       return `Can't reach ${storageName}${since} — showing your last saved copy`;
     case 'signin':
-      return `Sign in again to reach ${storageName}${since} — showing your last saved copy`;
+      return `${reconnect === 'allow' ? 'Allow access' : 'Sign in'} again to reach ${storageName}${since} — showing your last saved copy`;
   }
 }
