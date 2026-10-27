@@ -18,11 +18,13 @@
 {#if store.phase === 'storage'}
   <section class="card">
     <h2>Where should the files go?</h2>
-    <p class="muted">Omark Time keeps a folder "Omark Time" with projects.csv, config.yaml and one CSV of hours per year.</p>
+    <p class="muted">Omark Time keeps projects.csv, config.yaml and one CSV of hours per year, in a folder "Omark Time" in Google Drive, or in a folder you pick.</p>
     <div class="choices">
       <button class="primary" onclick={() => store.chooseStorage('google-drive')}>Google Drive</button>
       <button class="secondary" disabled title="Coming soon">OneDrive</button>
-      <button class="secondary" disabled title="Coming soon">A folder on this computer</button>
+      {#if store.canPickFolder}
+        <button class="secondary" onclick={() => store.chooseStorage('local-folder')}>A folder on this computer</button>
+      {/if}
     </div>
   </section>
 {:else}

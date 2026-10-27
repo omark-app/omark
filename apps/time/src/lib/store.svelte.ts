@@ -13,8 +13,11 @@ import { readSummary, sync } from './sync.ts';
 import type { SyncResult } from './sync.ts';
 
 export type Phase = 'loading' | 'signin' | 'storage' | 'calendars' | 'ready' | 'error';
-/** `offline`: Google or the storage can't be reached; `signin`: the sign-in has lapsed or lacks a permission. */
-export type SyncState = 'syncing' | 'synced' | 'offline' | 'signin' | 'failed';
+/**
+ * `offline`: Google or the storage can't be reached; `signin`: the sign-in has lapsed or lacks a permission;
+ * `folder`: the browser wants permission for the folder on this computer again (`allowFolder`, from a click).
+ */
+export type SyncState = 'syncing' | 'synced' | 'offline' | 'signin' | 'folder' | 'failed';
 /** `running`: patches are going out; `colourLeft` says how many. */
 export type ColourState = ColourOutcome | 'running';
 
@@ -40,6 +43,10 @@ export class TimeStore {
   calendarsError = $state<string | null>(null);
   config = $state<TimeConfig | null>(null);
   storage = $state<StorageKind | null>(null);
+  /** What the texts call the storage: "Google Drive", or "the folder Hours". */
+  storageName = $state('');
+  /** The browser's permission for the folder was refused when asked. */
+  folderRefused = $state(false);
   /** Sign-out was asked for while a change had not reached the storage yet; `signOut({ anyway: true })` goes on. */
   signOutPending = $state(false);
 
@@ -54,6 +61,11 @@ export class TimeStore {
 
   constructor(private readonly deps: AppDeps) {}
 
+  /** The first run offers a folder on this computer only where the browser can pick one. */
+  get canPickFolder(): boolean {
+    return this.deps.canPickFolder;
+  }
+
   async start(): Promise<void> {
     this.stopped = false;
     try {
@@ -67,11 +79,11 @@ export class TimeStore {
       return;
     }
     const prefs = await this.deps.prefs.load();
-    if (!prefs.storage) {
+    // A folder picked on another browser, or one IndexedDB lost, is picked again.
+    if (!prefs.storage || !(await this.open(prefs.storage))) {
       this.phase = 'storage';
       return;
     }
-    this.open(prefs.storage);
     if (!prefs.started) {
       this.phase = 'calendars';
       await this.loadCalendars();
@@ -88,13 +100,43 @@ export class TimeStore {
     });
   }
 
-  /** First run, step 1. Google Drive needs Drive access added to the sign-in first. */
+  /**
+   * First run, step 1. Google Drive needs Drive access added to the sign-in first. A folder on this computer
+   * needs the picker, which must open straight from the click, before anything else is awaited.
+   */
   chooseStorage(kind: StorageKind): Promise<void> {
     return this.guard(async () => {
+      if (kind === 'local-folder') {
+        if (!(await this.deps.pickFolder())) return;
+        await this.deps.prefs.save({ ...(await this.deps.prefs.load()), storage: kind });
+        this.place = null;
+        await this.start();
+        return;
+      }
       const prefs = await this.deps.prefs.load();
       if (!prefs.askedDrive) await this.deps.auth.addAccess('drive');
       await this.deps.prefs.save({ ...prefs, storage: kind, askedDrive: true });
       await this.start();
+    });
+  }
+
+  /** The browser wants permission for the folder again: asks (from a click), then syncs. */
+  allowFolder(): Promise<void> {
+    return this.guard(async () => {
+      if (!this.place?.folder) return;
+      this.folderRefused = !(await this.place.folder.allow());
+      if (!this.folderRefused) await this.syncNow();
+    });
+  }
+
+  /** The folder moved or was renamed: picks it again, keeping this device's copy of its files. */
+  pickFolderAgain(): Promise<void> {
+    return this.guard(async () => {
+      if (!(await this.deps.pickFolder({ again: true }))) return;
+      this.folderRefused = false;
+      this.place = null;
+      await this.open('local-folder');
+      await this.syncNow();
     });
   }
 
@@ -185,7 +227,7 @@ export class TimeStore {
       this.stopped = true;
       await this.waiting?.catch(() => {});
       await this.running?.catch(() => {});
-      if (!opts.anyway && this.place && this.place.files.status() !== 'saved') {
+      if (!opts.anyway && this.place && (await this.place.files.hasUnsynced())) {
         this.signOutPending = true;
         this.stopped = false;
         return;
@@ -196,6 +238,8 @@ export class TimeStore {
       await this.deps.prefs.save({ ...FRESH_PREFS });
       this.place = null;
       this.storage = null;
+      this.storageName = '';
+      this.folderRefused = false;
       this.last = null;
       this.config = null;
       this.calendars = [];
@@ -220,19 +264,27 @@ export class TimeStore {
     }
   }
 
-  private open(kind: StorageKind): void {
-    if (this.storage === kind && this.place) return;
+  /** Opens the place the files live in; false when it can't be (no folder picked on this device). */
+  private async open(kind: StorageKind): Promise<boolean> {
+    if (this.storage === kind && this.place) return true;
+    const place = await this.deps.openPlace(kind);
+    if (!place) return false;
     this.storage = kind;
-    this.place = this.deps.openPlace(kind);
-    this.place.files.onStatus(() => {
+    this.storageName = place.folder ? `the folder ${place.folder.name}` : 'Google Drive';
+    this.place = place;
+    place.files.onStatus(() => {
       if (this.sync === 'synced') this.sync = this.filesState('synced');
     });
+    return true;
   }
 
   /** The storage's own state where it is worse than `ok`: FileSync keeps write failures to its status. */
   private filesState(ok: SyncState): SyncState {
     const files = this.place?.files.status();
-    return files === 'offline' ? 'offline' : files === 'signin' ? 'signin' : ok;
+    if (files === 'offline') return 'offline';
+    // For a folder, "sign in" means the browser wants permission again.
+    if (files === 'signin') return this.place?.folder ? 'folder' : 'signin';
+    return ok;
   }
 
   /** Runs `work` once the lock is free, holding it meanwhile. */
@@ -252,6 +304,12 @@ export class TimeStore {
     const place = this.place;
     this.sync = 'syncing';
     try {
+      // Without permission every read of the folder fails; the copy on this device shows until it is given.
+      if (place.folder && (await place.folder.access()) !== 'granted') {
+        this.sync = 'folder';
+        Object.assign(this, await readSummary(place.files, place.state, this.deps.now));
+        return;
+      }
       const result = await sync({ source: this.deps.source, files: place.files, state: place.state, now: this.deps.now }, opts);
       this.last = result;
       this.config = result.config;
