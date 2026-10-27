@@ -22,3 +22,8 @@ export const BUILD_NUMBER: number | null = typeof __BUILD_NUMBER__ === 'number' 
 export const IS_DEMO: boolean = STORAGE_MODE === 'demo';
 /** Where the demo's "Use it for real" link goes (`VITE_REAL_USE_URL`); omark.app when unset. */
 export const REAL_USE_URL: string = (import.meta.env.VITE_REAL_USE_URL ?? '').trim() || 'https://omark.app';
+/**
+ * The start of every IndexedDB name the app uses. The demo has its own, so it never reads or wipes a real build's
+ * copy where both share an origin (localhost).
+ */
+export const DB_PREFIX: string = IS_DEMO ? 'omark-time-demo' : 'omark-time';

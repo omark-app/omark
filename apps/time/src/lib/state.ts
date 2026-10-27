@@ -1,6 +1,7 @@
 import { createStore, del, get, set } from 'idb-keyval';
 import type { UseStore } from 'idb-keyval';
 import type { ColourPatch } from '@omark/time-core';
+import { DB_PREFIX } from '../env.ts';
 
 /** One colour patch still to send; `at` (the event's start, ms) orders the queue newest first. */
 export interface ColourJob {
@@ -71,7 +72,7 @@ export class IdbState implements StateStore {
     private readonly key: string,
     store?: UseStore,
   ) {
-    this.store = store ?? createStore('omark-time-state', 'state');
+    this.store = store ?? createStore(`${DB_PREFIX}-state`, 'state');
   }
 
   async load(): Promise<DeviceState> {

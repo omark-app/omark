@@ -3,6 +3,7 @@ import { demoSeed } from '@omark/calendar';
 import type { CalendarEvent, CalendarInfo } from '@omark/calendar';
 import { IdbCache, IdbDrive } from '@omark/storage';
 import { defaultTimeConfigText, localDate, setTimeConfig } from '@omark/time-core';
+import { DB_PREFIX } from '../env.ts';
 import { CONFIG, PROJECTS } from './files.ts';
 import type { DevicePrefs } from './prefs.ts';
 
@@ -25,14 +26,39 @@ export function demoFiles(today: string): Record<string, string> {
 }
 
 /**
- * Empties every store the demo keeps in this browser: the fake calendar, its drive, this device's choices,
- * the sync state and the copy of the files. The next open seeds the demo again. (The stores are emptied, not
- * deleted: the page holds them open, and a delete would wait for it to close.)
+ * Empties every store the demo keeps in this browser: the copy of the files (first, so it can't write a stale
+ * copy back to the drive), the fake calendar, its drive, this device's choices and the sync state. The next
+ * open seeds the demo again. Run at start-up (`takeDemoReset`), before anything opens them.
  */
 export async function resetDemo(): Promise<void> {
-  await clear(createStore('omark-time-fake', 'fake'));
-  await new IdbDrive('omark-time-fake-drive').clear();
-  await clear(createStore('omark-time-device', 'prefs'));
-  await clear(createStore('omark-time-state', 'state'));
-  await new IdbCache('omark-time-cache-google-drive').clear();
+  await new IdbCache(`${DB_PREFIX}-cache-google-drive`).clear();
+  await clear(createStore(`${DB_PREFIX}-fake`, 'fake'));
+  await new IdbDrive(`${DB_PREFIX}-fake-drive`).clear();
+  await clear(createStore(`${DB_PREFIX}-device`, 'prefs'));
+  await clear(createStore(`${DB_PREFIX}-state`, 'state'));
+}
+
+/** The part of `sessionStorage` the reset flag needs. */
+export type Session = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+
+const RESET_FLAG = 'omark-time-demo-reset';
+
+/** "Reset demo": the reset happens at the next start (a reload follows), when nothing is running yet. */
+export function requestDemoReset(session: Session): void {
+  try {
+    session.setItem(RESET_FLAG, '1');
+  } catch {
+    // Storage blocked (a private window): the reload just reopens the demo as it was.
+  }
+}
+
+/** True once after `requestDemoReset`. */
+export function takeDemoReset(session: Session): boolean {
+  try {
+    const asked = session.getItem(RESET_FLAG) === '1';
+    session.removeItem(RESET_FLAG);
+    return asked;
+  } catch {
+    return false;
+  }
 }

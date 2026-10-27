@@ -2,7 +2,7 @@
 // Checks that the demo is live and has no sign-in helper: `/` must be the app's HTML page, and /api/auth/login
 // must not be answered by the helper (a redirect or JSON). Pages answers an unknown path with 404 or, having no
 // 404.html, with the app's page; both are fine. The helper would mean functions/ was deployed with the demo.
-// Run by CI with DEMO_URL (the workflow fills it from the repository variable TASKS_DEMO_URL).
+// Run by CI with DEMO_URL (each demo job fills it from its app's repository variable: TASKS_DEMO_URL, TIME_DEMO_URL).
 
 import { pathToFileURL } from 'node:url';
 
@@ -53,7 +53,7 @@ export async function checkDemo({
     const type = res.headers.get('content-type') ?? '';
     if (res.status === 404 && !type.includes('json')) return '';
     if (res.status === 200 && type.startsWith('text/html')) return '';
-    return `${login} answers ${answer(res)}: the sign-in helper is live on the demo. Deploy from apps/tasks so functions/ is left out.`;
+    return `${login} answers ${answer(res)}: the sign-in helper is live on the demo. Deploy from the app's folder (apps/tasks, apps/time) so functions/ is left out.`;
   }
 }
 

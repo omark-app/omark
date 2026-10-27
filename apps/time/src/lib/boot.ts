@@ -12,10 +12,10 @@ import {
 } from '@omark/storage';
 import type { FolderPermission, StorageAdapter } from '@omark/storage';
 import { localDate } from '@omark/time-core';
-import { GOOGLE_FOLDER, STORAGE_MODE } from '../env.ts';
+import { DB_PREFIX, GOOGLE_FOLDER, STORAGE_MODE } from '../env.ts';
 import { createTimeAuth } from './auth.ts';
 import type { TimeAuth } from './auth.ts';
-import { DEMO_PREFS, demoFiles, demoStart } from './demo.ts';
+import { DEMO_PREFS, demoFiles, demoStart, resetDemo, takeDemoReset } from './demo.ts';
 import { openFake } from './fake.ts';
 import { FolderFiles } from './files.ts';
 import { IdbPrefs } from './prefs.ts';
@@ -57,7 +57,7 @@ export interface AppDeps {
 const FOLDER_DB = 'omark-time:picked-folder';
 const PICKER_ID = 'omark-time';
 
-const cacheOf = (name: string) => new IdbCache(`omark-time-cache-${name}`);
+const cacheOf = (name: string) => new IdbCache(`${DB_PREFIX}-cache-${name}`);
 
 function filesOn(adapter: StorageAdapter, cacheName: string, now: () => number): FolderFiles {
   // The day only matters for the defaults of a config.yaml merge; UTC is close enough for that.
@@ -109,6 +109,8 @@ export async function bootDeps(): Promise<AppDeps> {
     const prefs = new IdbPrefs();
     let fake;
     if (STORAGE_MODE === 'demo') {
+      // "Reset demo" asked for a fresh start: clear before anything opens, so nothing running can write back.
+      if (takeDemoReset(sessionStorage)) await resetDemo();
       // Two weeks around today in the visitor's zone, past the first run, signed in with edit access.
       const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
       fake = await openFake({ ...demoStart(now(), zone), files: demoFiles(localDate(now(), zone)), edit: true });

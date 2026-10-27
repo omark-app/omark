@@ -3,6 +3,7 @@ import { demoSeed, FakeCalendar } from '@omark/calendar';
 import type { CalendarEvent, CalendarInfo, CalendarSource, FakeCalendarState } from '@omark/calendar';
 import { IdbDrive, OfflineError } from '@omark/storage';
 import { localDate } from '@omark/time-core';
+import { DB_PREFIX } from '../env.ts';
 import type { Access, TimeAuth } from './auth.ts';
 
 /** What an e2e test can set before the app loads. Without it, the demo seed. */
@@ -50,7 +51,7 @@ const DEMO_ZONE = 'Europe/Warsaw';
  * they begin with (the demo's); otherwise an e2e test's `__OMARK_TIME_SEED__`, else the demo seed.
  */
 export async function openFake(start?: FakeSeed): Promise<Fake> {
-  const store = createStore('omark-time-fake', 'fake');
+  const store = createStore(`${DB_PREFIX}-fake`, 'fake');
   const seed = start ?? window.__OMARK_TIME_SEED__ ?? {};
   let saved = await get<FakeCalendarState>('calendar', store);
   if (!saved) {
@@ -62,7 +63,7 @@ export async function openFake(start?: FakeSeed): Promise<Fake> {
     await set('signedIn', seed.auth !== 'signed-out', store);
   }
   const calendar = FakeCalendar.fromJSON(saved);
-  const drive = new IdbDrive('omark-time-fake-drive');
+  const drive = new IdbDrive(`${DB_PREFIX}-fake-drive`);
   if (seed.files && (await drive.isEmpty())) {
     for (const [name, text] of Object.entries(seed.files)) await drive.externalWrite(name, text);
   }

@@ -61,24 +61,39 @@ test('Reset demo brings the seed back after an edit and a reload', async ({ page
   await expect(page.getByTestId('project').and(page.locator('[data-code="ACME"]'))).toBeVisible();
 });
 
-test('the demo makes no request outside its own origin, and has no Google code', async ({ page }) => {
-  const outside: string[] = [];
-  const scripts: string[] = [];
+test('every request goes to the demo origin, and none to /api/', async ({ page, baseURL }) => {
+  const demo = new URL(baseURL!).origin;
+  const stray: string[] = [];
   page.on('request', (r) => {
-    const url = new URL(r.url());
-    if (!['http:', 'https:'].includes(url.protocol)) return;
-    if (url.hostname !== 'localhost') outside.push(r.url());
-    else if (url.pathname.endsWith('.js')) scripts.push(r.url());
+    const u = new URL(r.url());
+    if (!['http:', 'https:'].includes(u.protocol)) return;
+    if (u.origin !== demo || u.pathname.startsWith('/api/')) stray.push(r.url());
   });
   await openDemo(page);
-  for (const view of ['Charts', 'Fix list', 'Projects', 'Report', 'Settings', 'Calendar', 'Hours']) {
+  for (const view of ['Charts', 'Fix list', 'Projects', 'Report', 'Calendar', 'Settings', 'Hours']) {
     await nav(page, view);
     await expect(page.getByRole('navigation', { name: 'Views' }).getByRole('link', { name: view, exact: false }).first()).toHaveAttribute('aria-current', 'page');
   }
-  expect(outside).toEqual([]);
-  for (const url of scripts) {
-    const code = await (await page.request.get(url)).text();
-    expect(code, url).not.toContain('googleapis.com');
-    expect(code, url).not.toContain('/api/auth');
+  await page.reload();
+  await expect(page.getByTestId('status')).toContainText('Synced', { timeout: 20_000 });
+  expect(stray).toEqual([]);
+});
+
+test('the demo bundle has no Google and no sign-in path', async ({ request }) => {
+  // The entry scripts, plus every JS file the service worker precaches (all the JS the build ships), plus the
+  // service worker itself, as in apps/tasks' demo spec.
+  const html = await (await request.get('/')).text();
+  const entries = [...html.matchAll(/<script[^>]+src="([^"]+\.js)"/g)].map((m) => m[1]!);
+  expect(entries.length).toBeGreaterThan(0);
+  const sw = await (await request.get('/sw.js')).text();
+  const precached = [...sw.matchAll(/url:\s*"([^"]+\.js)"/g)].map((m) => `/${m[1]!}`);
+  expect(precached.length).toBeGreaterThan(0);
+  for (const src of new Set([...entries, ...precached, '/sw.js'])) {
+    const res = await request.get(src);
+    // A missing file would come back as the app's index.html and pass unread.
+    expect(res.headers()['content-type'], `${src} is JavaScript`).toContain('javascript');
+    const js = await res.text();
+    expect(js.includes('googleapis.com'), `${src} contains googleapis.com`).toBe(false);
+    expect(js.includes('api/auth'), `${src} contains api/auth`).toBe(false);
   }
 });

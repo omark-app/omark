@@ -3,11 +3,11 @@
   import FirstRun from './components/FirstRun.svelte';
   import Shell from './components/Shell.svelte';
   import { BUILD_ID, BUILD_NUMBER, IS_DEMO, REAL_USE_URL, STORAGE_MODE } from './env.ts';
-  import { resetDemo } from './lib/demo.ts';
+  import { requestDemoReset } from './lib/demo.ts';
 
   async function reset() {
     if (!window.confirm('Reset the demo? Your demo changes are lost.')) return;
-    await resetDemo();
+    requestDemoReset(sessionStorage);
     location.reload();
   }
 

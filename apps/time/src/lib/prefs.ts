@@ -1,5 +1,6 @@
 import { createStore, get, set } from 'idb-keyval';
 import type { UseStore } from 'idb-keyval';
+import { DB_PREFIX } from '../env.ts';
 
 /** Where this device keeps the files (spec 4.2: per device). OneDrive comes later. */
 export type StorageKind = 'google-drive' | 'local-folder';
@@ -32,7 +33,7 @@ export class MemoryPrefs implements PrefsStore {
 }
 
 export class IdbPrefs implements PrefsStore {
-  private readonly store: UseStore = createStore('omark-time-device', 'prefs');
+  private readonly store: UseStore = createStore(`${DB_PREFIX}-device`, 'prefs');
   async load(): Promise<DevicePrefs> {
     return { ...FRESH_PREFS, ...((await get<DevicePrefs>('prefs', this.store)) ?? {}) };
   }

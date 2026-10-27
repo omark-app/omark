@@ -14,13 +14,16 @@
   const first = $derived(addDays(weekStartOf(store.todayDate, store.config?.weekStart ?? 'monday'), offset * 7));
   const days = $derived(Array.from({ length: 7 }, (_, i) => addDays(first, i)));
 
+  /** Only the latest answer counts: an older one, for this week or another, may arrive after it. */
+  let asked = 0;
   $effect(() => {
     const from = first;
     // Again after each sync and colour pass, so a change shows here.
     void store.syncedAt;
     void store.colour;
+    const n = ++asked;
     store.weekEvents(from, addDays(from, 7)).then((w) => {
-      if (from === first) week = w;
+      if (n === asked) week = w;
     });
   });
 
@@ -31,10 +34,12 @@
   const timeOf = (e: CalendarEvent) =>
     e.start && 'dateTime' in e.start ? new Date(parseInstant(e.start.dateTime)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: store.timeZone }) : 'All day';
   const colourOf = (e: CalendarEvent) => (!week ? 'none' : e.colorId === week.ids.green ? 'green' : e.colorId === week.ids.red ? 'red' : 'none');
+  /** All-day events first, then by start time (the formatted time can't be sorted as text in a 12-hour locale). */
+  const startOf = (e: CalendarEvent) => (e.start && 'dateTime' in e.start ? parseInstant(e.start.dateTime) : -Infinity);
   const onDay = (day: string) =>
     (week?.events ?? [])
       .filter((e) => e.status !== 'cancelled' && e.start && dayOf(e) === day)
-      .sort((a, b) => timeOf(a).localeCompare(timeOf(b)));
+      .sort((a, b) => startOf(a) - startOf(b));
   const label = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString([], { weekday: 'short', day: 'numeric', timeZone: 'UTC' });
 </script>
 

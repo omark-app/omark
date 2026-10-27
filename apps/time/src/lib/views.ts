@@ -10,9 +10,9 @@ export const VIEWS: readonly { id: View; label: string; short: string }[] = [
   { id: 'fix', label: 'Fix list', short: 'Fix' },
   { id: 'projects', label: 'Projects', short: 'Projects' },
   { id: 'report', label: 'Report', short: 'Report' },
-  { id: 'settings', label: 'Settings', short: 'Settings' },
   // The demo only: with no Google Calendar to look at, it shows the colours itself (spec 12).
-  { id: 'calendar', label: 'Calendar', short: 'Calendar' },
+  { id: 'calendar', label: 'Calendar', short: 'Week' },
+  { id: 'settings', label: 'Settings', short: 'Settings' },
 ];
 
 /** The view a `location.hash` names; hours for anything else. */
