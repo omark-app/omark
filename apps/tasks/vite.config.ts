@@ -54,7 +54,7 @@ export default defineConfig({
     versionFile(BUILD_ID, BUILD_NUMBER),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icons/apple-touch-icon.png'],
+      includeAssets: ['icons/apple-touch-icon.png', 'icons/staging/apple-touch-icon.png'],
       // The app shell, fonts and icons are precached; there is deliberately no runtimeCaching, so Graph,
       // the sign-in helper (/api/auth), OneDrive download URLs and version.json always go straight to the
       // network. Navigations are served from the precache, so a page opened after a deploy starts on the
@@ -85,8 +85,9 @@ export default defineConfig({
         theme_color: '#F2F4F7',
         background_color: '#F2F4F7',
         icons: [
-          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
     }),
