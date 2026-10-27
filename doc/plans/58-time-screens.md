@@ -12,7 +12,7 @@
 
 **Tech Stack:** Svelte 5, `@omark/time-core`, `@omark/settings`. No new dependency.
 
-**Spec:** [`doc/Omark Time spec.md`](../Omark%20Time%20spec.md) section 9, plus 5–8 for what the numbers mean. Milestone: [53-omark-time-milestone.md](53-omark-time-milestone.md). Shell: [57-time-shell.md](57-time-shell.md).
+**Spec:** [`doc/time/spec.md`](../time/spec.md) section 9, plus 5–8 for what the numbers mean. Milestone: [53-omark-time-milestone.md](53-omark-time-milestone.md). Shell: [57-time-shell.md](57-time-shell.md).
 
 ## What changes for AL
 
