@@ -14,7 +14,7 @@ A **Calendar** view, in the demo only, draws the week's events in their colours.
 
 **Tech Stack:** Svelte 5, `@omark/calendar` (`FakeCalendar`, `demoSeed`), `@omark/storage` (`IdbDrive`), Playwright. No new dependency.
 
-**Spec:** [`doc/Omark Time spec.md`](../Omark%20Time%20spec.md) section 12. Tasks' demo, for its shape: [31-demo-mode.md](31-demo-mode.md).
+**Spec:** [`doc/time/spec.md`](../time/spec.md) section 12. Tasks' demo, for its shape: [31-demo-mode.md](31-demo-mode.md).
 
 ## What changes for AL
 
