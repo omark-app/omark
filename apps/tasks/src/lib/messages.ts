@@ -14,6 +14,9 @@ export const doneRepeat = (next: ISODate, ctx: WeekCtx): string =>
 
 export const done = (title: string): string => `Done · ${title}`;
 
+/** A task with 🔁 text but no rule the app can read: logged in done.md, left in the list (#79). */
+export const doneKept = (): string => "Done · its 🔁 rule can't be read, so the task stays";
+
 export const deleted = (title: string): string => `Deleted · ${title}`;
 
 export const reordered = (sameDate: boolean, sameFlag = true): string =>

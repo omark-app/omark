@@ -643,7 +643,8 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   }
 
   /** `Done · …`, or for a habit its count after the tick. */
-  function completedMessage(task: Task, res: { state: State; next: ISODate | null }): string {
+  function completedMessage(task: Task, res: { state: State; next: ISODate | null; kept?: true }): string {
+    if (res.kept) return msg.doneKept();
     if (!res.next) return msg.done(task.title);
     const after = task.habit ? findTask(res.state, task.id) : null;
     if (!after) return msg.doneRepeat(res.next, ctx);

@@ -20,8 +20,26 @@ const IMPORTANT = '⏫';
 const HABIT = '🌱';
 /** Emoji presentation selector: some editors write it after a field emoji, where it changes nothing. */
 const VS16 = '\uFE0F';
-/** Where a 🔁 rule's text ends: a ` #tag`, or any Obsidian Tasks field emoji. */
-const RULE_END = /[ \t]#[^\s#]|📅|✅|🔁|⏳|🛫|➕|❌|🆔|⛔|🏁|⏫|🔼|🔽|⏬|🔺|🌱|🏆/u;
+/** The Obsidian Tasks field emoji (and ours) that end a 🔁 rule's text. */
+const FIELD_EMOJI = ['📅', '✅', '🔁', '⏳', '🛫', '➕', '❌', '🆔', '⛔', '🏁', '⏫', '🔼', '🔽', '⏬', '🔺', '🌱', '🏆'];
+const TAG = /[ \t]#[^\s#]/g;
+/** A date after a field emoji (and any VS16 after it), read from where the emoji ends. */
+const DATE_AFTER = /^[ \t]*(\d{4}-\d{2}-\d{2})(?!\d)/;
+
+/**
+ * Where a 🔁 rule's text that starts at `from` ends: the next ` #tag`, the next field emoji, or the end.
+ * Found with indexOf, not one regex of emoji alternatives with the `u` flag: on iOS WebKit that never
+ * matches, so every rule ran to the end of its line and was read as title text (#79).
+ */
+function ruleEnd(text: string, from: number): number {
+  TAG.lastIndex = from;
+  let end = TAG.exec(text)?.index ?? text.length;
+  for (const emoji of FIELD_EMOJI) {
+    const at = text.indexOf(emoji, from);
+    if (at >= 0 && at < end) end = at;
+  }
+  return end;
+}
 
 /** Stable text of a task's semantic fields; equal keys mean nothing the file stores has changed. */
 export function taskKey(t: Pick<Task, 'title' | 'notes' | 'date' | 'repeat' | 'important' | 'habit'>): string {
@@ -256,11 +274,13 @@ export function isUsableHabitRule(rule: RepeatRule | null): boolean {
 export function parseFields(text: string, isDone: boolean, endMark?: '🏆' | '❌'): Fields {
   const spans: [number, number][] = [];
 
+  // Each emoji is found with indexOf and only the date after it with a regex, so no regex holds an emoji (#79).
   const takeDate = (emoji: string): ISODate | null => {
-    const re = new RegExp(`${emoji}${VS16}?[ \\t]*(\\d{4}-\\d{2}-\\d{2})(?!\\d)`, 'gu');
     let found: { value: ISODate; span: [number, number] } | null = null;
-    for (const m of text.matchAll(re)) {
-      if (isRealDate(m[1]!)) found = { value: m[1]!, span: [m.index, m.index + m[0].length] };
+    for (let at = text.indexOf(emoji); at >= 0; at = text.indexOf(emoji, at + emoji.length)) {
+      const from = at + emoji.length + (text.startsWith(VS16, at + emoji.length) ? VS16.length : 0);
+      const m = DATE_AFTER.exec(text.slice(from));
+      if (m && isRealDate(m[1]!)) found = { value: m[1]!, span: [at, from + m[0].length] };
     }
     if (!found) return null;
     spans.push(found.span);
@@ -274,8 +294,7 @@ export function parseFields(text: string, isDone: boolean, endMark?: '🏆' | '�
   let rule: { value: RepeatRule; span: [number, number] } | null = null;
   for (let at = text.indexOf(REPEAT); at >= 0; at = text.indexOf(REPEAT, at + REPEAT.length)) {
     const from = at + REPEAT.length + (text.startsWith(VS16, at + REPEAT.length) ? VS16.length : 0);
-    const stop = RULE_END.exec(text.slice(from));
-    const end = stop ? from + stop.index : text.length;
+    const end = ruleEnd(text, from);
     const value = parseRepeat(text.slice(from, end));
     if (value) rule = { value, span: [at, end] };
   }
@@ -318,8 +337,7 @@ export function ruleSpans(text: string): [number, number][] {
   const spans: [number, number][] = [];
   for (let at = text.indexOf(REPEAT); at >= 0; at = text.indexOf(REPEAT, at + REPEAT.length)) {
     const from = at + REPEAT.length;
-    const stop = RULE_END.exec(text.slice(from));
-    spans.push([at, stop ? from + stop.index : text.length]);
+    spans.push([at, ruleEnd(text, from)]);
   }
   return spans;
 }
