@@ -46,12 +46,21 @@
 {#if store.sync === 'folder'}
   <section class="card" role="alert">
     <h2>Allow access to {store.storageName}</h2>
-    <p>Your browser asks again before Omark Time may read and write the folder. If you moved or renamed it, pick it again.</p>
+    <p>
+      {store.folderRefused
+        ? `Access to ${store.storageName} was refused. Allow it, or pick the folder again.`
+        : 'Your browser asks again before Omark Time may read and write the folder. If you moved or renamed it, pick it again.'}
+    </p>
     <div class="row">
       <button class="primary" onclick={() => store.allowFolder()}>Allow access</button>
       <button class="secondary" onclick={() => store.pickFolderAgain()}>Pick the folder again</button>
     </div>
   </section>
+{:else if store.sync === 'offline' && store.storage === 'local-folder'}
+  <p class="card" role="status" data-testid="folder-again">
+    If {store.storageName} was moved or renamed, pick it again.
+    <button class="secondary" onclick={() => store.pickFolderAgain()}>Pick the folder again</button>
+  </p>
 {/if}
 
 {#if store.sync === 'signin'}

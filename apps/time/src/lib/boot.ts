@@ -63,10 +63,15 @@ function filesOn(adapter: StorageAdapter, cacheName: string, now: () => number):
   return new FolderFiles(adapter, cacheOf(cacheName), () => localDate(now(), 'UTC'));
 }
 
+/** How long start-up waits for IndexedDB to give the picked folder back (as in apps/tasks). */
+const SAVED_FOLDER_MS = 3_000;
+
 /** The picked folder, with an offline copy and a sync state of its own (by its id); null when none is picked. */
 async function folderPlace(now: () => number): Promise<Place | null> {
   if (!folderSupported(window)) return null;
-  const choice = await new SavedFolder(FOLDER_DB).load();
+  // A stuck IndexedDB must not leave the app on "Opening…": then the folder is picked again.
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), SAVED_FOLDER_MS));
+  const choice = await Promise.race([new SavedFolder(FOLDER_DB).load(), timeout]);
   if (!choice) return null;
   const { handle, id } = choice;
   return {
@@ -83,7 +88,8 @@ async function chooseFolder(opts: { again?: boolean } = {}): Promise<boolean> {
   return true;
 }
 
-async function forget(): Promise<void> {
+/** Sign-out: the copy, the sync state and the picked folder of every place, gone from this device. */
+export async function forgetDevice(): Promise<void> {
   await cacheOf('google-drive').clear();
   await new IdbState('google-drive').clear();
   const saved = new SavedFolder(FOLDER_DB);
@@ -97,7 +103,7 @@ async function forget(): Promise<void> {
 
 export async function bootDeps(): Promise<AppDeps> {
   const now = Date.now;
-  const folders = { canPickFolder: folderSupported(window), pickFolder: chooseFolder, forget };
+  const folders = { canPickFolder: folderSupported(window), pickFolder: chooseFolder, forget: forgetDevice };
   if (STORAGE_MODE === 'fake') {
     const fake = await openFake();
     return {

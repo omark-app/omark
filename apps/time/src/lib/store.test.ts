@@ -50,7 +50,7 @@ function setup() {
   const place: Place = { files: new FolderFiles(adapter, cache, () => '2026-10-27'), state };
   let listFails = false;
   // A folder on this computer: picked or not, the picker cancelled, the browser's permission for it.
-  const folder = { picked: false, cancel: false, permission: 'granted' as 'granted' | 'prompt' };
+  const folder = { picked: false, cancel: false, refuse: false, permission: 'granted' as 'granted' | 'prompt' };
   const deps: AppDeps = {
     auth: {
       isSignedIn: () => !calls.includes('signOut'),
@@ -78,6 +78,7 @@ function setup() {
           access: async () => folder.permission,
           allow: async () => {
             calls.push('allow');
+            if (folder.refuse) return false;
             folder.permission = 'granted';
             return true;
           },
@@ -85,8 +86,8 @@ function setup() {
       };
     },
     canPickFolder: true,
-    pickFolder: async () => {
-      calls.push('pickFolder');
+    pickFolder: async (o) => {
+      calls.push(o?.again ? 'pickFolder:again' : 'pickFolder');
       if (folder.cancel) return false;
       folder.picked = true;
       return true;
@@ -237,4 +238,52 @@ test('a folder the browser wants permission for again waits for a click, then sy
   expect(calls).toContain('allow');
   expect(store.sync).toBe('synced');
   expect(store.rows).toBe(1);
+});
+
+test('a refused permission says so', async () => {
+  const { store, folder } = setup();
+  await store.start();
+  await store.chooseStorage('local-folder');
+  await store.chooseCalendars(['primary']);
+  folder.permission = 'prompt';
+  folder.refuse = true;
+  await store.syncNow();
+  await store.allowFolder();
+  expect(store.sync).toBe('folder');
+  expect(store.folderRefused).toBe(true);
+});
+
+test('a folder that has gone (moved, renamed) can be picked again, keeping its copy', async () => {
+  const { store, calls, net } = setup();
+  await store.start();
+  await store.chooseStorage('local-folder');
+  await store.chooseCalendars(['primary']);
+  net.offline = true; // LocalFolderAdapter: a folder that is gone is OfflineError
+  await store.syncNow();
+  expect(store.sync).toBe('offline');
+  expect(store.storage).toBe('local-folder');
+  net.offline = false;
+  await store.pickFolderAgain();
+  expect(calls).toContain('pickFolder:again');
+  expect(store.sync).toBe('synced');
+});
+
+test('a device whose picked folder is gone from IndexedDB goes back to the storage step', async () => {
+  const { store, prefs } = setup();
+  await prefs.save({ storage: 'local-folder', started: true, askedDrive: false, askedEdit: false });
+  await store.start();
+  expect(store.phase).toBe('storage');
+});
+
+test('no "not saved" warning on sign-out when only the reads failed', async () => {
+  const { store, calls, folder } = setup();
+  await store.start();
+  await store.chooseStorage('local-folder');
+  await store.chooseCalendars(['primary']);
+  folder.permission = 'prompt';
+  await store.syncNow();
+  await store.signOut();
+  expect(store.signOutPending).toBe(false);
+  expect(calls).toContain('forget');
+  expect(store.storageName).toBe('');
 });

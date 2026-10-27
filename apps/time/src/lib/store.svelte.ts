@@ -45,6 +45,8 @@ export class TimeStore {
   storage = $state<StorageKind | null>(null);
   /** What the texts call the storage: "Google Drive", or "the folder Hours". */
   storageName = $state('');
+  /** The browser's permission for the folder was refused when asked. */
+  folderRefused = $state(false);
   /** Sign-out was asked for while a change had not reached the storage yet; `signOut({ anyway: true })` goes on. */
   signOutPending = $state(false);
 
@@ -121,7 +123,9 @@ export class TimeStore {
   /** The browser wants permission for the folder again: asks (from a click), then syncs. */
   allowFolder(): Promise<void> {
     return this.guard(async () => {
-      if (await this.place?.folder?.allow()) await this.syncNow();
+      if (!this.place?.folder) return;
+      this.folderRefused = !(await this.place.folder.allow());
+      if (!this.folderRefused) await this.syncNow();
     });
   }
 
@@ -129,6 +133,7 @@ export class TimeStore {
   pickFolderAgain(): Promise<void> {
     return this.guard(async () => {
       if (!(await this.deps.pickFolder({ again: true }))) return;
+      this.folderRefused = false;
       this.place = null;
       await this.open('local-folder');
       await this.syncNow();
@@ -222,7 +227,7 @@ export class TimeStore {
       this.stopped = true;
       await this.waiting?.catch(() => {});
       await this.running?.catch(() => {});
-      if (!opts.anyway && this.place && this.place.files.status() !== 'saved') {
+      if (!opts.anyway && this.place && (await this.place.files.hasUnsynced())) {
         this.signOutPending = true;
         this.stopped = false;
         return;
@@ -233,6 +238,8 @@ export class TimeStore {
       await this.deps.prefs.save({ ...FRESH_PREFS });
       this.place = null;
       this.storage = null;
+      this.storageName = '';
+      this.folderRefused = false;
       this.last = null;
       this.config = null;
       this.calendars = [];
