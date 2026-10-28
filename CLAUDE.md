@@ -4,6 +4,10 @@
 
 Everything above comes from `AGENTS.md`, which every agent reads. These notes are for Claude Code only.
 
+## Fast mode until launch (AL, 2026-10-28)
+
+Until the repo goes public (roadmap 4.3), AL's working session overrides the factory flow in `AGENTS.md`: no issues, PRs or plan approvals; work serially in one session, test first, run `pnpm typecheck`, `pnpm test`, the build and the touched e2e specs, then commit and push straight to `main`. AL tests on production. Force-push stays forbidden, and Promote runs only when AL asks. Before 4.3, remove this section and restore the guard and deny rules in `.claude/settings.json`.
+
 ## Skills
 
 The repo's skills live in `.claude/skills/`:
