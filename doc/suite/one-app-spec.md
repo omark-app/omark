@@ -89,9 +89,12 @@ Omark/                 (OneDrive: Apps/Omark; Google Drive: My Drive/Omark; or t
 - **Storage sign-in**: Microsoft for OneDrive (`Files.ReadWrite.AppFolder`), Google for Google Drive (`drive.file`), none for a local folder.
 - **Calendar sign-in**: Google, asked for **only when Time is turned on**, with incremental consent (`calendar.events.owned.readonly`, and `calendar.events.owned` only when colouring is turned on, as in the Time spec). If the storage is Google Drive, it is the same Google sign-in widened; if not, a second sign-in next to Microsoft.
 - **The broker holds a Microsoft session and a Google session at once** (today it holds one session per cookie prefix). The one app uses new cookie, header and IndexedDB names (`omark_*`); it has nothing to migrate, because it is a new origin. *(my call)*
-- **Risk to check first** (roadmap U.1, before the U.3 plan is approved): with one Google project, Tasks users on Google Drive share the project with Time's sensitive calendar scopes. Until Google verifies it, find out whether a user who grants only `drive.file` still sees the "unverified app" screen or counts toward the 100-user cap. The finding goes here.
-  - **If not**, one Google project and one Google session, widened when Time is turned on.
-  - **If so**, the fallback is a second Google project for calendar only: a Google Drive user who turns Time on sees a second Google consent ("Omark Calendar"), the broker holds a second Google session, and self-hosting needs two Google clients. Time writes its CSVs through the storage sign-in, so nothing else changes.
+- **Checked (roadmap U.1, 2026-10-28): one Google project is enough.** On `omark-time-staging` (published, unverified, listing `drive.file` and the sensitive calendar scopes), AL signed in with fresh accounts through a throwaway page:
+  - A request for `openid`, `email` and `drive.file` showed **no "unverified app" screen**, and the user cap stayed at 2/100.
+  - Widening the same account with `calendar.events.owned.readonly` (`include_granted_scopes`) showed the screen and counted the user (1 → 2).
+  - So Google judges each request by the scopes it asks for, not by the scopes the project lists. That matches its docs: the cap counts users who grant unapproved sensitive or restricted scopes.
+  - **Decision:** one Google project and one Google session, widened when Time is turned on. Only Time users see the unverified screen and use up the 100 users until "Omark" is verified. The calendar-only second project is not needed.
+- **Google lets the user untick Drive.** On the consent screen each scope beyond the basic profile has its own checkbox; in one run `drive.file` came back missing. The app reads the granted scopes after every Google sign-in and, when one it needs is missing, explains why and asks again. The same applies to the calendar scopes when Time is turned on.
 
 ## 6. First run
 
@@ -141,7 +144,7 @@ The Tasks and Time demos' existing checks (no outside requests, Reset demo, the 
 
 - **Cloudflare Pages projects**: one for production (`app.omark.app`), one for staging (`staging-app.omark.app`), one for the demo (`demo.omark.app`), plus `omark.app` for the site. The per-app projects that exist are retired after the redirects are in place.
 - **CI**: one app build, one preview per PR, one staging deploy from `main`, one demo deploy, one Promote (no app question). The per-app jobs, artifacts and variables (`TASKS_*`, `CF_TASKS_*` and Time's) become one set.
-- **Self-hosting** (`doc/self-hosting.md`): one app, one Pages project, one Entra registration and one Google project (or two, per section 5).
+- **Self-hosting** (`doc/self-hosting.md`): one app, one Pages project, one Entra registration and one Google project.
 - **Landing page**: the cards for Tasks, Time and Goals link to their part's path (`app.omark.app/time`) and the demo's; a Goals card is added.
 - **AL's own instance until the cutover**: the bridge jobs stay. CI keeps building `apps/tasks` for `tasks-staging.alipka.com` and Promote keeps a "bridge" target for `tasks.alipka.com` (flat `ALAI/TaskApp`, drive-root scope), next to the one app's jobs, until 3.6. The one app never runs in bridge mode: pointed at the flat folder it would read Tasks' `config.yaml` as the suite file. 3.7 then removes `apps/tasks`'s bridge build, its jobs and variables. *(my call)*
 
@@ -156,7 +159,7 @@ Nobody but AL has real data, so this is short.
 
 ## 12. Acceptance
 
-- **Before the build, a short check** of the Google risk in section 5, with the staging project: a `drive.file`-only consent on a project that also lists the calendar scopes. The finding goes into this spec.
+- **Before the build, a short check** of the Google risk in section 5, with the staging project: a `drive.file`-only consent on a project that also lists the calendar scopes. *Done 2026-10-28: no unverified screen and no cap use; one Google project (section 5).*
 - **e2e** (desktop and iPhone, on the fake storage):
   - first run with Tasks only: no tab bar, no calendar question, only `config.yaml` and `tasks/` created;
   - turning Time and Goals on in Settings: tabs appear, each part's first use creates its subfolder;
@@ -179,7 +182,7 @@ Nobody but AL has real data, so this is short.
 2. A subfolder per part (`tasks/`, `time/`, `goals/`) with `projects.csv` and a suite `config.yaml` at the top.
 3. `parts` in the suite `config.yaml`, so it follows the user; the storage choice stays per device.
 4. No tab bar with one part; tabs at the bottom on the phone, at the top on desktop.
-5. One Google project, with a second one for calendar only as the fallback if the check in section 12 finds a problem.
+5. One Google project. *(Checked 2026-10-28: a `drive.file`-only consent shows no unverified screen and doesn't count toward the cap, so the calendar-only fallback isn't needed.)*
 6. The demo person Maya and her story.
 7. Links between parts (Goals → Time, Goals → Tasks) are nice to have at launch.
 8. The old hosts redirect to their part's path; the per-app Pages projects are retired afterwards.

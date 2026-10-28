@@ -125,7 +125,7 @@ Builds [the one app spec](../suite/one-app-spec.md): Tasks, Time and Goals as pa
 
 | # | Workstream | Spec | Size | Depends on |
 |---|---|---|---|---|
-| U.1 | Check (throwaway, on the staging Google project): does a `drive.file`-only consent on a project that also lists the calendar scopes show the "unverified app" screen or count toward the 100-user cap? Finding into the one app spec, section 5 | one app 5, 12 | small | — |
+| U.1 | *Done 2026-10-28: no unverified screen and no cap use for `drive.file` alone; one Google project.* Check (throwaway, on the staging Google project): does a `drive.file`-only consent on a project that also lists the calendar scopes show the "unverified app" screen or count toward the 100-user cap? Finding into the one app spec, section 5 | one app 5, 12 | small | — |
 | U.2 | AL: Entra "Omark" and "Omark Staging"; Google project "Omark" (and `omark-time-staging` renamed "Omark Staging", `omark-tasks-staging` retired); Pages projects and DNS for `app.`, `staging-app.`, `demo.omark.app`; secrets and repository variables; redirects for the old hosts | one app 15 | — | U.1 |
 | U.3 | `apps/omark` shell: one origin and token broker (no `OMARK_APP`), the folder layout and suite `config.yaml`, parts on and off, tabs, the merged first run; Tasks moves in unchanged | one app 4–7 | large, Plan | U.1 |
 | U.4 | Time inside the shell: its screens as a part, its calendar sign-in asked only when Time is turned on, its files in `time/` | one app 5–7 | large, Plan | U.3 |
