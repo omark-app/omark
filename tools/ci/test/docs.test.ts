@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -125,6 +126,24 @@ describe('docs set', () => {
     const skill = read('.claude/skills/taskapp-files/SKILL.md');
     expect(skill).toContain('doc/format.md');
     expect(skill).not.toMatch(/[A-Z]:\\|ALAI|OneDrive\\/);
+  });
+
+  // Code and config cite docs by path in comments; after the moves (#95, #96) they point to the current ones (#103).
+  const moved = [
+    'TaskApp factory spec.md', 'TaskApp cloud environment.md', 'TaskApp v1 spec.md', 'TaskApp habits spec.md',
+    'Omark Time spec.md', 'TaskApp spike findings.md', 'TaskApp v1 acceptance checklist.md', 'TaskApp ideation.md',
+  ];
+  const codeFiles = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' })
+    .split('\n')
+    .filter((f) => f !== '' && !f.endsWith('.md') && !f.startsWith('doc/') && f !== 'tools/ci/test/docs.test.ts')
+    .filter((f) => existsSync(resolve(root, f)));
+  test('no code or config file cites a moved doc', () => {
+    const stale = codeFiles.flatMap((f) => moved.filter((m) => readFileSync(resolve(root, f), 'utf8').includes(m)).map((m) => `${f}: ${m}`));
+    expect(stale).toEqual([]);
+  });
+
+  test('the workflows name no person', () => {
+    for (const f of codeFiles.filter((f) => f.startsWith('.github/workflows/'))) expect(read(f), f).not.toMatch(/\bAL\b/);
   });
 
   test('the factory spec and cloud environment notes are history', () => {

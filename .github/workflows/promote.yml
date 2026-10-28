@@ -3,7 +3,7 @@ name: Promote to production
 # ran for a commit on main whose CI passed, then tags it <app>-prod-YYYY-MM-DD-n (tasks-prod-…) with release
 # notes. Rollback: run it with an older tasks-prod- tag, or a prod- tag from before the monorepo move. The app's
 # folder, package and build name come from the promoted commit (promote-check.mjs), so an older one still
-# deploys. (doc/TaskApp factory spec.md, 6.2)
+# deploys. (doc/self-hosting.md, Deploy: Promote, tags and rollback)
 on:
   workflow_dispatch:
     inputs:
