@@ -1,6 +1,7 @@
 # Omark Time spec
 
 Status: approved by AL, 2026-10-22. Agreed in the time tracker brainstorm the same day. Changed 2026-10-26 (AL): colouring is opt-in, so the default sign-in is read-only. Spike findings added 2026-10-26 (T.2, section 15.1).
+**Changed 2026-10-28 (AL):** Omark Time becomes a part of one Omark app at `app.omark.app`. [The one app spec](../suite/one-app-spec.md) replaces this spec's hosts, Google projects and Entra registrations, storage choice and first run, and demo (sections 3, 4, 9, 10.3, 12, 17) where they disagree. The calendar rules, title format and files are unchanged; the files move to `time/` in the Omark folder.
 Source: AL's vision note "Omark vision update" (2026-10-22). Related: [open source launch spec](../TaskApp%20open%20source%20launch%20spec.md) (the suite, the monorepo, the launch), [roadmap](../plans/open-source-launch-roadmap.md) (milestone T builds this).
 
 Calls marked *(my call)* were made by Claude during the brainstorm, not by AL; section 16 lists them for checking.

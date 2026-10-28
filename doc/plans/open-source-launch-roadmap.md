@@ -10,6 +10,23 @@ Updated 2026-10-22 for the suite:
 
 The launch waits for both apps. Row numbers already in use are unchanged.
 
+Updated 2026-10-28 (AL, in the Omark Goals brainstorm):
+- **Omark becomes one app at one address** (`app.omark.app`) with Tasks, Time and Goals as parts, one storage provider and one folder: [the one app spec](../suite/one-app-spec.md). New **milestone U** builds it. It replaces the per-app registrations, hosts, first runs and demos in rows 3.2–3.4, 3.9, T.1, T.5, T.7 and T.9 (marked below).
+- **Omark Goals launches with Tasks and Time**: [the Goals spec](../goals/spec.md). New **milestone G** builds it.
+- The launch now waits for all three parts.
+
+## Order from 2026-10-28
+
+Work is serial in the coordinating session (fast mode until launch). AL's steps run alongside.
+
+1. U.1 Google check, then U.3 the shell (absorbs 3.2's first run) and G.1 `goals-core` (pure, no clash).
+2. U.4 Time inside the shell, U.5 one Settings page.
+3. G.2 the Goals part, G.3 tag suggestions in Tasks, G.4 the skill and format.
+4. U.6 the demo world (absorbs T.7), U.7 CI, hosts and redirects.
+5. 3.6 cutover to `app.omark.app`, T.11 a week of use, 3.7, then milestones 4 and 5.
+
+AL alongside: U.2 (registrations, Pages, DNS), then the cutover.
+
 ## Running in parallel (2026-10-26)
 
 The rows below keep their numbers, but work now runs in waves: each item in a wave is its own session in its own worktree, with its own issue, plan and PR. AL's part is batched per wave: one sitting to approve the wave's plans, one to check staging and Promote once for the wave.
@@ -75,14 +92,14 @@ Build-in-public posts on LinkedIn can start here.
 | # | Workstream | Spec | Size | Depends on |
 |---|---|---|---|---|
 | 3.1 | *Done 2026-10-27 (#86, PR #89).* `LocalFolderAdapter` (File System Access API) + folder picking + permission re-prompt | 6.4 | large, Plan | M1 |
-| 3.2 | First-run choice screen (demo / OneDrive / Google Drive / folder) and a setting to change it | 6.5 | large, Plan | 2.1, 3.1, 3.8 |
-| 3.3 | AL: two Entra registrations ("Omark Tasks", "Omark Tasks Staging"), Pages projects for `tasks.`, `staging-tasks.`, `demo-tasks.` and `omark.app`, Pages secrets, repository variables switched to the Omark values | 6.5, 8 | — | M1 |
-| 3.4 | CI re-pointed to the Omark projects; the bridge kept for my old instance until 3.6 | 6.5 | small | 3.3 |
+| 3.2 | *Done 2026-10-27 (#94, PR #101); merges into the one app's first run in U.3.* First-run choice screen (demo / OneDrive / Google Drive / folder) and a setting to change it | 6.5 | large, Plan | 2.1, 3.1, 3.8 |
+| 3.3 | *Replaced by U.2 (one "Omark" registration pair, one app's Pages projects).* AL: two Entra registrations ("Omark Tasks", "Omark Tasks Staging"), Pages projects for `tasks.`, `staging-tasks.`, `demo-tasks.` and `omark.app`, Pages secrets, repository variables switched to the Omark values | 6.5, 8 | — | M1 |
+| 3.4 | *Replaced by U.7.* CI re-pointed to the Omark projects; the bridge kept for my old instance until 3.6 | 6.5 | small | 3.3 |
 | 3.5 | AL: publisher verification (not a blocker) | 6.5 | — | 2.2 |
-| 3.6 | AL: cutover to `tasks.omark.app` (spec 6.5.1, checklist in `doc/history/`) | 6.5.1 | — | 3.4 |
+| 3.6 | AL: cutover to `app.omark.app`, files into `Apps/Omark/tasks/` (one app spec 11; launch spec 6.5.1, checklist in `doc/history/`) | 6.5.1 | — | U.7 |
 | 3.7 | Remove the bridge: drive-root scope option, the old hosts and folders, the legacy-cache migration, old tests; rename the Tasks cookies, header, IndexedDB names and tags; the spec's `grep` is clean | 6.1 | large, Plan | 3.6 |
 | 3.8 | Google provider in `@omark/signin` and a shared `GoogleDriveAdapter` (`drive.file`), after checking conditional writes and desktop-edit file ids; Tasks can use Google Drive | 6.4.1 | large, Plan | 2.8, 3.9 |
-| 3.9 | AL: verify `omark.app` in Google Search Console; Google Cloud projects "Omark Tasks" and "Omark Tasks Staging" (consent screen, Web OAuth client, secrets in Pages); brand verification. *Search Console and the staging project done 2026-10-26 (in Testing until 2.2 is live)* | 6.4.1, 8 | — | 2.2 |
+| 3.9 | *Search Console done; the projects are replaced by U.2 (one "Omark" project; `omark-time-staging` becomes "Omark Staging", `omark-tasks-staging` retired).* AL: verify `omark.app` in Google Search Console; Google Cloud projects "Omark Tasks" and "Omark Tasks Staging" (consent screen, Web OAuth client, secrets in Pages); brand verification. *Search Console and the staging project done 2026-10-26 (in Testing until 2.2 is live)* | 6.4.1, 8 | — | 2.2 |
 
 ## Milestone T: Omark Time
 
@@ -94,13 +111,38 @@ Builds [the Omark Time spec](../time/spec.md). It runs alongside milestone 3 and
 | T.2 | Spike (throwaway): colour patch on an invite with `calendar.events.owned`, invites on the primary calendar, recurring instances in incremental sync, the green and red ids, read-only sync with `calendar.events.owned.readonly`; findings into the Time spec; then the milestone plan. *Spike done 2026-10-26 (Time 15.1); the plan waits for 2.8* | Time 15 | small, then Plan | T.1 |
 | T.3 | `packages/time-core`: title parser, event → rows (window, midnight split, all-day, declined, overlaps, time zone), colour decision, CSV and YAML, projects and config models, summaries, chart series, reports | Time 5–7, 9 | large, Plan | T.2 |
 | T.4 | *Done 2026-10-27 (#55 and #56, PR #87).* `packages/calendar`: `CalendarSource` interface, Google implementation (calendar list, incremental sync, colour patch with throttling), fake calendar, shared contract test | Time 8, 13 | large, Plan | T.2, 3.8 |
-| T.5 | *Done 2026-10-27 (#57, PRs #91 and #92; staging waits on the `staging-time` DNS record).* `apps/time` shell: Google sign-in, first run, storage choice (Google Drive, OneDrive, local folder), sync and colouring loop, rebuild, offline cache; staging at `staging-time.omark.app` | Time 4, 7, 8, 10 | large, Plan | T.3, T.4, 3.1, 3.8 |
+| T.5 | *Done 2026-10-27 (#57, PRs #91 and #92); its sign-in, first run and storage choice merge into the one app in U.4, so the `staging-time` DNS record is no longer needed.* `apps/time` shell: Google sign-in, first run, storage choice (Google Drive, OneDrive, local folder), sync and colouring loop, rebuild, offline cache; staging at `staging-time.omark.app` | Time 4, 7, 8, 10 | large, Plan | T.3, T.4, 3.1, 3.8 |
 | T.6 | Screens: hours summary, charts, fix list, projects, settings, report export | Time 9 | large, Plan | T.5 |
-| T.7 | Demo mode on the fake calendar, deployed at `demo-time.omark.app`; no outside requests | Time 12 | large, Plan | T.5 |
+| T.7 | *Replaced by U.6 (one demo world at `demo.omark.app`).* Demo mode on the fake calendar, deployed at `demo-time.omark.app`; no outside requests | Time 12 | large, Plan | T.5 |
 | T.8 | *Done 2026-10-27 (#60, PR #90).* Agent skill `omark-time`, the Time part of `doc/format.md`, `doc/time/spec.md`, README examples with DuckDB queries | Time 11 | small | T.3 |
-| T.9 | AL: production Google Cloud project "Omark Time"; Entra registrations "Omark Time" and "Omark Time Staging"; Pages projects and DNS for `time.`, `staging-time.`, `demo-time.omark.app`; secrets and repository variables | Time 17 | — | T.5 |
+| T.9 | *Replaced by U.2.* AL: production Google Cloud project "Omark Time"; Entra registrations "Omark Time" and "Omark Time Staging"; Pages projects and DNS for `time.`, `staging-time.`, `demo-time.omark.app`; secrets and repository variables | Time 17 | — | T.5 |
 | T.10 | AL: record the verification video (Claude writes the script) and submit Google verification; not a launch blocker | Time 10.3 | — | 2.2, T.5 on staging |
-| T.11 | AL: acceptance on staging with the test account (Time spec 15), then Promote and use `time.omark.app` on his own calendar for at least a week before launch | Time 15 | — | T.6, T.7, T.9 |
+| T.11 | AL: acceptance on staging with the test account (Time spec 15), then Promote and use Time on `app.omark.app` with AL's own calendar for at least a week before launch | Time 15 | — | T.6, U.6, U.7 |
+
+## Milestone U: one app
+
+Builds [the one app spec](../suite/one-app-spec.md): Tasks, Time and Goals as parts of one app at `app.omark.app`, one storage provider, one folder (`Apps/Omark/` with `tasks/`, `time/`, `goals/`, and `projects.csv` at the top), one sign-in per provider, one demo world. It comes before the cutover (3.6) and before Time is used for real (T.11).
+
+| # | Workstream | Spec | Size | Depends on |
+|---|---|---|---|---|
+| U.1 | Check (throwaway, on the staging Google project): does a `drive.file`-only consent on a project that also lists the calendar scopes show the "unverified app" screen or count toward the 100-user cap? Finding into the one app spec, section 5 | one app 5, 12 | small | — |
+| U.2 | AL: Entra "Omark" and "Omark Staging"; Google project "Omark" (and `omark-time-staging` renamed "Omark Staging", `omark-tasks-staging` retired); Pages projects and DNS for `app.`, `staging-app.`, `demo.omark.app`; secrets and repository variables; redirects for the old hosts | one app 15 | — | U.1 |
+| U.3 | `apps/omark` shell: one origin and token broker (no `OMARK_APP`), the folder layout and suite `config.yaml`, parts on and off, tabs, the merged first run; Tasks moves in unchanged | one app 4–7 | large, Plan | U.1 |
+| U.4 | Time inside the shell: its screens as a part, its calendar sign-in asked only when Time is turned on, its files in `time/` | one app 5–7 | large, Plan | U.3 |
+| U.5 | One Settings page: General (storage, parts, sign-ins) and a section per part | one app 8 | large, Plan | U.3 |
+| U.6 | The demo world (Maya) across all three parts at `demo.omark.app` and in previews; replaces Tasks' samples and Time's demo seed | one app 9, Goals 12 | large, Plan | U.4, G.2 |
+| U.7 | CI and deploys for one app (one preview, staging, demo, Promote), self-hosting doc, landing page links (a Goals card too), redirects in place, per-app jobs and variables retired; the bridge jobs for `tasks.alipka.com` stay until 3.6 | one app 10 | large, Plan | U.2, U.3 |
+
+## Milestone G: Omark Goals
+
+Builds [the Omark Goals spec](../goals/spec.md). Launches with Tasks and Time.
+
+| # | Workstream | Spec | Size | Depends on |
+|---|---|---|---|---|
+| G.1 | `packages/goals-core`: `goals.md` parse and write (byte for byte), area tags, links and last activity per area, status chips | Goals 5–6, 11 | large, Plan | — |
+| G.2 | The Goals part: the Vision board, area and goal forms with pictures, Not now, first-run placeholders, Needs update, creating a project from a goal | Goals 7–8 | large, Plan | G.1, U.3 |
+| G.3 | Tasks: `#` in quick add suggests project codes and area tags | Goals 9 | small | U.3 |
+| G.4 | The `omark-goals` skill and the Goals part of `doc/format.md` | Goals 10 | small | G.1 |
 
 ## Milestone 4: open the doors
 
@@ -137,3 +179,5 @@ Builds [the Omark Time spec](../time/spec.md). It runs alongside milestone 3 and
 | 6.11 | 5.1–5.3 |
 | 6.12 | 2.8 |
 | 6.13 and the Omark Time spec | T.1–T.11 |
+| The one app spec | U.1–U.7, 3.6 |
+| The Omark Goals spec | G.1–G.4, U.6 |
