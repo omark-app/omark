@@ -10,6 +10,11 @@ export interface AuthOptions {
   providers: Record<string, Provider>;
   /** Every cookie is named `<cookiePrefix>_…`. The name is sealed into the cookie's value, so changing it signs everyone out. */
   cookiePrefix: string;
+  /**
+   * Paths a sign-in can return to (`login?return=/time`), so the one Omark app comes back to the part it left;
+   * any other return, or none, goes back to `/`.
+   */
+  returnPaths?: readonly string[];
 }
 
 export interface Deps {
@@ -61,6 +66,8 @@ interface LoginState {
   p?: string;
   /** The access added by this sign-in (`login?add=`). */
   a?: string;
+  /** Where the app returns to (`login?return=`), one of the app's `returnPaths`. */
+  r?: string;
 }
 interface Session {
   rt: string;
@@ -147,6 +154,8 @@ export async function handleAuth(request: Request, env: Env, options: AuthOption
 }
 
 const defaultProvider = (options: AuthOptions): string => Object.keys(options.providers)[0]!;
+/** Only a path the app named, compared whole, so nothing can send the user to another site or path. */
+const returnsTo = (options: AuthOptions, path: string): boolean => options.returnPaths?.includes(path) ?? false;
 /** The scopes of an access the app can add (`login?add=`); null when it has no such access. hasOwn, so `toString` is none. */
 const extraFor = (provider: ProviderConfig, name: string): readonly string[] | null =>
   provider.extraScopes && Object.hasOwn(provider.extraScopes, name) ? provider.extraScopes[name]! : null;
@@ -194,7 +203,15 @@ async function login(base: Base): Promise<Response> {
   const hint = await unseal<Hint>(ctx.key, HINT.name, ctx.cookies.get(HINT.name));
   // An account name only means something to the provider that gave it.
   if (hint?.username && (hint.p ?? defaultProvider(ctx.options)) === id) params.set('login_hint', hint.username);
-  const login: LoginState = { state, verifier, exp: ctx.now + LOGIN_MAX_AGE * 1000, p: id, ...(add === null ? {} : { a: add }) };
+  const ret = base.url.searchParams.get('return');
+  const login: LoginState = {
+    state,
+    verifier,
+    exp: ctx.now + LOGIN_MAX_AGE * 1000,
+    p: id,
+    ...(add === null ? {} : { a: add }),
+    ...(ret !== null && returnsTo(base.options, ret) ? { r: ret } : {}),
+  };
   const sealed = await seal(ctx.key, LOGIN.name, login);
   return redirect(`${ctx.provider.authorizeUrl}?${params}`, [
     serializeCookie(LOGIN.name, sealed, { path: LOGIN.path, maxAge: LOGIN_MAX_AGE }),
@@ -209,10 +226,12 @@ async function login(base: Base): Promise<Response> {
 async function callback(base: Base): Promise<Response> {
   const { hint: HINT, login: LOGIN } = base.names;
   const clearLogin = serializeCookie(LOGIN.name, '', { path: LOGIN.path, maxAge: 0 });
-  const back = (reason: string, id?: string, add?: string) =>
-    redirect(`/?signin_error=${reason}${id ? `&provider=${id}` : ''}${add ? `&add=${add}` : ''}`, [clearLogin]);
   const q = base.url.searchParams;
   const login = await unseal<LoginState>(base.key, LOGIN.name, base.cookies.get(LOGIN.name));
+  // Sealed by `login`, so it can be trusted even when stale; checked again in case the app's paths changed.
+  const home = login?.r !== undefined && returnsTo(base.options, login.r) ? login.r : '/';
+  const back = (reason: string, id?: string, add?: string) =>
+    redirect(`${home}?signin_error=${reason}${id ? `&provider=${id}` : ''}${add ? `&add=${add}` : ''}`, [clearLogin]);
   const id = login?.p ?? defaultProvider(base.options);
   const known = login && login.exp >= base.now && hasProvider(base.options, id) ? id : undefined;
   const error = q.get('error');
@@ -259,7 +278,7 @@ async function callback(base: Base): Promise<Response> {
     const hint = await seal(ctx.key, HINT.name, { username, p: id } satisfies Hint);
     cookies.push(serializeCookie(HINT.name, hint, { path: HINT.path, maxAge: HINT_MAX_AGE }));
   }
-  return redirect('/', cookies);
+  return redirect(home, cookies);
 }
 
 /** `{ accessToken, expiresAt }` (ms since the epoch); 401 `{ signin: true }` when only signing in helps; 503 when the provider cannot be reached. */

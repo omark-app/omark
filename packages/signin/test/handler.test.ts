@@ -251,6 +251,39 @@ describe('GET /api/auth/callback', () => {
     );
   });
 
+  describe('returning to the path the sign-in started from', () => {
+    const OMARK: AuthOptions = { ...TASKS, cookiePrefix: 'omark', returnPaths: ['/tasks', '/time', '/goals'] };
+    const loginFrom = async (ret: string, options = OMARK) =>
+      new URL((await send(`/api/auth/login?return=${encodeURIComponent(ret)}`, {}, ENV, options)).headers.get('Location')!).searchParams.get('state')!;
+
+    it('goes back to a known part path after a sign-in, and after a failed one', async () => {
+      let state = await loginFrom('/time');
+      ms.ok({ access_token: 'at0', expires_in: 3600, refresh_token: 'rt1' });
+      expect((await send(`/api/auth/callback?code=c&state=${state}`, {}, ENV, OMARK)).headers.get('Location')).toBe('/time');
+      state = await loginFrom('/goals');
+      ms.fail(400, 'invalid_grant');
+      expect((await send(`/api/auth/callback?code=c&state=${state}`, {}, ENV, OMARK)).headers.get('Location')).toBe(
+        '/goals?signin_error=failed&provider=microsoft',
+      );
+      await loginFrom('/tasks');
+      expect((await send('/api/auth/callback?error=access_denied', {}, ENV, OMARK)).headers.get('Location')).toBe(
+        '/tasks?signin_error=cancelled&provider=microsoft',
+      );
+    });
+
+    it.each(['/evil', '//evil.example', 'https://evil.example/time', '/time/../x', ''])('ignores the return %j and goes to /', async (ret) => {
+      const state = await loginFrom(ret);
+      ms.ok({ access_token: 'at0', expires_in: 3600, refresh_token: 'rt1' });
+      expect((await send(`/api/auth/callback?code=c&state=${state}`, {}, ENV, OMARK)).headers.get('Location')).toBe('/');
+    });
+
+    it('ignores a return in an app that names no return paths', async () => {
+      const state = await loginFrom('/time', TASKS);
+      ms.ok({ access_token: 'at0', expires_in: 3600, refresh_token: 'rt1' });
+      expect((await send(`/api/auth/callback?code=c&state=${state}`)).headers.get('Location')).toBe('/');
+    });
+  });
+
   it('splits a long refresh token across several cookies, each under 4 KB', async () => {
     const rt = 'R'.repeat(5000);
     await signIn({ access_token: 'at0', expires_in: 3600, refresh_token: rt });
