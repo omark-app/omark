@@ -27,6 +27,47 @@ adapterContract(() => {
   };
 });
 
+adapterContract(() => {
+  const root = new MemoryFolder('Omark');
+  return {
+    adapter: new LocalFolderAdapter(root, { subfolder: 'tasks' }),
+    external: (name, text) => root.sub('tasks').external(name, text),
+    offline: (on) => {
+      root.gone = on;
+    },
+  };
+});
+
+describe('LocalFolderAdapter in a subfolder', () => {
+  it('reads nothing and makes no subfolder until the first write, which makes it', async () => {
+    const root = new MemoryFolder('Omark');
+    const tasks = new LocalFolderAdapter(root, { subfolder: 'tasks' });
+    expect(await tasks.read('tasks.md')).toBeNull();
+    expect([...root.folders.keys()]).toEqual([]);
+    await tasks.write('tasks.md', '# Tasks\n', null);
+    expect(root.folders.get('tasks')?.files.get('tasks.md')?.text).toBe('# Tasks\n');
+    expect([...root.files.keys()]).toEqual([]);
+  });
+
+  it('is offline when the picked folder has gone away, even before the subfolder exists', async () => {
+    const root = new MemoryFolder('Omark');
+    root.gone = true;
+    await expect(new LocalFolderAdapter(root, { subfolder: 'tasks' }).read('tasks.md')).rejects.toBeInstanceOf(OfflineError);
+  });
+
+  it('needs access allowed again when the picked folder lost it', async () => {
+    const root = new MemoryFolder('Omark');
+    root.permission = 'prompt';
+    await expect(new LocalFolderAdapter(root, { subfolder: 'tasks' }).read('tasks.md')).rejects.toBeInstanceOf(AuthRequiredError);
+  });
+
+  it('refuses a subfolder that is not one plain name', () => {
+    for (const subfolder of ['', '.', '..', 'a/b', 'a\\b']) {
+      expect(() => new LocalFolderAdapter(new MemoryFolder(), { subfolder })).toThrow(/subfolder/);
+    }
+  });
+});
+
 describe('LocalFolderAdapter', () => {
   it('writes the text to the folder, creating the file', async () => {
     const folder = new MemoryFolder();

@@ -10,6 +10,8 @@ const notFound = (what: string): DOMException => new DOMException(`${what} not f
 export class MemoryFolder implements FolderHandle {
   readonly kind = 'directory';
   readonly files = new Map<string, { text: string; lastModified: number }>();
+  /** Folders inside this one; they share its permission and go away with it. */
+  readonly folders = new Map<string, MemoryFolder>();
   permission: FolderPermission = 'granted';
   gone = false;
   /** Makes closing a write stream fail (a lock, a full disk), after the file was created. */
@@ -18,11 +20,27 @@ export class MemoryFolder implements FolderHandle {
   answer: FolderPermission = 'granted';
   private clock = 1;
 
-  constructor(readonly name = 'Tasks') {}
+  constructor(
+    readonly name = 'Tasks',
+    private readonly parent: MemoryFolder | null = null,
+  ) {}
 
   /** Writes a file as another program would. */
   external(name: string, text: string): void {
     this.files.set(name, { text, lastModified: ++this.clock });
+  }
+
+  /** The folder `name` inside this one, made as another program would when missing. */
+  sub(name: string): MemoryFolder {
+    let folder = this.folders.get(name);
+    if (!folder) this.folders.set(name, (folder = new MemoryFolder(name, this)));
+    return folder;
+  }
+
+  async getDirectoryHandle(name: string, opts?: { create?: boolean }): Promise<MemoryFolder> {
+    this.check();
+    if (!this.folders.has(name) && !opts?.create) throw notFound(name);
+    return this.sub(name);
   }
 
   async queryPermission(): Promise<FolderPermission> {
@@ -45,7 +63,7 @@ export class MemoryFolder implements FolderHandle {
 
   async *keys(): AsyncIterableIterator<string> {
     this.check();
-    yield* [...this.files.keys()];
+    yield* [...this.files.keys(), ...this.folders.keys()];
   }
 
   async getFileHandle(name: string, opts?: { create?: boolean }): Promise<FolderFileHandle> {
@@ -83,6 +101,7 @@ export class MemoryFolder implements FolderHandle {
   }
 
   private check(): void {
+    this.parent?.check();
     if (this.gone) throw notFound(this.name);
     if (this.permission !== 'granted') throw new DOMException('Permission needed', 'NotAllowedError');
   }

@@ -28,6 +28,8 @@ export interface FolderHandle {
   readonly kind: 'directory';
   readonly name: string;
   getFileHandle(name: string, opts?: { create?: boolean }): Promise<FolderFileHandle>;
+  /** Needed only for an adapter on a subfolder. */
+  getDirectoryHandle?(name: string, opts?: { create?: boolean }): Promise<FolderHandle>;
   keys(): AsyncIterableIterator<string>;
   removeEntry?(name: string): Promise<void>;
   queryPermission?(desc: { mode: 'readwrite' }): Promise<FolderPermission>;
@@ -44,13 +46,28 @@ const READWRITE = { mode: 'readwrite' } as const;
  * file (`createWritable` swaps it in on `close`), so an outside save in between is not caught.
  * Lost permission is `AuthRequiredError` (the user allows access again with a click, `requestFolderAccess`);
  * a folder that has gone away (renamed, unplugged) is `OfflineError`.
+ *
+ * With `subfolder`, the files live in that folder inside the picked one (the one Omark app: `tasks/`); a
+ * missing subfolder reads as no files and is made on the first write.
  */
 export class LocalFolderAdapter implements StorageAdapter {
-  constructor(private readonly folder: FolderHandle) {}
+  private readonly subfolder: string | null;
+
+  constructor(
+    private readonly folder: FolderHandle,
+    opts: { subfolder?: string } = {},
+  ) {
+    const sub = opts.subfolder ?? null;
+    if (sub !== null && (sub === '' || sub === '.' || sub === '..' || /[/\\]/.test(sub))) {
+      throw new Error('The subfolder must be one plain folder name');
+    }
+    this.subfolder = sub;
+  }
 
   async read(name: string): Promise<RemoteFile | null> {
     return this.guard(async () => {
-      const file = await this.fileOrNull(name);
+      const dir = await this.dir(false);
+      const file = dir && (await this.fileOrNull(dir, name));
       if (!file) return null;
       const text = await (await file.getFile()).text();
       return { text, etag: await etagOf(text) };
@@ -59,11 +76,14 @@ export class LocalFolderAdapter implements StorageAdapter {
 
   async write(name: string, text: string, ifMatch: string | null): Promise<{ etag: string }> {
     return this.guard(async () => {
-      const existing = await this.fileOrNull(name);
+      const found = await this.dir(ifMatch === null);
+      const existing = found && (await this.fileOrNull(found, name));
       const current = existing ? await etagOf(await (await existing.getFile()).text()) : null;
       if (current !== ifMatch) throw new PreconditionFailedError(`Precondition failed for ${name}`);
+      // Past the check there is a folder: a create made it, an update found its file in it.
+      const dir = found!;
       // Creating the file puts an empty one there at once; the text lands only when the stream closes.
-      const file = existing ?? (await this.folder.getFileHandle(name, { create: true }));
+      const file = existing ?? (await dir.getFileHandle(name, { create: true }));
       let stream: WritableFile | undefined;
       try {
         stream = await file.createWritable();
@@ -72,29 +92,48 @@ export class LocalFolderAdapter implements StorageAdapter {
       } catch (e) {
         await stream?.abort?.().catch(() => {});
         // Take away the empty file this write created (only if still empty), so it never reads as content.
-        if (!existing) await this.removeIfEmpty(file).catch(() => {});
+        if (!existing) await this.removeIfEmpty(dir, file).catch(() => {});
         throw e;
       }
       return { etag: await etagOf(text) };
     });
   }
 
-  /** The file's handle, or null when it does not exist in a folder that does. */
-  private async fileOrNull(name: string): Promise<FolderFileHandle | null> {
+  /**
+   * The folder the files are in: the picked one, or its subfolder; null when the subfolder does not exist
+   * and `create` is false.
+   */
+  private async dir(create: boolean): Promise<FolderHandle | null> {
+    if (this.subfolder === null) return this.folder;
     try {
-      return await this.folder.getFileHandle(name);
+      return await this.folder.getDirectoryHandle!(this.subfolder, { create });
     } catch (e) {
       if (!isError(e, 'NotFoundError')) throw e;
-      // A handle to a folder that has gone away says NotFoundError for every file too.
-      const listing = this.folder.keys();
-      await listing.next();
-      await listing.return?.();
+      await this.mustExist(this.folder);
       return null;
     }
   }
 
-  private async removeIfEmpty(file: FolderFileHandle): Promise<void> {
-    if ((await file.getFile()).size === 0) await this.folder.removeEntry?.(file.name);
+  /** The file's handle, or null when it does not exist in a folder that does. */
+  private async fileOrNull(dir: FolderHandle, name: string): Promise<FolderFileHandle | null> {
+    try {
+      return await dir.getFileHandle(name);
+    } catch (e) {
+      if (!isError(e, 'NotFoundError')) throw e;
+      await this.mustExist(dir);
+      return null;
+    }
+  }
+
+  /** A handle to a folder that has gone away says NotFoundError for everything in it, so listing it tells. */
+  private async mustExist(dir: FolderHandle): Promise<void> {
+    const listing = dir.keys();
+    await listing.next();
+    await listing.return?.();
+  }
+
+  private async removeIfEmpty(dir: FolderHandle, file: FolderFileHandle): Promise<void> {
+    if ((await file.getFile()).size === 0) await dir.removeEntry?.(file.name);
   }
 
   private async guard<T>(op: () => Promise<T>): Promise<T> {
