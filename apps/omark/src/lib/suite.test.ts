@@ -42,9 +42,9 @@ describe('withParts: writing the parts', () => {
 describe('route: the address to a screen', () => {
   const on = ['tasks', 'time'] as const;
 
-  it('opens the first part on at /', () => {
-    expect(route('/', on)).toEqual({ go: '/tasks' });
-    expect(route('/', ['time'])).toEqual({ go: '/time' });
+  it('opens the first part on at /, in place', () => {
+    expect(route('/', on)).toEqual({ open: 'tasks' });
+    expect(route('/', ['time'])).toEqual({ open: 'time' });
   });
 
   it("opens a part that is on at its path, with or without a trailing slash", () => {

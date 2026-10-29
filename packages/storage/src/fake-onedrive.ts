@@ -25,6 +25,11 @@ export class FakeOneDrive implements StorageAdapter {
     return this.files.get(name)?.text ?? null;
   }
 
+  /** The names of the files there, sorted. */
+  names(): string[] {
+    return [...this.files.keys()].sort();
+  }
+
   async read(name: string): Promise<RemoteFile | null> {
     this.assertOnline();
     const f = this.files.get(name);

@@ -61,11 +61,16 @@ export function withParts(text: string | null, parts: readonly Part[]): string {
 /** What an address shows: a part that is on, an offer to turn one on, or another address to go to. */
 export type Route = { open: Part } | { offer: Part } | { go: string };
 
-/** `/` and unknown paths go to the first part on; `/time` opens Time, or offers it when it is off. */
+/**
+ * `/` opens the first part on, in place (a Tasks-only user keeps the address Omark Tasks had); `/time` opens
+ * Time, or offers it when it is off; any other path goes to the first part's.
+ */
 export function route(pathname: string, on: readonly Part[]): Route {
+  const first = on[0] ?? 'tasks';
   const name = pathname.replace(/^\/+|\/+$/g, '');
+  if (name === '') return { open: first };
   if (isPart(name)) return on.includes(name) ? { open: name } : { offer: name };
-  return { go: `/${on[0] ?? 'tasks'}` };
+  return { go: `/${first}` };
 }
 
 /** The part ticked on the first run: the one in the address the user came in by, else Tasks. */

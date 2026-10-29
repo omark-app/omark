@@ -11,7 +11,7 @@ Nothing yet: the one app gets no host until U.7, and the bridge (`tasks.alipka.c
 - with only Tasks on, looks exactly like Omark Tasks today: no tab bar, no calendar question;
 - with more parts on, shows tabs (top on desktop, bottom on the phone) and a path per part: `/tasks`, `/time`, `/goals`.
 
-Time and Goals are placeholders in U.3 ("Omark Time arrives in the next update"), so tabs and switching can be built and tested; U.4 and G.2 fill them.
+Time and Goals are placeholders in U.3 ("Omark Time comes to this tab in the next update"), so tabs and switching can be built and tested; U.4 and G.2 fill them. In U.3 a part is turned on from its address (`/time` offers "Turn on Omark Time"); the parts switches in Settings come with the one Settings page (U.5). Alt+1, Alt+2 and Alt+3 switch tabs; they move into Tasks' keyboard settings in U.5.
 
 ## How
 
@@ -52,6 +52,16 @@ Time and Goals are placeholders in U.3 ("Omark Time arrives in the next update")
 - A Tasks-only first load fetches no Time or Goals code (checked in the e2e by the requested scripts).
 - `apps/tasks` builds and its tests and e2e pass unchanged: the bridge is untouched.
 - `pnpm typecheck`, `pnpm test` and the builds pass.
+
+### Tasks' specs inside the shell (2026-10-29)
+
+`pnpm --filter omark e2e:tasks` runs `apps/tasks/e2e` against the shell's fake build: 255 pass on desktop and iPhone. Left out, with the reason, in `apps/omark/playwright.tasks.config.ts`:
+
+- whole specs for what the shell owns: `demo` (U.6), `environment` and `icons` (hosts and looks, U.7), `first-run`, `google-drive` and `local-folder` (the shell's storage choice and first run);
+- the five sign-in tests in `lifecycle` (the shell signs in; covered when Time signs in, U.4);
+- the page title and manifest tests in `shell` (the app is "Omark").
+
+Found on the way: the shell must keep a part's hash and history state when it changes the address (Tasks' `#settings`), and `/` opens the first part in place. Tasks loads with the shell and a known device starts from the parts it last saw, so a Tasks-only start waits for nothing more than Omark Tasks did.
 
 ## Risks
 

@@ -9,9 +9,31 @@ Omark keeps your data in plain files that any editor, script or AI agent can rea
 
 The examples and tables on this page are checked against `packages/tasks-core` and `packages/time-core` by `tools/ci/test/docs.test.ts`.
 
+## The Omark folder
+
+The one Omark app ([spec](suite/one-app-spec.md)) keeps everything in one folder, with a subfolder per part:
+
+```
+Omark/                 OneDrive: Apps/Omark; Google Drive: My Drive/Omark; or the folder the user picks
+  config.yaml          the suite: which parts are on
+  projects.csv         shared by Time and Goals, read by Tasks
+  tasks/               tasks.md, done.md, config.yaml
+  time/                events-YYYY.csv, config.yaml
+  goals/               goals.md, config.yaml, images/
+```
+
+- A part makes its subfolder and files the first time it writes, so a Tasks-only folder holds `config.yaml` and `tasks/` and nothing else.
+- The suite `config.yaml` lists the parts that are on, in tab order; without the file, or without `parts`, only Tasks is on. Unknown names are ignored and other keys are kept.
+
+  ```yaml
+  parts: [tasks, time, goals]
+  ```
+
+- Each part's files keep the formats below.
+
 ## Omark Tasks
 
-Three files in one folder: the app's folder in OneDrive or Google Drive (a local folder is coming).
+Three files in one folder: `tasks/` in the Omark folder. Until the move to the one app (roadmap 3.6), the Omark Tasks app keeps them flat in its own folder.
 
 | File | Holds |
 |---|---|
@@ -293,7 +315,7 @@ A writer puts one space after each `;` and leaves out empty trailing parts: `ACM
 
 ### Files
 
-The files sit in one folder: `Omark Time` in My Drive, `Apps/Omark Time` in OneDrive, or a folder the user picks.
+The files sit in `time/` in the Omark folder, and `projects.csv` at its top. (The standalone Omark Time build kept them all in one folder: `Omark Time` in My Drive, `Apps/Omark Time` in OneDrive, or a folder the user picks.)
 
 - **CSV** follows RFC 4180: comma-separated, with a header row. A field is in double quotes when it holds `,`, `"` or a line break, with `""` for a quote inside.
 - **Encoding.** UTF-8, written with LF line endings and a final newline. A reader accepts CRLF and a BOM.

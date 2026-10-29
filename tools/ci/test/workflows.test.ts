@@ -348,6 +348,17 @@ describe('workflows', () => {
     expect(names('time')).toEqual(names('tasks'));
   });
 
+  it("runs the one app's e2e and Tasks' specs inside it in the e2e job, with the same Playwright projects", () => {
+    const e2e = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1];
+    const runs = e2e.steps!.map((s) => s.run);
+    expect(runs).toContain('pnpm --filter omark e2e --project=${{ matrix.project }}');
+    expect(runs).toContain('pnpm --filter omark e2e:tasks --project=${{ matrix.project }}');
+    const names = (file: string) =>
+      [...readFileSync(new URL(`../../../apps/${file}`, import.meta.url), 'utf8').matchAll(/\{ name: '(\w+)'/g)].map((m) => m[1]);
+    expect(names('omark/playwright.config.ts')).toEqual(names('tasks/playwright.config.ts'));
+    expect(names('omark/playwright.tasks.config.ts')).toEqual(names('tasks/playwright.config.ts'));
+  });
+
   it('builds Time previews as fake builds, and deploys Time from the repo root so its sign-in helper ships', () => {
     const wf = parse(text('ci.yml')) as { jobs: Record<string, Job & { concurrency?: unknown }> };
     const preview = wf.jobs['time-preview']!.steps!;

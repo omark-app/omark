@@ -8,10 +8,12 @@ test-results
 .wrangler
 dist-real
 dist-demo
+dist-tasks
 .env
 .env.*
 !.env.example
 !apps/tasks/.env.development
+!apps/omark/.env.development
 .secrets/
 .superpowers/
 *e2e-state*.json
