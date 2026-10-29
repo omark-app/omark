@@ -45,27 +45,30 @@ function accounts(opts: {
   redirect?: Error;
   signInSwitches?: boolean;
 }) {
-  let signedIn = opts.signedIn ?? null;
+  // One session per provider, as the one app's sign-in helper keeps them.
+  const sessions = new Set<string>(opts.signedIn ? [opts.signedIn] : []);
   const signIns: { provider?: string; returnTo?: string }[] = [];
   const opened: Storage[] = [];
-  const auth: Auth = {
-    async signIn(provider, o) {
-      signIns.push({ provider, returnTo: o?.returnTo });
-      // A real sign-in leaves the page; the page keeps running for a moment with the old session.
-      if (opts.signInSwitches) signedIn = provider ?? null;
+  const client = (id: string): Auth => ({
+    async signIn(_, o) {
+      signIns.push({ provider: id, returnTo: o?.returnTo });
+      // A real sign-in leaves the page, which keeps running for a moment without the new session.
+      if (opts.signInSwitches) sessions.add(id);
     },
     getToken: async () => 'tok',
-    isSignedIn: () => signedIn !== null,
-    signedInProvider: () => signedIn,
+    isSignedIn: () => sessions.has(id),
+    signedInProvider: () => (sessions.has(id) ? id : null),
     availableProviders: async () => ['microsoft', 'google'],
     accesses: () => [],
-    signOut: async () => {},
+    signOut: async () => void sessions.delete(id),
+    handleRedirect: async () => {},
+  });
+  const a: Accounts = {
+    auth: client,
+    calendar: (s) => (s === 'google' ? { auth: client('google'), access: 'calendar' } : { auth: client('googlecal'), access: null }),
     async handleRedirect() {
       if (opts.redirect) throw opts.redirect;
     },
-  };
-  const a: Accounts = {
-    auth,
     storages: async () => ['microsoft', 'google'],
     savedFolder: async () => (opts.drives?.folder ? { handle: {} as never, id: 'f1' } : null),
     pickFolder: async () => true,
@@ -74,7 +77,7 @@ function accounts(opts: {
       const d = opts.drives?.[storage];
       if (!d) return null;
       const part = (p: Part) => d.parts?.[p] ?? new FakeOneDrive();
-      return { storage, storageName: storage, key: storage, root: d.root, part, tasks: () => ({}) as never } satisfies Place;
+      return { storage, storageName: storage, key: storage, root: d.root, part, tasks: () => ({}) as never, time: async () => ({}) as never } satisfies Place;
     },
   };
   return { accounts: a, signIns, opened };
@@ -90,6 +93,18 @@ describe('start-up', () => {
     await shell.start();
     expect(shell.phase).toBe('ready');
     expect(shell.on).toEqual(['tasks', 'time']);
+  });
+
+  it("a calendar-only Google session is not the storage's sign-in (U.4)", async () => {
+    store.set('omark:storage', 'google');
+    const g = { root: new FakeOneDrive({ 'config.yaml': PARTS_TEXT }) };
+    const shell = new Shell(accounts({ signedIn: 'googlecal', drives: { google: g } }).accounts);
+    await shell.start();
+    expect(shell.phase).toBe('welcome');
+    store.clear();
+    const fresh = new Shell(accounts({ signedIn: 'googlecal', drives: { google: g } }).accounts);
+    await fresh.start();
+    expect(fresh.phase).toBe('welcome');
   });
 
   it('a failed sign-in redirect with a usable choice opens the folder and shows the error', async () => {
@@ -219,7 +234,7 @@ describe('Tasks signing in again', () => {
     const shell = new Shell(a);
     await shell.start();
     shell.go('/time');
-    await shell.partAuth().signIn('microsoft');
+    await shell.partAuth()!.signIn('microsoft');
     expect(signIns.at(-1)).toEqual({ provider: 'microsoft', returnTo: '/time' });
   });
 });

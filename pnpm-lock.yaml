@@ -44,6 +44,9 @@ importers:
       tasks:
         specifier: workspace:*
         version: link:../tasks
+      time:
+        specifier: workspace:*
+        version: link:../time
       yaml:
         specifier: ^2.9.1
         version: 2.9.1

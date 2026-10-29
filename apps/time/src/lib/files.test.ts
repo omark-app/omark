@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest';
-import { FakeGoogleDrive, GoogleDriveAdapter, MemoryCache } from '@omark/storage';
+import { FakeGoogleDrive, FakeOneDrive, GoogleDriveAdapter, MemoryCache } from '@omark/storage';
 import { defaultTimeConfigText, parseEventsFile, parseTimeConfig, serializeEventsFile } from '@omark/time-core';
 import type { EventRow } from '@omark/time-core';
-import { CONFIG, FolderFiles, PROJECTS, PROJECTS_HEADER } from './files.ts';
+import { CONFIG, FolderFiles, PROJECTS, PROJECTS_HEADER, routed } from './files.ts';
 
 const TODAY = '2026-10-27';
 const FOLDER = 'Omark Time';
@@ -72,4 +72,18 @@ test('status says offline while the drive cannot be reached, and the copy still 
   drive.setOffline(true);
   expect(await files.read(PROJECTS, PROJECTS_HEADER)).toContain('ACME');
   expect(files.status()).toBe('offline');
+});
+
+test('in the one app, projects.csv goes to the top of the Omark folder and the rest to time/ (U.4)', async () => {
+  const top = new FakeOneDrive({ 'projects.csv': `${PROJECTS_HEADER}ACME,Acme,,,,\n` });
+  const own = new FakeOneDrive();
+  const files = new FolderFiles(routed(top, own), new MemoryCache(), () => TODAY);
+  expect(await files.read(PROJECTS, PROJECTS_HEADER)).toContain('ACME');
+  const config = await files.read(CONFIG, defaultTimeConfigText(TODAY));
+  await files.write('events-2026.csv', serializeEventsFile([row('e1', '2026-10-26')]), serializeEventsFile([]));
+  await files.read('events-2026.csv', ''); // a pull waits for the queued write
+  expect(own.peek(CONFIG)).toBe(config);
+  expect(own.peek(PROJECTS)).toBeNull();
+  expect(top.peek('events-2026.csv')).toBeNull();
+  expect(top.peek(CONFIG)).toBeNull();
 });

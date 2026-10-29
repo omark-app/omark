@@ -91,6 +91,11 @@ export class TimeStore {
   }
 
   /** The first run offers a folder on this computer only where the browser can pick one. */
+  /** Inside the one Omark app, which owns storage and sign-out (U.4). */
+  get embedded(): boolean {
+    return this.deps.embedded === true;
+  }
+
   get canPickFolder(): boolean {
     return this.deps.canPickFolder;
   }
@@ -109,7 +114,8 @@ export class TimeStore {
     }
     const prefs = await this.deps.prefs.load();
     // A folder picked on another browser, or one IndexedDB lost, is picked again.
-    if (!prefs.storage || !(await this.open(prefs.storage))) {
+    const kind = this.deps.storage ?? prefs.storage;
+    if (!kind || !(await this.open(kind))) {
       this.phase = 'storage';
       return;
     }
@@ -311,7 +317,7 @@ export class TimeStore {
     const place = await this.deps.openPlace(kind);
     if (!place) return false;
     this.storage = kind;
-    this.storageName = place.folder ? `the folder ${place.folder.name}` : 'Google Drive';
+    this.storageName = place.storageName ?? (place.folder ? `the folder ${place.folder.name}` : 'Google Drive');
     this.place = place;
     place.files.onStatus(() => {
       if (this.sync === 'synced') this.sync = this.filesState('synced');

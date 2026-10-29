@@ -1,14 +1,37 @@
 <script lang="ts">
-  // Omark Time moves into this tab in roadmap U.4; until then the tab holds its place.
+  import TimeApp from 'time/src/App.svelte';
+  import { timeDeps } from 'time/src/lib/boot.ts';
+  import { TimeStore } from 'time/src/lib/store.svelte.ts';
+  import type { Place } from '../lib/places.ts';
+
+  /** Omark Time as a part: on the `time/` folder the shell opened, with the calendar sign-in (U.4). */
+  let { place }: { place: Place } = $props();
+
+  async function open(): Promise<TimeStore> {
+    const store = new TimeStore(timeDeps(await place.time()));
+    void store.start();
+    return store;
+  }
+  // One store per place: switching tabs keeps it, a new storage gets a new one.
+  const store = $derived(open());
 </script>
 
-<section class="soon">
-  <h1>Omark Time</h1>
-  <p>Your calendar as hours per project. Omark Time comes to this tab in the next update.</p>
-</section>
+<div class="time-part">
+  {#await store}
+    <p class="muted">Opening…</p>
+  {:then s}
+    <TimeApp store={s} />
+  {:catch e}
+    <p role="alert">{e instanceof Error ? e.message : String(e)}</p>
+  {/await}
+</div>
 
 <style>
-  .soon { max-width: 36rem; margin: 48px auto; padding: 0 20px; font-family: var(--sans); color: var(--ink); }
-  h1 { font-size: 22px; font-weight: 600; }
-  p { color: var(--muted); }
+  .time-part {
+    max-width: 1040px;
+    margin-inline: auto;
+    padding: 24px max(16px, env(safe-area-inset-right, 0px)) 48px max(16px, env(safe-area-inset-left, 0px));
+    font-family: var(--sans);
+    color: var(--ink);
+  }
 </style>

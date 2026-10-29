@@ -125,12 +125,13 @@
   @media (max-width: 719.98px) {
     .shell {
       display: block;
-      padding-bottom: 64px;
+      padding-bottom: calc(64px + var(--part-tabs, 0px));
     }
     nav {
       position: fixed;
       top: auto;
-      bottom: 0;
+      /* Above the one Omark app's tab bar on a phone (it sets --part-tabs). */
+      bottom: var(--part-tabs, 0px);
       left: 0;
       right: 0;
       z-index: 10;

@@ -48,6 +48,12 @@ Still nothing on a real host: the one app gets one in U.7. On a local run or a f
 - The bridge (`apps/tasks`, root `functions/`) is unchanged: its broker tests pass as they are.
 - `pnpm typecheck`, `pnpm test`, the builds and the touched e2e pass.
 
+### Time's specs and the shell (2026-10-29)
+
+`apps/omark/e2e/time.spec.ts` covers Time in the shell on desktop and iPhone: Tasks alone loads no Time code and asks nothing about the calendar; Time turned on next to OneDrive signs in to the calendar alone (`googlecal`) beside Microsoft, writes `time/config.yaml` and `time/events-2026.csv`, and reads `projects.csv` at the top; on Google Drive the calendar is added to the one Google session; Time keeps its view across tabs.
+
+Time's own specs (`apps/time/e2e`) do not run inside the shell. Every one starts with Time's own first run (its Google sign-in, then "Google Drive" or a folder) and reads Time's own fake drive (`__omarkTime.drive`), and the shell replaces both. They keep running on `apps/time`, whose screens the part uses unchanged. They move into the shell with the demo world (U.6), when Time's demo seed becomes the shell's.
+
 ## Risks
 
 - **Two sessions on one origin:** cookies are per provider, so a sign-in with one never clears the other. The login cookie is shared: two sign-ins started in two tabs at once, the later one wins and the earlier one reads as `expired`, as today.

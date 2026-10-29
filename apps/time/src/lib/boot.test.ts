@@ -1,8 +1,10 @@
 import 'fake-indexeddb/auto';
 import { expect, test } from 'vitest';
-import { IdbCache, SavedFolder } from '@omark/storage';
-import type { FolderHandle } from '@omark/storage';
-import { forgetDevice } from './boot.ts';
+import { FakeOneDrive, IdbCache, SavedFolder } from '@omark/storage';
+import type { CalendarSource } from '@omark/calendar';
+import type { Auth, FolderHandle } from '@omark/storage';
+import { forgetDevice, timeDeps } from './boot.ts';
+import type { TimeGiven } from './boot.ts';
 import { freshState, IdbState } from './state.ts';
 
 test('forgetting the device clears Google Drive\'s and the picked folder\'s copies, states and the folder itself', async () => {
@@ -21,4 +23,64 @@ test('forgetting the device clears Google Drive\'s and the picked folder\'s copi
   expect(await new IdbCache(`omark-time-cache-folder-${id}`).get('config.yaml')).toBeNull();
   expect(await new IdbState(`folder-${id}`).load()).toEqual(freshState());
   expect(await saved.load()).toBeNull();
+});
+
+/** A bound sign-in client, recording what it was asked. */
+function calendarAuth(signedIn: boolean, accesses: string[] = []) {
+  const calls: unknown[][] = [];
+  const auth: Auth = {
+    signIn: async (provider, o) => void calls.push(['signIn', provider ?? null, o ?? null]),
+    getToken: async () => 't',
+    isSignedIn: () => signedIn,
+    signedInProvider: () => (signedIn ? 'google' : null),
+    availableProviders: async () => ['google'],
+    handleRedirect: async () => {},
+    accesses: () => accesses,
+    signOut: async () => void calls.push(['signOut']),
+  };
+  return { auth, calls };
+}
+
+const given = (calendar: Auth, calendarAccess: string | null): TimeGiven => ({
+  storage: 'microsoft',
+  storageName: 'OneDrive',
+  key: 'microsoft',
+  top: new FakeOneDrive(),
+  own: new FakeOneDrive(),
+  calendar,
+  calendarAccess,
+  source: { listCalendars: async () => [] } as unknown as CalendarSource,
+});
+
+test('in the one app, a shared Google sign-in counts as the calendar only once the calendar was added (U.4)', async () => {
+  const off = calendarAuth(true);
+  expect(timeDeps(given(off.auth, 'calendar')).auth.isSignedIn()).toBe(false);
+  const on = calendarAuth(true, ['calendar']);
+  const deps = timeDeps(given(on.auth, 'calendar'));
+  expect(deps.auth.isSignedIn()).toBe(true);
+  await deps.auth.signIn();
+  await deps.auth.addAccess('edit');
+  await deps.auth.signOut();
+  expect(on.calls).toEqual([
+    ['signIn', null, { add: 'calendar', returnTo: '/time' }],
+    ['signIn', null, { add: 'edit', returnTo: '/time' }],
+  ]);
+});
+
+test('in the one app, a calendar-only sign-in is its own session, and Time signs out of it alone (U.4)', async () => {
+  const cal = calendarAuth(false);
+  const deps = timeDeps(given(cal.auth, null));
+  expect(deps.auth.isSignedIn()).toBe(false);
+  await deps.auth.signIn();
+  await deps.auth.signOut();
+  expect(cal.calls).toEqual([['signIn', null, { returnTo: '/time' }], ['signOut']]);
+});
+
+test('in the one app, the storage is fixed and named as given, with no folder picker (U.4)', async () => {
+  const deps = timeDeps(given(calendarAuth(true).auth, null));
+  expect(deps.storage).toBe('onedrive');
+  expect(deps.embedded).toBe(true);
+  expect(deps.canPickFolder).toBe(false);
+  expect(await deps.pickFolder()).toBe(false);
+  expect((await deps.openPlace('onedrive'))?.storageName).toBe('OneDrive');
 });

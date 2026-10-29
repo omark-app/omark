@@ -105,8 +105,23 @@ function setup() {
     await store.chooseStorage('google-drive');
     await store.chooseCalendars(['primary']);
   };
-  return { store, calls, cache, state, prefs, calendar, net, folder, ready, failList: (on: boolean) => (listFails = on) };
+  return { store, deps, calls, cache, state, prefs, calendar, net, folder, ready, failList: (on: boolean) => (listFails = on) };
 }
+
+test('with the storage chosen by the one app, the store skips its storage step and names the storage as given (U.4)', async () => {
+  const { store, deps } = setup();
+  const given = new TimeStore({
+    ...deps,
+    storage: 'onedrive',
+    embedded: true,
+    openPlace: async (kind) => (kind === 'onedrive' ? { ...(await deps.openPlace('google-drive'))!, storageName: 'OneDrive' } : null),
+  });
+  await given.start();
+  expect(given.phase).toBe('calendars');
+  expect(given.storageName).toBe('OneDrive');
+  expect(given.embedded).toBe(true);
+  expect(store.embedded).toBe(false);
+});
 
 test('signing out forgets this device\'s copy of the files, its sync state and its choices', async () => {
   const { store, calls, cache, state, prefs, ready } = setup();

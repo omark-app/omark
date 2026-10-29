@@ -81,6 +81,22 @@ export class FolderFiles implements TextFiles {
   }
 }
 
+/**
+ * The one Omark app's folder for Time (one app spec, section 4): `projects.csv` at the top of the Omark folder,
+ * shared with Goals, and every other file in Time's own `time/`.
+ */
+export function routed(top: StorageAdapter, own: StorageAdapter): StorageAdapter {
+  const of = (name: string) => (name === PROJECTS ? top : own);
+  const exists = top.exists && own.exists
+    ? async (source: string) => (await own.exists!(source)) || (await top.exists!(source))
+    : undefined;
+  return {
+    read: (name) => of(name).read(name),
+    write: (name, text, ifMatch) => of(name).write(name, text, ifMatch),
+    ...(exists && { exists }),
+  };
+}
+
 function mergeFor(name: string, today: () => string): (base: string, local: string, remote: string) => string {
   if (name === PROJECTS) return mergeProjects;
   if (name === CONFIG) return (b, l, r) => mergeTimeConfig(b, l, r, today());

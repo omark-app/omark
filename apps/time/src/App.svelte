@@ -7,6 +7,8 @@
   let { store }: { store: TimeStore } = $props();
 </script>
 
+<!-- Its shared styles stay inside this box: in the one Omark app, Tasks' own .card must not take them. -->
+<div class="omark-time">
 <header>
   <img src="/icons/favicon.svg" alt="" width="28" height="28" />
   <h1>Omark Time</h1>
@@ -24,11 +26,19 @@
   {:else if store.phase === 'signin'}
     <section class="card">
       <h2>Your calendar, as hours</h2>
-      <p>
-        Omark Time reads your Google Calendar and keeps hours per project in CSV files in your own storage. Signing in
-        lets it see your calendars and their events, and nothing else.
-      </p>
-      <button class="primary" onclick={() => store.signIn()}>Sign in with Google</button>
+      {#if store.embedded}
+        <p>
+          Omark Time reads your Google Calendar and keeps hours per project in CSV files in your Omark folder.
+          Connecting lets it see your calendars and their events, and nothing else.
+        </p>
+        <button class="primary" onclick={() => store.signIn()}>Connect Google Calendar</button>
+      {:else}
+        <p>
+          Omark Time reads your Google Calendar and keeps hours per project in CSV files in your own storage. Signing in
+          lets it see your calendars and their events, and nothing else.
+        </p>
+        <button class="primary" onclick={() => store.signIn()}>Sign in with Google</button>
+      {/if}
     </section>
   {:else if store.phase === 'storage' || store.phase === 'calendars'}
     <FirstRun {store} />
@@ -40,6 +50,7 @@
 <footer class="muted">
   {STORAGE_MODE === 'fake' ? 'PREVIEW · fake calendar · ' : ''}v{BUILD_NUMBER ?? '?'} ({BUILD_ID})
 </footer>
+</div>
 
 <style>
   header {
@@ -57,21 +68,21 @@
     font-size: 12px;
     font-family: var(--mono);
   }
-  :global(.card) {
+  .omark-time :global(.card) {
     background: var(--surface);
     border-radius: 14px;
     box-shadow: var(--shadow);
     padding: 20px;
     margin-bottom: 16px;
   }
-  :global(.card h2) {
+  .omark-time :global(.card h2) {
     font-size: 17px;
     margin: 0 0 8px;
   }
-  :global(.muted) {
+  .omark-time :global(.muted) {
     color: var(--muted);
   }
-  :global(button.primary) {
+  .omark-time :global(button.primary) {
     background: var(--accent);
     color: var(--on-accent);
     border: 0;
@@ -80,14 +91,14 @@
     font-weight: 600;
     cursor: pointer;
   }
-  :global(button.secondary) {
+  .omark-time :global(button.secondary) {
     background: var(--chip);
     border: 1px solid var(--line);
     border-radius: 10px;
     padding: 9px 14px;
     cursor: pointer;
   }
-  :global(button:disabled) {
+  .omark-time :global(button:disabled) {
     opacity: 0.55;
     cursor: default;
   }

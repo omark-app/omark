@@ -1,5 +1,8 @@
 <script lang="ts">
-  // Omark Goals fills this tab in roadmap G.2; until then the tab holds its place.
+  // Omark Goals fills this tab in roadmap G.2 (it then opens on the `place` it is given); until then the tab holds its place.
+  import type { Place } from '../lib/places.ts';
+
+  let { place: _place }: { place: Place } = $props();
 </script>
 
 <section class="soon">

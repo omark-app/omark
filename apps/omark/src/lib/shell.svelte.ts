@@ -1,9 +1,11 @@
 import { PreconditionFailedError } from '@omark/storage';
 import type { Auth } from '@omark/storage';
-import type { Accounts, Place, Storage } from './places.ts';
-import { STORAGES } from './places.ts';
+import type { Account, Accounts, Place, Storage } from './places.ts';
+import { isAccount, STORAGES } from './places.ts';
 import { entryPart, partsOf, route, withParts } from './suite.ts';
 import type { Part } from './suite.ts';
+
+const ACCOUNTS: readonly Account[] = ['microsoft', 'google'];
 
 /** The device's storage choice (one app spec, section 4: it stays per device). */
 const CHOICE_KEY = 'omark:storage';
@@ -72,19 +74,20 @@ export class Shell {
   }
 
   private async begin(): Promise<void> {
-    const { auth } = this.accounts;
     try {
-      await auth.handleRedirect();
+      await this.accounts.handleRedirect();
     } catch (e) {
       // A failed or cancelled sign-in: say why. A device with a usable storage still opens it below.
       this.error = message(e);
     }
     const saved = load(CHOICE_KEY);
     const choice = isStorage(saved) ? saved : null;
-    const signedIn = auth.isSignedIn() ? auth.signedInProvider() : null;
-    if (choice === 'folder' ? (await this.accounts.savedFolder()) !== null : choice !== null && signedIn === choice) {
+    // Each provider has its own session: the storage's is the one that counts here.
+    const signedIn = ACCOUNTS.find((a) => this.accounts.auth(a).isSignedIn()) ?? null;
+    const usable = choice === 'folder' ? (await this.accounts.savedFolder()) !== null : choice !== null && this.accounts.auth(choice).isSignedIn();
+    if (usable) {
       await this.open(choice!);
-    } else if (choice === null && isStorage(signedIn)) {
+    } else if (choice === null && signedIn !== null) {
       // Signed in from an earlier visit with no choice kept (site data cleared): that account's folder.
       keep(CHOICE_KEY, signedIn);
       await this.open(signedIn);
@@ -106,12 +109,13 @@ export class Shell {
     try {
       if (storage === 'folder' && !(await this.accounts.pickFolder())) return;
       keep(CHOICE_KEY, storage);
-      const { auth } = this.accounts;
-      if (storage !== 'folder' && !(auth.isSignedIn() && auth.signedInProvider() === storage)) {
-        await auth.signIn(storage, { returnTo: location.pathname });
-        // A real sign-in is leaving the page, perhaps still with another provider's session: open nothing.
-        // The fake one is done, signed in with this storage.
-        if (auth.signedInProvider() !== storage) return;
+      if (isAccount(storage)) {
+        const auth = this.accounts.auth(storage);
+        if (!auth.isSignedIn()) {
+          await auth.signIn(undefined, { returnTo: location.pathname });
+          // A real sign-in is leaving the page: open nothing. The fake one is done, signed in.
+          if (!auth.isSignedIn()) return;
+        }
       }
       await this.open(storage);
     } catch (e) {
@@ -160,9 +164,11 @@ export class Shell {
     this.show(partsOf(text));
   }
 
-  /** The Auth a part signs in again with: it comes back to the part's address. */
-  partAuth(): Auth {
-    const auth = this.accounts.auth;
+  /** The storage's sign-in, as a part signs in again with it: it comes back to the part's address. Null for a folder. */
+  partAuth(): Auth | null {
+    const storage = this.place?.storage;
+    if (!storage || !isAccount(storage)) return null;
+    const auth = this.accounts.auth(storage);
     return { ...auth, signIn: (provider, o) => auth.signIn(provider, { ...o, returnTo: location.pathname }) };
   }
 

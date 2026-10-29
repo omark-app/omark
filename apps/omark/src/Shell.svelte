@@ -2,7 +2,7 @@
   import type { Component } from 'svelte';
   import { DEMO_URL } from './env.ts';
   import { accounts } from './lib/places.ts';
-  import type { Storage } from './lib/places.ts';
+  import type { Place, Storage } from './lib/places.ts';
   import { Shell } from './lib/shell.svelte.ts';
   import { PART_NAMES, PARTS } from './lib/suite.ts';
   import type { Part } from './lib/suite.ts';
@@ -25,11 +25,11 @@
   // Tasks comes with the shell, so a Tasks-only start is as quick as Omark Tasks alone; the other parts load
   // the first time their tab shows.
   type Lazy = Exclude<Part, 'tasks'>;
-  const LOADERS: Record<Lazy, () => Promise<{ default: Component }>> = {
+  const LOADERS: Record<Lazy, () => Promise<{ default: Component<{ place: Place }> }>> = {
     time: () => import('./parts/TimePart.svelte'),
     goals: () => import('./parts/GoalsPart.svelte'),
   };
-  const loaded = new Map<Lazy, Promise<{ default: Component }>>();
+  const loaded = new Map<Lazy, Promise<{ default: Component<{ place: Place }> }>>();
   const load = (p: Lazy) => {
     if (!loaded.has(p)) loaded.set(p, LOADERS[p]());
     return loaded.get(p)!;
@@ -128,7 +128,7 @@
       {#if p === 'tasks'}
         <TasksPart place={tasksPlace!} active={shell.current === 'tasks'} />
       {:else}
-        {#await load(p) then mod}<mod.default />{/await}
+        {#await load(p) then mod}<mod.default place={shell.place!} />{/await}
       {/if}
     </div>
   {/each}

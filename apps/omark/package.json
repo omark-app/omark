@@ -31,6 +31,7 @@
     "@omark/tasks-core": "workspace:*",
     "svelte": "^5.57.2",
     "tasks": "workspace:*",
+    "time": "workspace:*",
     "yaml": "^2.9.1"
   }
 }

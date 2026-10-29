@@ -15,10 +15,10 @@
     </p>
     <div class="row">
       <button class="primary" onclick={() => store.allowFolder()}>Allow access</button>
-      <button class="secondary" onclick={() => store.pickFolderAgain()}>Pick the folder again</button>
+      {#if !store.embedded}<button class="secondary" onclick={() => store.pickFolderAgain()}>Pick the folder again</button>{/if}
     </div>
   </section>
-{:else if store.sync === 'offline' && store.storage === 'local-folder'}
+{:else if store.sync === 'offline' && store.storage === 'local-folder' && !store.embedded}
   <p class="card" role="status" data-testid="folder-again">
     If {store.storageName} was moved or renamed, pick it again.
     <button class="secondary" onclick={() => store.pickFolderAgain()}>Pick the folder again</button>

@@ -1,8 +1,8 @@
 import { createStore, get, set } from 'idb-keyval';
 import type { UseStore } from 'idb-keyval';
 
-/** Where this device keeps the files (spec 4.2: per device). OneDrive comes later. */
-export type StorageKind = 'google-drive' | 'local-folder';
+/** Where this device keeps the files (spec 4.2: per device). OneDrive only inside the one Omark app (U.4). */
+export type StorageKind = 'google-drive' | 'local-folder' | 'onedrive';
 
 /** This device's own choices, in IndexedDB. */
 export interface DevicePrefs {

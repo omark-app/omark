@@ -13,8 +13,30 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("the one app's sign-in function", () => {
-  it('offers Microsoft, then Google, with no OMARK_APP', async () => {
-    expect(await (await get('/api/auth/providers')).json()).toEqual({ providers: ['microsoft', 'google'] });
+  it('offers Microsoft, then Google, then the calendar-only Google, with no OMARK_APP', async () => {
+    expect(await (await get('/api/auth/providers')).json()).toEqual({ providers: ['microsoft', 'google', 'googlecal'] });
+  });
+
+  it('a calendar next to OneDrive or a folder asks Google for the calendar only, never Drive (U.4)', async () => {
+    expect(scopes(await get('/api/auth/login?provider=googlecal&return=/time'))).toEqual([
+      'email',
+      'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+      'https://www.googleapis.com/auth/calendar.events.owned.readonly',
+      'openid',
+    ]);
+    expect(scopes(await get('/api/auth/login?provider=googlecal&add=edit'))).toContain('https://www.googleapis.com/auth/calendar.events.owned');
+  });
+
+  it('keeps a session per provider: a calendar token call touches only the calendar cookies (U.4)', async () => {
+    const res = await onRequest({
+      request: new Request('https://app.example/api/auth/token?provider=googlecal', {
+        method: 'POST',
+        headers: { 'X-TaskApp-Auth': '1', Origin: 'https://app.example', 'Sec-Fetch-Site': 'same-origin' },
+      }),
+      env: ENV,
+    });
+    expect(res.status).toBe(401);
+    expect(cookieNames(res).every((n) => n?.startsWith('omark_googlecal_'))).toBe(true);
   });
 
   it('signs in to OneDrive in the app folder, with omark cookies', async () => {

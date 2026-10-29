@@ -44,7 +44,7 @@
   <p data-testid="rows">{store.rows} {store.rows === 1 ? 'row' : 'rows'} of tracked time</p>
   <div class="row">
     <button class="secondary" disabled={store.sync === 'syncing'} onclick={() => store.rebuild()}>Rebuild</button>
-    <button class="secondary" onclick={() => store.signOut()}>Sign out</button>
+    {#if !store.embedded}<button class="secondary" onclick={() => store.signOut()}>Sign out</button>{/if}
   </div>
   <p class="muted small">Rebuild reads your whole calendar again and rewrites the hour files.</p>
 </section>
