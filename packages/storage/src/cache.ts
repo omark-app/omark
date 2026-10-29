@@ -1,4 +1,4 @@
-import { clear, createStore, get, set } from 'idb-keyval';
+import { clear, createStore, del, get, set } from 'idb-keyval';
 import type { UseStore } from 'idb-keyval';
 
 /** Local copy of one remote file: last-synced base, its etag, and the working text. */
@@ -88,6 +88,7 @@ export class IdbCache implements LocalCache {
 export interface BlobKeep {
   get(name: string): Promise<Blob | null>;
   put(name: string, data: Blob): Promise<void>;
+  delete(name: string): Promise<void>;
 }
 
 export class MemoryBlobs implements BlobKeep {
@@ -99,6 +100,10 @@ export class MemoryBlobs implements BlobKeep {
 
   async put(name: string, data: Blob): Promise<void> {
     this.blobs.set(name, data);
+  }
+
+  async delete(name: string): Promise<void> {
+    this.blobs.delete(name);
   }
 }
 
@@ -118,6 +123,10 @@ export class IdbBlobs implements BlobKeep {
   async put(name: string, data: Blob): Promise<void> {
     const kept = { type: data.type, bytes: await data.arrayBuffer() };
     await this.store.run((store) => set(name, kept, store));
+  }
+
+  async delete(name: string): Promise<void> {
+    await this.store.run((store) => del(name, store));
   }
 }
 

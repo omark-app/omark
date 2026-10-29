@@ -15,7 +15,7 @@ Roadmap row G.2b; Goals spec 7.1 and 8. Fast mode: no issue or approval.
 - The pictures live in their own adapter on `goals/images` (`Place.pictures()`), so names stay plain and no adapter learns sub-paths. LocalFolderAdapter's `subfolder` takes a path (`goals/images`) for it.
 - Adding a picture needs a connection: offline, the form says so and keeps the rest of the edit. (Queuing binary writes offline is not worth it here.)
 - Only a picture path `images/<plain name>` is loaded; any other path (a URL, `../x.jpg`) shows the plain colour and keeps its line.
-- The offline copy: an IndexedDB store per place (`omark-pictures-<key>`), by name. Names are never reused by the app, so a kept copy does not go stale, unless someone replaces a file by hand under the same name.
+- The offline copy: an IndexedDB store per place (`omark-pictures-<key>`), by name. It shows at once; the folder's file is read after it and replaces it when they differ, since a name is taken again once its file is deleted by hand.
 
 ## Acceptance criteria
 
@@ -39,3 +39,13 @@ Roadmap row G.2b; Goals spec 7.1 and 8. Fast mode: no issue or approval.
 
 - Cropping, choosing the alt text, deleting old picture files, pictures for goals.
 - The demo world's pictures (U.6).
+
+## Review (fresh eyes, 2026-10-29)
+
+Fixed:
+1. A slow upload could act on another form opened meanwhile, or put the picture line on the wrong area after a move, a delete or a merge. The form is now locked while it saves (the scrim and Cancel too), the line goes to the area found again by its tag, and the form is touched afterwards only if it is still the same one.
+2. A file the browser can't show (not a picture, half synced) showed a broken image and was kept on the device for good. The card's image now falls back to the plain colour and drops the kept copy (`BlobKeep.delete`).
+3. A kept copy could go stale when a name was taken again; see the offline copy above.
+4. Pictures not shown are read again when the device comes back online; lost folder access has its own message; the card image has an empty alt (the heading names the area); older browsers without `imageOrientation: 'from-image'` retry without it; object URLs are let go when replaced.
+
+Left: a Google Drive folder deleted mid-upload reads as "name taken", so the next try may skip a number (harmless).

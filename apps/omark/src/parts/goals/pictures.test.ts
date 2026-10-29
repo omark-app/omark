@@ -97,6 +97,30 @@ describe('Pictures', () => {
     expect(p.url('images/later.jpg')).toBe('blob:1');
   });
 
+  it('shows the kept copy at once, then the folder\'s file when it differs (a name reused after a tidy-up)', async () => {
+    const images = new FakeOneDrive();
+    await images.createBytes('climbing.jpg', jpeg(2));
+    const keep = new MemoryBlobs();
+    await keep.put('climbing.jpg', jpeg(1));
+    const u = urls();
+    const p = new Pictures(images, keep, u.url);
+    await p.load('images/climbing.jpg');
+    expect(p.url('images/climbing.jpg')).toBe('blob:2');
+    expect(new Uint8Array(await u.made[1]!.arrayBuffer())[2]).toBe(2);
+    expect(new Uint8Array(await (await keep.get('climbing.jpg'))!.arrayBuffer())[2]).toBe(2);
+  });
+
+  it('a picture the browser can not show is dropped from this device and shows the plain colour', async () => {
+    const images = new FakeOneDrive();
+    await images.createBytes('climbing.jpg', jpeg(1));
+    const keep = new MemoryBlobs();
+    const p = new Pictures(images, keep, urls().url);
+    await p.load('images/climbing.jpg');
+    await p.failed('images/climbing.jpg');
+    expect(p.url('images/climbing.jpg')).toBeNull();
+    expect(await keep.get('climbing.jpg')).toBeNull();
+  });
+
   it('adds a picture: saved under the next free name and shown at once', async () => {
     const images = new FakeOneDrive();
     await images.createBytes('climbing.jpg', jpeg(1));

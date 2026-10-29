@@ -104,6 +104,24 @@ test('offline, the picture is not saved and the form says why; the rest of the e
   await expect(card(page, 'Climbing').getByTestId('area-picture')).toBeVisible();
 });
 
+test('a file that is not a picture shows the plain colour, read again when the device comes back online', async ({ page }) => {
+  await open(page, { 'goals.md': '## Climbing #climbing\n\n![Climbing](images/climbing.jpg)\n\n## Home #home\n\n![Home](images/home.jpg)\n' });
+  await expect(page.getByTestId('area-card')).toHaveCount(2);
+  // Neither file is there at first. Then both arrive, Home's only half synced, and the device comes back online.
+  const good = await png(page, 40, 30);
+  await page.evaluate(async (bytes) => {
+    const images = (window as unknown as { __omarkFake: Record<string, { createBytes(n: string, b: Blob): Promise<void> }> }).__omarkFake.images!;
+    await images.createBytes('climbing.jpg', new Blob([new Uint8Array(bytes)], { type: 'image/png' }));
+    await images.createBytes('home.jpg', new Blob([new Uint8Array([0xff, 0xd8, 1, 2, 3])], { type: 'image/jpeg' }));
+    window.dispatchEvent(new Event('online'));
+  }, [...good.buffer]);
+  await expect(card(page, 'Climbing').getByTestId('area-picture')).toBeVisible();
+  // The browser can't show Home's: no broken image, the card keeps its colour.
+  await expect(card(page, 'Home').getByTestId('area-picture')).toHaveCount(0);
+  await page.waitForTimeout(300);
+  await expect(card(page, 'Home').getByTestId('area-picture')).toHaveCount(0);
+});
+
 test('a picture line whose file is missing, or outside images/, shows the plain colour and stays', async ({ page }) => {
   const text = '## Climbing #climbing\n\n![Climbing](images/climbing.jpg)\n\n## Home #home\n\n![Home](https://example.com/home.jpg)\n';
   await open(page, { 'goals.md': text });

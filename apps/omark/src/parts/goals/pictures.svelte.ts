@@ -47,7 +47,11 @@ export async function savePicture(images: BinaryStore, tag: string, jpeg: Blob):
 
 /** A picture file as a JPEG at most 1600 px on its long side, turned upright, on white where it was see-through. */
 export async function toJpeg(file: Blob): Promise<Blob> {
-  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  // Browsers from before 'from-image' reject the option; they turn the picture upright on their own.
+  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' }).catch((e: unknown) => {
+    if (e instanceof TypeError) return createImageBitmap(file);
+    throw e;
+  });
   const { width, height } = fitWithin(bitmap.width, bitmap.height);
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -65,9 +69,10 @@ export async function toJpeg(file: Blob): Promise<Blob> {
 
 /**
  * Goals' pictures (G.2b): read from `goals/images/` and kept on this device, so a card shows its picture offline.
- * A file is never replaced (a new picture gets a new name), so a kept copy stays right. `url` is undefined until
- * a load has been tried, then an object URL, or null (missing, unreachable, or not in `images/`; tried again on
- * the next `load`).
+ * A kept copy shows at once and the folder's file is read after it, replacing it when they differ (a name can be
+ * taken again once its file is deleted by hand). `url` is undefined until a load has been tried, then an object
+ * URL, or null (missing, unreachable, not in `images/`, or not a picture the browser shows; tried again on the
+ * next `load`).
  */
 export class Pictures {
   private urls = $state<Record<string, string | null>>({});
@@ -87,28 +92,51 @@ export class Pictures {
     if (typeof this.urls[path] === 'string' || this.loading.has(path)) return;
     this.loading.add(path);
     try {
-      this.urls[path] = await this.fetch(path);
+      await this.fetch(path);
     } finally {
       this.loading.delete(path);
     }
+  }
+
+  /** The browser could not show the picture (not an image, or cut short): the plain colour, and no copy kept. */
+  async failed(path: string): Promise<void> {
+    this.show(path, null);
+    const name = pictureFile(path);
+    if (name !== null) await this.keep.delete(name).catch(() => {});
   }
 
   /** Saves `jpeg` (from `toJpeg`) as the area's picture and gives its path for `goals.md`. */
   async add(tag: string, jpeg: Blob): Promise<string> {
     const path = await savePicture(this.images, tag, jpeg);
     await this.keep.put(pictureFile(path)!, jpeg).catch(() => {});
-    this.urls[path] = this.objectUrl(jpeg);
+    this.show(path, jpeg);
     return path;
   }
 
-  private async fetch(path: string): Promise<string | null> {
+  private async fetch(path: string): Promise<void> {
     const name = pictureFile(path);
-    if (name === null) return null;
+    if (name === null) return this.show(path, null);
     const kept = await this.keep.get(name).catch(() => null);
-    if (kept) return this.objectUrl(kept);
-    const read = await this.images.readBytes(name).catch(() => null);
-    if (!read) return null;
+    if (kept) this.show(path, kept);
+    const read = await this.images.readBytes(name).catch(() => undefined);
+    // Unreachable: the kept copy, if any, stays.
+    if (read === undefined) return kept ? undefined : this.show(path, null);
+    if (read === null) return this.show(path, null);
+    if (kept && (await same(kept, read))) return;
     await this.keep.put(name, read).catch(() => {});
-    return this.objectUrl(read);
+    this.show(path, read);
   }
+
+  /** Shows `blob` for `path` (null: none), letting go of the object URL it showed before. */
+  private show(path: string, blob: Blob | null): void {
+    const old = this.urls[path];
+    this.urls[path] = blob && this.objectUrl(blob);
+    if (old) URL.revokeObjectURL(old);
+  }
+}
+
+async function same(a: Blob, b: Blob): Promise<boolean> {
+  if (a.size !== b.size) return false;
+  const [x, y] = (await Promise.all([a.arrayBuffer(), b.arrayBuffer()])).map((buf) => new Uint8Array(buf));
+  return x!.every((v, i) => v === y![i]);
 }

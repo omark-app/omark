@@ -12,10 +12,13 @@
   let { store, pictures, openSettings }: { store: GoalsStore; pictures: Pictures; openSettings?: () => void } = $props();
 
   const list = $derived(areas(store.doc));
-  // Each area's picture is read once it is named (a missing one is tried again when the areas change).
+  // Each area's picture is read once it is named; one not shown is tried again when the areas change or the
+  // device comes back online.
+  const loadPictures = (paths: string[]) => paths.forEach((p) => void pictures.load(p));
+  const picturePaths = $derived(list.flatMap((a) => (a.picture ? [a.picture.path] : [])));
   $effect(() => {
-    const paths = list.flatMap((a) => (a.picture ? [a.picture.path] : []));
-    untrack(() => paths.forEach((p) => void pictures.load(p)));
+    const paths = picturePaths;
+    untrack(() => loadPictures(paths));
   });
   const notNowItems = $derived(notNow(store.doc));
   // The device's own date, as the store's (a UTC date would be a day off around midnight).
@@ -74,16 +77,20 @@
   const formPicture = $derived(areaForm && (areaForm.preview ?? (areaForm.picture && !areaForm.removed ? pictures.url(areaForm.picture.path) : null)));
   const formHasPicture = $derived(!!areaForm && (areaForm.file !== null || (areaForm.picture !== null && !areaForm.removed)));
   function pictureError(e: unknown): string {
-    if (e instanceof OfflineError || e instanceof AuthRequiredError) return "Can't reach the Omark folder, so the picture isn't saved. Save again when it can be reached.";
+    if (e instanceof AuthRequiredError) return "Omark needs to be allowed into the Omark folder again, so the picture isn't saved. Allow it, then save again.";
+    if (e instanceof OfflineError) return "Can't reach the Omark folder, so the picture isn't saved. Save again when it can be reached.";
     if (e instanceof StorageFullError) return "The Omark folder's storage is full, so the picture isn't saved.";
     return "This picture can't be read. Try a JPEG or PNG.";
   }
+  /** The area with this tag now (areas can move or go while a picture uploads), or -1. */
+  const areaByTag = (tag: string | null) => areas(store.doc).findIndex((a) => tag !== null && a.tag?.toLowerCase() === tag.toLowerCase());
   async function saveArea(): Promise<void> {
     const f = areaForm!;
     if (f.name.trim() === '' || f.saving) return;
-    // Without a new picture the form closes at once; with one it waits for the upload, and stays on an error.
-    if (f.file) areaForm = { ...f, saving: true, error: null };
-    else closeArea();
+    // Without a new picture the form closes at once. With one it waits, locked, for the upload, and stays on an error.
+    if (!f.file) closeArea();
+    else areaForm = { ...f, saving: true, error: null };
+    const mine = areaForm;
     let index = f.index;
     if (index === null) {
       await store.addArea(f.name);
@@ -92,16 +99,22 @@
     // Its vision text goes in as an edit, for a new area too (the last one).
     await store.editArea(index, { name: f.name, vision: f.vision, ...(f.removed && !f.file && { picture: null }) });
     if (!f.file) return;
-    const area = areas(store.doc)[index]!;
+    // Edited, the area has a tag: the picture is named from it, and its line goes to the area with it.
+    const tag = areas(store.doc)[index]!.tag;
+    let error: string | null = null;
     try {
-      const path = await pictures.add(area.tag ?? 'area', await toJpeg(f.file));
-      await store.editArea(index, { picture: { alt: area.name.replace(/[[\]]/g, ''), path } });
+      const path = await pictures.add(tag ?? 'area', await toJpeg(f.file));
+      const at = areaByTag(tag);
+      // Deleted meanwhile (another device): the picture file stays, as a replaced one does.
+      if (at >= 0) await store.editArea(at, { picture: { alt: areas(store.doc)[at]!.name.replace(/[[\]]/g, ''), path } });
     } catch (e) {
-      // The rest is saved; the form stays, now on that area, to try the picture again.
-      if (areaForm) areaForm = { ...areaForm, index, picture: area.picture, removed: f.removed, saving: false, error: pictureError(e) };
-      return;
+      error = pictureError(e);
     }
-    closeArea();
+    if (areaForm !== mine) return;
+    const at = areaByTag(tag);
+    // The rest is saved; on an error the form stays, now on that area, to try the picture again.
+    if (error === null || at < 0) closeArea();
+    else areaForm = { ...mine!, index: at, picture: areas(store.doc)[at]!.picture, saving: false, error };
   }
   function deleteArea(): void {
     const f = areaForm!;
@@ -166,6 +179,8 @@
   const open = (area: Area) => area.goals.map((g, i) => ({ g, i })).filter(({ g }) => !g.achieved);
   const achieved = (area: Area) => area.goals.map((g, i) => ({ g, i })).filter(({ g }) => g.achieved);
 </script>
+
+<svelte:window ononline={() => loadPictures(picturePaths)} />
 
 {#snippet goalRow(area: number, g: Goal, i: number)}
   {@const status = goalStatus(g, today)}
@@ -234,7 +249,7 @@
         {@const habits = store.habitsFor(area)}
         {@const picture = area.picture && pictures.url(area.picture.path)}
         <section class="card" data-testid="area-card" style:--h={hue(area.name)}>
-          {#if picture}<img class="picture" src={picture} alt={area.picture!.alt} data-testid="area-picture" />{/if}
+          {#if picture}<img class="picture" src={picture} alt="" data-testid="area-picture" onerror={() => void pictures.failed(area.picture!.path)} />{/if}
           <div class="head">
             <h2>{area.name || 'Untitled'}</h2>
             <button type="button" class="edit" aria-label="Edit {area.name}" onclick={() => openArea(a)}>Edit</button>
@@ -305,28 +320,28 @@
 </div>
 
 {#if areaForm}
-  <div class="scrim" role="presentation" onclick={closeArea}></div>
+  <div class="scrim" role="presentation" onclick={() => areaForm?.saving || closeArea()}></div>
   <form class="sheet" aria-label={areaForm.index === null ? 'New area' : 'Edit area'} onsubmit={(e) => (e.preventDefault(), void saveArea())}>
     <h2>{areaForm.index === null ? 'New area' : 'Edit area'}</h2>
-    <label>Name <input bind:value={areaForm.name} /></label>
+    <label>Name <input bind:value={areaForm.name} disabled={areaForm.saving} /></label>
     <div class="picture-row" data-testid="picture-row">
       {#if formPicture}<img class="thumb" src={formPicture} alt="" data-testid="picture-thumb" />{/if}
       <label class="btn file">
         {formHasPicture ? 'Replace picture' : 'Add picture'}
-        <input type="file" accept="image/*" onchange={choosePicture} />
+        <input type="file" accept="image/*" onchange={choosePicture} disabled={areaForm.saving} />
       </label>
-      {#if formHasPicture}<button type="button" class="btn" onclick={removePicture}>Remove picture</button>{/if}
+      {#if formHasPicture}<button type="button" class="btn" disabled={areaForm.saving} onclick={removePicture}>Remove picture</button>{/if}
     </div>
-    <label>Vision <textarea rows="3" bind:value={areaForm.vision}></textarea></label>
+    <label>Vision <textarea rows="3" bind:value={areaForm.vision} disabled={areaForm.saving}></textarea></label>
     {#if areaForm.error}<p class="error" role="alert">{areaForm.error}</p>{/if}
     <div class="row">
       <button type="submit" class="primary" disabled={areaForm.saving}>{areaForm.saving ? 'Saving…' : 'Save'}</button>
       {#if areaForm.index !== null}
-        <button type="button" class="btn" disabled={areaForm.index === 0} onclick={() => move(-1)}>Move up</button>
-        <button type="button" class="btn" disabled={areaForm.index === list.length - 1} onclick={() => move(1)}>Move down</button>
-        <button type="button" class="btn danger" onclick={deleteArea}>Delete</button>
+        <button type="button" class="btn" disabled={areaForm.saving || areaForm.index === 0} onclick={() => move(-1)}>Move up</button>
+        <button type="button" class="btn" disabled={areaForm.saving || areaForm.index === list.length - 1} onclick={() => move(1)}>Move down</button>
+        <button type="button" class="btn danger" disabled={areaForm.saving} onclick={deleteArea}>Delete</button>
       {/if}
-      <button type="button" class="btn" onclick={closeArea}>Cancel</button>
+      <button type="button" class="btn" disabled={areaForm.saving} onclick={closeArea}>Cancel</button>
     </div>
   </form>
 {/if}

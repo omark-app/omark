@@ -123,6 +123,8 @@ for (const [name, make] of [
       const got = await keep.get('climbing.jpg');
       expect(got?.type).toBe('image/jpeg');
       expect([...new Uint8Array(await got!.arrayBuffer())]).toEqual([0xff, 0xd8, 0, 200]);
+      await keep.delete('climbing.jpg');
+      expect(await keep.get('climbing.jpg')).toBeNull();
     });
   });
 }
