@@ -66,7 +66,7 @@ export class GoogleDriveAdapter implements StorageAdapter {
           const rev = `${API}drive/v3/files/${encodeURIComponent(id)}/revisions/${encodeURIComponent(meta.headRevisionId)}?alt=media`;
           const body = await this.api(rev, {});
           if (!body.ok) throw new Error(`Google Drive download failed: ${body.status}`);
-          return { text: body.text, etag: meta.etag };
+          return { text: body.text, etag: meta.etag, source: id };
         }
       }
       this.forget(name);
@@ -74,7 +74,7 @@ export class GoogleDriveAdapter implements StorageAdapter {
     }
   }
 
-  async write(name: string, text: string, ifMatch: string | null): Promise<{ etag: string }> {
+  async write(name: string, text: string, ifMatch: string | null): Promise<{ etag: string; source: string }> {
     if (ifMatch === null) return this.create(name, text);
     const id = this.fileIds.get(name) ?? (await this.findFile(name));
     if (id === null) throw new PreconditionFailedError(`Precondition failed for ${name}`);
@@ -87,14 +87,14 @@ export class GoogleDriveAdapter implements StorageAdapter {
     if (res.status === 412 || res.status === 404) throw new PreconditionFailedError(`Precondition failed for ${name}`);
     if (!res.ok) throw new Error(`Google Drive write failed: ${res.status}`);
     this.fileIds.set(name, id);
-    return { etag: (JSON.parse(res.text) as { etag: string }).etag };
+    return { etag: (JSON.parse(res.text) as { etag: string }).etag, source: id };
   }
 
   /**
    * Drive has no create-if-absent, so: look, create, then look again. When another device created the
    * same name meanwhile, the older file wins and ours goes to the trash, which reads as a 412.
    */
-  private async create(name: string, text: string): Promise<{ etag: string }> {
+  private async create(name: string, text: string): Promise<{ etag: string; source: string }> {
     const folderId = await this.ensureFolder();
     if ((await this.list(fileQuery(name, folderId))).length > 0) throw new PreconditionFailedError(`${name} already exists`);
     const boundary = `boundary-${crypto.randomUUID()}`;
@@ -123,7 +123,7 @@ export class GoogleDriveAdapter implements StorageAdapter {
       throw new PreconditionFailedError(`${name} already exists`);
     }
     this.fileIds.set(name, made.id);
-    return { etag: made.etag };
+    return { etag: made.etag, source: made.id };
   }
 
   private async findFile(name: string): Promise<string | null> {

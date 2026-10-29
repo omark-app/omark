@@ -872,6 +872,111 @@ describe('FileSync full storage (#68)', () => {
   });
 });
 
+/**
+ * Files by id, one of which answers to the name (`use`), as Google Drive's oldest file of a name does.
+ * Reads and writes carry the id as `source` unless `sources` is false.
+ */
+class SourceAdapter implements StorageAdapter {
+  files = new Map<string, { text: string; etag: string }>();
+  current = '';
+  sources = true;
+  failWrites = false;
+  private n = 0;
+
+  add(id: string, text: string): void {
+    this.files.set(id, { text, etag: `e${++this.n}` });
+    if (this.current === '') this.current = id;
+  }
+
+  use(id: string): void {
+    this.current = id;
+  }
+
+  async read(): Promise<RemoteFile | null> {
+    const f = this.files.get(this.current);
+    if (!f) return null;
+    return { text: f.text, etag: f.etag, ...(this.sources && { source: this.current }) };
+  }
+
+  async write(_name: string, text: string, ifMatch: string | null): Promise<{ etag: string; source?: string }> {
+    if (this.failWrites) throw new OfflineError('down');
+    const f = this.files.get(this.current);
+    if ((f?.etag ?? null) !== ifMatch) throw new PreconditionFailedError('changed');
+    const etag = `e${++this.n}`;
+    this.files.set(this.current, { text, etag });
+    return { etag, ...(this.sources && { source: this.current }) };
+  }
+}
+
+describe('FileSync when another file answers to the name (#67)', () => {
+  const A = '# Tasks\n- [ ] Buy milk\n- [ ] From A\n';
+  const B = '# Tasks\n- [ ] Buy milk\n- [ ] From B\n';
+  const both = (text: string) => {
+    expect(text).toContain('- [ ] From A');
+    expect(text).toContain('- [ ] From B');
+    expect(text.match(/Buy milk/g)).toHaveLength(1);
+  };
+
+  it('with no local edits, merges both files from an empty base and writes the result to the file in use', async () => {
+    const adapter = new SourceAdapter();
+    adapter.add('new', B);
+    const sync = makeSync(adapter);
+    await sync.open();
+    adapter.add('old', A);
+    adapter.use('old');
+    const { text, changed } = await sync.pull();
+    both(text);
+    expect(changed).toBe(true);
+    both(adapter.files.get('old')!.text);
+    expect(adapter.files.get('new')!.text).toBe(B);
+    expect(sync.status()).toBe('saved');
+  });
+
+  it('with local edits, the result has both files and the edit', async () => {
+    const adapter = new SourceAdapter();
+    adapter.add('new', B);
+    const sync = makeSync(adapter);
+    await sync.open();
+    adapter.failWrites = true;
+    await sync.save(`${B}- [ ] Edited here\n`, B);
+    expect(sync.status()).toBe('offline');
+    adapter.add('old', A);
+    adapter.use('old');
+    adapter.failWrites = false;
+    await sync.pull();
+    both(sync.text());
+    expect(sync.text()).toContain('- [ ] Edited here');
+    both(adapter.files.get('old')!.text);
+  });
+
+  it('the same file is merged against the real base, as before', async () => {
+    const adapter = new SourceAdapter();
+    adapter.add('one', withRemote);
+    const sync = makeSync(adapter);
+    await sync.open();
+    adapter.files.set('one', { text: S, etag: 'later' }); // another device removed the remote task
+    expect((await sync.pull()).text).toBe(S);
+  });
+
+  it('without sources, or from a cache that has none, a changed file is taken as before', async () => {
+    const adapter = new SourceAdapter();
+    adapter.sources = false;
+    adapter.add('one', withRemote);
+    const sync = makeSync(adapter);
+    await sync.open();
+    adapter.add('two', S);
+    adapter.use('two');
+    expect((await sync.pull()).text).toBe(S);
+
+    const withSources = new SourceAdapter();
+    withSources.add('two', S);
+    const cache = new MemoryCache();
+    await cache.put(NAME, { base: withRemote, baseEtag: 'old-etag', local: withRemote, dirty: false });
+    expect(await makeSync(withSources, cache).open()).toBe(S);
+    expect((await cache.get(NAME))?.baseSource).toBe('two');
+  });
+});
+
 class FailingCache extends MemoryCache {
   failing = false;
   override async put(name: string, f: CachedFile): Promise<void> {

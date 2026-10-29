@@ -21,6 +21,13 @@ describe('mergeSettings', () => {
     });
   });
 
+  it('from an empty base (two copies of the file, #67), local wins where both set a key', () => {
+    expect(mergeSettings(demo, '', 'theme: dark\ndelay: 2\n', 'theme: system\n')).toMatchObject({
+      text: 'theme: dark\ndelay: 2\n',
+      conflicts: [theme],
+    });
+  });
+
   it('lets local win a conflict and lists it', () => {
     expect(mergeSettings(demo, 'theme: light\n', 'theme: dark\n', 'theme: system\n')).toEqual({
       text: 'theme: dark\n',

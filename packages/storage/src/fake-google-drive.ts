@@ -30,6 +30,8 @@ interface Item {
   etags: Set<string>;
   headRevisionId: string;
   revisions: Map<string, string>;
+  /** Made while lists lag: only calls with this Authorization header list it, until `settleLists`. */
+  unlistedFor?: string;
 }
 
 interface Hold {
@@ -44,6 +46,7 @@ export class FakeGoogleDrive {
   private clock = 0;
   private offline = false;
   private full = false;
+  private lagging = false;
   private holds: Hold[] = [];
 
   /** The folder's path from the top of My Drive, one name per level. */
@@ -74,6 +77,28 @@ export class FakeGoogleDrive {
 
   setOffline(offline: boolean): void {
     this.offline = offline;
+  }
+
+  /**
+   * Lists that lag, as Drive's can right after a create: a file or folder made meanwhile is listed only
+   * to the device that made it (by its Authorization header) until `settleLists`. Reads by id still work.
+   */
+  setListLag(lag: boolean): void {
+    this.lagging = lag;
+  }
+
+  /** Every item made while lists lagged shows in every list from now on. */
+  settleLists(): void {
+    for (const item of this.items.values()) delete item.unlistedFor;
+  }
+
+  /** Takes every trashed file and folder out of the trash, as a user restoring them would. */
+  restoreTrashed(): void {
+    for (const item of this.items.values()) {
+      if (!item.trashed) continue;
+      item.trashed = false;
+      this.newEtag(item);
+    }
   }
 
   /** A full Drive: creating or updating a file answers 403 `storageQuotaExceeded`; reads still work. */
@@ -177,10 +202,10 @@ export class FakeGoogleDrive {
     let m: RegExpExecArray | null;
     if ((m = FOLDER_QUERY.exec(q))) {
       const [name, parent] = [unescape(m[1]!), m[2] ?? null];
-      found = this.sorted((i) => i.isFolder && i.parent === parent && i.name === name && !i.trashed);
+      found = this.sorted((i) => i.isFolder && i.parent === parent && i.name === name && !i.trashed && this.listed(i, call));
     } else if ((m = FILE_QUERY.exec(q))) {
       const [name, parent] = [unescape(m[1]!), m[2]!];
-      found = this.sorted((i) => !i.isFolder && i.parent === parent && i.name === name && !i.trashed);
+      found = this.sorted((i) => !i.isFolder && i.parent === parent && i.name === name && !i.trashed && this.listed(i, call));
     } else unexpected(call);
     return Response.json({ files: found.map((i) => ({ id: i.id })) });
   }
@@ -193,7 +218,7 @@ export class FakeGoogleDrive {
     if (meta.mimeType !== FOLDER_MIME || (meta.parents && meta.parents.length !== 1)) unexpected(call);
     const parent = meta.parents?.[0] ?? null;
     if (parent !== null && !this.items.get(parent)?.isFolder) return googleError(404, 'notFound');
-    return Response.json({ id: this.add(meta.name, parent, true).id });
+    return Response.json({ id: this.add(meta.name, parent, true, this.by(call)).id });
   }
 
   private trashItem(call: DriveCall, url: URL, id: string, body: string | undefined): Response {
@@ -241,7 +266,7 @@ export class FakeGoogleDrive {
     if (mediaPart.type !== `${meta.mimeType}; charset=utf-8` || meta.parents.length !== 1) unexpected(call);
     const folder = this.items.get(meta.parents[0]!.id);
     if (!folder || !folder.isFolder) return googleError(404, 'notFound');
-    const file = this.add(meta.title, folder.id);
+    const file = this.add(meta.title, folder.id, false, this.by(call));
     this.setText(file, mediaPart.content);
     return Response.json({ id: file.id, etag: file.etag });
   }
@@ -266,7 +291,8 @@ export class FakeGoogleDrive {
     return Response.json({ etag: file.etag });
   }
 
-  private add(name: string, parent: string | null, isFolder = false): Item {
+  /** `by`: the Authorization header of the call that made it, while lists lag. */
+  private add(name: string, parent: string | null, isFolder = false, by?: string): Item {
     const n = ++this.clock;
     const item: Item = {
       id: `id${n}`,
@@ -279,6 +305,7 @@ export class FakeGoogleDrive {
       etags: new Set(),
       headRevisionId: '',
       revisions: new Map(),
+      ...(by !== undefined && { unlistedFor: by }),
     };
     this.items.set(item.id, item);
     this.newEtag(item);
@@ -295,6 +322,16 @@ export class FakeGoogleDrive {
   private newEtag(item: Item): void {
     item.etag = `"${btoa(String(1_793_000_000_000 + ++this.clock)).replace(/=+$/, '')}"`;
     item.etags.add(item.etag);
+  }
+
+  /** Who made an item now, for the lag: the call's Authorization header while lists lag, else nobody. */
+  private by(call: DriveCall): string | undefined {
+    return this.lagging ? call.headers['authorization'] : undefined;
+  }
+
+  /** Whether a list from `call` shows `item` yet. */
+  private listed(item: Item, call: DriveCall): boolean {
+    return item.unlistedFor === undefined || item.unlistedFor === call.headers['authorization'];
   }
 
   private sorted(keep: (i: Item) => boolean): Item[] {

@@ -250,11 +250,17 @@ export class FileSync {
       // Missing: create it from `local` (whether never created or deleted elsewhere, the text is kept).
       // The base becomes empty: if the file comes back before that write lands (another device made it,
       // or a folder's create left it empty or cut short), merging only adds to `local`, never removes.
-      this.set({ ...f, base: '', baseEtag: null, dirty: true });
+      this.set(sourced({ ...f, base: '', baseEtag: null, dirty: true }, undefined));
     } else if (remote.etag === f.baseEtag) {
       return;
+    } else if (remote.source !== undefined && f.baseSource != null && remote.source !== f.baseSource) {
+      // Another file answers to the name now (a second copy on Google Drive, #67): the base describes the
+      // one before, so both are merged from an empty base and the result goes to the file in use.
+      const merged = this.opts.merge('', f.local, remote.text);
+      const same = normalize(merged) === normalize(remote.text);
+      this.set(sourced({ base: remote.text, baseEtag: remote.etag, local: same ? remote.text : merged, dirty: !same }, remote.source));
     } else if (!f.dirty) {
-      this.set({ base: remote.text, baseEtag: remote.etag, local: remote.text, dirty: false });
+      this.set(sourced({ base: remote.text, baseEtag: remote.etag, local: remote.text, dirty: false }, remote.source));
     } else {
       // A remote equal to one of our unanswered writes means that write landed though its reply was lost:
       // `local` is built on it, so it is the base (merging against the old base would keep both versions
@@ -263,7 +269,7 @@ export class FileSync {
       const merged = this.opts.merge(base, f.local, remote.text);
       // A merge that adds nothing to the remote (up to line endings) leaves the file as it is.
       const same = normalize(merged) === normalize(remote.text);
-      this.set({ base: remote.text, baseEtag: remote.etag, local: same ? remote.text : merged, dirty: !same });
+      this.set(sourced({ base: remote.text, baseEtag: remote.etag, local: same ? remote.text : merged, dirty: !same }, remote.source));
     }
     // `local` now builds on this remote, not on the unanswered writes.
     this.unconfirmed = [];
@@ -277,10 +283,10 @@ export class FileSync {
       await this.cacheSettled();
       const text = this.file.local;
       try {
-        const { etag } = await this.opts.adapter.write(this.opts.name, text, this.file.baseEtag);
+        const { etag, source } = await this.opts.adapter.write(this.opts.name, text, this.file.baseEtag);
         this.unconfirmed = [];
         // A save made during the write leaves `local` ahead of what was written: still dirty.
-        this.set({ ...this.file, base: text, baseEtag: etag, dirty: this.file.local !== text });
+        this.set(sourced({ ...this.file, base: text, baseEtag: etag, dirty: this.file.local !== text }, source));
         await this.persist();
         return;
       } catch (e) {
@@ -369,6 +375,12 @@ export class FileSync {
       }
     }
   }
+}
+
+/** `f` with `source` as its base's source, or with none when the storage gave none. */
+function sourced(f: CachedFile, source: string | undefined): CachedFile {
+  const { baseSource: _, ...rest } = f;
+  return source === undefined ? rest : { ...rest, baseSource: source };
 }
 
 function fresh(initial: string): CachedFile {

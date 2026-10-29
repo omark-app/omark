@@ -1,7 +1,10 @@
+import { mergeTasksText } from '@omark/tasks-core';
 import { describe, expect, it, vi } from 'vitest';
 import { AuthRequiredError, OfflineError, PreconditionFailedError, StorageFullError } from '../src/errors.ts';
 import { FakeGoogleDrive } from '../src/fake-google-drive.ts';
 import { GoogleDriveAdapter } from '../src/google-drive-adapter.ts';
+import { MemoryCache } from '../src/cache.ts';
+import { FileSync } from '../src/file-sync.ts';
 import { adapterContract } from './adapter-contract.ts';
 
 const FOLDER = 'Omark Tasks';
@@ -382,5 +385,70 @@ describe('FakeGoogleDrive', () => {
     const init = { headers: { Authorization: 'Bearer tok' } };
     await expect(fake.fetch('https://www.googleapis.com/drive/v3/files/x?alt=media', init)).rejects.toThrow(/unexpected/);
     await expect(fake.fetch('https://www.googleapis.com/drive/v3/files?q=trashed%3Dfalse', init)).rejects.toThrow(/unexpected/);
+  });
+});
+
+describe('GoogleDriveAdapter when two files answer to one name (#67)', () => {
+  const device = (fake: FakeGoogleDrive, token: string) => setup(fake, fake.fetch, async () => token);
+  const sync = (adapter: GoogleDriveAdapter, cache: MemoryCache) =>
+    new FileSync({ name: 'tasks.md', adapter, cache, merge: mergeTasksText, initial: '# Tasks\n' });
+
+  it('read and write give the file id as the source', async () => {
+    const fake = new FakeGoogleDrive({ 'tasks.md': 'a' });
+    const adapter = setup(fake);
+    const read = await adapter.read('tasks.md');
+    expect(read?.source).toMatch(/^id/);
+    expect((await adapter.write('tasks.md', 'b', read!.etag)).source).toBe(read!.source);
+    const made = await adapter.write('done.md', 'd', null);
+    expect(made.source).toMatch(/^id/);
+    expect(made.source).not.toBe(read!.source);
+  });
+
+  it('a lagging list lets two first runs at once make two folders, each with its own tasks.md', async () => {
+    const fake = new FakeGoogleDrive();
+    fake.setListLag(true);
+    await device(fake, 'tok-a').write('tasks.md', 'A', null);
+    await device(fake, 'tok-b').write('tasks.md', 'B', null);
+    expect(fake.folders()).toEqual(['Omark Tasks', 'Omark Tasks']);
+    expect(fake.files()).toEqual(['tasks.md', 'tasks.md']);
+    fake.settleLists();
+    expect((await device(fake, 'tok-b').read('tasks.md'))?.text).toBe('A');
+  });
+
+  it('two devices that each made tasks.md both end up with both tasks, in the oldest file', async () => {
+    const fake = new FakeGoogleDrive();
+    fake.setListLag(true);
+    const [cacheA, cacheB] = [new MemoryCache(), new MemoryCache()];
+    const a = sync(device(fake, 'tok-a'), cacheA);
+    const b = sync(device(fake, 'tok-b'), cacheB);
+    await a.save('# Tasks\n- [ ] From A\n', await a.open());
+    await b.save('# Tasks\n- [ ] From B\n', await b.open());
+    expect(fake.files()).toEqual(['tasks.md', 'tasks.md']);
+    fake.setListLag(false);
+    fake.settleLists();
+    // Each device starts again: a new adapter, the same cache.
+    const b2 = sync(device(fake, 'tok-b'), cacheB);
+    const a2 = sync(device(fake, 'tok-a'), cacheA);
+    for (const text of [await b2.open(), await a2.open()]) {
+      expect(text).toContain('- [ ] From A');
+      expect(text).toContain('- [ ] From B');
+    }
+    expect(fake.peek('tasks.md')).toContain('- [ ] From B');
+    expect(fake.files()).toEqual(['tasks.md', 'tasks.md']);
+  });
+
+  it('a folder restored from the trash, older than the one in use, gets the tasks saved meanwhile', async () => {
+    const fake = new FakeGoogleDrive({ 'tasks.md': '# Tasks\n- [ ] Old task\n' });
+    const cache = new MemoryCache();
+    await sync(setup(fake), cache).open();
+    fake.trashFolder();
+    const second = sync(setup(fake), cache);
+    const opened = await second.open();
+    await second.save(`${opened}- [ ] Saved in the new folder\n`, opened);
+    fake.restoreTrashed();
+    const text = await sync(setup(fake), cache).open();
+    expect(text).toContain('- [ ] Old task');
+    expect(text).toContain('- [ ] Saved in the new folder');
+    expect(fake.peek('tasks.md')).toBe(text);
   });
 });

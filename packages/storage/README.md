@@ -14,3 +14,5 @@ Every storage is a `StorageAdapter` (`src/adapter.ts`): `read(name)` gives the t
 For a picked folder: `folderSupported(window)` says whether the browser can pick one, `pickFolder` shows the picker, `SavedFolder` keeps the handle in IndexedDB, `folderAccess` and `requestFolderAccess` handle the permission a later visit may need (lost permission is `AuthRequiredError`), and `conflictCopies` names sync clients' conflict copies (`notes (1).md` and similar).
 
 A storage with no room left is `StorageFullError`: a 403 `storageQuotaExceeded` from Drive, a 507 or `quotaLimitReached` from OneDrive, a `QuotaExceededError` from a folder (#68). `FileSync` then shows `offline` and retries as for any failure, and `full()` is true until the next success or a different failure; its `onStatus` listeners hear when `full()` changes too.
+
+An adapter where a name can point at another file than before (Google Drive, which allows several files with one name) gives a `source` with what it reads and writes: the file id. `FileSync` keeps it as `baseSource`; a read from a different file is merged from an empty base and written to the file now in use (#67).

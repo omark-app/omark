@@ -94,6 +94,15 @@ test('identity on text: unchanged sides merge to the other side byte-for-byte', 
   }
 });
 
+test('done.md merged from an empty base (two copies of the file, #67) keeps both sides, a shared line once', () => {
+  const local = '- [x] Shared ✅ 2026-10-01\n- [x] Only here ✅ 2026-10-02\n';
+  const remote = '- [x] Shared ✅ 2026-10-01\n- [x] Only there ✅ 2026-10-03\n';
+  const merged = mergeDoneText('', local, remote);
+  expect(merged.match(/Shared/g)).toHaveLength(1);
+  expect(merged).toContain('- [x] Only here ✅ 2026-10-02');
+  expect(merged).toContain('- [x] Only there ✅ 2026-10-03');
+});
+
 // ---------- mergeTasksText ----------
 
 test('an edit on only one side is applied', () => {

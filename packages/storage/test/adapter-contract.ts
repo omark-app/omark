@@ -19,7 +19,7 @@ export function adapterContract(make: () => ContractHarness): void {
       const { adapter } = make();
       const { etag } = await adapter.write('tasks.md', 'a', null);
       expect(etag).toBeTruthy();
-      expect(await adapter.read('tasks.md')).toEqual({ text: 'a', etag });
+      expect(await adapter.read('tasks.md')).toMatchObject({ text: 'a', etag }); // plus `source` where the storage has one
       await expect(adapter.write('tasks.md', 'b', null)).rejects.toBeInstanceOf(PreconditionFailedError);
     });
 

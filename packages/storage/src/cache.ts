@@ -5,6 +5,8 @@ import type { UseStore } from 'idb-keyval';
 export interface CachedFile {
   base: string;
   baseEtag: string | null;
+  /** The remote file `base` came from (`RemoteFile.source`); missing in older caches and for storages without one. */
+  baseSource?: string | null;
   local: string;
   dirty: boolean;
 }
