@@ -390,6 +390,22 @@ describe('the one Settings page (U.5)', () => {
   });
 });
 
+describe('sign-out that fails', () => {
+  it('stays signed in with the error, so no session outlives a sign-out shown as done', async () => {
+    store.set('omark:storage', 'microsoft');
+    const made = accounts({ signedIn: 'microsoft', drives: { microsoft: { root: new FakeOneDrive({ 'config.yaml': 'parts: [tasks]\n' }) } } });
+    made.accounts.signOut = async () => {
+      throw new Error('Sign-out failed; try again');
+    };
+    const shell = new Shell(made.accounts);
+    await shell.start();
+    await shell.signOut();
+    expect(shell.phase).toBe('ready');
+    expect(shell.error).toBe('Sign-out failed; try again');
+    expect(store.get('omark:storage')).toBe('microsoft');
+  });
+});
+
 describe('Tasks signing in again', () => {
   it('comes back to the part it left', async () => {
     store.set('omark:storage', 'microsoft');

@@ -297,11 +297,9 @@ export class Shell {
     try {
       await this.accounts.signOut();
     } catch (e) {
-      // A folder needs no sign-in: offline, its device still forgets it (a calendar sign-in ends next time).
-      if (this.place?.storage !== 'folder') {
-        this.error = message(e);
-        return;
-      }
+      // Never shown as signed out while a session (the calendar's, too) may still be alive.
+      this.error = message(e);
+      return;
     }
     forget(CHOICE_KEY);
     if (this.place) {

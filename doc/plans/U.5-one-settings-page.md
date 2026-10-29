@@ -67,7 +67,7 @@ Fixed, with tests first (`apps/omark/src/lib/shell.test.ts`, `e2e/settings.spec.
 5. With Tasks on but its start failed, Settings showed "Opening…" for ever. The Omark card now shows anyway.
 6. Time's "All Omark settings" went around the shell's router, so Back reloaded the first part. It now goes through the shell, and Back returns to Time.
 7. Time's store stayed in the registry after its part was gone. It is cleared on unmount.
-8. Smaller: sign-out names a pending parts change in its question; on a folder storage it goes ahead offline; Connect and Disconnect show their errors.
+8. Smaller: sign-out names a pending parts change in its question, and Connect and Disconnect show their errors. A sign-out that fails stays signed in with the error, on every storage: a folder user may still have a calendar session (a security review caught a first try that went ahead offline).
 
 Kept: Disconnect isn't offered on Google Drive, as the calendar is part of the one Google sign-in there (signing out of it would sign out of the storage).
 
