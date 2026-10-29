@@ -123,6 +123,8 @@ test.describe('desktop', () => {
     await expect(page.getByTestId('search')).toBeHidden();
     await tabs(page).getByRole('link', { name: 'Tasks' }).click();
     await expect(page.getByTestId('search')).toBeVisible();
+    // The search field has its focus back (a frame after the tab shows), so Escape closes the search.
+    await expect(page.getByTestId('search-input')).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('search')).toBeHidden();
 
