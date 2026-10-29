@@ -23,7 +23,7 @@ const OMARK: AuthOptions = {
     googlecal: google({ scopes: CALENDAR_READ, extra: { edit: CALENDAR_EDIT } }),
   },
   cookiePrefix: 'omark',
-  returnPaths: ['/tasks', '/time', '/goals'],
+  returnPaths: ['/tasks', '/time', '/goals', '/settings'],
   sessions: 'per-provider',
 };
 

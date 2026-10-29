@@ -2,15 +2,41 @@ import { PreconditionFailedError } from '@omark/storage';
 import type { Auth } from '@omark/storage';
 import type { Account, Accounts, Place, Storage } from './places.ts';
 import { isAccount, STORAGES } from './places.ts';
-import { entryPart, partsOf, route, withParts } from './suite.ts';
+import { entryPart, PARTS, partsOf, route, withParts } from './suite.ts';
 import type { Part } from './suite.ts';
 
 const ACCOUNTS: readonly Account[] = ['microsoft', 'google'];
 
 /** The device's storage choice (one app spec, section 4: it stays per device). */
 const CHOICE_KEY = 'omark:storage';
+/** The one Settings page's address (U.5). */
+export const SETTINGS_PATH = '/settings';
 /** The parts last read from a folder's suite file, per folder, so a known device starts without waiting. */
 const partsKey = (place: Place) => `omark:parts:${place.key}`;
+/** The parts changes made on this device that its folder has not got yet, per folder. */
+const pendingKey = (place: Place) => `omark:parts-pending:${place.key}`;
+
+/** A part turned on (it goes to the end of the tabs) or off. */
+type Step = { on: Part } | { off: Part };
+
+function applyStep(parts: Part[], step: Step): Part[] {
+  if ('on' in step) return [...parts.filter((p) => p !== step.on), step.on];
+  const rest = parts.filter((p) => p !== step.off);
+  return rest.length > 0 ? rest : parts;
+}
+
+const isPart = (p: unknown): p is Part => typeof p === 'string' && (PARTS as readonly string[]).includes(p);
+const isStep = (s: unknown): s is Step =>
+  typeof s === 'object' && s !== null && (isPart((s as { on?: unknown }).on) || isPart((s as { off?: unknown }).off));
+
+function loadSteps(place: Place): Step[] {
+  try {
+    const steps: unknown = JSON.parse(load(pendingKey(place)) ?? '[]');
+    return Array.isArray(steps) ? steps.filter(isStep) : [];
+  } catch {
+    return [];
+  }
+}
 
 /**
  * What the shell shows: opening; the first run's steps (`welcome`: demo or use, `where`: the storage,
@@ -36,6 +62,14 @@ function keep(key: string, value: string): void {
   }
 }
 
+function forget(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Site data blocked: nothing was kept.
+  }
+}
+
 /**
  * The one Omark app's shell: one storage for the device, one Omark folder, and the parts on in it (the suite
  * `config.yaml`). Starts by reading a sign-in redirect's result, then opens the device's storage, or runs the
@@ -56,6 +90,13 @@ export class Shell {
   /** The first run's ticks (the part in the entry address first). */
   ticked = $state<Part[]>([]);
   place = $state.raw<Place | null>(null);
+  /** The one Settings page is on screen (`/settings`); `settingsFromApp`: opened from a part, so back goes back. */
+  settings = $state(false);
+  private settingsFromApp = false;
+  /** Parts turned on or off here that the folder has not got yet (offline). */
+  pending = $state(false);
+  private steps: Step[] = [];
+  private flushing: Promise<void> | null = null;
   /**
    * Each part's last address (its hash too: Tasks' #settings), scroll and focused element (an open search's
    * field), restored when its tab shows again.
@@ -131,11 +172,14 @@ export class Shell {
       return;
     }
     this.place = place;
+    this.steps = loadSteps(place);
+    this.pending = this.steps.length > 0;
     const seen = load(partsKey(place));
     if (seen !== null) {
       // A device that has opened this folder before starts at once with the parts it last saw, so a Tasks-only
       // start waits for nothing more than Omark Tasks did; the suite file is read meanwhile.
-      this.show(partsOf(seen));
+      this.show(this.withSteps(partsOf(seen)));
+      void this.flush();
       void this.recheck(place);
       return;
     }
@@ -161,7 +205,8 @@ export class Shell {
       this.askParts();
       return;
     }
-    this.show(partsOf(text));
+    this.show(this.withSteps(partsOf(text)));
+    void this.flush();
   }
 
   /** The storage's sign-in, as a part signs in again with it: it comes back to the part's address. Null for a folder. */
@@ -170,6 +215,11 @@ export class Shell {
     if (!storage || !isAccount(storage)) return null;
     const auth = this.accounts.auth(storage);
     return { ...auth, signIn: (provider, o) => auth.signIn(provider, { ...o, returnTo: location.pathname }) };
+  }
+
+  /** `parts` with the changes still pending on this device. */
+  private withSteps(parts: Part[]): Part[] {
+    return this.steps.reduce(applyStep, parts);
   }
 
   /** Brings in parts another device turned on or off since this one last looked. */
@@ -187,7 +237,7 @@ export class Shell {
       this.askParts();
       return;
     }
-    const parts = partsOf(text);
+    const parts = this.withSteps(partsOf(text));
     if (parts.join() !== this.on.join()) this.show(parts);
   }
 
@@ -213,30 +263,103 @@ export class Shell {
     }
   }
 
-  /** Turns a part on, at the end of the tabs, and opens it. */
-  async turnOn(part: Part): Promise<void> {
-    const root = this.place!.root;
+  /** Turns a part on, at the end of the tabs, and opens it (not from Settings: `open: false`). */
+  async turnOn(part: Part, opts: { open?: boolean } = {}): Promise<void> {
+    await this.change({ on: part }, opts.open === false ? undefined : `/${part}`);
+  }
+
+  /** Settings' back link: back where it was opened from, else the first part. */
+  leaveSettings(e?: MouseEvent): void {
+    if (!this.settingsFromApp) return; // a direct load: the link's own href (/) does it
+    e?.preventDefault();
+    history.back();
+  }
+
+  /** Settings' "Change": the first run's "where", to open another storage. */
+  async changeStorage(): Promise<void> {
+    this.error = null;
+    await this.toWhere();
+  }
+
+  /** Ends every sign-in and forgets this device's storage choice; the parts' offline copies stay. */
+  async signOut(): Promise<void> {
     try {
-      for (let tries = 0; ; tries++) {
-        const file = await root.read('config.yaml');
-        const parts = [...partsOf(file?.text ?? null).filter((p) => p !== part), part];
-        try {
-          await root.write('config.yaml', withParts(file?.text ?? null, parts), file?.etag ?? null);
-          this.show(parts, `/${part}`);
-          return;
-        } catch (e) {
-          // Another device changed the file meanwhile: read it again and add the part to theirs.
-          if (!(e instanceof PreconditionFailedError) || tries >= 2) throw e;
-        }
-      }
+      await this.accounts.signOut();
     } catch (e) {
-      this.error = `Could not turn ${part} on: ${message(e)}`;
+      this.error = message(e);
+      return;
+    }
+    forget(CHOICE_KEY);
+    if (this.place) {
+      forget(partsKey(this.place));
+      forget(pendingKey(this.place));
+    }
+    this.place = null;
+    this.on = [];
+    this.visited = [];
+    this.current = null;
+    this.settings = false;
+    this.steps = [];
+    this.pending = false;
+    this.error = null;
+    history.replaceState(null, '', '/');
+    this.phase = 'welcome';
+  }
+
+  /** Turns a part off: its tab goes, its files stay. The last part on stays on. */
+  async turnOff(part: Part): Promise<void> {
+    if (this.on.length === 1 && this.on[0] === part) return;
+    await this.change({ off: part });
+  }
+
+  /**
+   * A part on or off shows at once and is kept on this device until the folder has it, so it works offline;
+   * `flush` writes it (also at start, on focus and back online).
+   */
+  private async change(step: Step, path?: string): Promise<void> {
+    const place = this.place!;
+    this.steps = [...this.steps, step];
+    keep(pendingKey(place), JSON.stringify(this.steps));
+    this.pending = true;
+    this.show(applyStep(this.on, step), path);
+    await this.flush();
+  }
+
+  /** Writes the parts changes kept on this device onto the folder's file as it is now; quietly waits when offline. */
+  flush(): Promise<void> {
+    const place = this.place;
+    if (!place || this.steps.length === 0) return Promise.resolve();
+    this.flushing ??= this.writeSteps(place).finally(() => (this.flushing = null));
+    return this.flushing;
+  }
+
+  private async writeSteps(place: Place): Promise<void> {
+    for (let tries = 0; ; tries++) {
+      const steps = this.steps;
+      let file;
+      try {
+        file = await place.root.read('config.yaml');
+        const parts = steps.reduce(applyStep, partsOf(file?.text ?? null));
+        await place.root.write('config.yaml', withParts(file?.text ?? null, parts), file?.etag ?? null);
+        if (this.place !== place) return;
+        // Changes made while this one was written stay pending.
+        this.steps = this.steps.slice(steps.length);
+        keep(pendingKey(place), JSON.stringify(this.steps));
+        this.pending = this.steps.length > 0;
+        this.show(this.steps.reduce(applyStep, parts));
+        return;
+      } catch (e) {
+        // Another device changed the file meanwhile: read it again and apply the changes to theirs.
+        if (e instanceof PreconditionFailedError && tries < 2) continue;
+        return; // Offline or refused: still kept here; the next flush tries again.
+      }
     }
   }
 
   /** Goes to a part's tab (a click, a key) without reloading: back where that part was, address and scroll. */
   go(path: string): void {
     this.remember();
+    if (path === SETTINGS_PATH) this.settingsFromApp = true;
     const to = route(path, this.on);
     const target = 'open' in to ? (this.last[to.open]?.url ?? path) : path;
     if (location.pathname + location.search + location.hash !== target) history.pushState(null, '', target);
@@ -258,6 +381,15 @@ export class Shell {
 
   /** Shows what the address asks for (also on browser back and forward). */
   route(): void {
+    if (location.pathname === SETTINGS_PATH) {
+      // Every part that is on is mounted (hidden), so each one shows its settings on the page.
+      this.settings = true;
+      this.offer = null;
+      this.current = null;
+      this.visited = [...this.visited, ...this.on.filter((p) => !this.visited.includes(p))];
+      return;
+    }
+    this.settings = false;
     const to = route(location.pathname, this.on);
     if ('go' in to) {
       // The hash and the history entry's state are the part's (Tasks' #settings and its marks): they stay.

@@ -5,7 +5,11 @@
   import { part } from 'tasks/src/lib/part.svelte.ts';
 
   /** Omark Tasks as a part: unchanged, on the `tasks/` folder the shell opened. */
-  let { place, active }: { place: GivenPlace; active: boolean } = $props();
+  let { place, active, openSettings }: { place: GivenPlace; active: boolean; openSettings: () => void } = $props();
+
+  // Tasks' gear and , open the one Settings page.
+  // svelte-ignore state_referenced_locally
+  part.openSettings = openSettings;
 
   $effect(() => {
     part.active = active;

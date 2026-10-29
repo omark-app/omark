@@ -85,6 +85,23 @@
     },
   );
 
+  // In the one Omark app its one Settings page shows Tasks' settings too, written through this store.
+  $effect(() => {
+    if (result?.kind !== 'ready' || !part.openSettings) return;
+    const store = result.store;
+    part.settings = {
+      schema: TASKS_SCHEMA,
+      get text() { return store.configText; },
+      write: (text) => store.writeConfig(text),
+      get note() { return store.configNote; },
+      get status() { return store.status; },
+      defaultText: DEFAULT_CONFIG_YAML,
+    };
+    return () => {
+      part.settings = null;
+    };
+  });
+
   function openSheet(command: ShellCommand, id: string): void {
     if (command === 'pickDate') sheet = { kind: 'date', id };
     else if (command === 'repeat') sheet = { kind: 'repeat', id };
@@ -130,7 +147,8 @@
       search.open();
     } else if (command === 'settings') {
       e.preventDefault();
-      location.hash = 'settings';
+      if (part.openSettings) part.openSettings();
+      else location.hash = 'settings';
     }
   }
 

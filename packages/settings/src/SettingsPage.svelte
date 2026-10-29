@@ -29,7 +29,8 @@
     onwrite: (text: string) => void;
     /** The back link; `onclick` may go back in history instead of following `href`. */
     back: { label: string; href: string; onclick?: (e: MouseEvent) => void };
-    apps: { current: string; other: { label: string; href: string } };
+    /** The switch to the other app's page; none in the one Omark app, where every part is on this page. */
+    apps?: { current: string; other: { label: string; href: string } };
     /** A message above the cards, e.g. that a change made elsewhere won. */
     note?: string | null;
     /** The save status, shown beside the file's buttons. */
@@ -128,10 +129,12 @@
         <a class="back" data-testid="settings-back" href={back.href} onclick={back.onclick}>{back.label}</a>
         <h1>Settings</h1>
       </div>
-      <div class="seg" role="group" aria-label="App">
-        <button type="button" class="on" aria-pressed="true">{apps.current}</button>
-        <a href={apps.other.href}>{apps.other.label} ↗</a>
-      </div>
+      {#if apps}
+        <div class="seg" role="group" aria-label="App">
+          <button type="button" class="on" aria-pressed="true">{apps.current}</button>
+          <a href={apps.other.href}>{apps.other.label} ↗</a>
+        </div>
+      {/if}
     </header>
 
     {#if note}

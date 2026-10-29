@@ -106,7 +106,7 @@ test.describe('desktop', () => {
     await expect(page.getByTestId('search')).toBeHidden();
   });
 
-  test('switching parts keeps Tasks as it was: an open search, its scroll, its Settings', async ({ page }) => {
+  test('switching parts keeps Tasks as it was: an open search, its scroll; its , opens the one Settings page', async ({ page }) => {
     const many = Array.from({ length: 60 }, (_, i) => `- [ ] Task ${i + 1} 📅 2026-10-16`).join('\n');
     await open(page, { seed: { root: { 'config.yaml': 'parts: [tasks, time]\n' }, tasks: { 'tasks.md': `# Tasks\n${many}\n` } } });
     await expect(tasksList(page)).toBeVisible();
@@ -128,12 +128,13 @@ test.describe('desktop', () => {
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('search')).toBeHidden();
 
+    // Inside the shell, Tasks' , opens the one Settings page (U.5); the Tasks tab brings the list back as it was.
     await page.keyboard.press(',');
+    await expect(page).toHaveURL(/\/settings$/);
     await expect(page.getByTestId('settings')).toBeVisible();
-    await page.keyboard.press('Alt+2');
     await tabs(page).getByRole('link', { name: 'Tasks' }).click();
-    await expect(page).toHaveURL(/#settings$/);
-    await expect(page.getByTestId('settings')).toBeVisible();
+    await expect(tasksList(page)).toBeVisible();
+    await expect.poll(() => page.evaluate(() => scrollY)).toBe(scrolled);
   });
 
   test('the tab bar sits at the top on desktop', async ({ page }) => {

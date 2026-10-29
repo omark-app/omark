@@ -26,6 +26,7 @@ beforeEach(() => {
   vi.stubGlobal('localStorage', {
     getItem: (k: string) => store.get(k) ?? null,
     setItem: (k: string, v: string) => void store.set(k, v),
+    removeItem: (k: string) => void store.delete(k),
   });
   vi.stubGlobal('scrollY', 0);
   vi.stubGlobal('scrollTo', () => {});
@@ -66,6 +67,7 @@ function accounts(opts: {
   const a: Accounts = {
     auth: client,
     calendar: (s) => (s === 'google' ? { auth: client('google'), access: 'calendar' } : { auth: client('googlecal'), access: null }),
+    signOut: async () => sessions.clear(),
     async handleRedirect() {
       if (opts.redirect) throw opts.redirect;
     },
@@ -224,6 +226,97 @@ describe('choosing where the files live', () => {
     await shell.choose('folder');
     expect(shell.phase).toBe('where');
     expect(shell.error).toMatch(/tasks\.md/);
+  });
+});
+
+describe('parts on and off (U.5)', () => {
+  const ready = async (root: FakeOneDrive) => {
+    store.set('omark:storage', 'microsoft');
+    const shell = new Shell(accounts({ signedIn: 'microsoft', drives: { microsoft: { root } } }).accounts);
+    await shell.start();
+    return shell;
+  };
+
+  it('turns a part off: its tab goes, its address offers it again, the file lists the rest', async () => {
+    const root = new FakeOneDrive({ 'config.yaml': 'parts: [tasks, time]\n' });
+    const shell = await ready(root);
+    await shell.turnOff('time');
+    expect(shell.on).toEqual(['tasks']);
+    expect(root.peek('config.yaml')).toBe('parts: [tasks]\n');
+    shell.go('/time');
+    expect(shell.offer).toBe('time');
+  });
+
+  it('never turns the last part off', async () => {
+    const root = new FakeOneDrive({ 'config.yaml': 'parts: [tasks]\n' });
+    const shell = await ready(root);
+    await shell.turnOff('tasks');
+    expect(shell.on).toEqual(['tasks']);
+    expect(root.peek('config.yaml')).toBe('parts: [tasks]\n');
+  });
+
+  it('offline, a part turned on shows at once, stays on the device and is written once the folder is back', async () => {
+    const root = new FakeOneDrive({ 'config.yaml': 'parts: [tasks]\n' });
+    const shell = await ready(root);
+    root.setOffline(true);
+    await shell.turnOn('time');
+    expect(shell.on).toEqual(['tasks', 'time']);
+    expect(shell.error).toBeNull();
+    expect(shell.pending).toBe(true);
+    root.setOffline(false);
+    root.externalWrite('config.yaml', 'parts: [tasks, goals]\n'); // another device, meanwhile
+    await shell.flush();
+    expect(root.peek('config.yaml')).toBe('parts: [tasks, goals, time]\n');
+    expect(shell.on).toEqual(['tasks', 'goals', 'time']);
+    expect(shell.pending).toBe(false);
+  });
+
+  it('a change still pending when the app closed is written on the next start', async () => {
+    const root = new FakeOneDrive({ 'config.yaml': 'parts: [tasks, time]\n' });
+    const first = await ready(root);
+    root.setOffline(true);
+    await first.turnOff('time');
+    root.setOffline(false);
+    const next = await ready(root);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(root.peek('config.yaml')).toBe('parts: [tasks]\n');
+    expect(next.on).toEqual(['tasks']);
+  });
+});
+
+describe('the one Settings page (U.5)', () => {
+  it('opens at /settings with every part that is on mounted, and goes back where it came from', async () => {
+    store.set('omark:storage', 'microsoft');
+    const root = new FakeOneDrive({ 'config.yaml': 'parts: [tasks, time]\n' });
+    const shell = new Shell(accounts({ signedIn: 'microsoft', drives: { microsoft: { root } } }).accounts);
+    await shell.start();
+    expect(shell.visited).toEqual(['tasks']);
+    shell.go('/settings');
+    expect(shell.settings).toBe(true);
+    expect(shell.current).toBeNull();
+    expect(shell.visited).toEqual(['tasks', 'time']);
+    // Turning a part on from Settings stays on Settings.
+    await shell.turnOn('goals', { open: false });
+    expect(url.pathname).toBe('/settings');
+    expect(shell.visited).toEqual(['tasks', 'time', 'goals']);
+    shell.go('/tasks');
+    expect(shell.settings).toBe(false);
+    expect(shell.current).toBe('tasks');
+  });
+
+  it('sign out ends the sign-ins, forgets the storage choice and shows the welcome screen', async () => {
+    store.set('omark:storage', 'microsoft');
+    const root = new FakeOneDrive({ 'config.yaml': 'parts: [tasks]\n' });
+    const made = accounts({ signedIn: 'microsoft', drives: { microsoft: { root } } });
+    const shell = new Shell(made.accounts);
+    await shell.start();
+    await shell.signOut();
+    expect(made.accounts.auth('microsoft').isSignedIn()).toBe(false);
+    expect(store.has('omark:storage')).toBe(false);
+    expect(store.has('omark:parts:microsoft')).toBe(false);
+    expect(shell.phase).toBe('welcome');
+    expect(shell.place).toBeNull();
+    expect(url.pathname).toBe('/');
   });
 });
 

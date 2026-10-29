@@ -2,6 +2,7 @@
   import type { SyncStatus } from '@omark/storage';
   import { BUILD_ID, BUILD_NUMBER, BUILD_TIME, LOOK, STORAGE_MODE } from '../env.ts';
   import type { Updates } from '../lib/updates.svelte.ts';
+  import { part } from '../lib/part.svelte.ts';
   import { versionLabel } from '../lib/version.ts';
   import DemoControls from './DemoControls.svelte';
 
@@ -25,6 +26,13 @@
     settingsLink?: boolean;
     demoControls?: boolean;
   } = $props();
+
+  /** In the one Omark app the gear opens its one Settings page, without reloading. */
+  function openSettings(e: MouseEvent): void {
+    if (!part.openSettings || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    part.openSettings();
+  }
 </script>
 
 <span class="line">
@@ -38,7 +46,7 @@
   {#if STORAGE_MODE === 'demo' && demoControls}<DemoControls />{/if}
   <span class="build" data-testid="build" title={`Build ${BUILD_ID}, ${BUILD_TIME}`}>{versionLabel(BUILD_NUMBER, BUILD_ID, BUILD_TIME)}</span>
   {#if settingsLink}
-    <a class="gear" href="#settings" data-testid="open-settings" aria-label="Settings" title="Settings">
+    <a class="gear" href={part.openSettings ? '/settings' : '#settings'} onclick={openSettings} data-testid="open-settings" aria-label="Settings" title="Settings">
       <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor">
         <!-- A ring with eight teeth (a dashed circle) round a hole. -->
         <circle cx="8" cy="8" r="6.1" stroke-width="2.2" stroke-dasharray="2.3 2.49" />

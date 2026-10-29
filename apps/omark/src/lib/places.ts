@@ -74,6 +74,8 @@ export interface Accounts {
   calendar(storage: Storage): CalendarSignIn;
   /** Reads a sign-in redirect's result: throws a storage sign-in's error, and leaves the calendar's for Time. */
   handleRedirect(): Promise<void>;
+  /** Ends every provider's session. */
+  signOut(): Promise<void>;
   /** The storages offered on the first run, in order. */
   storages(): Promise<Storage[]>;
   /** The picked folder saved on this device, if any. */
@@ -146,6 +148,11 @@ function realAccounts(): Accounts {
   return {
     auth: (account) => client(account),
     calendar,
+    async signOut() {
+      // The helper's logout without a provider ends every session; clients made afresh hold no old token.
+      await createAuth({ cookiePrefix: 'omark', providers: SIGN_IN_NAMES }).signOut();
+      clients.clear();
+    },
     async handleRedirect() {
       // A calendar sign-in's error stays in the address for Time, which reads it when it starts.
       const whose = redirectFor(location.href);
@@ -271,6 +278,7 @@ function fakeAccounts(): Accounts {
     auth: (account) => client(account),
     calendar,
     handleRedirect: async () => {},
+    signOut: async () => sessions.clear(),
     storages: async () => ['microsoft', 'google'],
     savedFolder: async () => null,
     pickFolder: async () => false,

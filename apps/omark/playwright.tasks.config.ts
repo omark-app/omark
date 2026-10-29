@@ -17,9 +17,13 @@ export const TASKS_IN_SHELL_SKIP = [
 
 /**
  * Tests in the other specs that check what the shell owns now: Tasks' own sign-in screens and stubs (the shell
- * signs in; its e2e covers that from U.4), and the page's title and manifest ("Omark", not "Omark Tasks").
+ * signs in; its e2e covers that from U.4), the page's title and manifest ("Omark", not "Omark Tasks"), and Tasks'
+ * own `#settings` page: in the shell its gear opens the one Settings page at /settings (U.5), with Tasks' status
+ * line hidden behind it, so Tasks' other settings specs run there and apps/omark/e2e/settings.spec.ts covers it.
  */
 export const TASKS_IN_SHELL_SKIP_TESTS = [
+  /the footer gear opens Settings with every setting/,
+  /invalid input is refused with a reason/,
   /with no signed-in account the sign-in screen shows/,
   /a failed token refresh shows a sign-in banner/,
   /signing in again with edits only in memory asks first/,

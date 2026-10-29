@@ -8,7 +8,16 @@
    * Spec 9, Settings. Time's own page: the shared settings page (`@omark/settings`) refuses keys outside its schema,
    * and Time's calendar list, track-from date and colouring switch don't fit its field types.
    */
-  let { store }: { store: TimeStore } = $props();
+  /** `inPage`: shown inside the one Omark app's Settings page, which has its own heading. */
+  let { store, inPage = false }: { store: TimeStore; inPage?: boolean } = $props();
+
+  /** The one Omark app routes by the address: it goes there without a reload, as its own links do. */
+  function toSettings(e: MouseEvent): void {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    history.pushState(null, '', '/settings');
+    dispatchEvent(new PopStateEvent('popstate'));
+  }
   const chosen = $derived(store.config?.calendars ?? []);
   const DAYS: WeekStart[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
   let trackError = $state<string | null>(null);
@@ -30,13 +39,19 @@
   }
 </script>
 
-<section class="card">
-  <div class="head">
-    <h2>Settings</h2>
-    <a href={tasksSettingsUrl(location.host)}>Omark Tasks settings ↗</a>
-  </div>
-  <p class="muted small">Settings are kept in config.yaml in your files, so they follow you to every device.</p>
-</section>
+{#if !inPage}
+  <section class="card">
+    <div class="head">
+      <h2>Settings</h2>
+      {#if store.embedded}
+        <a href="/settings" onclick={toSettings}>All Omark settings</a>
+      {:else}
+        <a href={tasksSettingsUrl(location.host)}>Omark Tasks settings ↗</a>
+      {/if}
+    </div>
+    <p class="muted small">Settings are kept in config.yaml in your files, so they follow you to every device.</p>
+  </section>
+{/if}
 
 <section class="card">
   <h2>Your files</h2>

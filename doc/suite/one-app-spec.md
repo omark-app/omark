@@ -128,6 +128,13 @@ One Settings page (`packages/settings`) with:
 
 Section 2 of the settings page spec ("one page design, each app edits its own file") is replaced: one page now edits all the files, because one app can reach them all.
 
+*Built in U.5* ([plan](../plans/U.5-one-settings-page.md)):
+- The page is at `/settings`, opened from Tasks' gear and `,` and from Time's Settings view.
+- Its first card is titled **Omark**, not General, because Tasks' own first section is already called General.
+- Time's section is Time's own Settings view, as Time has no schema.
+- A part turned on or off offline is kept on the device and written when the folder can be reached.
+- Sign out ends every sign-in and forgets the device's storage choice. *(my calls)*
+
 ## 9. The demo world
 
 The demo at `demo.omark.app` (and every PR preview) is **one made-up person** across all parts, replacing Tasks' sample tasks and Time's fake calendar seed. No sign-in, edits kept in the browser, "Reset demo", no outside requests, as the demos do today. All dates are relative to today.

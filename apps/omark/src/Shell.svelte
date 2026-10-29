@@ -3,12 +3,13 @@
   import { DEMO_URL } from './env.ts';
   import { accounts } from './lib/places.ts';
   import type { Place, Storage } from './lib/places.ts';
-  import { Shell } from './lib/shell.svelte.ts';
+  import { SETTINGS_PATH, Shell } from './lib/shell.svelte.ts';
   import { PART_NAMES, PARTS } from './lib/suite.ts';
   import type { Part } from './lib/suite.ts';
   import TasksPart from './parts/TasksPart.svelte';
 
-  const shell = new Shell(accounts());
+  const deviceAccounts = accounts();
+  const shell = new Shell(deviceAccounts);
   void shell.start();
 
   const STORAGE_LABELS: Record<Storage, string> = {
@@ -72,7 +73,8 @@
   }
 </script>
 
-<svelte:window {onkeydown} onpopstate={() => shell.phase === 'ready' && shell.route()} />
+<!-- A part turned on or off offline is written when the folder can be reached again. -->
+<svelte:window {onkeydown} onpopstate={() => shell.phase === 'ready' && shell.route()} onfocus={() => void shell.flush()} ononline={() => void shell.flush()} />
 
 {#if shell.phase === 'loading'}
   <p class="opening">Opening…</p>
@@ -126,12 +128,16 @@
   {#each shell.visited as p (p)}
     <div class="part-view" hidden={shell.current !== p}>
       {#if p === 'tasks'}
-        <TasksPart place={tasksPlace!} active={shell.current === 'tasks'} />
+        <TasksPart place={tasksPlace!} active={shell.current === 'tasks'} openSettings={() => shell.go(SETTINGS_PATH)} />
       {:else}
         {#await load(p) then mod}<mod.default place={shell.place!} />{/await}
       {/if}
     </div>
   {/each}
+  {#if shell.settings}
+    <!-- Loaded the first time: it brings Time's settings, which a Tasks-only start never needs. -->
+    {#await import('./SettingsView.svelte') then view}<view.default {shell} accounts={deviceAccounts} />{/await}
+  {/if}
   {#if shell.offer}
     <section class="card first-run">
       <h1>Omark {PART_NAMES[shell.offer]} is off</h1>

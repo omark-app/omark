@@ -3,6 +3,7 @@
   import { timeDeps } from 'time/src/lib/boot.ts';
   import { TimeStore } from 'time/src/lib/store.svelte.ts';
   import type { Place } from '../lib/places.ts';
+  import { registry } from '../lib/registry.svelte.ts';
 
   /** Omark Time as a part: on the `time/` folder the shell opened, with the calendar sign-in (U.4). */
   let { place }: { place: Place } = $props();
@@ -10,6 +11,7 @@
   async function open(): Promise<TimeStore> {
     const store = new TimeStore(timeDeps(await place.time()));
     void store.start();
+    registry.time = store;
     return store;
   }
   // One store per place: switching tabs keeps it, a new storage gets a new one.

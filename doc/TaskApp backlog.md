@@ -27,6 +27,7 @@ Ideas deliberately left out of v1 ([the Tasks spec](tasks/spec.md)). Grouped by 
 
 ## Features
 
+- **The one app's part-switching keys in Settings**: Alt+1–3 switch tabs (U.3), fixed; the one app spec (section 7) wants them in Tasks' keyboard settings. Moved out of U.5, 2026-10-29.
 - **Reopen a completed task from search**: search shows completed tasks read-only; a Reopen action there would move the line back from `done.md` (like un-completing) for completions older than Undo reaches.
 - **Reminders and notifications**.
 - **More natural-language dates and repeats** in quick add, beyond the shortcut words of #19 (e.g. "next fri", "in 3 days", "every 2nd tue"). A word for This week or Next week was left out on purpose (`next` is too common in titles).

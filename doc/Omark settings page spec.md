@@ -2,6 +2,7 @@
 
 Status: approved by AL, 2026-10-26, including section 2 (one shared page design, each app edits its own file). Issue #45.
 **Changed 2026-10-28 (AL):** with one Omark app and one folder, section 2 no longer holds: one Settings page edits every part's file. See [the one app spec](suite/one-app-spec.md), section 8.
+Built in the one app by roadmap U.5 (`/settings`).
 Source: AL in the habits brainstorm of 2026-10-26: "move the yaml config of tasks into one single editable webpage for both omark tasks and time apps". Related: [v1 spec](tasks/spec.md) section 10, [Omark Time spec](time/spec.md) sections 7.2 and 9, [habits spec](tasks/habits-spec.md) section 11.
 Mockup: artboard 6 in https://claude.ai/artifact/VwN7ULDERA3tsd2JoMatWt (source: `doc/mockups/habits/Settings.dc.html`)
 
