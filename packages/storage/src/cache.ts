@@ -84,6 +84,43 @@ export class IdbCache implements LocalCache {
   }
 }
 
+/** Binary files kept on this device by name (Goals' pictures), so they show offline. */
+export interface BlobKeep {
+  get(name: string): Promise<Blob | null>;
+  put(name: string, data: Blob): Promise<void>;
+}
+
+export class MemoryBlobs implements BlobKeep {
+  private readonly blobs = new Map<string, Blob>();
+
+  async get(name: string): Promise<Blob | null> {
+    return this.blobs.get(name) ?? null;
+  }
+
+  async put(name: string, data: Blob): Promise<void> {
+    this.blobs.set(name, data);
+  }
+}
+
+/** Kept in IndexedDB as bytes and a type, which every browser stores (some once failed with Blobs). */
+export class IdbBlobs implements BlobKeep {
+  private readonly store: ReopeningStore;
+
+  constructor(dbName: string, openStore: (dbName: string, storeName: string) => UseStore = createStore) {
+    this.store = new ReopeningStore(dbName, openStore);
+  }
+
+  async get(name: string): Promise<Blob | null> {
+    const kept = await this.store.run((store) => get<{ type: string; bytes: ArrayBuffer }>(name, store));
+    return kept ? new Blob([kept.bytes], { type: kept.type }) : null;
+  }
+
+  async put(name: string, data: Blob): Promise<void> {
+    const kept = { type: data.type, bytes: await data.arrayBuffer() };
+    await this.store.run((store) => set(name, kept, store));
+  }
+}
+
 /**
  * Moves unsynced edits out of an older cache once: every file `legacy` holds dirty and `target` has no
  * entry for is copied to `target`; then `legacy` is cleared. Clean entries are dropped, since the next

@@ -197,7 +197,7 @@ O.Goals only **reads** O.Tasks' and O.Time's files, with one exception: when the
 
 The same design language as O.Tasks and O.Time: calm, phone and desktop, light and dark.
 
-*Built in G.2* ([plan](../plans/G.2-goals-part.md)), as a part of the one app in `apps/omark/src/parts/goals/`. Pictures (adding, showing, replacing) wait for G.2b, which adds binary files to the storage adapters; until then a card shows its plain colour and keeps its picture line. The board links to the one Settings page, where `stale_after` is set.
+*Built in G.2* ([plan](../plans/G.2-goals-part.md)), as a part of the one app in `apps/omark/src/parts/goals/`. Pictures came in G.2b ([plan](../plans/G.2b-area-pictures.md)): the storage adapters read and create binary files, a picture shown once is kept on the device for offline, and adding one needs a connection. A picture path other than `images/<name>` (a URL, another folder), or a file that can't be read, shows the plain colour and keeps its line. The board links to the one Settings page, where `stale_after` is set.
 
 - **Vision (home), the board:**
   - the vision line at the top, editable in place (tap it, or "Add your vision line" when empty);

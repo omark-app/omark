@@ -12,7 +12,7 @@ import {
   requestFolderAccess,
   SavedFolder,
 } from '@omark/storage';
-import type { Auth, FolderHandle, StorageAdapter } from '@omark/storage';
+import type { Auth, BinaryStore, FolderHandle, StorageAdapter } from '@omark/storage';
 import type { GivenPlace } from 'tasks/src/lib/boot.ts';
 import { folderStorageName, STORAGE_NAMES } from 'tasks/src/lib/environment.ts';
 import { TASK_FILES } from 'tasks/src/lib/workspace.ts';
@@ -37,6 +37,8 @@ export interface Place {
   key: string;
   root: StorageAdapter;
   part(part: Part): StorageAdapter;
+  /** Goals' pictures, in `goals/images/` (G.2b). */
+  pictures(): BinaryStore;
   /** What Tasks needs to open on its `tasks/` folder. */
   tasks(): GivenPlace;
   /** What Time needs to open on its `time/` folder, with the calendar sign-in (U.4). */
@@ -58,7 +60,7 @@ declare global {
     /** Fake builds: the calendar is already connected. */
     __OMARK_CALENDAR__?: boolean;
     /** Fake builds: the fake folders, so e2e tests can read what was written where. */
-    __omarkFake?: Record<Part | 'root', FakeOneDrive>;
+    __omarkFake?: Record<Part | 'root' | 'images', FakeOneDrive>;
     /** Fake builds: each provider's session and the accesses added to it, and every sign-in asked for. */
     __omarkSessions?: Map<string, string[]>;
     __omarkSignIns?: { provider: string; add?: string; returnTo?: string }[];
@@ -86,6 +88,8 @@ export interface Accounts {
 }
 
 const FOLDER_DB = 'omark:picked-folder';
+/** Goals' pictures, next to its goals.md. */
+const PICTURES = 'goals/images';
 const PICKER_ID = 'omark';
 /** Every provider the one app's sign-in helper has (`functions/api/auth`): `googlecal` is the calendar alone. */
 const SIGN_IN_NAMES = { microsoft: 'Microsoft', google: 'Google', googlecal: 'Google' };
@@ -102,7 +106,7 @@ export function accounts(): Accounts {
 
 function folderParts(
   storage: Storage, storageName: string, key: string, auth: Auth | null, root: StorageAdapter, part: (p: Part) => StorageAdapter,
-  time: () => Promise<TimeGiven>, extra: Partial<GivenPlace> = {},
+  pictures: () => BinaryStore, time: () => Promise<TimeGiven>, extra: Partial<GivenPlace> = {},
 ): Place {
   return {
     storage,
@@ -110,6 +114,7 @@ function folderParts(
     key,
     root,
     part,
+    pictures,
     tasks: () => ({
       adapter: part('tasks'),
       provider: storage,
@@ -174,14 +179,14 @@ function realAccounts(): Accounts {
         const getToken = (o?: { fresh?: boolean }) => client('microsoft').getToken(o);
         const drive = (folder: string) => new OneDriveAdapter({ root: 'approot', folder, getToken });
         const name = STORAGE_NAMES.microsoft;
-        return folderParts(storage, name, 'microsoft', client('microsoft'), drive(''), (p) => drive(p), timeOn(storage, name, 'microsoft', drive(''), drive('time')));
+        return folderParts(storage, name, 'microsoft', client('microsoft'), drive(''), (p) => drive(p), () => drive(PICTURES), timeOn(storage, name, 'microsoft', drive(''), drive('time')));
       }
       if (storage === 'google') {
         const getToken = (o?: { fresh?: boolean }) => client('google').getToken(o);
         const drive = (folder: string) => new GoogleDriveAdapter({ folder, getToken });
         const name = STORAGE_NAMES.google;
         const time = timeOn(storage, name, 'google', drive(GOOGLE_ROOT), drive(`${GOOGLE_ROOT}/time`));
-        return folderParts(storage, name, 'google', client('google'), drive(GOOGLE_ROOT), (p) => drive(`${GOOGLE_ROOT}/${p}`), time);
+        return folderParts(storage, name, 'google', client('google'), drive(GOOGLE_ROOT), (p) => drive(`${GOOGLE_ROOT}/${p}`), () => drive(`${GOOGLE_ROOT}/${PICTURES}`), time);
       }
       const choice = await saved.load();
       if (!choice) return null;
@@ -191,7 +196,7 @@ function realAccounts(): Accounts {
       const sub = (p: Part) => new LocalFolderAdapter(handle, { subfolder: p });
       const top = new LocalFolderAdapter(handle);
       const folder = { name: handle.name, access: () => folderAccess(handle), allow: () => requestFolderAccess(handle) };
-      return folderParts(storage, name, key, null, top, sub, timeOn(storage, name, key, top, sub('time'), folder), {
+      return folderParts(storage, name, key, null, top, sub, () => new LocalFolderAdapter(handle, { subfolder: PICTURES }), timeOn(storage, name, key, top, sub('time'), folder), {
         folder: {
           allow: () => requestFolderAccess(handle),
           conflicts: async () => {
@@ -219,6 +224,7 @@ function fakeAccounts(): Accounts {
     tasks: new FakeOneDrive(tasksSeed ?? seed.tasks),
     time: new FakeOneDrive(seed.time),
     goals: new FakeOneDrive(seed.goals),
+    images: new FakeOneDrive(),
   };
   window.__omarkFake = fake;
   if (tasksSeed) window.__taskappFake = fake.tasks;
@@ -285,7 +291,7 @@ function fakeAccounts(): Accounts {
     async open(storage) {
       if (storage === 'folder') return null;
       return {
-        ...folderParts(storage, STORAGE_NAMES[storage], `fake-${storage}`, null, fake.root, (p) => fake[p], time(storage)),
+        ...folderParts(storage, STORAGE_NAMES[storage], `fake-${storage}`, null, fake.root, (p) => fake[p], () => fake.images, time(storage)),
         tasks: () => ({
           adapter: fake.tasks,
           provider: storage,

@@ -79,7 +79,7 @@ function accounts(opts: {
       const d = opts.drives?.[storage];
       if (!d) return null;
       const part = (p: Part) => d.parts?.[p] ?? new FakeOneDrive();
-      return { storage, storageName: storage, key: storage, root: d.root, part, tasks: () => ({}) as never, time: async () => ({}) as never } satisfies Place;
+      return { storage, storageName: storage, key: storage, root: d.root, part, pictures: () => new FakeOneDrive(), tasks: () => ({}) as never, time: async () => ({}) as never } satisfies Place;
     },
   };
   return { accounts: a, signIns, opened };

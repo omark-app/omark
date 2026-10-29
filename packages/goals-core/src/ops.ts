@@ -67,7 +67,7 @@ export function editArea(doc: GoalsDoc, i: number, patch: AreaPatch, codes: read
   const pic = patch.picture;
   if (pic !== undefined && !samePicture(area.picture, pic)) {
     const p = pictureIndex(lines);
-    if (pic === null) lines = cut(lines, p, p + 1);
+    if (pic === null) lines = cut(lines, p, p + 1, !followed);
     else if (p >= 0) lines = lines.with(p, imageLine(pic));
     else lines = put(lines, isBlank(lines[1]) ? 2 : 1, [imageLine(pic)], followed);
   }

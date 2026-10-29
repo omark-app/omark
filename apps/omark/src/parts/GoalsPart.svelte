@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { IdbCache, MemoryCache } from '@omark/storage';
+  import { IdbBlobs, IdbCache, MemoryBlobs, MemoryCache } from '@omark/storage';
   import { toISODate } from '@omark/tasks-core';
   import { STORAGE_MODE } from '../env.ts';
   import type { Place } from '../lib/places.ts';
   import { registry } from '../lib/registry.svelte.ts';
   import Board from './goals/Board.svelte';
+  import { Pictures } from './goals/pictures.svelte.ts';
   import { GoalsStore } from './goals/store.svelte.ts';
 
   /** Omark Goals as a part (roadmap G.2): its `goals/` folder, reading Tasks', Time's and the top's files. */
@@ -24,6 +25,9 @@
     void s.open();
     return s;
   });
+  const pictures = $derived(
+    new Pictures(place.pictures(), STORAGE_MODE === 'fake' ? new MemoryBlobs() : new IdbBlobs(`omark-pictures-${place.key}`)),
+  );
   // Published for the one Settings page; gone with its part, so the page never shows another folder's store.
   $effect(() => {
     const mine = store;
@@ -44,4 +48,4 @@
 <!-- Another part's changes (a ticked habit, new hours) show when Goals is looked at again. -->
 <svelte:window onfocus={() => void store.refresh()} />
 
-<Board {store} {openSettings} />
+<Board {store} {pictures} {openSettings} />

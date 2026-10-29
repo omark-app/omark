@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { createStore } from 'idb-keyval';
 import type { UseStore } from 'idb-keyval';
 import { describe, expect, it } from 'vitest';
-import { IdbCache, MemoryCache, migrateCache } from '../src/cache.ts';
+import { IdbBlobs, IdbCache, MemoryBlobs, MemoryCache, migrateCache } from '../src/cache.ts';
 import type { CachedFile, LocalCache } from '../src/cache.ts';
 
 let n = 0;
@@ -110,3 +110,19 @@ describe('migrateCache (M3)', () => {
     expect(await legacy.get('tasks.md')).toBeNull();
   });
 });
+
+for (const [name, make] of [
+  ['MemoryBlobs', () => new MemoryBlobs()],
+  ['IdbBlobs', () => new IdbBlobs(`blobs-${Math.random()}`)],
+] as const) {
+  describe(`${name} (pictures kept on this device)`, () => {
+    it('gives null for a name it does not have, and back the bytes and type it was given', async () => {
+      const keep = make();
+      expect(await keep.get('climbing.jpg')).toBeNull();
+      await keep.put('climbing.jpg', new Blob([new Uint8Array([0xff, 0xd8, 0, 200])], { type: 'image/jpeg' }));
+      const got = await keep.get('climbing.jpg');
+      expect(got?.type).toBe('image/jpeg');
+      expect([...new Uint8Array(await got!.arrayBuffer())]).toEqual([0xff, 0xd8, 0, 200]);
+    });
+  });
+}

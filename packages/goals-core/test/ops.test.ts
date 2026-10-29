@@ -94,6 +94,10 @@ describe('editArea', () => {
     const out = run(spec, (d) => editArea(d, 0, { vision: '', picture: null }, []));
     expect(out).toBe(spec.replace('![Place](images/place.jpg)\n\nSun, sea and quality rock within an hour. I move outdoors every day.\n\n', ''));
   });
+  test('removing the picture of the last area leaves no blank line at the end (G.2b)', () => {
+    expect(run('## A #a\n\n![A](images/a.jpg)\n', (d) => editArea(d, 0, { picture: null }, []))).toBe('## A #a\n');
+    expect(run('## A #a\n\n![A](images/a.jpg)\n\n## B #b\n', (d) => editArea(d, 0, { picture: null }, []))).toBe('## A #a\n\n## B #b\n');
+  });
   test('replacing a picture changes only its line', () => {
     expect(run(spec, (d) => editArea(d, 1, { picture: { alt: 'Climbing', path: 'images/climbing-2.jpg' } }, [])))
       .toBe(spec.replace('images/climbing.jpg', 'images/climbing-2.jpg'));
