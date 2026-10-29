@@ -6,10 +6,11 @@ const SECTION = /^##(?:[ \t]+(.*))?$/;
 const TOP_HEADING = /^#(?:[ \t]|$)/;
 const ANY_HEADING = /^#{1,6}(?:[ \t]|$)/;
 const GOAL = /^- \[([ xX])\](?:[ \t]+(.*))?$/;
-const IMAGE_LINE = /^[ \t]*!\[([^\]\n]*)\]\(([^)\s]+)(?:[ \t]+"[^"]*")?\)[ \t]*$/;
+const IMAGE_LINE = /^!\[([^\]\n]*)\]\(([^)\s]+)(?:[ \t]+"[^"]*")?\)[ \t]*$/;
 const ITEM = /^([-*+][ \t]+)(.*)$/;
 const INDENTED = /^[ \t]+\S/;
-const HEADING_TAG = /(?:^|[ \t])#([\p{L}\p{N}_/-]+)$/u;
+const BLOCK_ID = /(?:^|[ \t]+)(\^[A-Za-z0-9-]+)$/;
+const HEADING_TAG =/(?:^|[ \t])#([\p{L}\p{N}_/-]+)$/u;
 
 export const isBlank = (line: string | undefined): boolean => line !== undefined && line.trim() === '';
 
@@ -50,14 +51,22 @@ export function withHead(doc: GoalsDoc, head: string[]): GoalsDoc {
 
 /** The vision lines of a head: the text lines under its first `#` heading, up to the next heading. */
 export function visionIndices(head: string[]): number[] {
-  const h = head.findIndex((l) => TOP_HEADING.test(l));
+  const h = headingIndex(head);
   const out: number[] = [];
   if (h < 0) return out;
   for (let i = h + 1; i < head.length && !ANY_HEADING.test(head[i]!); i++) if (!isBlank(head[i])) out.push(i);
   return out;
 }
 
-export const headingIndex = (head: string[]): number => head.findIndex((l) => TOP_HEADING.test(l));
+/** The index of the head's first `#` heading after any front matter, or -1. */
+export function headingIndex(head: string[]): number {
+  let from = 0;
+  if (head[0] === '---') {
+    const end = head.findIndex((l, i) => i > 0 && (l === '---' || l === '...'));
+    if (end > 0) from = end + 1;
+  }
+  return head.findIndex((l, i) => i >= from && TOP_HEADING.test(l));
+}
 
 /** A section read from its lines, the first being its `##` heading. */
 export function readSection(lines: string[]): Section {
@@ -87,7 +96,8 @@ export function splitHeading(text: string): { name: string; tag: string | null }
 
 /** The index of an area's picture line, or -1. */
 export function pictureIndex(lines: string[]): number {
-  return lines.findIndex((l, i) => i > 0 && IMAGE_LINE.test(l));
+  const end = firstGoalIndex(lines);
+  return lines.findIndex((l, i) => i > 0 && i < end && IMAGE_LINE.test(l));
 }
 
 /** The index of an area's first goal line, or its length. */
@@ -147,23 +157,29 @@ function readGoal(line: number, achieved: boolean, text: string): Goal {
     }
   }
   if (codeSpan) spans.push(codeSpan);
-  // Remove right to left so earlier offsets stay valid; each gap becomes one space.
+  // Remove right to left so earlier offsets stay valid; each gap becomes one space, none before punctuation.
   let rest = text;
-  for (const [s, e] of spans.sort((a, b) => b[0] - a[0])) rest = `${rest.slice(0, s).trimEnd()} ${rest.slice(e).trimStart()}`;
+  for (const [s, e] of spans.sort((a, b) => b[0] - a[0])) {
+    const after = rest.slice(e).trimStart();
+    rest = `${rest.slice(0, s).trimEnd()}${/^[,.;:!?)]/.test(after) ? '' : ' '}${after}`;
+  }
   return { line, text: rest.trim(), achieved, due, setOn, changedOn, doneOn, code };
 }
 
 /** The line the app writes for a goal: `- [ ] {text} #{CODE} ✏️ {date} 📅 {due} ➕ {set} ✅ {done}`. */
 export function goalLine(g: Omit<Goal, 'line'>): string {
   // ✏️ goes before 📅: Obsidian Tasks reads its signs from the line's end and stops at one it doesn't know.
+  // An Obsidian block id (`^id`) at the end of the text stays at the end of the line, so links to it work.
+  const id = BLOCK_ID.exec(g.text);
   return [
     g.achieved ? '- [x]' : '- [ ]',
-    g.text,
+    id ? g.text.slice(0, id.index) : g.text,
     g.code ? `#${g.code}` : '',
     g.changedOn ? `✏️ ${g.changedOn}` : '',
     g.due ? `📅 ${g.due}` : '',
     g.setOn ? `➕ ${g.setOn}` : '',
     g.achieved && g.doneOn ? `✅ ${g.doneOn}` : '',
+    id ? id[1]! : '',
   ].filter((p) => p !== '').join(' ');
 }
 

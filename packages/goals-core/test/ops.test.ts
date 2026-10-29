@@ -188,6 +188,37 @@ describe('goals', () => {
   });
 });
 
+describe('review fixes', () => {
+  test('saving a form unchanged changes nothing, even with doubled spaces in the file', () => {
+    const text = '# Vision\n\nCalm  and\tstrong.\n\n## Rock  climbing #climbing\nSun,  sea.\nMore.\n- [ ] Redpoint  8b 📅 2027-01-01 ➕ 2026-01-01\n';
+    const d = parseGoals(text);
+    const a = areas(d)[0]!;
+    const g = a.goals[0]!;
+    expect(editGoal(d, 0, 0, { text: g.text, due: g.due, code: g.code, achieved: g.achieved }, TODAY)).toBe(d);
+    expect(editArea(d, 0, { name: a.name, vision: a.vision, picture: a.picture }, [])).toBe(d);
+    expect(setVision(d, d.vision)).toBe(d);
+  });
+  test('the picture is only looked for before the first goal, at the start of a line', () => {
+    const text = '## A #a\nVision\n- [ ] Goal\n    ![chart](c.png)\n';
+    expect(areas(parseGoals(text))[0]!.picture).toBeNull();
+    expect(areas(parseGoals('## A #a\n  ![x](x.jpg)\n'))[0]!.picture).toBeNull();
+    expect(run(text, (d) => editArea(d, 0, { picture: { alt: 'A', path: 'a.jpg' } }, [])))
+      .toBe('## A #a\n\n![A](a.jpg)\n\nVision\n- [ ] Goal\n    ![chart](c.png)\n');
+  });
+  test('front matter is skipped when finding the vision heading', () => {
+    const text = '---\n# owner: me\ncssclass: wide\n---\n# Vision\n\nCalm.\n';
+    expect(parseGoals(text).vision).toBe('Calm.');
+    expect(run(text, (d) => setVision(d, 'Strong.'))).toBe(text.replace('Calm.', 'Strong.'));
+    expect(run('---\n# owner: me\n---\n', (d) => setVision(d, 'Strong.'))).toBe('---\n# owner: me\n---\n\n# Vision\n\nStrong.\n');
+  });
+  test('a block id stays at the end of a rewritten goal; a removed code leaves no space before punctuation', () => {
+    expect(run('## A #a\n- [ ] Goal 📅 2027-01-01 ^g1\n', (d) => editGoal(d, 0, 0, { achieved: true }, TODAY)))
+      .toBe('## A #a\n- [x] Goal 📅 2027-01-01 ✅ 2026-11-05 ^g1\n');
+    const g = areas(parseGoals('## A #a\n- [ ] Trips #CLIMB, abroad\n'))[0]!.goals[0]!;
+    expect([g.text, g.code]).toEqual(['Trips, abroad', 'CLIMB']);
+  });
+});
+
 describe('Not now', () => {
   test('add after the last item, edit keeping the marker, delete with continuation lines', () => {
     expect(run(spec, (d) => addNotNow(d, 'A boat'))).toBe(`${spec}- A boat\n`);

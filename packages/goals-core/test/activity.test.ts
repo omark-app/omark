@@ -69,9 +69,15 @@ describe('needs update', () => {
   test('an area with nothing linked is not stale and not linked', () => {
     expect(at('## A #a\nJust a vision.\n')[0]).toEqual({ tag: 'a', codes: [], lastActivity: null, linked: false, needsUpdate: false });
   });
-  test('an open task or habit with the area tag links it; with no activity it is stale', () => {
+  test('an open task or habit with the area tag links it; with no dated activity yet it is not stale', () => {
     const r = at('## Family #family\n', { open: [{ title: 'Family nature weekend #family' }] });
-    expect(r[0]).toMatchObject({ linked: true, lastActivity: null, needsUpdate: true });
+    expect(r[0]).toMatchObject({ linked: true, lastActivity: null, needsUpdate: false });
+  });
+  test('with the project list given, only codes in it link', () => {
+    const text = '## A #a\n- [ ] Learn #AI basics ➕ 2025-01-01\n- [ ] Two #WORK ➕ 2025-01-01\n';
+    const done = [{ title: 'x #ai', doneOn: '2026-10-01' }];
+    expect(at(text, { projects: ['work'], done })[0]).toMatchObject({ codes: ['WORK'], lastActivity: '2025-01-01' });
+    expect(at(text, { done })[0]).toMatchObject({ codes: ['AI', 'WORK'], lastActivity: '2026-10-01' });
   });
   test('ticking a linked habit clears it', () => {
     const r = at('## Family #family\n', {

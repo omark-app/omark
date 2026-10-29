@@ -139,7 +139,7 @@ Builds [the Omark Goals spec](../goals/spec.md). Launches with Tasks and Time.
 
 | # | Workstream | Spec | Size | Depends on |
 |---|---|---|---|---|
-| G.1 | `packages/goals-core`: `goals.md` parse and write (byte for byte), area tags, links and last activity per area, status chips | Goals 5–6, 11 | large, Plan | — |
+| G.1 | *Done 2026-10-29 ([plan](G.1-goals-core.md)).* `packages/goals-core`: `goals.md` parse and write (byte for byte), area tags, links and last activity per area, status chips | Goals 5–6, 11 | large, Plan | — |
 | G.2 | The Goals part: the Vision board, area and goal forms with pictures, Not now, first-run placeholders, Needs update, creating a project from a goal | Goals 7–8 | large, Plan | G.1, U.3 |
 | G.3 | Tasks: `#` in quick add suggests project codes and area tags | Goals 9 | small | U.3 |
 | G.4 | The `omark-goals` skill and the Goals part of `doc/format.md` | Goals 10 | small | G.1 |

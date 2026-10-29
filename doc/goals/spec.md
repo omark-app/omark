@@ -165,6 +165,7 @@ Creating or deleting an area or a goal in the app also counts as activity on tha
 
 - An area whose last activity is older than the period shows **Needs update** on its card, with "Nothing linked has happened since 14 July".
 - An area with nothing linked at all (no goals, no tagged tasks or habits) shows a quiet hint instead: "Add a goal, or tag a habit with #family". It never shows Needs update, so a new area isn't flagged the moment it's made. *(my call)*
+- An area that is linked but has no dated activity yet (a habit tagged but not yet ticked, a goal written without `➕`) doesn't show Needs update either. *(my call, G.1)*
 - The period is `stale_after` in Goals' `config.yaml`, in months (1–24, default 3), also on the shared Settings page.
 - A habit that is formed leaves O.Tasks' list. If that was the area's only activity, the area goes quiet and later shows Needs update. That is intended: the habit is part of life now, and the area is asking what's next.
 - An area with goals but a quiet life still shows Needs update. Busy areas with old goals don't: activity is enough (AL, 2026-10-28).

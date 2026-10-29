@@ -26,6 +26,8 @@ export interface ActivityInput {
   done?: readonly DoneInput[];
   open?: readonly OpenInput[];
   rows?: readonly RowInput[];
+  /** The codes in `projects.csv`. When given, only goal codes among them link (spec 5.1). */
+  projects?: readonly string[];
   today: ISODate;
   /** Goals' `stale_after`, in months. */
   staleAfter: number;
@@ -39,17 +41,23 @@ export interface AreaActivity {
   lastActivity: ISODate | null;
   /** Anything links to the area: a goal, or a task, habit or completion with its tag. */
   linked: boolean;
+  /** Linked, with a last activity older than the period. With no dated activity yet, not shown. */
   needsUpdate: boolean;
 }
 
-/** The project codes on an area's goals, upper case, without repeats. */
-export function areaCodes(area: Area): string[] {
-  return [...new Set(area.goals.flatMap((g) => (g.code ? [g.code.toUpperCase()] : [])))];
+/**
+ * The project codes on an area's goals, upper case, without repeats; only those in `projects` (the codes
+ * in `projects.csv`) when it is given.
+ */
+export function areaCodes(area: Area, projects?: readonly string[]): string[] {
+  const known = projects && new Set(projects.map((p) => p.toUpperCase()));
+  const codes = area.goals.flatMap((g) => (g.code ? [g.code.toUpperCase()] : []));
+  return [...new Set(codes)].filter((c) => !known || known.has(c));
 }
 
 /** Whether a task title links to `area`: it has the area's tag or a code on the area's goals, ignoring case. */
-export function linksArea(title: string, area: Area): boolean {
-  return hasAny(title, keysOf(area));
+export function linksArea(title: string, area: Area, projects?: readonly string[]): boolean {
+  return hasAny(title, keysOf(area, areaCodes(area, projects)));
 }
 
 /** One result per area, in file order. */
@@ -61,8 +69,8 @@ export function areaActivity(doc: GoalsDoc, input: ActivityInput): AreaActivity[
   const cutoff = monthsBefore(today, input.staleAfter);
   return areas(doc).map((area) => {
     const tag = area.tag?.toLowerCase() ?? null;
-    const codes = areaCodes(area);
-    const keys = keysOf(area);
+    const codes = areaCodes(area, input.projects);
+    const keys = keysOf(area, codes);
     let last: ISODate | null = null;
     const see = (d: ISODate | null) => {
       if (d !== null && d <= today && (last === null || d > last)) last = d;
@@ -77,14 +85,14 @@ export function areaActivity(doc: GoalsDoc, input: ActivityInput): AreaActivity[
     const linked = area.goals.length > 0
       || (tag !== null && (open.some((t) => t.includes(tag)) || done.some((d) => d.tags.includes(tag))));
     const lastActivity = last as ISODate | null;
-    return { tag: area.tag, codes, lastActivity, linked, needsUpdate: linked && (lastActivity === null || lastActivity < cutoff) };
+    return { tag: area.tag, codes, lastActivity, linked, needsUpdate: linked && lastActivity !== null && lastActivity < cutoff };
   });
 }
 
 const lowerTags = (title: string): string[] => titleTags(title).map((t) => t.toLowerCase());
 
-function keysOf(area: Area): Set<string> {
-  const keys = new Set(areaCodes(area).map((c) => c.toLowerCase()));
+function keysOf(area: Area, codes: string[]): Set<string> {
+  const keys = new Set(codes.map((c) => c.toLowerCase()));
   if (area.tag) keys.add(area.tag.toLowerCase());
   return keys;
 }

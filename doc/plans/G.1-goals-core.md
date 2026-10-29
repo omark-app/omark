@@ -35,6 +35,19 @@ Nothing yet: the Goals part (G.2) is still a placeholder tab. G.1 is the pure pa
 - Byte-for-byte keeping is only as good as the raw-line model: edits rewrite only the lines they change, and tests compare whole files.
 - Area tags with letters outside ASCII (`ł`) stay as typed; Obsidian accepts them.
 
+## Review (2026-10-29)
+
+A fresh-eyes review of 3e7aa31 found, and the next commit fixed (each with a test first):
+
+1. Saving a form unchanged wrote `✏️` (and rewrote the vision or heading) when the file had doubled spaces or tabs: both sides are now compared on one line.
+2. The picture could be an indented image in a goal's notes: it is now only a line starting with `![` before the first goal.
+3. Front matter wasn't skipped, so a YAML comment (`# owner: me`) read as the vision heading.
+4. Any upper-case tag on a goal was its project code: `areaActivity` and `linksArea` take the `projects.csv` codes and, when given, link only those.
+5. An area linked only by a tagged habit with no completions yet showed Needs update at once: an area with no dated activity now never does *(my call)*.
+6. A goal's Obsidian block id (`^id`) moved off the end of a rewritten line, and a removed code left a space before punctuation.
+
+Kept as they are: a `##` line inside a code fence starts an area (rare in `goals.md`), and a goal's notes end at a blank line, as in `tasks.md`.
+
 ## Out of scope
 
 - Goals' `config.yaml` and its Settings schema (`stale_after`): with the one Settings page (U.5) or G.2; `goals-core` takes the period as a number.

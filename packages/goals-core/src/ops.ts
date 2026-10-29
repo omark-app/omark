@@ -2,7 +2,7 @@
 // and every line an edit doesn't touch kept as it was. Each returns a new doc (the same one when nothing
 // changes); areas, goals and Not now items are given by index.
 import {
-  areaVisionIndices, blockEnd, firstGoalIndex, goalLine, headingIndex, imageLine, isBlank, itemMarker, pictureIndex,
+  areaVisionIndices, blockEnd, goalLine, headingIndex, imageLine, isBlank, itemMarker, pictureIndex,
   readSection, visionIndices, withHead,
 } from './goals-file.ts';
 import type { Area, Goal, GoalsDoc, ISODate, NotNow, Picture, Section } from './model.ts';
@@ -12,7 +12,7 @@ import { freeTag, makeTag } from './tags.ts';
 /** Sets the vision line, adding a `# Vision` heading when the file has none. */
 export function setVision(doc: GoalsDoc, text: string): GoalsDoc {
   const t = oneLine(text);
-  if (t === doc.vision) return doc;
+  if (t === oneLine(doc.vision)) return doc;
   const followed = doc.sections.length > 0;
   const h = headingIndex(doc.head);
   const head = h < 0
@@ -74,14 +74,14 @@ export function editArea(doc: GoalsDoc, i: number, patch: AreaPatch, codes: read
 
   if (patch.vision !== undefined) {
     const t = oneLine(patch.vision);
-    if (t !== (readSection(lines) as Area).vision) {
+    if (t !== oneLine((readSection(lines) as Area).vision)) {
       const p = pictureIndex(lines);
-      const at = p >= 0 && p < firstGoalIndex(lines) ? p + 1 : 1;
-      lines = replaceText(lines, areaVisionIndices(lines), t, at, followed);
+      lines = replaceText(lines, areaVisionIndices(lines), t, p >= 0 ? p + 1 : 1, followed);
     }
   }
 
-  const name = patch.name !== undefined ? oneLine(patch.name) : area.name;
+  const typed = patch.name !== undefined ? oneLine(patch.name) : area.name;
+  const name = typed === oneLine(area.name) ? area.name : typed;
   const tag = area.tag ?? freeTag(makeTag(name), doc, codes, i);
   if (name !== area.name || tag !== area.tag) lines = lines.with(0, heading(name, tag));
 
@@ -147,7 +147,8 @@ export function editGoal(doc: GoalsDoc, i: number, g: number, patch: GoalPatch, 
   const pos = areaPos(doc, i);
   const goal = pos >= 0 ? (doc.sections[pos] as Area).goals[g] : undefined;
   if (!goal) return doc;
-  const text = patch.text !== undefined ? oneLine(patch.text) : goal.text;
+  const typed = patch.text !== undefined ? oneLine(patch.text) : goal.text;
+  const text = typed === oneLine(goal.text) ? goal.text : typed;
   const due = patch.due !== undefined ? patch.due : goal.due;
   const code = patch.code !== undefined ? (patch.code ? patch.code.toUpperCase() : null) : goal.code;
   const achieved = patch.achieved ?? goal.achieved;
