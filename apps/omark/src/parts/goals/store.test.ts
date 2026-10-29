@@ -93,6 +93,84 @@ describe('GoalsStore', () => {
     expect(store.staleAfter).toBe(6);
   });
 
+  it("offline with no copy, goals.md is unreachable, not missing: no first run, no edits, found once back", async () => {
+    const text = '# Vision\n\nCalm.\n\n## Home #home\n';
+    const { store, goals } = folders({ goals: { 'goals.md': text } });
+    goals.setOffline(true);
+    await store.open();
+    expect(store.unreachable).toBe(true);
+    expect(store.firstRun).toBe(false);
+    await store.addArea('Work');
+    goals.setOffline(false);
+    await store.refresh();
+    expect(store.unreachable).toBe(false);
+    expect(areas(store.doc).map((a) => a.name)).toEqual(['Home']);
+    expect(goals.peek('goals.md')).toBe(text);
+  });
+
+  it('a goals.md another device made after this one opened is found on refresh', async () => {
+    const { store, goals } = folders();
+    await store.open();
+    expect(store.firstRun).toBe(true);
+    goals.externalWrite('goals.md', '## Home #home\n');
+    await store.refresh();
+    expect(store.firstRun).toBe(false);
+    await store.addArea('Work');
+    await store.settled();
+    expect(goals.peek('goals.md')).toBe('## Home #home\n\n## Work #work\n');
+  });
+
+  it("refuses a project or a setting while its file couldn't be read, so nothing of O.Time's is overwritten", async () => {
+    const { store, top, goals } = folders({ goals: { 'goals.md': '## Home #home\n', 'config.yaml': 'stale_after: 4\n' }, top: { 'projects.csv': PROJECTS } });
+    top.setOffline(true);
+    goals.setOffline(true);
+    await store.open().catch(() => {});
+    expect(await store.addProject('CLIMB', 'dup')).toMatch(/reach/i);
+    expect(await store.setStaleAfter(6)).toMatch(/reach/i);
+    top.setOffline(false);
+    goals.setOffline(false);
+    expect(top.peek('projects.csv')).toBe(PROJECTS);
+    expect(goals.peek('config.yaml')).toBe('stale_after: 4\n');
+  });
+
+  it('a stale_after changed on another device is read on refresh, also after one set here', async () => {
+    const { store, goals } = folders({ goals: { 'goals.md': '## Home #home\n', 'config.yaml': 'stale_after: 4\n' } });
+    await store.open();
+    await store.setStaleAfter(6);
+    await store.settled();
+    goals.externalWrite('config.yaml', 'stale_after: 12\n');
+    await store.refresh();
+    expect(store.staleAfter).toBe(12);
+  });
+
+  it("a part's folder that can't be read keeps the facts read before: no false Needs update", async () => {
+    const { store, tasks } = folders({
+      goals: { 'goals.md': '## Home #home\n- [ ] Fix the roof ➕ 2025-01-01\n' },
+      tasks: { 'tasks.md': '# Tasks\n', 'done.md': '- [x] Sweep #home ✅ 2026-10-20\n' },
+    });
+    await store.open();
+    expect(store.activity[0]!.needsUpdate).toBe(false);
+    tasks.setOffline(true);
+    await store.refresh();
+    expect(store.activity[0]!.needsUpdate).toBe(false);
+    const fresh = folders({ goals: { 'goals.md': '## Home #home\n- [ ] Fix the roof ➕ 2025-01-01\n' }, tasks: { 'done.md': '- [x] Sweep #home ✅ 2026-10-20\n' } });
+    fresh.tasks.setOffline(true);
+    await fresh.store.open();
+    expect(fresh.store.activity[0]!.needsUpdate).toBe(false);
+  });
+
+  it('the first run lasts until a real area: a vision line or a Not now item alone keeps it', async () => {
+    const { store } = folders({ goals: { 'goals.md': '# Vision\n\nCalm.\n\n## Not now\n\n- A boat\n' } });
+    await store.open();
+    expect(store.firstRun).toBe(true);
+  });
+
+  it('a goal code not in projects.csv has no hours or tasks', async () => {
+    const { store } = folders({ goals: { 'goals.md': '## Home #home\n- [ ] Roof #ROOF\n' }, top: { 'projects.csv': PROJECTS } });
+    await store.open();
+    expect(store.factsFor(areas(store.doc)[0]!.goals[0]!)).toBeNull();
+  });
+
   it('a new project with no projects.csv yet creates it with the header', async () => {
     const { store, top } = folders();
     await store.open();

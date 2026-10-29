@@ -61,6 +61,18 @@ An area's picture needs storage to read and write binary files (`images/climbing
 - A Tasks-only start loads no Goals code.
 - `pnpm typecheck`, `pnpm test`, the builds and the touched e2e pass.
 
+## Fresh-eyes review (2026-10-29)
+
+Fixed, with tests first (`apps/omark/src/parts/goals/store.test.ts`, `e2e/goals.spec.ts`):
+
+1. With no copy on the device, a `goals.md` that couldn't be read (offline) was taken for a missing one. The board showed the first run, and the first edit merged onto an empty base, scrambling the file. Now it is "can't reach": no first run, no edits. It is looked for again on refresh, which also finds a `goals.md` another device made meanwhile.
+2. Edits could be made before the board had opened. Now none are taken until it has.
+3. A new project with `projects.csv` unread checked its code against the header only, and could overwrite O.Time's row. Refused now, as is `stale_after` with `config.yaml` unread. `config.yaml` merges per setting (`mergeSettings`), and is read again on refresh.
+4. A part's folder that couldn't be read wiped the facts read before, so Needs update rose falsely. Each source now keeps its last facts, and until every one has been read once, Needs update waits.
+5. The first run lasts until a real area: a vision line or a Not now item alone keeps the placeholders.
+6. A goal code not in `projects.csv` shows no hours or tasks.
+7. Smaller: the board uses the device's own date (not UTC) for its chips; habits with the same title get distinct keys; an edit merged onto a newer copy shows the merge; Move up and down have an e2e.
+
 ## Out of scope
 
 Pictures (G.2b, above). The demo world (U.6). Links from a card's hours to Time and its tasks to Tasks (one app spec 7, "nice to have"). Tag suggestions in Tasks (G.3). The skill and format (G.4).

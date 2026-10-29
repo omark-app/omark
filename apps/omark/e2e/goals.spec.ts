@@ -112,6 +112,18 @@ test('a stale area shows Needs update; ticking a habit tagged with it in Tasks c
   await expect(card(page, 'Home').getByTestId('needs-update')).toHaveCount(0);
 });
 
+test('Move up and Move down move the whole area block, and the form stays on the area', async ({ page }) => {
+  await open(page, { goals: { 'goals.md': '## Home #home\n- [ ] Roof\n\n## Work #work\n- [ ] Course\n' } });
+  await card(page, 'Work').getByRole('button', { name: 'Edit Work' }).click();
+  await sheet(page).getByRole('button', { name: 'Move up' }).click();
+  await expect.poll(() => peek(page, 'goals', 'goals.md')).toBe('## Work #work\n- [ ] Course\n\n## Home #home\n- [ ] Roof\n');
+  await expect(sheet(page).getByRole('button', { name: 'Move up' })).toBeDisabled();
+  await expect(sheet(page).getByLabel('Name')).toHaveValue('Work');
+  await sheet(page).getByRole('button', { name: 'Move down' }).click();
+  await expect.poll(() => peek(page, 'goals', 'goals.md')).toBe('## Home #home\n- [ ] Roof\n\n## Work #work\n- [ ] Course\n');
+  await expect(page.getByTestId('area-card').first()).toContainText('Home');
+});
+
 test('an area with nothing linked shows the hint, not Needs update', async ({ page }) => {
   await open(page, { goals: { 'goals.md': '## Family #family\n\nTime together.\n' } });
   await expect(card(page, 'Family').getByTestId('area-hint')).toHaveText('Add a goal, or tag a habit with #family');

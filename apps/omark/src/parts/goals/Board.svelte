@@ -1,6 +1,7 @@
 <script lang="ts">
   import { areas, goalStatus, notNow } from '@omark/goals-core';
   import type { Area, Goal } from '@omark/goals-core';
+  import { toISODate } from '@omark/tasks-core';
   import type { GoalsStore } from './store.svelte.ts';
 
   /** The Vision board (Goals spec 8): the vision line, a card per area, Not now, and the forms. */
@@ -8,7 +9,8 @@
 
   const list = $derived(areas(store.doc));
   const notNowItems = $derived(notNow(store.doc));
-  const today = $derived(new Date().toISOString().slice(0, 10));
+  // The device's own date, as the store's (a UTC date would be a day off around midnight).
+  const today = $derived(toISODate(new Date()));
 
   /** A calm colour from the area's name, for a card with no picture. */
   function hue(name: string): number {
@@ -134,7 +136,9 @@
 
 <div class="board" data-testid="goals-board">
   <header class="vision">
-    {#if editingVision}
+    {#if store.phase === 'loading' || store.unreachable}
+      <!-- Nothing to edit until goals.md has been read. -->
+    {:else if editingVision}
       <input
         class="vision-input"
         aria-label="Vision line"
@@ -154,6 +158,8 @@
 
   {#if store.phase === 'loading'}
     <p class="muted">Opening…</p>
+  {:else if store.unreachable}
+    <p class="muted" role="status" data-testid="goals-unreachable">Can't reach your goals right now. They show here once the Omark folder can be reached.</p>
   {:else if store.firstRun}
     <div class="cards" data-testid="placeholders">
       <section class="card placeholder">
@@ -194,7 +200,7 @@
           <button type="button" class="add" onclick={() => openGoal(a, null)}>Add goal</button>
           {#if habits.length > 0}
             <ul class="habits" data-testid="area-habits">
-              {#each habits as h (h.title)}<li>{h.title} <span class="muted">{h.progress.count}/{h.progress.rules.goal}</span></li>{/each}
+              {#each habits as h, k (k)}<li>{h.title} <span class="muted">{h.progress.count}/{h.progress.rules.goal}</span></li>{/each}
             </ul>
           {/if}
           {#if achieved(area).length > 0}
@@ -209,7 +215,7 @@
     <button type="button" class="primary" onclick={() => openArea(null)}>Add area</button>
   {/if}
 
-  {#if store.phase === 'ready'}
+  {#if store.phase === 'ready' && !store.unreachable}
     <section class="not-now" data-testid="not-now">
       <h2>Not now</h2>
       <ul>
