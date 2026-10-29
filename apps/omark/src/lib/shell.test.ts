@@ -284,6 +284,76 @@ describe('parts on and off (U.5)', () => {
   });
 });
 
+describe('parts changes, review fixes (U.5)', () => {
+  const ready = async (drives: Partial<Record<Storage, Drive>>, signedIn = 'microsoft') => {
+    store.set('omark:storage', 'microsoft');
+    const made = accounts({ signedIn, drives, signInSwitches: true });
+    const shell = new Shell(made.accounts);
+    await shell.start();
+    return shell;
+  };
+
+  it('two changes made quickly are both written', async () => {
+    const root = new FakeOneDrive({ 'config.yaml': 'parts: [tasks]\n' });
+    const shell = await ready({ microsoft: { root } });
+    await Promise.all([shell.turnOn('time', { open: false }), shell.turnOn('goals', { open: false })]);
+    expect(root.peek('config.yaml')).toBe('parts: [tasks, time, goals]\n');
+    expect(shell.pending).toBe(false);
+  });
+
+  it("a slow re-read at start doesn't undo a pending change the start just wrote", async () => {
+    const root = new FakeOneDrive({ 'config.yaml': 'parts: [tasks]\n' });
+    store.set('omark:parts:microsoft', 'parts: [tasks]\n');
+    store.set('omark:parts-pending:microsoft', JSON.stringify([{ on: 'time' }]));
+    // The second read is the start's re-read (the first is the pending change's): it answers late, with the old file.
+    let reads = 0;
+    const slow: StorageAdapter = {
+      async read(n) {
+        if (++reads === 2) {
+          const old = await root.read(n);
+          await new Promise((r) => setTimeout(r, 20));
+          return old;
+        }
+        return root.read(n);
+      },
+      write: (n, t, m) => root.write(n, t, m),
+    };
+    const shell = await ready({ microsoft: { root: slow } });
+    await new Promise((r) => setTimeout(r, 60));
+    expect(root.peek('config.yaml')).toBe('parts: [tasks, time]\n');
+    expect(shell.on).toEqual(['tasks', 'time']);
+  });
+
+  it("opening another storage forgets the old one's parts, and its pending changes stay its own", async () => {
+    const ms = new FakeOneDrive({ 'config.yaml': 'parts: [tasks, time]\n' });
+    const g = new FakeOneDrive({ 'config.yaml': 'parts: [tasks]\n' });
+    const shell = await ready({ microsoft: { root: ms }, google: { root: g } });
+    shell.go('/time');
+    ms.setOffline(true);
+    await shell.turnOn('goals', { open: false });
+    await shell.changeStorage();
+    await shell.choose('google');
+    expect(shell.on).toEqual(['tasks']);
+    expect(shell.visited).toEqual(['tasks']);
+    ms.setOffline(false);
+    await shell.flush();
+    expect(g.peek('config.yaml')).toBe('parts: [tasks]\n');
+    expect(JSON.parse(store.get('omark:parts-pending:microsoft')!)).toEqual([{ on: 'goals' }]);
+  });
+
+  it('with no suite file yet, a change is kept on the device and never written behind the parts question', async () => {
+    const root = new FakeOneDrive();
+    root.setOffline(true);
+    const shell = await ready({ microsoft: { root } });
+    expect(shell.on).toEqual(['tasks']);
+    await shell.turnOn('time', { open: false });
+    root.setOffline(false);
+    await shell.flush();
+    expect(root.peek('config.yaml')).toBeNull();
+    expect(store.has('omark:parts:microsoft')).toBe(false);
+  });
+});
+
 describe('the one Settings page (U.5)', () => {
   it('opens at /settings with every part that is on mounted, and goes back where it came from', async () => {
     store.set('omark:storage', 'microsoft');

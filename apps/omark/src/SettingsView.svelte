@@ -18,6 +18,7 @@
 
   const PROVIDER_NAMES = { microsoft: 'Microsoft', google: 'Google' };
   const SIGN_OUT_QUESTION = 'Sign out of Omark on this device? Your files stay where they are.';
+  const PENDING_QUESTION = "A change to the parts hasn't reached the Omark folder yet; signing out drops it. Sign out anyway?";
 
   const place = $derived(shell.place!);
   const tasks = $derived(shell.on.includes('tasks') ? tasksPart.settings : null);
@@ -32,25 +33,36 @@
     return { ...c, connected };
   });
 
+  let error = $state<string | null>(null);
   async function connect(): Promise<void> {
     const { auth, access } = calendar;
-    await auth.signIn(undefined, access ? { add: access, returnTo: '/settings' } : { returnTo: '/settings' });
+    try {
+      await auth.signIn(undefined, access ? { add: access, returnTo: '/settings' } : { returnTo: '/settings' });
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
     signIns++;
   }
 
   async function disconnect(): Promise<void> {
-    await calendar.auth.signOut();
+    try {
+      await calendar.auth.signOut();
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
     signIns++;
   }
 
   function signOut(): void {
-    if (window.confirm(SIGN_OUT_QUESTION)) void shell.signOut();
+    if (window.confirm(shell.pending ? PENDING_QUESTION : SIGN_OUT_QUESTION)) void shell.signOut();
   }
 
   const back = $derived({ label: '‹ Back', href: '/', onclick: (e: MouseEvent) => shell.leaveSettings(e) });
   const sections = $derived([
     { id: 'omark', title: 'Omark', body: omarkCard },
     ...(shell.on.includes('time') ? [{ id: 'time', title: 'Omark Time', body: timeCard }] : []),
+    // Tasks is on but not open (still starting, or its start failed): the Omark card stays in reach.
+    ...(shell.on.includes('tasks') && !tasks ? [{ id: 'tasks', title: 'Omark Tasks', body: tasksWaiting }] : []),
   ]);
   const LINES: Record<string, string> = {
     tasks: 'Today, this week and later, with habits.',
@@ -97,8 +109,14 @@
     {/if}
   {/if}
 
+  {#if error || shell.error}<p class="error" role="alert">{error ?? shell.error}</p>{/if}
+
   <h3>This device</h3>
   <button type="button" class="btn" onclick={signOut}>Sign out</button>
+{/snippet}
+
+{#snippet tasksWaiting()}
+  <p class="muted">Omark Tasks' settings show here once it opens.</p>
 {/snippet}
 
 {#snippet timeCard()}
@@ -123,10 +141,8 @@
       extraSections={sections}
       {status}
     />
-  {:else if shell.on.includes('tasks')}
-    <p class="muted opening">Opening…</p>
   {:else}
-    <!-- Tasks is off: the same cards, without Tasks' form and its config.yaml. -->
+    <!-- Tasks is off or not open: the same cards, without Tasks' form and its config.yaml. -->
     <div class="plain">
       <a class="back" data-testid="settings-back" href={back.href} onclick={back.onclick}>{back.label}</a>
       <h1>Settings</h1>
@@ -148,7 +164,7 @@
   .part span { display: grid; gap: 2px; }
   .part small, .muted { color: var(--muted); }
   .btn { padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 500 14px var(--sans); cursor: pointer; }
-  .opening { text-align: center; margin: 48px auto; }
+  .error { color: var(--danger); }
   .plain { max-width: 44rem; margin: 0 auto; padding: 24px 16px 48px; }
   .plain .card { background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); padding: 20px; margin-top: 16px; }
   .plain .card h2 { margin: 0 0 8px; font-size: 17px; }

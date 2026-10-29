@@ -56,6 +56,21 @@ The page mounts every part that is on (hidden), so each one registers even when 
 - The U.3 shell test that expected Tasks' `,` to open `#settings` now expects `/settings`.
 - The first card is called **Omark**: Tasks' first section is already General.
 
+### Fresh-eyes review (2026-10-29)
+
+Fixed, with tests first (`apps/omark/src/lib/shell.test.ts`, `e2e/settings.spec.ts`):
+
+1. Two parts changes made within one write: only the first was written. The write now goes on until no change is left.
+2. A known device's start re-read the suite file while its pending change was being written, and could show the old parts. The re-read now waits for that write.
+3. Opening another storage kept the old place's mounted parts, addresses and Settings' way back. Now everything is reset when a place opens. Pending changes are kept per place, so one place's change can't be written to another's file, nor come back twice.
+4. With no suite file yet, a pending change wrote one behind the first run's parts question. It now waits for that question. Parts shown after a first open offline are no longer remembered as the folder's.
+5. With Tasks on but its start failed, Settings showed "Opening…" for ever. The Omark card now shows anyway.
+6. Time's "All Omark settings" went around the shell's router, so Back reloaded the first part. It now goes through the shell, and Back returns to Time.
+7. Time's store stayed in the registry after its part was gone. It is cleared on unmount.
+8. Smaller: sign-out names a pending parts change in its question; on a folder storage it goes ahead offline; Connect and Disconnect show their errors.
+
+Kept: Disconnect isn't offered on Google Drive, as the calendar is part of the one Google sign-in there (signing out of it would sign out of the storage).
+
 ## Risks
 
 - **Mounting every part for the page** starts Time's sync when Settings opens. That is what opening Time does anyway, and only for a part that is on.

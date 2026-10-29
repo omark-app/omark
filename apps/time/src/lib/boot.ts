@@ -61,6 +61,8 @@ export interface AppDeps {
    * asks for a sign-in shows `sync` `storage`, with this, rather than the calendar's sign-in.
    */
   storageSignIn?: () => Promise<void>;
+  /** Inside the one Omark app: opens its Settings page. */
+  openSettings?: () => void;
 }
 
 /** The IndexedDB database that keeps the picked folder's handle; the picker's id lets it reopen where it was. */
@@ -166,6 +168,8 @@ export interface TimeGiven {
   persist?: () => Promise<void>;
   /** The storage's own sign-in again (OneDrive's, Google Drive's), when its session lapsed; none for a folder. */
   storageSignIn?: () => Promise<void>;
+  /** Opens the one app's Settings page (through its router, so its back link comes back here). */
+  openSettings?: () => void;
 }
 
 const KINDS: Record<TimeGiven['storage'], StorageKind> = { microsoft: 'onedrive', google: 'google-drive', folder: 'local-folder' };
@@ -208,6 +212,7 @@ export function timeDeps(given: TimeGiven): AppDeps {
     },
     ...(given.persist && { persist: given.persist }),
     ...(given.storageSignIn && { storageSignIn: given.storageSignIn }),
+    ...(given.openSettings && { openSettings: given.openSettings }),
     storage: KINDS[given.storage],
     embedded: true,
   };

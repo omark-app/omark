@@ -26,11 +26,11 @@
   // Tasks comes with the shell, so a Tasks-only start is as quick as Omark Tasks alone; the other parts load
   // the first time their tab shows.
   type Lazy = Exclude<Part, 'tasks'>;
-  const LOADERS: Record<Lazy, () => Promise<{ default: Component<{ place: Place }> }>> = {
+  const LOADERS: Record<Lazy, () => Promise<{ default: Component<{ place: Place; openSettings?: () => void }> }>> = {
     time: () => import('./parts/TimePart.svelte'),
     goals: () => import('./parts/GoalsPart.svelte'),
   };
-  const loaded = new Map<Lazy, Promise<{ default: Component<{ place: Place }> }>>();
+  const loaded = new Map<Lazy, Promise<{ default: Component<{ place: Place; openSettings?: () => void }> }>>();
   const load = (p: Lazy) => {
     if (!loaded.has(p)) loaded.set(p, LOADERS[p]());
     return loaded.get(p)!;
@@ -130,7 +130,7 @@
       {#if p === 'tasks'}
         <TasksPart place={tasksPlace!} active={shell.current === 'tasks'} openSettings={() => shell.go(SETTINGS_PATH)} />
       {:else}
-        {#await load(p) then mod}<mod.default place={shell.place!} />{/await}
+        {#await load(p) then mod}<mod.default place={shell.place!} openSettings={() => shell.go(SETTINGS_PATH)} />{/await}
       {/if}
     </div>
   {/each}

@@ -95,8 +95,11 @@ export class Shell {
   private settingsFromApp = false;
   /** Parts turned on or off here that the folder has not got yet (offline). */
   pending = $state(false);
-  private steps: Step[] = [];
-  private flushing: Promise<void> | null = null;
+  /** Each place's pending parts changes, and the write of them running, by the place's key. */
+  private queued = new Map<string, Step[]>();
+  private flushing = new Map<string, Promise<void>>();
+  /** The parts on screen came from the folder (not a first open offline), so they are remembered as its. */
+  private known = true;
   /**
    * Each part's last address (its hash too: Tasks' #settings), scroll and focused element (an open search's
    * field), restored when its tab shows again.
@@ -171,16 +174,21 @@ export class Shell {
       await this.toWhere();
       return;
     }
+    // Nothing of another place stays: its parts unmount, its addresses and Settings' way back are forgotten.
+    this.visited = [];
+    this.last = {};
+    this.current = null;
+    this.offer = null;
+    this.settingsFromApp = false;
+    this.known = true;
     this.place = place;
-    this.steps = loadSteps(place);
-    this.pending = this.steps.length > 0;
+    this.pending = this.stepsOf(place).length > 0;
     const seen = load(partsKey(place));
     if (seen !== null) {
       // A device that has opened this folder before starts at once with the parts it last saw, so a Tasks-only
-      // start waits for nothing more than Omark Tasks did; the suite file is read meanwhile.
+      // start waits for nothing more than Omark Tasks did; the suite file is read once pending changes are in.
       this.show(this.withSteps(partsOf(seen)));
-      void this.flush();
-      void this.recheck(place);
+      void this.flush().then(() => this.recheck(place));
       return;
     }
     let text: string | null;
@@ -189,6 +197,7 @@ export class Shell {
     } catch {
       // Offline or signed out on a first open here: Tasks alone for now, kept nowhere, so the next start
       // reads the folder again (and asks, if it has no suite file).
+      this.known = false;
       this.show(partsOf(null), undefined, false);
       return;
     }
@@ -219,7 +228,7 @@ export class Shell {
 
   /** `parts` with the changes still pending on this device. */
   private withSteps(parts: Part[]): Part[] {
-    return this.steps.reduce(applyStep, parts);
+    return this.place ? this.stepsOf(this.place).reduce(applyStep, parts) : parts;
   }
 
   /** Brings in parts another device turned on or off since this one last looked. */
@@ -278,6 +287,8 @@ export class Shell {
   /** Settings' "Change": the first run's "where", to open another storage. */
   async changeStorage(): Promise<void> {
     this.error = null;
+    // The new storage opens on its first part, not on the address of this one's.
+    history.replaceState(null, '', '/');
     await this.toWhere();
   }
 
@@ -286,21 +297,26 @@ export class Shell {
     try {
       await this.accounts.signOut();
     } catch (e) {
-      this.error = message(e);
-      return;
+      // A folder needs no sign-in: offline, its device still forgets it (a calendar sign-in ends next time).
+      if (this.place?.storage !== 'folder') {
+        this.error = message(e);
+        return;
+      }
     }
     forget(CHOICE_KEY);
     if (this.place) {
       forget(partsKey(this.place));
       forget(pendingKey(this.place));
+      this.queued.delete(this.place.key);
     }
     this.place = null;
     this.on = [];
     this.visited = [];
     this.current = null;
     this.settings = false;
-    this.steps = [];
     this.pending = false;
+    this.last = {};
+    this.settingsFromApp = false;
     this.error = null;
     history.replaceState(null, '', '/');
     this.phase = 'welcome';
@@ -318,42 +334,62 @@ export class Shell {
    */
   private async change(step: Step, path?: string): Promise<void> {
     const place = this.place!;
-    this.steps = [...this.steps, step];
-    keep(pendingKey(place), JSON.stringify(this.steps));
-    this.pending = true;
-    this.show(applyStep(this.on, step), path);
+    this.setSteps(place, [...this.stepsOf(place), step]);
+    // Parts that never came from the folder (a first open offline) are not remembered as the folder's.
+    this.show(applyStep(this.on, step), path, this.known);
     await this.flush();
   }
 
   /** Writes the parts changes kept on this device onto the folder's file as it is now; quietly waits when offline. */
   flush(): Promise<void> {
     const place = this.place;
-    if (!place || this.steps.length === 0) return Promise.resolve();
-    this.flushing ??= this.writeSteps(place).finally(() => (this.flushing = null));
-    return this.flushing;
+    if (!place || this.stepsOf(place).length === 0) return Promise.resolve();
+    let running = this.flushing.get(place.key);
+    if (!running) {
+      running = this.writeSteps(place).finally(() => this.flushing.delete(place.key));
+      this.flushing.set(place.key, running);
+    }
+    return running;
   }
 
+  /** Writes `place`'s pending changes until none are left, also those made while a write was out. */
   private async writeSteps(place: Place): Promise<void> {
-    for (let tries = 0; ; tries++) {
-      const steps = this.steps;
-      let file;
+    let tries = 0;
+    for (;;) {
+      const steps = this.stepsOf(place);
+      if (steps.length === 0) return;
       try {
-        file = await place.root.read('config.yaml');
-        const parts = steps.reduce(applyStep, partsOf(file?.text ?? null));
-        await place.root.write('config.yaml', withParts(file?.text ?? null, parts), file?.etag ?? null);
-        if (this.place !== place) return;
-        // Changes made while this one was written stay pending.
-        this.steps = this.steps.slice(steps.length);
-        keep(pendingKey(place), JSON.stringify(this.steps));
-        this.pending = this.steps.length > 0;
-        this.show(this.steps.reduce(applyStep, parts));
-        return;
+        const file = await place.root.read('config.yaml');
+        // No suite file yet: the first run's parts question writes it, not a change made before it.
+        if (file === null) return;
+        const parts = steps.reduce(applyStep, partsOf(file.text));
+        await place.root.write('config.yaml', withParts(file.text, parts), file.etag);
+        const rest = this.stepsOf(place).slice(steps.length);
+        this.setSteps(place, rest);
+        if (this.place === place) this.show(rest.reduce(applyStep, parts));
+        tries = 0;
       } catch (e) {
         // Another device changed the file meanwhile: read it again and apply the changes to theirs.
-        if (e instanceof PreconditionFailedError && tries < 2) continue;
+        if (e instanceof PreconditionFailedError && ++tries <= 2) continue;
         return; // Offline or refused: still kept here; the next flush tries again.
       }
     }
+  }
+
+  /** A place's pending changes: in memory, else as this device kept them. */
+  private stepsOf(place: Place): Step[] {
+    let steps = this.queued.get(place.key);
+    if (!steps) {
+      steps = loadSteps(place);
+      this.queued.set(place.key, steps);
+    }
+    return steps;
+  }
+
+  private setSteps(place: Place, steps: Step[]): void {
+    this.queued.set(place.key, steps);
+    keep(pendingKey(place), JSON.stringify(steps));
+    if (this.place === place) this.pending = steps.length > 0;
   }
 
   /** Goes to a part's tab (a click, a key) without reloading: back where that part was, address and scroll. */

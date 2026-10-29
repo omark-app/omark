@@ -92,6 +92,11 @@ export class TimeStore {
   }
 
   /** The first run offers a folder on this computer only where the browser can pick one. */
+  /** Inside the one Omark app: opens its one Settings page. */
+  openSettings(): void {
+    this.deps.openSettings?.();
+  }
+
   /** Inside the one Omark app, which owns storage and sign-out (U.4). */
   get embedded(): boolean {
     return this.deps.embedded === true;

@@ -75,6 +75,10 @@ test("a Tasks setting and a Time setting changed on the page land in their own f
   await time.getByLabel('Hours an all-day event counts for').blur();
   await expect.poll(() => peek(page, 'time', 'config.yaml')).toContain('all_day_hours: 6');
   expect(await peek(page, 'tasks', 'config.yaml')).not.toContain('all_day');
+  // Back goes back to Time, where Settings was opened from.
+  await page.getByTestId('settings-back').click();
+  await expect(page).toHaveURL(/\/time/);
+  await expect(page.locator('.time-part').getByTestId('status')).toBeVisible();
 });
 
 test('Google Calendar connects and disconnects from the Omark card next to OneDrive', async ({ page }) => {

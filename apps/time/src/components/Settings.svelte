@@ -11,12 +11,11 @@
   /** `inPage`: shown inside the one Omark app's Settings page, which has its own heading. */
   let { store, inPage = false }: { store: TimeStore; inPage?: boolean } = $props();
 
-  /** The one Omark app routes by the address: it goes there without a reload, as its own links do. */
+  /** The one Omark app's Settings page, through its router: no reload, and its back link comes back here. */
   function toSettings(e: MouseEvent): void {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
     e.preventDefault();
-    history.pushState(null, '', '/settings');
-    dispatchEvent(new PopStateEvent('popstate'));
+    store.openSettings();
   }
   const chosen = $derived(store.config?.calendars ?? []);
   const DAYS: WeekStart[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
