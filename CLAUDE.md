@@ -6,7 +6,7 @@ Everything above comes from `AGENTS.md`, which every agent reads. These notes ar
 
 ## Fast mode until launch (2026-10-28)
 
-Until the repo goes public (roadmap 4.3), the founder's working session overrides the factory flow in `AGENTS.md`: no issues, PRs or plan approvals; work serially in one session, test first, run `pnpm typecheck`, `pnpm test`, the build and the touched e2e specs, then commit and push straight to `main`. The founder tests on production. Force-push stays forbidden, and Promote runs only when the founder asks. Before 4.3, remove this section and restore the guard and deny rules in `.claude/settings.json`.
+Until the repo goes public (roadmap 4.3), the founder's working session overrides the factory flow in `AGENTS.md`: no issues, PRs or plan approvals; work serially in one session, test first, run `pnpm typecheck`, `pnpm test`, the build and the touched e2e specs, then commit and push straight to `main`. Fresh-eyes review stays: after each roadmap row (or a day's work, whichever comes first), one review subagent with no memory of writing the code checks its diff against the plan and spec, and its real findings are fixed before the next row. The founder tests on production. Force-push stays forbidden, and Promote runs only when the founder asks. Before 4.3, remove this section and restore the guard and deny rules in `.claude/settings.json`.
 
 ## Skills
 
