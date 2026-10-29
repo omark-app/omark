@@ -2,6 +2,7 @@
   import { bucketName as nameOf, readQuickAdd } from '@omark/tasks-core';
   import type { Dismissed } from '@omark/tasks-core';
   import type { AppStore } from '../lib/store.svelte.ts';
+  import { part } from '../lib/part.svelte.ts';
   import ShortcutField from './ShortcutField.svelte';
 
   let { store }: { store: AppStore } = $props();
@@ -42,6 +43,7 @@
     placeholder="Add a task to {bucketName}"
     autocomplete="off"
     aria-label="Add a task"
+    tags={part.tags}
     {onkeydown}
   />
   <kbd>/</kbd>

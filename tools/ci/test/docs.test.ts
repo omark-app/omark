@@ -164,7 +164,9 @@ describe('docs set', () => {
 describe('doc/format.md', () => {
   const format = read('doc/format.md');
   const lines = format.split('\n');
-  const blocks = [...format.matchAll(/^```markdown[ \t]*\n([\s\S]*?)^```[ \t]*$/gm)].map((m) => m[1]!);
+  // The Tasks and Time parts; Omark Goals' goals.md example is checked by packages/goals-core/test/format-doc.test.ts.
+  const tasksTime = format.slice(0, format.indexOf('\n## Omark Goals'));
+  const blocks = [...tasksTime.matchAll(/^```markdown[ \t]*\n([\s\S]*?)^```[ \t]*$/gm)].map((m) => m[1]!);
   const tasksBlocks = blocks.filter((b) => b.startsWith('# Tasks'));
   const doneBlocks = blocks.filter((b) => b.startsWith('- ['));
 
@@ -184,11 +186,11 @@ describe('doc/format.md', () => {
     expect(format).toMatch(/^Version: 1\.0$/m);
   });
 
-  test('every markdown example is a tasks.md or a done.md, and every one is checked', () => {
+  test('every markdown example before Omark Goals is a tasks.md or a done.md, and every one is checked', () => {
     expect(tasksBlocks.length).toBeGreaterThanOrEqual(3);
     expect(doneBlocks.length).toBeGreaterThanOrEqual(3);
     expect(tasksBlocks.length + doneBlocks.length).toBe(blocks.length);
-    expect(blocks).toHaveLength(lines.filter((l) => /^```markdown[ \t]*$/.test(l)).length);
+    expect(blocks).toHaveLength(tasksTime.split('\n').filter((l) => /^```markdown[ \t]*$/.test(l)).length);
   });
 
   test.each(blocks.map((b, i) => [i, b] as const))('markdown example %i round-trips', (_i, block) => {

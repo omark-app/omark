@@ -391,3 +391,83 @@ colour_events: false  # set by the "Colour my events" setting
 ### Colours
 
 With `colour_events` on, the app sets a structured event's colour to green (Google's "Basil", colour id 10) for a known code and red ("Tomato", 11) for an unknown one. It checks the ids against Google's colour list at run time, and marks each event it colours with the private extended property `omarkTime` = `green` or `red`. It changes no other field. A tool that creates events doesn't need to set colours; the app does it on its next sync.
+
+## Omark Goals
+
+Life areas, the vision for each and dated goals, in one Markdown file, `goals/goals.md`, linked down to Tasks and Time by tags. The design is in [the Goals spec](goals/spec.md).
+
+### goals.md
+
+```markdown
+# Vision
+
+I feel happy, fulfilled and peaceful.
+
+## Climbing #climbing
+
+![Climbing](images/climbing.jpg)
+
+Trips across the world to climb in interesting places.
+
+- [ ] Redpoint 8b 📅 2027-10-31 ➕ 2026-10-28
+- [ ] Two climbing trips abroad #CLIMB 📅 2027-12-31 ➕ 2026-10-28
+- [x] Onsight 7c+ 📅 2026-09-30 ➕ 2025-11-02 ✅ 2026-08-14
+
+## Not now
+
+- New client projects that need an office
+```
+
+- **The vision line**: the text under the first `#` heading, up to the first `##`. Optional. Front matter before it is skipped.
+- **An area**: a `##` heading other than `## Not now`, written `## {name} #{tag}`.
+  - The tag is the area's key: lower case letters, digits and `-`, made from the name when the area is created and never changed. Renaming changes only the name.
+  - A tag can't equal a project code, ignoring case.
+  - A heading without a tag is still an area; nothing links to it until the app gives it a tag on its first edit.
+  - Areas show in file order.
+- **The picture**: the first line in the area, before its first goal, that is only a Markdown image (`![alt](images/x.jpg)`), with a path relative to `goals.md`. Optional.
+- **The vision text**: the area's other text before its first goal, on one line. Optional.
+- **A goal**: a top-level `- [ ]` (open) or `- [x]` (achieved) line in an area. Its signs:
+  - `📅` the target date;
+  - `➕` the date it was set;
+  - `✅` the date it was achieved (read on `- [x]` lines only);
+  - `✏️` the date its text, date or project last changed;
+  - at most one project code: the last upper-case `#TAG` on the line.
+
+  The last valid date after a sign wins. The rest of the line is the goal's text, its other tags and emoji included.
+- **A goal as the app writes it**: `- [ ] {text} #{CODE} ✏️ {date} 📅 {due} ➕ {set} ✅ {done}`. `✏️` comes before `📅` because Obsidian Tasks reads its signs from the line's end and stops at one it doesn't know. An Obsidian block id (`^id`) stays at the end.
+- **`## Not now`**: plain list lines (`-`, `*` or `+`). Nothing links to them.
+- **Encoding**: UTF-8, LF line endings, one final newline. A reader accepts a BOM and CRLF.
+
+### What a tool must keep in goals.md
+
+Every line it doesn't change, byte for byte: other text and headings, comments, notes under goals, front matter, line order, and achieved goals, which stay in place with their `✅`.
+- A tool that adds a goal writes `➕` today.
+- One that changes a goal's text, date or project writes `✏️` today.
+- One that ticks a goal writes `✅` today.
+- Area tags are never changed.
+
+### Links and Needs update
+
+- **What links to an area**:
+  - its goals, and the project codes on them;
+  - tasks and habits (in `tasks.md` and `done.md`) tagged with the area's tag or a linked code;
+  - hours in `events-*.csv` on a linked code.
+
+  Tags match ignoring case. A code on goals in two areas links to both.
+- **An area's last activity** is the latest of these dates, up to today:
+  - a goal's `➕`, `✏️` or achieved `✅`;
+  - a completion's `✅` in `done.md` (habit completions too);
+  - a row's `date` in `events-*.csv` with `known` = `true`.
+- **Needs update**: a linked area whose last activity is older than `stale_after` months (a date exactly that old is not). An area with nothing linked shows a hint instead, never Needs update, and so does one with no dated activity yet.
+
+### Goals' config.yaml
+
+`goals/config.yaml`; unknown keys are kept.
+
+| Key | What | Default |
+| --- | --- | --- |
+| `stale_after` | months without linked activity before Needs update, 1 to 24 | `3` |
+
+### Goals in Obsidian
+
+Goal lines use the Obsidian Tasks signs, so a vault that holds the Omark folder sees them in Obsidian Tasks queries. To leave them out, add `path does not include goals/` to the queries, or set a global filter that `goals.md` doesn't match.

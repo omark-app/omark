@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { carryDismissed, shortcutWords } from '@omark/tasks-core';
+  import { tick } from 'svelte';
+  import { carryDismissed, completeTag, matchTags, shortcutWords, tagAtCaret } from '@omark/tasks-core';
   import type { Dismissed } from '@omark/tasks-core';
   import type { HTMLInputAttributes, HTMLTextareaAttributes } from 'svelte/elements';
   import { autogrow } from '../lib/autogrow.ts';
@@ -18,6 +19,9 @@
     class: cls = '',
     wrap = false,
     ontype,
+    tags,
+    onkeydown: onkey,
+    onblur: onleave,
     ...rest
   }: {
     value?: string;
@@ -27,9 +31,60 @@
     wrap?: boolean;
     /** Called after each change the user types, once `value` holds it. */
     ontype?: () => void;
+    /**
+     * Tags to offer as `#` is typed (Goals spec 9: the project codes and area tags, in the one Omark app); none
+     * offered without.
+     */
+    tags?: readonly string[];
+    onkeydown?: (e: KeyboardEvent) => void;
+    onblur?: (e: FocusEvent) => void;
   } & Omit<HTMLInputAttributes, 'value' | 'class' | 'oninput'> = $props();
 
   let mirror: HTMLSpanElement | undefined = $state();
+
+  // Tag suggestions: the #word at the caret, matched against `tags`; Escape closes them until the next keystroke.
+  let caret = $state<number | null>(null);
+  let focused = $state(false);
+  let closed = $state(false);
+  let chosen = $state(0);
+  const at = $derived(tags && tags.length > 0 && focused ? tagAtCaret(value, caret) : null);
+  const hits = $derived(at && !closed ? matchTags(at.query, tags!) : []);
+  const noteCaret = (): void => {
+    caret = input?.selectionStart ?? null;
+  };
+
+  async function choose(tag: string): Promise<void> {
+    if (!at || !input) return;
+    const done = completeTag(value, at, tag);
+    value = done.text;
+    ontype?.();
+    await tick();
+    input.setSelectionRange(done.caret, done.caret);
+    caret = done.caret;
+  }
+
+  function keydown(e: KeyboardEvent): void {
+    if (hits.length > 0 && !e.isComposing) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        chosen = (chosen + (e.key === 'ArrowDown' ? 1 : hits.length - 1)) % hits.length;
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        void choose(hits[Math.min(chosen, hits.length - 1)]!);
+        return;
+      }
+      if (e.key === 'Escape') {
+        // Only the list closes: not the sheet or the field around it.
+        e.preventDefault();
+        e.stopPropagation();
+        closed = true;
+        return;
+      }
+    }
+    onkey?.(e);
+  }
 
   const words = $derived(shortcutWords(value, dismissed));
   const parts = $derived.by(() => {
@@ -82,6 +137,9 @@
     const next = input!.value;
     dismissed = carryDismissed(dismissed, value, next);
     value = next;
+    closed = false;
+    chosen = 0;
+    noteCaret();
     ontype?.();
   }
 
@@ -127,9 +185,11 @@
       {oninput}
       {onbeforeinput}
       onscroll={sync}
-      onselect={sync}
-      onkeyup={sync}
-      onfocus={sync}
+      onselect={() => (sync(), noteCaret())}
+      onkeyup={() => (sync(), noteCaret())}
+      onfocus={() => (sync(), (focused = true), noteCaret())}
+      onblur={(e) => ((focused = false), onleave?.(e))}
+      onkeydown={keydown}
     ></textarea>
   {:else}
     <input
@@ -141,10 +201,20 @@
       {oninput}
       {onbeforeinput}
       onscroll={sync}
-      onselect={sync}
-      onkeyup={sync}
-      onfocus={sync}
+      onselect={() => (sync(), noteCaret())}
+      onkeyup={() => (sync(), noteCaret())}
+      onfocus={() => (sync(), (focused = true), noteCaret())}
+      onblur={(e) => ((focused = false), onleave?.(e))}
+      onkeydown={keydown}
     />
+  {/if}
+  {#if hits.length > 0}
+    <ul class="tags" role="listbox" aria-label="Tags" data-testid="tag-suggestions">
+      {#each hits as t, i (t)}
+        <!-- mousedown, so the field keeps its focus and the list is still there for the click. -->
+        <li role="option" aria-selected={i === chosen} class:on={i === chosen} onmousedown={(e) => (e.preventDefault(), void choose(t))}>#{t}</li>
+      {/each}
+    </ul>
   {/if}
 </span>
 
@@ -166,4 +236,7 @@
   b { font-weight: 600; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); border-radius: 3px; }
   b.imp { color: var(--imp); background: var(--imp-soft); }
   b.hab { color: var(--habit-ink); background: var(--habit-soft); }
+  .tags { position: absolute; z-index: 60; top: calc(100% + 6px); left: 0; min-width: 12rem; max-width: 100%; margin: 0; padding: 4px; list-style: none; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
+  .tags li { padding: 6px 10px; border-radius: 6px; font: 14px var(--mono); color: var(--ink); cursor: pointer; }
+  .tags li.on { background: var(--sel, var(--chip)); }
 </style>

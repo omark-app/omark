@@ -12,6 +12,8 @@ This file is for any coding agent (Claude Code, Codex, Cursor and others), worki
 | Tasks | Read or edit `tasks.md`, `done.md`, `config.yaml` | [doc/format.md](doc/format.md), and the `taskapp-files` skill for the editing rules |
 | Time | Anything in Omark Time | [the Omark Time spec](doc/time/spec.md) |
 | Time | Read or write event titles, `events-*.csv`, `projects.csv` | [doc/format.md](doc/format.md#omark-time), and the `omark-time` skill |
+| Goals | Anything in Omark Goals | [the Omark Goals spec](doc/goals/spec.md) |
+| Goals | Read or write `goals.md` | [doc/format.md](doc/format.md#omark-goals), and the `omark-goals` skill |
 | Both | Storage, sync, sign-in, packages | [doc/architecture.md](doc/architecture.md) |
 | Both | Deploys, secrets, Promote | [doc/self-hosting.md](doc/self-hosting.md) |
 | Both | Issues, plans, PRs, labels | [doc/factory.md](doc/factory.md) and the `omark-factory` skill |

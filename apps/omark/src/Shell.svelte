@@ -7,9 +7,23 @@
   import { PART_NAMES, PARTS } from './lib/suite.ts';
   import type { Part } from './lib/suite.ts';
   import TasksPart from './parts/TasksPart.svelte';
+  import { part as tasksPart } from 'tasks/src/lib/part.svelte.ts';
 
   const deviceAccounts = accounts();
   const shell = new Shell(deviceAccounts);
+
+  // Tasks' quick add offers the project codes and area tags as # is typed (Goals spec 9); read when a folder opens
+  // and on focus, through a lazy import so a start loads no parsers for them.
+  async function loadTags(): Promise<void> {
+    const place = shell.place;
+    if (!place) return;
+    const { suggestionTags } = await import('./lib/tags.ts');
+    const tags = await suggestionTags(place.root, place.part('goals'));
+    if (shell.place === place) tasksPart.tags = tags;
+  }
+  $effect(() => {
+    if (shell.phase === 'ready' && shell.place) void loadTags();
+  });
   void shell.start();
 
   const STORAGE_LABELS: Record<Storage, string> = {
@@ -74,7 +88,7 @@
 </script>
 
 <!-- A part turned on or off offline is written when the folder can be reached again. -->
-<svelte:window {onkeydown} onpopstate={() => shell.phase === 'ready' && shell.route()} onfocus={() => void shell.flush()} ononline={() => void shell.flush()} />
+<svelte:window {onkeydown} onpopstate={() => shell.phase === 'ready' && shell.route()} onfocus={() => (void shell.flush(), void loadTags())} ononline={() => void shell.flush()} />
 
 {#if shell.phase === 'loading'}
   <p class="opening">Opening…</p>

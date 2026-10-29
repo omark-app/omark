@@ -19,3 +19,4 @@ export * from './quick-add.ts';
 export * from './habits.ts';
 export * from './habit-ops.ts';
 export * from './links.ts';
+export * from './tag-suggest.ts';

@@ -22,6 +22,7 @@
   import { addDays, dateChoices, dayMonth, endOfWeek, readQuickAdd, weekdayShort } from '@omark/tasks-core';
   import type { DateChoice } from '@omark/tasks-core';
   import type { AppStore } from '../lib/store.svelte.ts';
+  import { part } from '../lib/part.svelte.ts';
   import ShortcutField from './ShortcutField.svelte';
 
   let { store, onclose }: { store: AppStore; onclose: () => void } = $props();
@@ -107,6 +108,7 @@
     placeholder="What needs doing?"
     autocomplete="off"
     aria-label="New task"
+    tags={part.tags}
   />
   <div class="chips">
     {#each chips as c (c.key)}

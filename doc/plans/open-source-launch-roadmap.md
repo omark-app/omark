@@ -142,8 +142,8 @@ Builds [the Omark Goals spec](../goals/spec.md). Launches with Tasks and Time.
 | G.1 | *Done 2026-10-29 ([plan](G.1-goals-core.md)).* `packages/goals-core`: `goals.md` parse and write (byte for byte), area tags, links and last activity per area, status chips | Goals 5–6, 11 | large, Plan | — |
 | G.2 | *Done 2026-10-29: pictures are G.2b.* The Goals part: the Vision board, area and goal forms, Not now, first-run placeholders, Needs update, creating a project from a goal ([plan](G.2-goals-part.md)) | Goals 7–8 | large, Plan | G.1, U.3 |
 | G.2b | Area pictures: binary reads and writes in the storage adapters, then the picture on the card and in the area form (1600 px JPEG, `images/`) | Goals 7.1, 8 | large, Plan | G.2 |
-| G.3 | Tasks: `#` in quick add suggests project codes and area tags | Goals 9 | small | U.3 |
-| G.4 | The `omark-goals` skill and the Goals part of `doc/format.md` | Goals 10 | small | G.1 |
+| G.3 | *Done 2026-10-29.* Tasks: `#` in quick add suggests project codes and area tags | Goals 9 | small | U.3 |
+| G.4 | *Done 2026-10-29.* The `omark-goals` skill and the Goals part of `doc/format.md` | Goals 10 | small | G.1 |
 
 ## Milestone 4: open the doors
 

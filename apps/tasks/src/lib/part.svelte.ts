@@ -23,6 +23,8 @@ class Part {
   openSettings = $state.raw<(() => void) | null>(null);
   /** Published by Tasks once it is open, for the one Settings page. */
   settings = $state.raw<PartSettings | null>(null);
+  /** Set by the one app: the project codes and area tags quick add offers as `#` is typed (Goals spec 9). */
+  tags = $state.raw<readonly string[]>([]);
 }
 
 export const part = new Part();
