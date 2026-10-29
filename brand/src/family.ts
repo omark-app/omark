@@ -1,7 +1,7 @@
 // The Omark icon family (direction B, "Ring") as data, and its SVG serialiser.
 // All coordinates are in a 512x512 space.
 
-export type App = 'tasks' | 'time' | 'omark'; // 'omark' is the brand mark
+export type App = 'tasks' | 'time' | 'goals' | 'omark'; // 'omark' is the brand mark
 export type Variant = 'production' | 'staging';
 // square = full bleed; rounded = radius 22.5%, transparent corners
 export type Shape = 'square' | 'rounded';
@@ -19,6 +19,7 @@ export const PALETTE: Readonly<Record<string, string>> = {
   ink: '#151A22',
   blue: '#2B59D6',
   green: '#2C8A55',
+  amber: '#A84C08',
   white: '#FFFFFF',
   staging: '#F6E7C8',
 };
@@ -26,6 +27,7 @@ export const PALETTE: Readonly<Record<string, string>> = {
 const APP_COLOR: Record<App, string> = {
   tasks: PALETTE.blue!,
   time: PALETTE.green!,
+  goals: PALETTE.amber!,
   omark: PALETTE.ink!,
 };
 
@@ -40,6 +42,9 @@ export function iconSpec(app: App, variant: Variant = 'production', opts: { smal
     marks.push({ kind: 'line', points: [[192, 262], [236, 304], [320, 210]], width: 44 * k, color, cap: 'round' });
   } else if (app === 'time') {
     marks.push({ kind: 'line', points: [[256, 172], [256, 256], [316, 294]], width: 40 * k, color, cap: 'round' });
+  } else if (app === 'goals') {
+    // A dot in the ring, a target: a ring stroked as wide as twice its radius is a filled disc.
+    marks.push({ kind: 'circle', cx: 256, cy: 256, r: 26 * k, width: 52 * k, color });
   }
   return { tile, marks };
 }

@@ -15,7 +15,7 @@ export function realUseUrl(value: unknown): string {
 /** Reads `VITE_DEMO_URL`, where the first-run screen's "Try the demo" goes; unset or blank means the public demo. */
 export function demoUrl(value: unknown): string {
   const url = typeof value === 'string' ? value.trim() : '';
-  return url === '' ? 'https://demo-tasks.omark.app' : url;
+  return url === '' ? 'https://demo.omark.app/tasks' : url;
 }
 
 declare const __STORAGE_MODE__: StorageMode | undefined;

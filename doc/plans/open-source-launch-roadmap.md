@@ -97,7 +97,7 @@ Build-in-public posts on LinkedIn can start here.
 | 3.4 | *Replaced by U.7.* CI re-pointed to the Omark projects; the bridge kept for my old instance until 3.6 | 6.5 | small | 3.3 |
 | 3.5 | AL: publisher verification (not a blocker) | 6.5 | — | 2.2 |
 | 3.6 | AL: cutover to `app.omark.app`, files into `Apps/Omark/tasks/` (one app spec 11; launch spec 6.5.1, checklist in `doc/history/`) | 6.5.1 | — | U.7 |
-| 3.7 | Remove the bridge: drive-root scope option, the old hosts and folders, the legacy-cache migration, old tests; rename the Tasks cookies, header, IndexedDB names and tags; the spec's `grep` is clean | 6.1 | large, Plan | 3.6 |
+| 3.7 | Remove the bridge: drive-root scope option, the old hosts and folders (also the redirect-only Pages projects `omark-tasks-demo`, `omark-time-demo`, `omark-time-staging` from U.7, their DNS, `tools/ci/redirect-sites.mjs` and Google `omark-tasks-staging`), the legacy-cache migration, old tests; rename the Tasks cookies, header, IndexedDB names and tags; the spec's `grep` is clean | 6.1 | large, Plan | 3.6 |
 | 3.8 | Google provider in `@omark/signin` and a shared `GoogleDriveAdapter` (`drive.file`), after checking conditional writes and desktop-edit file ids; Tasks can use Google Drive | 6.4.1 | large, Plan | 2.8, 3.9 |
 | 3.9 | *Search Console done; the projects are replaced by U.2 (one "Omark" project; `omark-time-staging` becomes "Omark Staging", `omark-tasks-staging` retired).* AL: verify `omark.app` in Google Search Console; Google Cloud projects "Omark Tasks" and "Omark Tasks Staging" (consent screen, Web OAuth client, secrets in Pages); brand verification. *Search Console and the staging project done 2026-10-26 (in Testing until 2.2 is live)* | 6.4.1, 8 | — | 2.2 |
 
@@ -131,7 +131,7 @@ Builds [the one app spec](../suite/one-app-spec.md): Tasks, Time and Goals as pa
 | U.4 | *Done 2026-10-29 ([plan](U.4-time-in-shell.md)): Time's own e2e stay on `apps/time` until U.6; its first-run calendar step joins the shell's in U.5.* Time inside the shell: its screens as a part, its calendar sign-in asked only when Time is turned on, its files in `time/` | one app 5–7 | large, Plan | U.3 |
 | U.5 | *Done 2026-10-29 ([plan](U.5-one-settings-page.md)): the part-switching keys went to the backlog.* One Settings page: General (storage, parts, sign-ins) and a section per part | one app 8 | large, Plan | U.3 |
 | U.6 | *Done 2026-10-29 ([plan](U.6-demo-world.md)), in the code: U.7 deploys it to `demo.omark.app` and the previews; Time's own specs run in the shell (`e2e:time`), skips listed in the plan.* The demo world (Maya) across all three parts at `demo.omark.app` and in previews; replaces Tasks' samples and Time's demo seed | one app 9, Goals 12 | large, Plan | U.4, G.2 |
-| U.7 | CI and deploys for one app (one preview, staging, demo, Promote), self-hosting doc, landing page links (a Goals card too), redirects in place, per-app jobs and variables retired; the bridge jobs for `tasks.alipka.com` stay until 3.6 | one app 10 | large, Plan | U.2, U.3 |
+| U.7 | *Done 2026-10-29 ([plan](U.7-ci-hosts-redirects.md)): staging-app. and demo.omark.app deploy from main, Promote has `omark`, the old hosts redirect; the old Pages projects, DNS and `omark-tasks-staging` go in 3.7.* CI and deploys for one app (one preview, staging, demo, Promote), self-hosting doc, landing page links (a Goals card too), redirects in place, per-app jobs and variables retired; the bridge jobs for `tasks.alipka.com` stay until 3.6 | one app 10 | large, Plan | U.2, U.3 |
 
 ## Milestone G: Omark Goals
 

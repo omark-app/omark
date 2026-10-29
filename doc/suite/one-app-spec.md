@@ -153,6 +153,8 @@ The Tasks and Time demos' existing checks (no outside requests, Reset demo, the 
 
 ## 10. Hosting, CI and deploys
 
+*Built 2026-10-29 (roadmap U.7, [plan](../plans/U.7-ci-hosts-redirects.md)): `omark-preview`, `omark-staging`, `omark-demo` and Promote's `omark`; the old per-app hosts redirect; the Goals card is on the landing page. The old Pages projects are retired in 3.7.*
+
 - **Cloudflare Pages projects**: one for production (`app.omark.app`), one for staging (`staging-app.omark.app`), one for the demo (`demo.omark.app`), plus `omark.app` for the site. The per-app projects that exist are retired after the redirects are in place.
 - **CI**: one app build, one preview per PR, one staging deploy from `main`, one demo deploy, one Promote (no app question). The per-app jobs, artifacts and variables (`TASKS_*`, `CF_TASKS_*` and Time's) become one set.
 - **Self-hosting** (`doc/self-hosting.md`): one app, one Pages project, one Entra registration and one Google project.

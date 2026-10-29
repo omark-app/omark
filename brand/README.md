@@ -5,7 +5,7 @@ The icon family for Omark apps. The source is `src/family.ts`; everything else h
 ## The family rule
 
 - Every icon is a solid tile with a thick ring: the O of Omark.
-- Each app has its own tile colour and one glyph inside the ring (Tasks: a tick, Time: clock hands).
+- Each app has its own tile colour and one glyph inside the ring (Tasks: a tick, Time: clock hands, Goals: a dot).
 - The brand mark is the bare ring on ink. Staging builds swap the colours: a cream tile with a coloured ring.
 
 ## Palette
@@ -15,6 +15,7 @@ The icon family for Omark apps. The source is `src/family.ts`; everything else h
 | ink | `#151A22` | the Omark brand tile |
 | blue | `#2B59D6` | Tasks tile |
 | green | `#2C8A55` | Time tile |
+| amber | `#A84C08` | Goals tile |
 | white | `#FFFFFF` | ring and glyph |
 | staging | `#F6E7C8` | staging tile |
 
@@ -31,8 +32,8 @@ Run `pnpm --filter @omark/brand render` after any change to `src/`. The test fai
 | `apps/site/public/favicon.svg` | the landing page favicon (written by render; don't edit it there) |
 | `png/omark-avatar-500.png` | GitHub and social avatars |
 | `png/social-preview.png` (1280x640) | the repo social preview and link cards |
-| `svg/omark-mark.svg`, `svg/tasks.svg`, `svg/time.svg` | full-bleed sources for other tools |
-| `svg/favicon-{omark,tasks,time}.svg` | rounded favicons with thicker strokes |
+| `svg/omark-mark.svg`, `svg/tasks.svg`, `svg/time.svg`, `svg/goals.svg` | full-bleed sources for other tools |
+| `svg/favicon-{omark,tasks,time,goals}.svg` | rounded favicons with thicker strokes |
 | `png/sources.json` | a hash of each PNG's source, used by the freshness test |
 | `contact-sheet.html` | every PNG at 1x on a light and a dark ground |
 

@@ -60,6 +60,7 @@ code {
 /* App cards. Each has a title row, one line, its buttons and a stage (screenshot or sample). */
 .apps { display: grid; gap: 20px; }
 @media (min-width: 820px) { .apps { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 1000px) { .apps { grid-template-columns: repeat(3, 1fr); } }
 .card {
   display: flex;
   flex-direction: column;
@@ -135,7 +136,8 @@ code {
   box-shadow: var(--shadow);
 }
 
-/* Omark Time has no screenshot yet: its stage shows how an event becomes a row. */
+/* Omark Time and Goals have no screenshot yet: their stages show how an event becomes a row, and how an area
+   in goals.md meets its tasks and hours. */
 .stage-time { align-items: center; padding: 24px 16px; }
 .sample { display: grid; justify-items: center; gap: 14px; width: 100%; max-width: 380px; }
 .event {
@@ -149,6 +151,7 @@ code {
   border-left: 4px solid var(--good);
   box-shadow: var(--shadow);
 }
+.event-goal { border-left-color: var(--imp); }
 .event-time { font-size: .8125rem; color: var(--muted); }
 .event-title { font-weight: 600; }
 .arrow { color: var(--muted); font-size: 1.25rem; line-height: 1; }

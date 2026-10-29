@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Omark: small tools that keep your work in plain files</title>
-    <meta name="description" content="Omark is a set of small, open source apps for people and their AI agents. Your tasks and hours stay in plain files in your own OneDrive, Google Drive or folder." />
+    <meta name="description" content="Omark is a set of small, open source apps for people and their AI agents. Your tasks, hours and goals stay in plain files in your own OneDrive, Google Drive or folder." />
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#F2F4F7" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0D1015" media="(prefers-color-scheme: dark)" />
@@ -21,7 +21,7 @@
     <main class="wrap">
       <section class="hero">
         <h1>Small tools that keep your work in plain files you own.</h1>
-        <p class="lead">Omark is a set of open source apps for people and their AI agents. Your tasks and hours stay as Markdown and CSV in your own OneDrive, Google Drive or folder. No Omark server ever stores them.</p>
+        <p class="lead">Omark is a set of open source apps for people and their AI agents. Your tasks, hours and goals stay as Markdown and CSV in your own OneDrive, Google Drive or folder. No Omark server ever stores them.</p>
       </section>
 
       <section class="apps" aria-label="Apps">
@@ -32,7 +32,7 @@
           <p>A calm task list for today, this week and later, kept in plain Markdown.</p>
           <div class="actions">
             <span class="button coming"><span class="button-label">Open</span> Coming soon</span>
-            <a class="button" href="https://demo-tasks.omark.app">Try the demo</a>
+            <a class="button" href="https://demo.omark.app/tasks">Try the demo</a>
           </div>
           <div class="stage">
             <picture>
@@ -45,10 +45,13 @@
         <article class="card">
           <div class="card-head">
             <h2 class="app-title"><img class="app-icon" src="/img/icon-time.svg" width="36" height="36" alt="" aria-hidden="true" />Omark Time</h2>
-            <span class="coming badge">Coming</span>
           </div>
           <p>Plan your day in your calendar. Omark Time turns those events into hours per project, kept in CSV.</p>
           <p>It reads events from Google Calendars you own and, only if you turn it on, colours them.</p>
+          <div class="actions">
+            <span class="button coming"><span class="button-label">Open</span> Coming soon</span>
+            <a class="button" href="https://demo.omark.app/time">Try the demo</a>
+          </div>
           <div class="stage stage-time">
             <div class="sample" role="img" aria-label="A calendar event titled ACME; Coding; new feature, from 9:00 to 10:30, becomes one CSV row of 1.5 hours.">
               <div class="event">
@@ -59,6 +62,31 @@
               <div class="row">
                 <span class="row-file">events-2026.csv</span>
                 <code>2026-10-22,…,1.5,ACME,Coding,new feature,…</code>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <h2 class="app-title"><img class="app-icon" src="/img/icon-goals.svg" width="36" height="36" alt="" aria-hidden="true" />Omark Goals</h2>
+          </div>
+          <p>Your life areas, the vision for each and a few dated goals, kept in one Markdown file.</p>
+          <p>Tags link them to your tasks and hours, so you see which areas get your time and which need you.</p>
+          <div class="actions">
+            <span class="button coming"><span class="button-label">Open</span> Coming soon</span>
+            <a class="button" href="https://demo.omark.app/goals">Try the demo</a>
+          </div>
+          <div class="stage stage-time">
+            <div class="sample" role="img" aria-label="The Health area in goals.md, with the goal Run a half marathon, links by its tag to 12 tasks and 9 hours this month.">
+              <div class="row">
+                <span class="row-file">goals.md</span>
+                <code>## Health #health<br />- [ ] Run a half marathon #RUN 📅 2027-04-11</code>
+              </div>
+              <span class="arrow" aria-hidden="true">↓</span>
+              <div class="event event-goal">
+                <span class="event-title">Health</span>
+                <span class="event-time">12 tasks · 9 h this month</span>
               </div>
             </div>
           </div>
@@ -87,7 +115,7 @@
           </div>
           <div>
             <h3>Install it</h3>
-            <p class="muted">Both apps install like any other app and work offline.</p>
+            <p class="muted">Omark installs like any other app and works offline.</p>
             <ul class="install">
               <li><strong>iPhone:</strong> in Safari, tap Share, then Add to Home Screen.</li>
               <li><strong>Chrome or Edge:</strong> click the install icon in the address bar.</li>
@@ -98,7 +126,7 @@
 
       <section class="section" id="data">
         <h2>Where your data lives</h2>
-        <div class="columns two">
+        <div class="columns">
           <div class="store">
             <h3>Omark Tasks</h3>
             <p>Three plain files: <code>tasks.md</code> and <code>done.md</code> in Markdown, and <code>config.yaml</code> for settings.</p>
@@ -107,8 +135,12 @@
             <h3>Omark Time</h3>
             <p>CSV files, such as <code>events-2026.csv</code> and <code>projects.csv</code>. Their source is your own calendar.</p>
           </div>
+          <div class="store">
+            <h3>Omark Goals</h3>
+            <p>One Markdown file, <code>goals.md</code>, with a picture for each area if you like.</p>
+          </div>
         </div>
-        <p class="section-foot">Both live in your OneDrive, Google Drive or your own folder. Open them in Obsidian or Excel, or hand them to an AI agent. Leaving is just closing the app.</p>
+        <p class="section-foot">They all live in one Omark folder in your OneDrive, Google Drive or your own folder. Open them in Obsidian or Excel, or hand them to an AI agent. Leaving is just closing the app.</p>
       </section>
 
       <section class="section" id="principles">

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { iconSpec, iconSvg, type App, type Variant } from './family.ts';
 
-const apps: App[] = ['tasks', 'time', 'omark'];
+const apps: App[] = ['tasks', 'time', 'goals', 'omark'];
 const variants: Variant[] = ['production', 'staging'];
 const combos = apps.flatMap((app) =>
   variants.flatMap((variant) => [false, true].map((small) => ({ app, variant, small }))),

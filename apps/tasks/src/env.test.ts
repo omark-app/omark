@@ -27,8 +27,8 @@ describe('realUseUrl', () => {
 
 describe('demoUrl', () => {
   it('defaults to the public demo when unset or blank', () => {
-    expect(demoUrl(undefined)).toBe('https://demo-tasks.omark.app');
-    expect(demoUrl('  ')).toBe('https://demo-tasks.omark.app');
+    expect(demoUrl(undefined)).toBe('https://demo.omark.app/tasks');
+    expect(demoUrl('  ')).toBe('https://demo.omark.app/tasks');
   });
   it('trims a set value', () => {
     expect(demoUrl(' https://demo.example.test ')).toBe('https://demo.example.test');

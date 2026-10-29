@@ -49,19 +49,19 @@ export const OUTPUTS: Output[] = [
   ...appSet('omark', 'production', 'brand/png/omark'),
   // The landing page serves its favicon, logo and app icons from its own public folder.
   { path: 'apps/site/public/favicon.svg', size: [32, 32], svg: icon('omark', 'production', 'rounded', true) },
-  ...(['omark', 'tasks', 'time'] as const).map((app) => ({
+  ...(['omark', 'tasks', 'time', 'goals'] as const).map((app) => ({
     path: `apps/site/public/img/icon-${app}.svg`,
     size: [36, 36] as [number, number],
     svg: icon(app, 'production', 'rounded', true),
   })),
   { path: 'brand/png/omark-avatar-500.png', size: [500, 500], svg: icon('omark', 'production', 'square') },
   { path: 'brand/png/social-preview.png', size: [1280, 640], svg: socialHtml },
-  ...(['omark-mark', 'tasks', 'time'] as const).map((n) => ({
+  ...(['omark-mark', 'tasks', 'time', 'goals'] as const).map((n) => ({
     path: `brand/svg/${n}.svg`,
     size: [512, 512] as [number, number],
     svg: icon(n === 'omark-mark' ? 'omark' : n, 'production', 'square'),
   })),
-  ...(['omark', 'tasks', 'time'] as const).map((app) => ({
+  ...(['omark', 'tasks', 'time', 'goals'] as const).map((app) => ({
     path: `brand/svg/favicon-${app}.svg`,
     size: [32, 32] as [number, number],
     svg: icon(app, 'production', 'rounded', true),

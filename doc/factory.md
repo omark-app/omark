@@ -81,7 +81,7 @@ Anything else is **large**. When in doubt, large. File formats, sync and merge, 
 | | Preview | Staging | Production | Demo |
 |---|---|---|---|---|
 | Built from | Each PR from the repository | `main`, on every merge | A promoted `main` commit | `main`, on every merge |
-| Storage | The demo build: sample tasks in the browser | Real storage, a staging folder | Real storage | Sample tasks in the browser |
+| Storage | The demo build: made-up data in the browser | Real storage, a staging folder | Real storage | Made-up data in the browser |
 | Sign-in | None | Its own registration | Its own registration | None |
 
 Staging and production run the same build; Promote ships the exact files staging ran. [self-hosting.md](self-hosting.md) has the setup.
@@ -89,8 +89,8 @@ Staging and production run the same build; Promote ships the exact files staging
 | Workflow | When | Does |
 |---|---|---|
 | `ci.yml` | PR opened or updated | `check` (typecheck and unit tests), e2e on desktop Chrome and iPhone WebKit in parallel, and once `check` passes a preview deploy with a comment linking it |
-| `ci.yml` | Push to `main` | The same checks, then the staging deploy (keeping the build as an artifact), the demo deploy and the omark.app site deploy |
-| `promote.yml` | By hand | Production deploy of a green `main` commit, tag and release |
+| `ci.yml` | Push to `main` | The same checks, then the one app's staging deploy (keeping the build as an artifact), the demo deploy, the omark.app site deploy and, until roadmap 3.7, the bridge's staging |
+| `promote.yml` | By hand | Production deploy of a green `main` commit (`omark`, or the bridge's `tasks`), tag and release |
 
 - Docs-only changes (`doc/**`, `*.md`) skip CI.
 - A newer push to a PR cancels the older run.

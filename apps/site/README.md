@@ -29,9 +29,7 @@ A PR that changes a sign-in scope or cookie must update `src/privacy/index.html`
 
 When these ship, turn the "Coming soon" label into a link:
 
-- 3.3 / 3.6: Tasks "Open" to https://tasks.omark.app
+- 3.6: "Open" on the Tasks, Time and Goals cards to https://app.omark.app/tasks, /time and /goals
 - 2.3: the PHILOSOPHY link
 - 4.3: the GitHub repo and CONTRIBUTING links
-- T.7: Time demo to https://demo-time.omark.app
-- T.9: Time "Open" to https://time.omark.app
 - 3.5: `/.well-known/microsoft-identity-association.json`

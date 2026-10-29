@@ -87,6 +87,9 @@ importers:
       vitest:
         specifier: ^3.2.7
         version: 3.2.7(@types/node@22.20.5)(lightningcss@1.33.0)(terser@5.51.2)(yaml@2.9.1)
+      wrangler:
+        specifier: 4.151.1
+        version: 4.151.1(@types/node@22.20.5)
 
   apps/site:
     dependencies:

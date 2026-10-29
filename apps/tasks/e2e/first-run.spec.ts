@@ -17,7 +17,7 @@ test('a new device shows the choices this browser supports', async ({ page, isMo
   await expect(page.getByText('Your tasks live in three plain Markdown files. Choose where to keep them.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Use my OneDrive' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Use my Google Drive' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Try the demo' })).toHaveAttribute('href', 'https://demo-tasks.omark.app');
+  await expect(page.getByRole('link', { name: 'Try the demo' })).toHaveAttribute('href', 'https://demo.omark.app/tasks');
   if (isMobile) {
     await expect(page.getByRole('button', { name: 'Use a folder on this computer' })).toHaveCount(0);
     await expect(page.getByText('A folder on this computer works in Chrome or Edge on a computer.')).toBeVisible();

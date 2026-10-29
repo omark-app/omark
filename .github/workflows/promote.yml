@@ -1,20 +1,21 @@
 name: Promote to production
 # By hand only (GitHub app: Actions → Promote to production → Run workflow). Deploys the exact build staging
-# ran for a commit on main whose CI passed, then tags it <app>-prod-YYYY-MM-DD-n (tasks-prod-…) with release
-# notes. Rollback: run it with an older tasks-prod- tag, or a prod- tag from before the monorepo move. The app's
-# folder, package and build name come from the promoted commit (promote-check.mjs), so an older one still
-# deploys. (doc/self-hosting.md, Deploy: Promote, tags and rollback)
+# ran for a commit on main whose CI passed, then tags it <app>-prod-YYYY-MM-DD-n (omark-prod-…) with release
+# notes. `omark` is the one app (app.omark.app); `tasks` is the bridge, the founder's old instance, until roadmap
+# 3.7. Rollback: run it with an older <app>-prod- tag (for tasks also a prod- tag from before the monorepo move).
+# The app's folder, package and build name come from the promoted commit (promote-check.mjs), so an older one
+# still deploys. (doc/self-hosting.md, Deploy: Promote, tags and rollback)
 on:
   workflow_dispatch:
     inputs:
       app:
-        description: 'The app to promote.'
+        description: 'omark: the one app. tasks: the bridge (the old Tasks instance) until roadmap 3.7.'
         type: choice
-        options: [tasks]
-        default: tasks
+        options: [omark, tasks]
+        default: omark
         required: true
       commit:
-        description: 'Commit SHA or tasks-prod- (or older prod-) tag. Empty: what staging runs now.'
+        description: 'Commit SHA or <app>-prod- tag. Empty: what staging runs now.'
         required: false
         default: ''
 permissions:
@@ -31,19 +32,55 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check the repository variables
+        # Also gives a rebuild the app's hosts and folders (the VITE_* build variables, through $GITHUB_ENV).
         run: |
-          if [ -z "$CF_TASKS_PROD_PROJECT" ] || [ -z "$TASKS_PROD_HOST" ] || [ -z "$TASKS_PROD_URL" ]; then
-            echo "::error::Set the repository variables CF_TASKS_PROD_PROJECT, TASKS_PROD_HOST and TASKS_PROD_URL (README, Environment variables)."
-            exit 1
-          fi
-          if [ "$TASKS_PROD_URL" != "https://$TASKS_PROD_HOST" ]; then
-            echo "::error::TASKS_PROD_URL must be https:// followed by TASKS_PROD_HOST."
-            exit 1
+          if [ "$APP" = omark ]; then
+            if [ -z "$CF_APP_PROJECT" ] || [ -z "$APP_PROD_HOST" ] || [ -z "$APP_PROD_URL" ]; then
+              echo "::error::Set the repository variables CF_APP_PROJECT, APP_PROD_HOST and APP_PROD_URL (doc/self-hosting.md, GitHub Actions)."
+              exit 1
+            fi
+            if [ "$APP_PROD_URL" != "https://$APP_PROD_HOST" ]; then
+              echo "::error::APP_PROD_URL must be https:// followed by APP_PROD_HOST."
+              exit 1
+            fi
+            {
+              echo "VITE_PROD_HOST=$APP_PROD_HOST"
+              echo "VITE_STAGING_HOST=$APP_STAGING_HOST"
+              echo "VITE_PREVIEW_HOST_SUFFIXES=$APP_PREVIEW_HOST_SUFFIXES"
+            } >> "$GITHUB_ENV"
+          else
+            if [ -z "$CF_TASKS_PROD_PROJECT" ] || [ -z "$TASKS_PROD_HOST" ] || [ -z "$TASKS_PROD_URL" ]; then
+              echo "::error::Set the repository variables CF_TASKS_PROD_PROJECT, TASKS_PROD_HOST and TASKS_PROD_URL (doc/self-hosting.md, the bridge)."
+              exit 1
+            fi
+            if [ "$TASKS_PROD_URL" != "https://$TASKS_PROD_HOST" ]; then
+              echo "::error::TASKS_PROD_URL must be https:// followed by TASKS_PROD_HOST."
+              exit 1
+            fi
+            {
+              echo "VITE_PROD_HOST=$TASKS_PROD_HOST"
+              echo "VITE_STAGING_HOST=$TASKS_STAGING_HOST"
+              echo "VITE_PREVIEW_HOST_SUFFIXES=$TASKS_PREVIEW_HOST_SUFFIXES"
+              echo "VITE_PROD_FOLDER=$TASKS_PROD_FOLDER"
+              echo "VITE_STAGING_FOLDER=$TASKS_STAGING_FOLDER"
+              echo "VITE_ONEDRIVE_SCOPE=$TASKS_ONEDRIVE_SCOPE"
+            } >> "$GITHUB_ENV"
           fi
         env:
+          APP: ${{ inputs.app }}
+          CF_APP_PROJECT: ${{ vars.CF_APP_PROJECT }}
+          APP_PROD_HOST: ${{ vars.APP_PROD_HOST }}
+          APP_PROD_URL: ${{ vars.APP_PROD_URL }}
+          APP_STAGING_HOST: ${{ vars.APP_STAGING_HOST }}
+          APP_PREVIEW_HOST_SUFFIXES: ${{ vars.APP_PREVIEW_HOST_SUFFIXES }}
           CF_TASKS_PROD_PROJECT: ${{ vars.CF_TASKS_PROD_PROJECT }}
           TASKS_PROD_HOST: ${{ vars.TASKS_PROD_HOST }}
           TASKS_PROD_URL: ${{ vars.TASKS_PROD_URL }}
+          TASKS_STAGING_HOST: ${{ vars.TASKS_STAGING_HOST }}
+          TASKS_PREVIEW_HOST_SUFFIXES: ${{ vars.TASKS_PREVIEW_HOST_SUFFIXES }}
+          TASKS_PROD_FOLDER: ${{ vars.TASKS_PROD_FOLDER }}
+          TASKS_STAGING_FOLDER: ${{ vars.TASKS_STAGING_FOLDER }}
+          TASKS_ONEDRIVE_SCOPE: ${{ vars.TASKS_ONEDRIVE_SCOPE }}
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -77,29 +114,42 @@ jobs:
           github-token: ${{ github.token }}
       - name: Rebuild (the stored build has expired)
         if: steps.check.outputs.artifact != 'true'
+        # The hosts and folders come from the first step.
         run: pnpm --filter ${{ steps.check.outputs.filter }} build
         env:
           BUILD_SHA: ${{ steps.check.outputs.sha }}
           # The version label of the build staging ran: its run number and date.
           BUILD_NUMBER: ${{ steps.check.outputs.run_number }}
           BUILD_TIME: ${{ steps.check.outputs.built_at }}
-          VITE_PROD_HOST: ${{ vars.TASKS_PROD_HOST }}
-          VITE_STAGING_HOST: ${{ vars.TASKS_STAGING_HOST }}
-          VITE_PREVIEW_HOST_SUFFIXES: ${{ vars.TASKS_PREVIEW_HOST_SUFFIXES }}
-          VITE_PROD_FOLDER: ${{ vars.TASKS_PROD_FOLDER }}
-          VITE_STAGING_FOLDER: ${{ vars.TASKS_STAGING_FOLDER }}
-          VITE_ONEDRIVE_SCOPE: ${{ vars.TASKS_ONEDRIVE_SCOPE }}
-      - uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+      - if: inputs.app == 'omark'
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: '4.151.1'
+          # From the app's folder, so wrangler bundles its functions/ (the one app's sign-in helper at /api/auth/*).
+          workingDirectory: ${{ steps.check.outputs.app_dir }}
+          command: pages deploy dist --project-name=${{ vars.CF_APP_PROJECT }} --branch=main --commit-hash=${{ steps.check.outputs.sha }}
+      - if: inputs.app == 'tasks'
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # Use the workspace's pinned wrangler; the action can't `pnpm add` it at a workspace root.
           wranglerVersion: '4.151.1'
-          # Run from the repo root, so wrangler also bundles functions/ (the sign-in helper at /api/auth/*).
+          # From the repo root, so wrangler bundles functions/ (the bridge's sign-in helper at /api/auth/*).
           command: pages deploy ${{ steps.check.outputs.app_dir }}/dist --project-name=${{ vars.CF_TASKS_PROD_PROJECT }} --branch=main --commit-hash=${{ steps.check.outputs.sha }}
       - name: Check the sign-in helper is live
+        if: inputs.app == 'omark'
+        # Microsoft with the app folder, Google with Drive's own files, the calendar alone with read access.
+        run: node "$RUNNER_TEMP/ci/check-omark-signin.mjs"
+        env:
+          SIGNIN_URL: ${{ vars.APP_PROD_URL }}
+          MSAL_TENANT: ${{ vars.APP_MSAL_TENANT }}
+      - name: Check the sign-in helper is live
+        if: inputs.app == 'tasks'
         # /api/auth/login must redirect to Microsoft for MSAL_TENANT, asking for the scope the build expects.
-        # That holds only when the functions shipped and the Pages secrets (README, Sign-in) are set.
+        # That holds only when the functions shipped and the Pages secrets are set.
         run: node "$RUNNER_TEMP/ci/check-signin.mjs"
         env:
           SIGNIN_URL: ${{ vars.TASKS_PROD_URL }}

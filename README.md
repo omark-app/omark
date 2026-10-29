@@ -8,8 +8,8 @@ Omark is a set of open source apps for people and their AI agents. **Omark Tasks
 
 ## Use it
 
-- **Try the demo:** https://demo-tasks.omark.app. Sample tasks, no sign-in; edits stay in your browser.
-- **Use the hosted app** (coming soon at `tasks.omark.app`): sign in with Microsoft or Google, and your files live in your OneDrive or Google Drive. The sign-in helper keeps nothing on the server ([SECURITY.md](SECURITY.md)).
+- **Try the demo:** https://demo.omark.app. One made-up person's tasks, hours and goals, no sign-in; edits stay in your browser.
+- **Use the hosted app** (coming soon at `app.omark.app`): sign in with Microsoft or Google, and your files live in one Omark folder in your OneDrive or Google Drive. The sign-in helper keeps nothing on the server ([SECURITY.md](SECURITY.md)).
 - **Use a local folder** (coming soon): in desktop Chrome or Edge, pick a folder and skip the account entirely. Sync it with whatever you already use.
 - **Host your own copy:** [doc/self-hosting.md](doc/self-hosting.md) has the environment variables, sign-in setup, deploys and Promote that this README used to hold.
 

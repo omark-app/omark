@@ -9,7 +9,7 @@ Please report security problems privately, never in a public issue or discussion
 
 Say what you found, how to reproduce it, and what an attacker could do with it. You'll get an answer within a few days. Once a fix is out, we credit you in the release notes unless you'd rather not be named.
 
-Supported: the `main` branch, `omark.app`, the demos, and the hosted apps once they are live (`tasks.omark.app`, `time.omark.app`). Older builds are not.
+Supported: the `main` branch, `omark.app`, the demos, and the hosted app once it is live (`app.omark.app`). Older builds are not.
 
 ## What the apps keep, and where
 

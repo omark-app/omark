@@ -54,10 +54,10 @@ describe('workflows', () => {
       );
     const all = builds('ci.yml');
     expect(all.map((b) => b.name).sort()).toEqual([
-      'site-preview', 'site-production', 'tasks-demo', 'tasks-preview', 'tasks-staging', 'time-preview', 'time-staging',
+      'omark-demo', 'omark-preview', 'omark-staging', 'site-preview', 'site-production', 'tasks-staging',
     ]);
     const ci = all.filter((b) => !b.name.startsWith('site-'));
-    // The job's name starts with its app's: site-*, tasks-*, time-*.
+    // The job's name starts with its app's: omark-*, site-*, tasks-* (the bridge).
     for (const b of all) expect(b.run, b.name).toBe(`pnpm --filter ${b.name.split('-')[0]} build`);
     for (const b of ci) expect(b.env.BUILD_NUMBER, b.name).toBe('${{ github.run_number }}');
     const promote = builds('promote.yml');
@@ -75,7 +75,7 @@ describe('workflows', () => {
 
   it('lets CI be started by hand, deploying staging and the demo only from main', () => {
     expect('workflow_dispatch' in ((parse(text('ci.yml')) as { on: object }).on ?? {})).toBe(true);
-    for (const name of ['tasks-staging', 'tasks-demo']) {
+    for (const name of ['omark-staging', 'omark-demo', 'tasks-staging']) {
       const deploy = jobsOf('ci.yml').find(([n]) => n === name)![1];
       expect(deploy.if!.startsWith(MAIN_ONLY), name).toBe(true);
     }
@@ -103,14 +103,12 @@ describe('workflows', () => {
     const error = (s: Step) => (s.run ?? '').match(/::error::Set the repository variables? (.*)$/m)?.[1] ?? '';
     const names = (s: Step) => Object.values((s.env ?? {}) as Record<string, string>).join(' ');
     const expected: [string, string, string[]][] = [
-      ['promote.yml', 'promote', ['CF_TASKS_PROD_PROJECT', 'TASKS_PROD_HOST', 'TASKS_PROD_URL']],
+      ['ci.yml', 'omark-staging', ['CF_APP_STAGING_PROJECT', 'APP_STAGING_HOST', 'APP_STAGING_URL']],
+      ['ci.yml', 'omark-preview', ['CF_APP_STAGING_PROJECT']],
+      ['ci.yml', 'omark-demo', ['CF_DEMO_PROJECT', 'DEMO_URL']],
       ['ci.yml', 'tasks-staging', ['CF_TASKS_STAGING_PROJECT', 'TASKS_STAGING_HOST', 'TASKS_STAGING_URL']],
-      ['ci.yml', 'tasks-preview', ['CF_TASKS_STAGING_PROJECT']],
-      ['ci.yml', 'tasks-demo', ['CF_TASKS_DEMO_PROJECT', 'TASKS_DEMO_URL']],
       ['ci.yml', 'site-production', ['CF_SITE_PROJECT', 'SITE_URL']],
       ['ci.yml', 'site-preview', ['CF_SITE_PROJECT']],
-      ['ci.yml', 'time-staging', ['CF_TIME_STAGING_PROJECT', 'TIME_STAGING_HOST', 'TIME_STAGING_URL']],
-      ['ci.yml', 'time-preview', ['CF_TIME_STAGING_PROJECT']],
     ];
     for (const [f, job, vars] of expected) {
       const step = first(f, job);
@@ -120,32 +118,52 @@ describe('workflows', () => {
         expect(names(step), job).toContain(`\${{ vars.${v} }}`);
       }
     }
+    // Promote checks the chosen app's: one error line per app.
+    const promote = first('promote.yml', 'promote');
+    expect(promote.uses).toBeUndefined();
+    const lines = [...(promote.run ?? '').matchAll(/::error::Set the repository variables (.*)$/gm)].map((m) => m[1]!);
+    expect(lines).toHaveLength(2);
+    for (const [line, vars] of [
+      [lines[0]!, ['CF_APP_PROJECT', 'APP_PROD_HOST', 'APP_PROD_URL']],
+      [lines[1]!, ['CF_TASKS_PROD_PROJECT', 'TASKS_PROD_HOST', 'TASKS_PROD_URL']],
+    ] as const) {
+      for (const v of vars) {
+        expect(line).toContain(v);
+        expect(names(promote)).toContain(`\${{ vars.${v} }}`);
+      }
+    }
   });
 
-  it('reads only the per-app repository variables (and DEPLOY_ENABLED)', () => {
-    const NEW = [
+  it('reads only the one app’s, the bridge’s and the site’s repository variables (and DEPLOY_ENABLED)', () => {
+    const ONE_APP = [
+      'CF_APP_PROJECT', 'CF_APP_STAGING_PROJECT', 'CF_DEMO_PROJECT',
+      'APP_PROD_HOST', 'APP_STAGING_HOST', 'APP_PROD_URL', 'APP_STAGING_URL', 'DEMO_URL',
+      'APP_PREVIEW_HOST_SUFFIXES', 'APP_MSAL_TENANT', 'REAL_USE_URL',
+    ];
+    // The bridge (tasks.alipka.com) until roadmap 3.7.
+    const BRIDGE = [
       'CF_TASKS_STAGING_PROJECT', 'CF_TASKS_PROD_PROJECT', 'CF_TASKS_ZONE_ID',
       'TASKS_STAGING_DOMAIN', 'TASKS_STAGING_HOST', 'TASKS_STAGING_URL',
       'TASKS_PROD_HOST', 'TASKS_PROD_URL',
       'TASKS_PROD_FOLDER', 'TASKS_STAGING_FOLDER', 'TASKS_PREVIEW_HOST_SUFFIXES',
       'TASKS_ONEDRIVE_SCOPE', 'TASKS_MSAL_TENANT',
-      'CF_TASKS_DEMO_PROJECT', 'TASKS_DEMO_URL', 'TASKS_REAL_USE_URL', 'CF_SITE_PROJECT', 'SITE_URL',
-      'CF_TIME_STAGING_PROJECT', 'TIME_STAGING_HOST', 'TIME_STAGING_URL',
     ];
     const used = new Set(FILES.flatMap((f) => [...text(f).matchAll(/\bvars\.(\w+)/g)].map((m) => m[1]!)));
     expect(used.size).toBeGreaterThan(1);
-    for (const v of used) expect([...NEW, 'DEPLOY_ENABLED'], v).toContain(v);
+    for (const v of used) expect([...ONE_APP, ...BRIDGE, 'CF_SITE_PROJECT', 'SITE_URL', 'DEPLOY_ENABLED'], v).toContain(v);
+    for (const v of ONE_APP) expect(used, v).toContain(v);
   });
 
-  it('keeps the staging build as tasks-dist, from apps/tasks/dist', () => {
-    const staging = jobsOf('ci.yml').find(([n]) => n === 'tasks-staging')![1];
-    const upload = staging.steps!.filter((s) => s.uses?.startsWith('actions/upload-artifact@'));
-    expect(upload.map((s) => s.with)).toEqual([{ name: 'tasks-dist', path: 'apps/tasks/dist', 'retention-days': 30 }]);
+  it('keeps each staging build for Promote: omark-dist and the bridge’s tasks-dist', () => {
+    const upload = (job: string) =>
+      jobsOf('ci.yml').find(([n]) => n === job)![1].steps!.filter((s) => s.uses?.startsWith('actions/upload-artifact@')).map((s) => s.with);
+    expect(upload('omark-staging')).toEqual([{ name: 'omark-dist', path: 'apps/omark/dist', 'retention-days': 30 }]);
+    expect(upload('tasks-staging')).toEqual([{ name: 'tasks-dist', path: 'apps/tasks/dist', 'retention-days': 30 }]);
   });
 
   it('asks Promote which app, and takes the path, artifact and filter from the promoted commit', () => {
     const wf = parse(text('promote.yml')) as { on: { workflow_dispatch: { inputs: Record<string, object> } } };
-    expect(wf.on.workflow_dispatch.inputs.app).toMatchObject({ type: 'choice', options: ['tasks'], default: 'tasks', required: true });
+    expect(wf.on.workflow_dispatch.inputs.app).toMatchObject({ type: 'choice', options: ['omark', 'tasks'], default: 'omark', required: true });
     const steps = jobsOf('promote.yml').find(([n]) => n === 'promote')![1].steps!;
     const env = (s: Step) => (s.env ?? {}) as Record<string, string>;
     const check = steps.find((s) => s.run?.includes('promote-check.mjs'))!;
@@ -156,39 +174,54 @@ describe('workflows', () => {
     expect(env(notes).APP).toBe('${{ inputs.app }}');
     const download = steps.find((s) => s.uses?.startsWith('actions/download-artifact@'))!;
     expect(download.with).toMatchObject({ name: '${{ steps.check.outputs.artifact_name }}', path: '${{ steps.check.outputs.app_dir }}/dist' });
-    const deploy = steps.find((s) => s.uses?.startsWith('cloudflare/wrangler-action@'))!;
-    expect((deploy.with as Record<string, string>).command).toMatch(/^pages deploy \$\{\{ steps\.check\.outputs\.app_dir \}\}\/dist /);
-    // Nothing in Promote may name today's folder: an older commit has another one.
-    expect(text('promote.yml')).not.toMatch(/apps\/tasks|--filter tasks|tasks-dist/);
+    // The one app deploys from its folder, so its own functions/ (the sign-in helper) ships; the bridge from the
+    // repo root, whose functions/ is the bridge's helper. Each into its own project, then its own sign-in check.
+    const deploys = steps.filter((s) => s.uses?.startsWith('cloudflare/wrangler-action@'));
+    expect(deploys.map((s) => s.if)).toEqual(["inputs.app == 'omark'", "inputs.app == 'tasks'"]);
+    const [omark, tasks] = deploys.map((s) => s.with as Record<string, string>);
+    expect(omark!.workingDirectory).toBe('${{ steps.check.outputs.app_dir }}');
+    expect(omark!.command).toMatch(/^pages deploy dist --project-name=\$\{\{ vars\.CF_APP_PROJECT \}\} --branch=main /);
+    expect(tasks!.workingDirectory).toBeUndefined();
+    expect(tasks!.command).toMatch(/^pages deploy \$\{\{ steps\.check\.outputs\.app_dir \}\}\/dist --project-name=\$\{\{ vars\.CF_TASKS_PROD_PROJECT \}\} /);
+    const checks = steps.filter((s) => /check-(omark-)?signin\.mjs/.test(s.run ?? ''));
+    expect(checks.map((s) => [s.if, s.run])).toEqual([
+      ["inputs.app == 'omark'", 'node "$RUNNER_TEMP/ci/check-omark-signin.mjs"'],
+      ["inputs.app == 'tasks'", 'node "$RUNNER_TEMP/ci/check-signin.mjs"'],
+    ]);
+    expect(env(checks[0]!)).toEqual({ SIGNIN_URL: '${{ vars.APP_PROD_URL }}', MSAL_TENANT: '${{ vars.APP_MSAL_TENANT }}' });
+    // The rebuild's hosts and folders are the chosen app's, set by the first step.
+    const first = steps[0]!.run ?? '';
+    for (const v of ['VITE_PROD_HOST', 'VITE_STAGING_HOST', 'VITE_PREVIEW_HOST_SUFFIXES']) expect(first).toContain(`echo "${v}=`);
+    expect(first).toContain('>> "$GITHUB_ENV"');
+    // Nothing in Promote may name an app's folder or build: an older commit can have another one.
+    expect(text('promote.yml')).not.toMatch(/apps\/(tasks|omark)|--filter (tasks|omark)|(tasks|omark)-dist/);
   });
 
-  it('updates the old preview comment too', () => {
-    const preview = jobsOf('ci.yml').find(([n]) => n === 'tasks-preview')![1];
-    const script = String((preview.steps!.find((s) => s.uses?.startsWith('actions/github-script@'))!.with as Record<string, string>).script);
-    expect(script).toContain("'<!-- tasks-preview -->'");
-    expect(script).toContain("'<!-- taskapp-preview -->'");
-  });
-
-  it('builds PR previews as demo builds', () => {
-    const preview = jobsOf('ci.yml').find(([n]) => n === 'tasks-preview')![1];
-    const build = preview.steps!.find((s) => s.run === 'pnpm --filter tasks build')!;
+  it('builds PR previews as demo builds of the one app', () => {
+    const preview = jobsOf('ci.yml').find(([n]) => n === 'omark-preview')![1];
+    const build = preview.steps!.find((s) => s.run === 'pnpm --filter omark build')!;
     expect(build.env).toMatchObject({
       VITE_STORAGE: 'demo',
-      VITE_REAL_USE_URL: '${{ vars.TASKS_REAL_USE_URL }}',
-      // Still PREVIEW in the footer.
-      VITE_PREVIEW_HOST_SUFFIXES: '${{ vars.TASKS_PREVIEW_HOST_SUFFIXES }}',
+      VITE_REAL_USE_URL: '${{ vars.REAL_USE_URL }}',
+      // PREVIEW, not DEMO, from the host.
+      VITE_PREVIEW_HOST_SUFFIXES: '${{ vars.APP_PREVIEW_HOST_SUFFIXES }}',
     });
+    const deploy = preview.steps!.find((s) => s.uses?.startsWith('cloudflare/wrangler-action@'))!.with as Record<string, string>;
+    expect(deploy.workingDirectory).toBe('apps/omark');
+    expect(deploy.command).toBe('pages deploy dist --project-name=${{ vars.CF_APP_STAGING_PROJECT }} --branch=pr-${{ github.event.number }}');
+    const script = String((preview.steps!.find((s) => s.uses?.startsWith('actions/github-script@'))!.with as Record<string, string>).script);
+    expect(script).toContain("'<!-- omark-preview -->'");
   });
 
-  it('deploys the demo build from apps/tasks, so functions/ (the sign-in helper) is left out', () => {
+  it('deploys the demo from inside apps/omark/dist, so no functions/ (sign-in helper) goes with it', () => {
     const wf = parse(text('ci.yml')) as { jobs: Record<string, Job & { concurrency?: unknown }> };
-    const demo = wf.jobs['tasks-demo']!;
+    const demo = wf.jobs['omark-demo']!;
     expect(demo.concurrency).toEqual({ group: 'demo', 'cancel-in-progress': false });
     const steps = demo.steps!;
-    const build = steps.find((s) => s.run === 'pnpm --filter tasks build')!;
+    const build = steps.find((s) => s.run === 'pnpm --filter omark build')!;
     expect(build.env).toEqual({
       VITE_STORAGE: 'demo',
-      VITE_REAL_USE_URL: '${{ vars.TASKS_REAL_USE_URL }}',
+      VITE_REAL_USE_URL: '${{ vars.REAL_USE_URL }}',
       BUILD_NUMBER: '${{ github.run_number }}',
     });
     // The project only: the domain and its DNS record were set up once by hand.
@@ -196,26 +229,52 @@ describe('workflows', () => {
     expect(ensure.env).toEqual({
       CLOUDFLARE_API_TOKEN: '${{ secrets.CLOUDFLARE_API_TOKEN }}',
       CLOUDFLARE_ACCOUNT_ID: '${{ secrets.CLOUDFLARE_ACCOUNT_ID }}',
-      CF_PROJECT: '${{ vars.CF_TASKS_DEMO_PROJECT }}',
+      CF_PROJECT: '${{ vars.CF_DEMO_PROJECT }}',
     });
-    // A plain step with the workspace's wrangler, run from apps/tasks; values come in through env, not ${{ }}.
+    // A plain step with the workspace's wrangler; values come in through env, not ${{ }}.
     expect(steps.some((s) => s.uses?.startsWith('cloudflare/wrangler-action@'))).toBe(false);
     const deploys = steps.filter((s) => s.run?.includes('wrangler pages deploy'));
     expect(deploys).toHaveLength(1);
-    expect(deploys[0]!['working-directory']).toBe('apps/tasks');
-    expect(deploys[0]!.run).toBe('../../node_modules/.bin/wrangler pages deploy dist --project-name="$CF_TASKS_DEMO_PROJECT" --branch=main');
+    expect(deploys[0]!['working-directory']).toBe('apps/omark/dist');
+    expect(deploys[0]!.run).toBe('../../../node_modules/.bin/wrangler pages deploy . --project-name="$CF_DEMO_PROJECT" --branch=main');
     expect(deploys[0]!.env).toEqual({
       CLOUDFLARE_API_TOKEN: '${{ secrets.CLOUDFLARE_API_TOKEN }}',
       CLOUDFLARE_ACCOUNT_ID: '${{ secrets.CLOUDFLARE_ACCOUNT_ID }}',
-      CF_TASKS_DEMO_PROJECT: '${{ vars.CF_TASKS_DEMO_PROJECT }}',
+      CF_DEMO_PROJECT: '${{ vars.CF_DEMO_PROJECT }}',
     });
     const check = steps.find((s) => s.run === 'node tools/ci/check-demo.mjs')!;
-    expect(check.env).toEqual({ DEMO_URL: '${{ vars.TASKS_DEMO_URL }}' });
+    expect(check.env).toEqual({ DEMO_URL: '${{ vars.DEMO_URL }}' });
     expect(steps.indexOf(check)).toBeGreaterThan(steps.indexOf(deploys[0]!));
-    // Staging, by contrast, deploys from the repo root so its sign-in helper ships.
-    const staging = wf.jobs['tasks-staging']!.steps!.find((s) => s.uses?.startsWith('cloudflare/wrangler-action@'))!;
-    expect((staging.with as Record<string, string>).workingDirectory).toBeUndefined();
-    expect((staging.with as Record<string, string>).command).toMatch(/^pages deploy apps\/tasks\/dist /);
+  });
+
+  it('deploys one app staging from apps/omark, so its sign-in helper ships, and checks it', () => {
+    const wf = parse(text('ci.yml')) as { jobs: Record<string, Job & { concurrency?: unknown }> };
+    const staging = wf.jobs['omark-staging']!;
+    expect(staging.concurrency).toEqual({ group: 'staging', 'cancel-in-progress': false });
+    const steps = staging.steps!;
+    // One build for staging and production: the app picks its environment from the host name.
+    expect(steps.find((s) => s.run === 'pnpm --filter omark build')!.env).toEqual({
+      BUILD_NUMBER: '${{ github.run_number }}',
+      VITE_PROD_HOST: '${{ vars.APP_PROD_HOST }}',
+      VITE_STAGING_HOST: '${{ vars.APP_STAGING_HOST }}',
+      VITE_PREVIEW_HOST_SUFFIXES: '${{ vars.APP_PREVIEW_HOST_SUFFIXES }}',
+    });
+    expect(steps.find((s) => s.run === 'node tools/ci/ensure-pages-project.mjs')!.env).toEqual({
+      CLOUDFLARE_API_TOKEN: '${{ secrets.CLOUDFLARE_API_TOKEN }}',
+      CLOUDFLARE_ACCOUNT_ID: '${{ secrets.CLOUDFLARE_ACCOUNT_ID }}',
+      CF_PROJECT: '${{ vars.CF_APP_STAGING_PROJECT }}',
+    });
+    const deploy = steps.find((s) => s.uses?.startsWith('cloudflare/wrangler-action@'))!.with as Record<string, string>;
+    expect(deploy.workingDirectory).toBe('apps/omark');
+    expect(deploy.command).toBe('pages deploy dist --project-name=${{ vars.CF_APP_STAGING_PROJECT }} --branch=main');
+    const check = steps.find((s) => s.run === 'node tools/ci/check-omark-signin.mjs')!;
+    expect(check.env).toEqual({ SIGNIN_URL: '${{ vars.APP_STAGING_URL }}', MSAL_TENANT: '${{ vars.APP_MSAL_TENANT }}' });
+    // The bridge's staging, by contrast, deploys from the repo root so the root functions/ ships.
+    const bridge = wf.jobs['tasks-staging']!;
+    expect(bridge.concurrency).toEqual({ group: 'bridge-staging', 'cancel-in-progress': false });
+    const b = bridge.steps!.find((s) => s.uses?.startsWith('cloudflare/wrangler-action@'))!.with as Record<string, string>;
+    expect(b.workingDirectory).toBeUndefined();
+    expect(b.command).toMatch(/^pages deploy apps\/tasks\/dist /);
   });
 
   it('uses the same pinned wrangler action and version for every deploy', () => {
@@ -224,9 +283,12 @@ describe('workflows', () => {
     expect(new Set(deploys.map((s) => s.uses)).size).toBe(1);
     const versions = new Set(deploys.map((s) => (s.with as Record<string, string>).wranglerVersion));
     expect(versions.size).toBe(1);
-    // The demo deploys with the workspace's wrangler (root package.json), so that must be the same version.
-    const root = JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'));
-    expect(root.devDependencies.wrangler).toBe([...versions][0]);
+    // The demo deploys with the workspace's wrangler (root package.json), and the action finds the one in the
+    // folder it runs from (apps/omark, apps/site), so they must all be the same version.
+    for (const pkg of ['package.json', 'apps/omark/package.json', 'apps/site/package.json']) {
+      const json = JSON.parse(readFileSync(new URL(`../../../${pkg}`, import.meta.url), 'utf8'));
+      expect(json.devDependencies.wrangler, pkg).toBe([...versions][0]);
+    }
   });
 
   it('calls ensure-pages-project with the generic variable names', () => {
@@ -266,14 +328,14 @@ describe('workflows', () => {
   });
 
   it('deploys staging, the demo and the site only after check and every e2e job', () => {
-    for (const name of ['tasks-staging', 'tasks-demo', 'site-production', 'time-staging']) {
+    for (const name of ['omark-staging', 'omark-demo', 'tasks-staging', 'site-production']) {
       expect(jobsOf('ci.yml').find(([n]) => n === name)![1].needs, name).toEqual(['check', 'e2e']);
     }
   });
 
   it('deploys from main only while its commit is still main’s tip (#81)', () => {
     // A run whose e2e finished later must not overwrite a newer commit's deploy; the newer run deploys itself.
-    for (const name of ['tasks-staging', 'tasks-demo', 'site-production', 'time-staging']) {
+    for (const name of ['omark-staging', 'omark-demo', 'tasks-staging', 'site-production']) {
       const steps = jobsOf('ci.yml').find(([n]) => n === name)![1].steps!;
       const i = steps.findIndex((s) => s.id === 'tip');
       // Right after the variables check, before anything is built or deployed.
@@ -290,7 +352,7 @@ describe('workflows', () => {
   });
 
   it('deploys PR previews once check passes, without waiting for e2e', () => {
-    for (const name of ['tasks-preview', 'site-preview', 'time-preview']) {
+    for (const name of ['omark-preview', 'site-preview']) {
       expect(jobsOf('ci.yml').find(([n]) => n === name)![1].needs, name).toEqual(['check']);
     }
   });
@@ -310,7 +372,7 @@ describe('workflows', () => {
 
   it('gives every job a time limit', () => {
     const limits = Object.fromEntries(FILES.flatMap((f) => jobsOf(f).map(([n, j]) => [n, j['timeout-minutes']])));
-    expect(limits).toEqual({ check: 10, 'stop-on-check-failure': 5, e2e: 20, 'tasks-preview': 15, 'tasks-staging': 15, 'tasks-demo': 15, 'site-preview': 15, 'site-production': 15, 'time-preview': 15, 'time-staging': 15, promote: 15 });
+    expect(limits).toEqual({ check: 10, 'stop-on-check-failure': 5, e2e: 20, 'omark-preview': 15, 'omark-staging': 15, 'omark-demo': 15, 'tasks-staging': 15, 'site-preview': 15, 'site-production': 15, promote: 15 });
   });
 
   it('site jobs deploy only apps/site', () => {
@@ -357,29 +419,6 @@ describe('workflows', () => {
       [...readFileSync(new URL(`../../../apps/${file}`, import.meta.url), 'utf8').matchAll(/\{ name: '(\w+)'/g)].map((m) => m[1]);
     expect(names('omark/playwright.config.ts')).toEqual(names('tasks/playwright.config.ts'));
     expect(names('omark/playwright.tasks.config.ts')).toEqual(names('tasks/playwright.config.ts'));
-  });
-
-  it('builds Time previews as fake builds, and deploys Time from the repo root so its sign-in helper ships', () => {
-    const wf = parse(text('ci.yml')) as { jobs: Record<string, Job & { concurrency?: unknown }> };
-    const preview = wf.jobs['time-preview']!.steps!;
-    expect(preview.find((s) => s.run === 'pnpm --filter time build')!.env).toMatchObject({ VITE_STORAGE: 'fake' });
-    const staging = wf.jobs['time-staging']!;
-    expect(staging.concurrency).toEqual({ group: 'time-staging', 'cancel-in-progress': false });
-    expect(staging.steps!.find((s) => s.run === 'pnpm --filter time build')!.env).toEqual({ BUILD_NUMBER: '${{ github.run_number }}' });
-    for (const job of [preview, staging.steps!]) {
-      const deploy = job.find((s) => s.uses?.startsWith('cloudflare/wrangler-action@'))!;
-      expect((deploy.with as Record<string, string>).command).toMatch(/^pages deploy apps\/time\/dist /);
-    }
-    // The project only: CI's token can't change omark.app's DNS, so the domain was set up by hand.
-    for (const job of [preview, staging.steps!]) {
-      expect(job.find((s) => s.run === 'node tools/ci/ensure-pages-project.mjs')!.env).toEqual({
-        CLOUDFLARE_API_TOKEN: '${{ secrets.CLOUDFLARE_API_TOKEN }}',
-        CLOUDFLARE_ACCOUNT_ID: '${{ secrets.CLOUDFLARE_ACCOUNT_ID }}',
-        CF_PROJECT: '${{ vars.CF_TIME_STAGING_PROJECT }}',
-      });
-    }
-    const check = staging.steps!.find((s) => s.run === 'node tools/ci/check-google-signin.mjs')!;
-    expect(check.env).toEqual({ SIGNIN_URL: '${{ vars.TIME_STAGING_URL }}' });
   });
 
   it('never uses pull_request_target', () => {
