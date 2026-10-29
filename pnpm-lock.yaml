@@ -26,6 +26,9 @@ importers:
       '@fontsource/ibm-plex-mono':
         specifier: ^5.3.0
         version: 5.3.0
+      '@omark/goals-core':
+        specifier: workspace:*
+        version: link:../../packages/goals-core
       '@omark/settings':
         specifier: workspace:*
         version: link:../../packages/settings
@@ -38,6 +41,9 @@ importers:
       '@omark/tasks-core':
         specifier: workspace:*
         version: link:../../packages/tasks-core
+      '@omark/time-core':
+        specifier: workspace:*
+        version: link:../../packages/time-core
       svelte:
         specifier: ^5.57.2
         version: 5.57.2
