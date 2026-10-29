@@ -1,4 +1,5 @@
 import { PreconditionFailedError } from '@omark/storage';
+import type { Auth } from '@omark/storage';
 import type { Accounts, Place, Storage } from './places.ts';
 import { STORAGES } from './places.ts';
 import { entryPart, partsOf, route, withParts } from './suite.ts';
@@ -6,8 +7,8 @@ import type { Part } from './suite.ts';
 
 /** The device's storage choice (one app spec, section 4: it stays per device). */
 const CHOICE_KEY = 'omark:storage';
-/** The parts last read, for a start that can't reach the suite file (offline). */
-const PARTS_KEY = 'omark:parts';
+/** The parts last read from a folder's suite file, per folder, so a known device starts without waiting. */
+const partsKey = (place: Place) => `omark:parts:${place.key}`;
 
 /**
  * What the shell shows: opening; the first run's steps (`welcome`: demo or use, `where`: the storage,
@@ -53,18 +54,30 @@ export class Shell {
   /** The first run's ticks (the part in the entry address first). */
   ticked = $state<Part[]>([]);
   place = $state.raw<Place | null>(null);
+  /**
+   * Each part's last address (its hash too: Tasks' #settings), scroll and focused element (an open search's
+   * field), restored when its tab shows again.
+   */
+  private last: Partial<Record<Part, { url: string; scroll: number; focus: Element | null }>> = {};
 
   constructor(private readonly accounts: Accounts) {}
 
   async start(): Promise<void> {
+    try {
+      await this.begin();
+    } catch (e) {
+      this.error = message(e);
+      this.phase = 'error';
+    }
+  }
+
+  private async begin(): Promise<void> {
     const { auth } = this.accounts;
     try {
       await auth.handleRedirect();
     } catch (e) {
-      // A failed sign-in: say why, and start the first run again from where.
+      // A failed or cancelled sign-in: say why. A device with a usable storage still opens it below.
       this.error = message(e);
-      await this.toWhere();
-      return;
     }
     const saved = load(CHOICE_KEY);
     const choice = isStorage(saved) ? saved : null;
@@ -75,6 +88,8 @@ export class Shell {
       // Signed in from an earlier visit with no choice kept (site data cleared): that account's folder.
       keep(CHOICE_KEY, signedIn);
       await this.open(signedIn);
+    } else if (this.error !== null) {
+      await this.toWhere();
     } else {
       this.phase = 'welcome';
     }
@@ -94,8 +109,9 @@ export class Shell {
       const { auth } = this.accounts;
       if (storage !== 'folder' && !(auth.isSignedIn() && auth.signedInProvider() === storage)) {
         await auth.signIn(storage, { returnTo: location.pathname });
-        // The real sign-in has left the page by now; the fake one is done.
-        if (!auth.isSignedIn()) return;
+        // A real sign-in is leaving the page, perhaps still with another provider's session: open nothing.
+        // The fake one is done, signed in with this storage.
+        if (auth.signedInProvider() !== storage) return;
       }
       await this.open(storage);
     } catch (e) {
@@ -111,9 +127,9 @@ export class Shell {
       return;
     }
     this.place = place;
-    const seen = load(PARTS_KEY);
+    const seen = load(partsKey(place));
     if (seen !== null) {
-      // A device that has opened Omark before starts at once with the parts it last saw, so a Tasks-only
+      // A device that has opened this folder before starts at once with the parts it last saw, so a Tasks-only
       // start waits for nothing more than Omark Tasks did; the suite file is read meanwhile.
       this.show(partsOf(seen));
       void this.recheck(place);
@@ -123,43 +139,71 @@ export class Shell {
     try {
       text = (await place.root.read('config.yaml'))?.text ?? null;
     } catch {
-      // Offline or signed out on a first open here: Tasks alone, and Tasks shows the status.
-      this.show(partsOf(null));
+      // Offline or signed out on a first open here: Tasks alone for now, kept nowhere, so the next start
+      // reads the folder again (and asks, if it has no suite file).
+      this.show(partsOf(null), undefined, false);
+      return;
+    }
+    const suite = text !== null && /^parts\s*:/m.test(text);
+    if (!suite && storage === 'folder' && (await place.root.read('tasks.md').catch(() => null))) {
+      // Omark Tasks' own folder (tasks.md and its config.yaml at the top): its config.yaml is not the suite's.
+      this.place = null;
+      this.error =
+        'This folder has Omark Tasks files (tasks.md) at its top. Pick the folder above it, or move tasks.md, done.md and config.yaml into a tasks folder inside it.';
+      await this.toWhere();
       return;
     }
     if (text === null) {
-      this.ticked = [entryPart(location.pathname)];
-      this.phase = 'parts';
+      this.askParts();
       return;
     }
     this.show(partsOf(text));
   }
 
+  /** The Auth a part signs in again with: it comes back to the part's address. */
+  partAuth(): Auth {
+    const auth = this.accounts.auth;
+    return { ...auth, signIn: (provider, o) => auth.signIn(provider, { ...o, returnTo: location.pathname }) };
+  }
+
   /** Brings in parts another device turned on or off since this one last looked. */
   private async recheck(place: Place): Promise<void> {
+    const before = this.on.join();
     let text: string | null;
     try {
       text = (await place.root.read('config.yaml'))?.text ?? null;
     } catch {
       return; // Offline: the next start looks again.
     }
-    if (text === null) return;
+    // The user changed the parts meanwhile (turned one on): that write is newer than this read.
+    if (this.on.join() !== before || this.phase !== 'ready') return;
+    if (text === null) {
+      this.askParts();
+      return;
+    }
     const parts = partsOf(text);
     if (parts.join() !== this.on.join()) this.show(parts);
+  }
+
+  private askParts(): void {
+    this.ticked = [entryPart(location.pathname)];
+    this.phase = 'parts';
   }
 
   /** The first run's "Start": writes the suite file with the ticked parts, unless another device just did. */
   async startWith(parts: Part[]): Promise<void> {
     const place = this.place!;
+    this.error = null;
     try {
-      await place.root.write('config.yaml', withParts(null, parts), null);
-      this.show(parts);
-    } catch (e) {
-      if (!(e instanceof PreconditionFailedError)) {
-        this.error = message(e);
-        return;
+      try {
+        await place.root.write('config.yaml', withParts(null, parts), null);
+        this.show(parts);
+      } catch (e) {
+        if (!(e instanceof PreconditionFailedError)) throw e;
+        this.show(partsOf((await place.root.read('config.yaml'))?.text ?? null));
       }
-      this.show(partsOf((await place.root.read('config.yaml'))?.text ?? null));
+    } catch (e) {
+      this.error = message(e);
     }
   }
 
@@ -184,10 +228,26 @@ export class Shell {
     }
   }
 
-  /** Goes to a part's address (a tab, a key) without reloading. */
+  /** Goes to a part's tab (a click, a key) without reloading: back where that part was, address and scroll. */
   go(path: string): void {
-    if (location.pathname !== path) history.pushState(null, '', path);
+    this.remember();
+    const to = route(path, this.on);
+    const target = 'open' in to ? (this.last[to.open]?.url ?? path) : path;
+    if (location.pathname + location.search + location.hash !== target) history.pushState(null, '', target);
     this.route();
+    const back = this.current ? this.last[this.current] : undefined;
+    // After the hidden part shows again (the DOM updates first).
+    requestAnimationFrame(() => {
+      scrollTo(0, back?.scroll ?? 0);
+      if (back?.focus?.isConnected) (back.focus as HTMLElement).focus?.({ preventScroll: true });
+    });
+  }
+
+  /** Notes where the part on screen is, before another one shows. */
+  remember(): void {
+    if (!this.current) return;
+    const focus = typeof document === 'undefined' ? null : document.activeElement;
+    this.last[this.current] = { url: location.pathname + location.search + location.hash, scroll: scrollY, focus };
   }
 
   /** Shows what the address asks for (also on browser back and forward). */
@@ -209,9 +269,9 @@ export class Shell {
     if (!this.visited.includes(to.open)) this.visited = [...this.visited, to.open];
   }
 
-  private show(parts: Part[], path?: string): void {
+  private show(parts: Part[], path?: string, save = true): void {
     this.on = parts;
-    keep(PARTS_KEY, withParts(null, parts));
+    if (save && this.place) keep(partsKey(this.place), withParts(null, parts));
     this.phase = 'ready';
     if (path) history.replaceState(history.state, '', path);
     this.route();

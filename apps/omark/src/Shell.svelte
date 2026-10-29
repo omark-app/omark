@@ -41,6 +41,12 @@
   });
   const chosen = $derived(PARTS.filter((p) => ticks[p]));
 
+  // Tasks' own sign-in again (an expired session) comes back to the part's address.
+  const tasksPlace = $derived.by(() => {
+    const given = shell.place?.tasks();
+    return given && { ...given, auth: given.auth && shell.partAuth() };
+  });
+
   const tabbed = $derived(shell.phase === 'ready' && shell.on.length > 1);
   // Lifts Tasks' + button and toasts above the tab bar on the phone (Tasks reads --part-tabs).
   $effect(() => {
@@ -53,11 +59,13 @@
     shell.go(`/${p}`);
   }
 
-  /** Alt+1, Alt+2, Alt+3: the first, second and third tab. */
+  /**
+   * Alt+1, Alt+2, Alt+3: the first, second and third tab. Only when the key gives the digit itself: on a Mac,
+   * Option+3 types # (and Option+2 €), which must stay text.
+   */
   function onkeydown(e: KeyboardEvent): void {
-    if (!tabbed || !e.altKey || e.ctrlKey || e.metaKey) return;
-    const n = /^Digit([1-9])$/.exec(e.code);
-    const p = n ? shell.on[Number(n[1]) - 1] : undefined;
+    if (!tabbed || !e.altKey || e.ctrlKey || e.metaKey || !/^[1-9]$/.test(e.key)) return;
+    const p = shell.on[Number(e.key) - 1];
     if (!p) return;
     e.preventDefault();
     shell.go(`/${p}`);
@@ -118,7 +126,7 @@
   {#each shell.visited as p (p)}
     <div class="part-view" hidden={shell.current !== p}>
       {#if p === 'tasks'}
-        <TasksPart place={shell.place!.tasks()} active={shell.current === 'tasks'} />
+        <TasksPart place={tasksPlace!} active={shell.current === 'tasks'} />
       {:else}
         {#await load(p) then mod}<mod.default />{/await}
       {/if}

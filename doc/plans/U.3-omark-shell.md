@@ -63,6 +63,20 @@ Time and Goals are placeholders in U.3 ("Omark Time comes to this tab in the nex
 
 Found on the way: the shell must keep a part's hash and history state when it changes the address (Tasks' `#settings`), and `/` opens the first part in place. Tasks loads with the shell and a known device starts from the parts it last saw, so a Tasks-only start waits for nothing more than Omark Tasks did.
 
+### Fresh-eyes review (2026-10-29)
+
+No high-severity findings; the sign-in return path is safe and `apps/tasks` alone is unchanged. Fixed, with tests (`src/lib/shell.test.ts`, `e2e/shell.spec.ts`):
+
+- picking a storage while signed in with the other provider opened nothing while the redirect was leaving;
+- the remembered parts are kept per folder, never from a first open that could not read it, and a folder that lost its suite file asks again;
+- Alt+digit switches only when the key gives the digit (Option+3 on a Mac types #);
+- a tab comes back to its part's address (Tasks' `#settings`), scroll and focus;
+- Tasks' own sign-in again returns to its address; a failed sign-in redirect still opens a usable storage, with the error shown;
+- a late re-read of the suite file no longer undoes a part turned on meanwhile; start-up failures show the error card;
+- a picked folder with Omark Tasks' files at its top is refused with a hint.
+
+Moved to U.5: the suite `config.yaml` goes through `FileSync` with an offline copy (now it is read and written directly, so turning a part on offline fails with a message).
+
 ## Risks
 
 - **Tasks' module-level env** (`STORAGE_MODE`, `HOSTS`, `BRAND`, build defines) is read from `apps/omark`'s Vite config when imported there; the shell's config must define the same names. Caught by the Tasks-in-shell e2e.

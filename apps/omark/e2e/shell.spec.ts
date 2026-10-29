@@ -94,20 +94,44 @@ test('any other path goes to the first part on, keeping the hash', async ({ page
 test.describe('desktop', () => {
   test.skip(({ isMobile }) => isMobile, 'keys');
 
-  test('switching parts keeps Tasks as it was, and Tasks keys rest on another tab', async ({ page }) => {
+  test('Tasks keys rest on another tab', async ({ page }) => {
     await open(page, { seed: { root: { 'config.yaml': 'parts: [tasks, time]\n' } } });
     await expect(tasksList(page)).toBeVisible();
-    await page.keyboard.press('f');
-    await expect(page.getByTestId('search')).toBeVisible();
-    await page.keyboard.press('Escape');
     await page.keyboard.press('Alt+2');
     await expect(page).toHaveURL(/\/time$/);
     await expect(tasksList(page)).toBeHidden();
     await page.keyboard.press('f');
     await tabs(page).getByRole('link', { name: 'Tasks' }).click();
-    await expect(page).toHaveURL(/\/tasks$/);
     await expect(tasksList(page)).toBeVisible();
     await expect(page.getByTestId('search')).toBeHidden();
+  });
+
+  test('switching parts keeps Tasks as it was: an open search, its scroll, its Settings', async ({ page }) => {
+    const many = Array.from({ length: 60 }, (_, i) => `- [ ] Task ${i + 1} 📅 2026-10-16`).join('\n');
+    await open(page, { seed: { root: { 'config.yaml': 'parts: [tasks, time]\n' }, tasks: { 'tasks.md': `# Tasks\n${many}\n` } } });
+    await expect(tasksList(page)).toBeVisible();
+    await page.mouse.wheel(0, 1500);
+    await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(500);
+    const scrolled = await page.evaluate(() => scrollY);
+    await page.keyboard.press('Alt+2');
+    await tabs(page).getByRole('link', { name: 'Tasks' }).click();
+    await expect.poll(() => page.evaluate(() => scrollY)).toBe(scrolled);
+
+    await page.keyboard.press('f');
+    await expect(page.getByTestId('search')).toBeVisible();
+    await page.keyboard.press('Alt+2');
+    await expect(page.getByTestId('search')).toBeHidden();
+    await tabs(page).getByRole('link', { name: 'Tasks' }).click();
+    await expect(page.getByTestId('search')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('search')).toBeHidden();
+
+    await page.keyboard.press(',');
+    await expect(page.getByTestId('settings')).toBeVisible();
+    await page.keyboard.press('Alt+2');
+    await tabs(page).getByRole('link', { name: 'Tasks' }).click();
+    await expect(page).toHaveURL(/#settings$/);
+    await expect(page.getByTestId('settings')).toBeVisible();
   });
 
   test('the tab bar sits at the top on desktop', async ({ page }) => {
