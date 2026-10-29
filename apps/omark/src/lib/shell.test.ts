@@ -58,6 +58,8 @@ function accounts(opts: {
     isSignedIn: () => signedIn !== null,
     signedInProvider: () => signedIn,
     availableProviders: async () => ['microsoft', 'google'],
+    accesses: () => [],
+    signOut: async () => {},
     async handleRedirect() {
       if (opts.redirect) throw opts.redirect;
     },

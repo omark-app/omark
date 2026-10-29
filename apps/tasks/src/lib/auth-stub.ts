@@ -42,6 +42,8 @@ export function createAuthStub(state: AuthStubState, providers: string[] = ['mic
       return state.startsWith('google') ? 'google' : 'microsoft';
     },
     availableProviders: async () => providers,
+    accesses: () => [],
+    async signOut() {},
     async signIn(provider?: string) {
       signInWith.push(provider ?? null);
     },

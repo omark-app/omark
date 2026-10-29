@@ -14,6 +14,10 @@ export interface Auth {
   /** The providers the helper has set up, in order; just the default when it cannot be asked within 3 s. */
   availableProviders(): Promise<string[]>;
   handleRedirect(): Promise<void>;
+  /** The accesses added to the session (`signIn`'s `add`), as the helper's readable cookie lists them (bound clients). */
+  accesses(): string[];
+  /** Ends the session: the bound provider's, or every one. Throws when the helper can't be reached. */
+  signOut(): Promise<void>;
 }
 
 /** The sign-in helper's endpoints (`packages/signin`), on the app's own origin. */
@@ -57,6 +61,11 @@ export interface AuthOptions {
   now?: () => number;
   /** Per token call; a call that takes longer fails with `OfflineError`. Default 15 s. */
   timeoutMs?: number;
+  /**
+   * Binds the client to this provider's session, for a helper with `sessions: 'per-provider'` (the one Omark app):
+   * it reads `<cookiePrefix>_<provider>_signed_in`, and its token and sign-out calls name the provider.
+   */
+  provider?: string;
 }
 
 /**
@@ -68,8 +77,11 @@ export interface AuthOptions {
  */
 export function createAuth(opts: AuthOptions): Auth {
   /** Set (readable, no secret in it) alongside the HttpOnly session cookie; cleared when the session is. */
-  const signedInCookie = `${opts.cookiePrefix}_signed_in`;
-  const [defaultProvider = 'microsoft'] = Object.keys(opts.providers);
+  const bound = opts.provider;
+  const signedInCookie = bound === undefined ? `${opts.cookiePrefix}_signed_in` : `${opts.cookiePrefix}_${bound}_signed_in`;
+  const [first = 'microsoft'] = Object.keys(opts.providers);
+  const defaultProvider = bound ?? first;
+  const own = bound === undefined ? '' : `?provider=${encodeURIComponent(bound)}`;
   const fetchFn = opts.fetch ?? ((...args) => globalThis.fetch(...args));
   const navigate = opts.navigate ?? ((url: string) => window.location.assign(url));
   const cookies = opts.cookies ?? (() => document.cookie);
@@ -84,7 +96,7 @@ export function createAuth(opts: AuthOptions): Auth {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetchFn(`${BASE}/token`, {
+      const res = await fetchFn(`${BASE}/token${own}`, {
         method: 'POST',
         headers: { [CSRF_HEADER]: '1' },
         credentials: 'same-origin',
@@ -111,14 +123,20 @@ export function createAuth(opts: AuthOptions): Auth {
     }
   }
 
-  function signedInProvider(): string | null {
+  /** The signed-in cookie's value (`<provider>` or `<provider>:<access>,…`), or null when signed out. */
+  function signedInValue(): string | null {
     const cookie = cookies()
       .split(';')
       .map((c) => c.trim())
       .find((c) => c.startsWith(`${signedInCookie}=`));
-    if (cookie === undefined) return null;
-    const value = cookie.slice(signedInCookie.length + 1);
-    if (value === '') return null;
+    const value = cookie?.slice(signedInCookie.length + 1) ?? '';
+    return value === '' ? null : value;
+  }
+
+  function signedInProvider(): string | null {
+    const value = signedInValue()?.split(':')[0];
+    if (value === undefined) return null;
+    if (bound !== undefined) return bound;
     // Sessions from before there were providers have `1`: the default. hasOwn, so `constructor` is not a provider.
     return Object.hasOwn(opts.providers, value) ? value : defaultProvider;
   }
@@ -147,10 +165,11 @@ export function createAuth(opts: AuthOptions): Auth {
       // A top-level navigation: the helper redirects to the provider and back to /api/auth/callback, which
       // returns to / (in an iOS home-screen app's scope). The helper adds the last account as login_hint.
       // `returnTo` (the one Omark app): the helper comes back to that path instead of /, if it knows it.
-      const id = provider ?? signedInProvider() ?? defaultProvider;
+      const id = bound ?? provider ?? signedInProvider() ?? defaultProvider;
       const params = new URLSearchParams();
-      // The default keeps the plain URL (as before there were several providers), chosen or not, unless adding access.
-      if (id !== defaultProvider || o?.add) params.set('provider', id);
+      // The default keeps the plain URL (as before there were several providers), chosen or not, unless adding
+      // access; a bound client always names its provider.
+      if (bound !== undefined || id !== defaultProvider || o?.add) params.set('provider', id);
       if (o?.add) params.set('add', o.add);
       if (o?.returnTo) params.set('return', o.returnTo);
       const query = params.toString();
@@ -183,6 +202,19 @@ export function createAuth(opts: AuthOptions): Auth {
     isSignedIn() {
       // The hint cookie can outlive a revoked session; then the first token call answers 401.
       return signedInProvider() !== null;
+    },
+    accesses() {
+      const list = signedInValue()?.split(':')[1];
+      return list ? list.split(',').filter((a) => a !== '') : [];
+    },
+    async signOut() {
+      cached = null;
+      const res = await fetchFn(`${BASE}/logout${own}`, {
+        method: 'POST',
+        headers: { [CSRF_HEADER]: '1' },
+        credentials: 'same-origin',
+      });
+      if (!res.ok) throw new Error('Sign-out failed; try again');
     },
   };
 }

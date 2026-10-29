@@ -15,6 +15,13 @@ export interface AuthOptions {
    * any other return, or none, goes back to `/`.
    */
   returnPaths?: readonly string[];
+  /**
+   * `per-provider` (the one Omark app): a session, account name and signed-in cookie per provider
+   * (`<prefix>_<provider>_session`…), so a Microsoft and a Google sign-in live side by side. `token` and
+   * `logout` then take `?provider=` (the default one when absent; `logout` without it signs out of all), and the
+   * signed-in cookie also lists the accesses the session has (`google:calendar,edit`). Default `one`.
+   */
+  sessions?: 'one' | 'per-provider';
 }
 
 export interface Deps {
@@ -47,12 +54,22 @@ interface Cookies {
   signedIn: Cookie;
 }
 
-const cookieNames = (prefix: string): Cookies => ({
-  session: { name: `${prefix}_session`, path: '/api/auth/token' },
-  login: { name: `${prefix}_login`, path: '/api/auth/callback' },
-  hint: { name: `${prefix}_hint`, path: '/api/auth/login' },
-  signedIn: { name: `${prefix}_signed_in`, path: '/' },
-});
+/** `provider` set: that provider's own session, hint and signed-in cookies. The login cookie is one either way. */
+const cookieNames = (prefix: string, provider?: string): Cookies => {
+  const own = provider === undefined ? prefix : `${prefix}_${provider}`;
+  return {
+    session: { name: `${own}_session`, path: '/api/auth/token' },
+    login: { name: `${prefix}_login`, path: '/api/auth/callback' },
+    hint: { name: `${own}_hint`, path: '/api/auth/login' },
+    signedIn: { name: `${own}_signed_in`, path: '/' },
+  };
+};
+
+const perProvider = (options: AuthOptions): boolean => options.sessions === 'per-provider';
+
+/** The cookies of provider `id`'s session: its own in `per-provider` mode, else the app's one set. */
+const namesFor = (options: AuthOptions, id: string): Cookies =>
+  cookieNames(options.cookiePrefix, perProvider(options) ? id : undefined);
 
 /** Token endpoint errors that only a fresh sign-in fixes (the refresh token expired or was revoked, consent withdrawn). */
 const SIGN_IN_ERRORS: readonly string[] = ['invalid_grant', 'interaction_required', 'consent_required', 'login_required'];
@@ -150,6 +167,14 @@ export async function handleAuth(request: Request, env: Env, options: AuthOption
   if (route === 'login') return login(base);
   if (route === 'callback') return callback(base);
   if (!sameOrigin(base)) return json(403, { error: 'forbidden' });
+  if (perProvider(options)) {
+    const asked = url.searchParams.get('provider');
+    if (asked !== null && !hasProvider(options, asked)) return json(400, { error: 'unknown_provider' });
+    if (route === 'logout' && asked === null) return logoutAll(base);
+    const id = asked ?? defaultProvider(options);
+    const own = { ...base, names: namesFor(options, id) };
+    return route === 'token' ? token(own, id) : logout(own);
+  }
   return route === 'token' ? token(base) : logout(base);
 }
 
@@ -173,7 +198,7 @@ function withProvider(base: Base, id: string): Context | Response {
     console.error(`Omark sign-in: ${provider}`);
     return json(500, { error: 'not_configured' });
   }
-  return { ...base, providerId: id, provider };
+  return { ...base, names: namesFor(base.options, id), providerId: id, provider };
 }
 
 const redirectUri = (ctx: Context) => `${ctx.url.origin}/api/auth/callback`;
@@ -224,7 +249,7 @@ async function login(base: Base): Promise<Response> {
  * `failed` or `unavailable`. Once the provider is known from the sign-in state, `&provider=<id>` names it.
  */
 async function callback(base: Base): Promise<Response> {
-  const { hint: HINT, login: LOGIN } = base.names;
+  const LOGIN = base.names.login;
   const clearLogin = serializeCookie(LOGIN.name, '', { path: LOGIN.path, maxAge: 0 });
   const q = base.url.searchParams;
   const login = await unseal<LoginState>(base.key, LOGIN.name, base.cookies.get(LOGIN.name));
@@ -274,6 +299,7 @@ async function callback(base: Base): Promise<Response> {
   }
   const cookies = [clearLogin, ...session];
   const username = usernameFrom(id_token);
+  const HINT = ctx.names.hint;
   if (username) {
     const hint = await seal(ctx.key, HINT.name, { username, p: id } satisfies Hint);
     cookies.push(serializeCookie(HINT.name, hint, { path: HINT.path, maxAge: HINT_MAX_AGE }));
@@ -282,11 +308,12 @@ async function callback(base: Base): Promise<Response> {
 }
 
 /** `{ accessToken, expiresAt }` (ms since the epoch); 401 `{ signin: true }` when only signing in helps; 503 when the provider cannot be reached. */
-async function token(base: Base): Promise<Response> {
+async function token(base: Base, asked?: string): Promise<Response> {
   const SESSION = base.names.session;
   const session = await unseal<Session>(base.key, SESSION.name, readChunkedCookie(base.cookies, SESSION.name));
   if (!session || typeof session.rt !== 'string' || session.exp < base.now) return json(401, { signin: true }, clearSession(base));
-  const id = session.p ?? defaultProvider(base.options);
+  // Per provider, the cookie's name already says whose session it is (it is sealed with the name).
+  const id = asked ?? session.p ?? defaultProvider(base.options);
   // A provider the app no longer offers: only a new sign-in helps.
   if (!hasProvider(base.options, id)) return json(401, { signin: true }, clearSession(base));
   const ctx = withProvider(base, id);
@@ -307,9 +334,15 @@ async function token(base: Base): Promise<Response> {
   );
 }
 
-const logout = (ctx: Base): Response => {
+const logout = (ctx: Base): Response => json(200, { ok: true }, clearAll(ctx));
+
+/** `per-provider` without `?provider=`: every provider's session and account name. */
+const logoutAll = (base: Base): Response =>
+  json(200, { ok: true }, Object.keys(base.options.providers).flatMap((id) => clearAll({ ...base, names: namesFor(base.options, id) })));
+
+const clearAll = (ctx: Base): string[] => {
   const HINT = ctx.names.hint;
-  return json(200, { ok: true }, [...clearSession(ctx), serializeCookie(HINT.name, '', { path: HINT.path, maxAge: 0 })]);
+  return [...clearSession(ctx), serializeCookie(HINT.name, '', { path: HINT.path, maxAge: 0 })];
 };
 
 /**
@@ -329,10 +362,20 @@ async function sessionCookies(ctx: Context, rt: string, sc?: string): Promise<st
   const maxAge = ctx.provider.sessionMaxAge;
   const session: Session = { rt, exp: ctx.now + maxAge * 1000, p: ctx.providerId, ...(sc === undefined ? {} : { sc }) };
   const sealed = await seal(ctx.key, SESSION.name, session);
+  // Per provider, the app can read which added accesses the session has (`google:calendar,edit`).
+  const accesses = perProvider(ctx.options) ? accessesOf(ctx.provider, sc) : [];
+  const signedIn = accesses.length > 0 ? `${ctx.providerId}:${accesses.join(',')}` : ctx.providerId;
   return [
     ...chunkedCookies(SESSION.name, sealed, { path: SESSION.path, maxAge }),
-    serializeCookie(SIGNED_IN.name, ctx.providerId, { path: SIGNED_IN.path, maxAge, httpOnly: false }),
+    serializeCookie(SIGNED_IN.name, signedIn, { path: SIGNED_IN.path, maxAge, httpOnly: false }),
   ];
+}
+
+/** The added accesses (`extraScopes` names) whose scopes are all in `sc`, in the provider's order. */
+function accessesOf(provider: ProviderConfig, sc: string | undefined): string[] {
+  if (!provider.extraScopes || sc === undefined) return [];
+  const has = new Set(sc.split(' '));
+  return Object.entries(provider.extraScopes).filter(([, scopes]) => scopes.every((s) => has.has(s))).map(([name]) => name);
 }
 
 const clearSession = (ctx: Base): string[] => {

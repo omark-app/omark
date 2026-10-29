@@ -679,3 +679,103 @@ describe('adding access later (Google, incremental consent)', () => {
     expect(jar.cookies.has('omarktime_session0')).toBe(false);
   });
 });
+
+describe('one session per provider (the one Omark app, U.4)', () => {
+  const READ = 'https://www.googleapis.com/auth/calendar.events.owned.readonly';
+  const EDIT = 'https://www.googleapis.com/auth/calendar.events.owned';
+  const OMARK: AuthOptions = {
+    providers: {
+      microsoft,
+      google: google({ scopes: [DRIVE], extra: { calendar: [READ], edit: [EDIT] } }),
+      googlecal: google({ scopes: [READ], extra: { edit: [EDIT] } }),
+    },
+    cookiePrefix: 'omark',
+    sessions: 'per-provider',
+  };
+  const headers = { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' };
+  const sendO = (path: string, init: RequestInit & { headers?: Record<string, string> } = {}) => send(path, init, ENV, OMARK);
+  const postO = (path: string) => sendO(path, { method: 'POST', headers });
+  const scopes = (...s: string[]) => ['openid', 'https://www.googleapis.com/auth/userinfo.email', ...s].join(' ');
+
+  async function signInO(provider: string, tokens: Record<string, unknown>, add?: string) {
+    const q = new URLSearchParams({ provider, ...(add ? { add } : {}) });
+    const login = await sendO(`/api/auth/login?${q}`);
+    const state = new URL(login.headers.get('Location')!).searchParams.get('state')!;
+    (provider === 'microsoft' ? ms : gg).ok(tokens);
+    return sendO(`/api/auth/callback?code=c0de&state=${state}`);
+  }
+
+  it('keeps a Microsoft and a calendar session side by side, each refreshed by ?provider=', async () => {
+    await signInO('microsoft', { access_token: 'at0', expires_in: 3600, refresh_token: 'rt1' });
+    await signInO('googlecal', { access_token: 'g0', expires_in: 3600, refresh_token: 'grt1', scope: scopes(READ, DRIVE) });
+    expect(jar.cookies.get('omark_microsoft_signed_in')).toMatchObject({ value: 'microsoft', path: '/' });
+    expect(jar.cookies.get('omark_googlecal_signed_in')).toMatchObject({ value: 'googlecal', path: '/' });
+    expect(jar.cookies.has('omark_microsoft_session0')).toBe(true);
+    expect(jar.cookies.has('omark_googlecal_session0')).toBe(true);
+    expect(jar.cookies.has('omark_session0')).toBe(false);
+
+    ms.ok({ access_token: 'at1', expires_in: 3600, refresh_token: 'rt2' });
+    expect(await (await postO('/api/auth/token?provider=microsoft')).json()).toMatchObject({ accessToken: 'at1' });
+    expect(ms.calls.at(-1)!.get('refresh_token')).toBe('rt1');
+    gg.ok({ access_token: 'g1', expires_in: 3600 });
+    expect(await (await postO('/api/auth/token?provider=googlecal')).json()).toMatchObject({ accessToken: 'g1' });
+    expect(gg.calls.at(-1)!.get('refresh_token')).toBe('grt1');
+    // The calendar session keeps only its own provider's scopes, though Google also reported Drive.
+    expect(gg.calls.at(-1)!.get('scope')).toBe(READ);
+    // No provider: the default one.
+    ms.ok({ access_token: 'at2', expires_in: 3600 });
+    expect(await (await postO('/api/auth/token')).json()).toMatchObject({ accessToken: 'at2' });
+    expect(ms.calls.at(-1)!.get('refresh_token')).toBe('rt2');
+  });
+
+  it('a session that must sign in again clears only its own cookies', async () => {
+    await signInO('microsoft', { access_token: 'at0', expires_in: 3600, refresh_token: 'rt1' });
+    await signInO('googlecal', { access_token: 'g0', expires_in: 3600, refresh_token: 'grt1', scope: scopes(READ) });
+    gg.fail(400, 'invalid_grant');
+    expect((await postO('/api/auth/token?provider=googlecal')).status).toBe(401);
+    expect(jar.cookies.has('omark_googlecal_signed_in')).toBe(false);
+    expect(jar.cookies.has('omark_microsoft_signed_in')).toBe(true);
+    ms.ok({ access_token: 'at1', expires_in: 3600 });
+    expect((await postO('/api/auth/token?provider=microsoft')).status).toBe(200);
+  });
+
+  it('logout?provider= signs out of that provider only; logout alone signs out of all', async () => {
+    await signInO('microsoft', { access_token: 'at0', expires_in: 3600, refresh_token: 'rt1', id_token: idToken({ preferred_username: 'a@x' }) });
+    await signInO('googlecal', { access_token: 'g0', expires_in: 3600, refresh_token: 'grt1', scope: scopes(READ) });
+    await postO('/api/auth/logout?provider=googlecal');
+    expect(jar.cookies.has('omark_googlecal_session0')).toBe(false);
+    expect(jar.cookies.has('omark_microsoft_session0')).toBe(true);
+    expect(jar.cookies.has('omark_microsoft_hint')).toBe(true);
+    await postO('/api/auth/logout');
+    expect([...jar.cookies.keys()].filter((n) => n.startsWith('omark_'))).toEqual([]);
+  });
+
+  it('the signed-in cookie lists the accesses the session has, and keeps them on refresh', async () => {
+    await signInO('google', { access_token: 'g0', expires_in: 3600, refresh_token: 'grt1', scope: scopes(DRIVE) });
+    expect(jar.cookies.get('omark_google_signed_in')!.value).toBe('google');
+    await signInO('google', { access_token: 'g1', expires_in: 3600, refresh_token: 'grt2', scope: scopes(DRIVE, READ) }, 'calendar');
+    expect(jar.cookies.get('omark_google_signed_in')!.value).toBe('google:calendar');
+    await signInO('google', { access_token: 'g2', expires_in: 3600, refresh_token: 'grt3', scope: scopes(DRIVE, READ, EDIT) }, 'edit');
+    expect(jar.cookies.get('omark_google_signed_in')!.value).toBe('google:calendar,edit');
+    gg.ok({ access_token: 'g3', expires_in: 3600 });
+    await postO('/api/auth/token?provider=google');
+    expect(gg.calls.at(-1)!.get('scope')).toBe(`${DRIVE} ${READ} ${EDIT}`);
+    expect(jar.cookies.get('omark_google_signed_in')!.value).toBe('google:calendar,edit');
+  });
+
+  it('names the account per provider: a Microsoft hint is not sent to Google', async () => {
+    await signInO('microsoft', { access_token: 'at0', expires_in: 3600, refresh_token: 'rt1', id_token: idToken({ preferred_username: 'me@outlook.com' }) });
+    const toMs = new URL((await sendO('/api/auth/login?provider=microsoft')).headers.get('Location')!);
+    expect(toMs.searchParams.get('login_hint')).toBe('me@outlook.com');
+    const toGoogle = new URL((await sendO('/api/auth/login?provider=googlecal')).headers.get('Location')!);
+    expect(toGoogle.searchParams.get('login_hint')).toBeNull();
+  });
+
+  it('answers 400 unknown_provider for a token or logout call naming a provider the app does not have', async () => {
+    for (const path of ['/api/auth/token?provider=dropbox', '/api/auth/logout?provider=toString']) {
+      const res = await postO(path);
+      expect(res.status, path).toBe(400);
+      expect(await res.json()).toEqual({ error: 'unknown_provider' });
+    }
+  });
+});

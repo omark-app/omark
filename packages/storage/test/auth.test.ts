@@ -327,3 +327,47 @@ describe('createAuth (sign-in helper)', () => {
     });
   });
 });
+
+describe('createAuth bound to one provider (the one Omark app, U.4)', () => {
+  const OMARK = { cookiePrefix: 'omark', providers: { microsoft: 'Microsoft', google: 'Google', googlecal: 'Google' } };
+  const bound = (provider: string) =>
+    createAuth({ ...OMARK, provider, fetch: api.fetch as typeof fetch, navigate, cookies: () => cookie, now: () => now });
+
+  it("reads its provider's own signed-in cookie, and its accesses", () => {
+    cookie = 'omark_microsoft_signed_in=microsoft; omark_googlecal_signed_in=googlecal:edit';
+    expect(bound('microsoft').isSignedIn()).toBe(true);
+    expect(bound('microsoft').signedInProvider()).toBe('microsoft');
+    expect(bound('microsoft').accesses()).toEqual([]);
+    expect(bound('googlecal').accesses()).toEqual(['edit']);
+    expect(bound('google').isSignedIn()).toBe(false);
+    expect(bound('google').signedInProvider()).toBeNull();
+    cookie = 'omark_google_signed_in=google:calendar,edit';
+    expect(bound('google').accesses()).toEqual(['calendar', 'edit']);
+  });
+
+  it('asks for its own token and signs in with its provider', async () => {
+    api.token('t1');
+    expect(await bound('googlecal').getToken()).toBe('t1');
+    expect(api.calls[0]!.url).toBe('/api/auth/token?provider=googlecal');
+    await bound('googlecal').signIn();
+    expect(navigate).toHaveBeenLastCalledWith('/api/auth/login?provider=googlecal');
+    await bound('microsoft').signIn(undefined, { returnTo: '/time' });
+    expect(navigate).toHaveBeenLastCalledWith('/api/auth/login?provider=microsoft&return=%2Ftime');
+  });
+
+  it('signOut posts logout for its provider only', async () => {
+    api.status(200, { ok: true });
+    await bound('googlecal').signOut();
+    expect(api.calls[0]!.url).toBe('/api/auth/logout?provider=googlecal');
+    expect(api.calls[0]!.init.method).toBe('POST');
+    expect((api.calls[0]!.init.headers as Record<string, string>)['X-TaskApp-Auth']).toBe('1');
+  });
+
+  it('an unbound client has no accesses and signs out of everything', async () => {
+    cookie = 'taskapp_signed_in=microsoft';
+    expect(mk().accesses()).toEqual([]);
+    api.status(200, { ok: true });
+    await mk().signOut();
+    expect(api.calls[0]!.url).toBe('/api/auth/logout');
+  });
+});

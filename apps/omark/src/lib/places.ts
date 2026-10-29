@@ -161,6 +161,8 @@ function fakeAccounts(): Accounts {
     signedInProvider: () => signedIn,
     availableProviders: async () => ['microsoft', 'google'],
     handleRedirect: async () => {},
+    accesses: () => [],
+    signOut: async () => {},
   };
   return {
     auth,
