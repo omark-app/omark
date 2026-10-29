@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { Component } from 'svelte';
-  import { DEMO_URL, REAL_USE_URL, STORAGE_MODE } from './env.ts';
-  import { askDemoReset } from './lib/demo/open.ts';
+  import { DEMO_URL, REAL_USE_URL } from './env.ts';
   import { accounts } from './lib/places.ts';
   import type { Place, Storage } from './lib/places.ts';
   import { SETTINGS_PATH, Shell } from './lib/shell.svelte.ts';
@@ -13,7 +12,7 @@
   const deviceAccounts = accounts();
   const shell = new Shell(deviceAccounts);
   // The demo: Tasks' own Reset demo resets every part.
-  if (STORAGE_MODE === 'demo') tasksPart.resetDemo = askDemoReset;
+  tasksPart.resetDemo = deviceAccounts.resetDemo ?? null;
 
   // Tasks' quick add offers the project codes and area tags as # is typed (Goals spec 9); read when a folder opens
   // and on focus, through a lazy import so a start loads no parsers for them.
@@ -158,10 +157,10 @@
       {/if}
     </div>
   {/each}
-  {#if STORAGE_MODE === 'demo' && (shell.current === 'time' || shell.current === 'goals')}
+  {#if deviceAccounts.resetDemo && (shell.current === 'time' || shell.current === 'goals')}
     <!-- Tasks has this line in its own status line; Time's and Goals' tabs get it here. -->
     <p class="demo-line" data-testid="demo-line">
-      <strong>DEMO</strong> · <button type="button" data-testid="reset-demo" onclick={() => askDemoReset()}>Reset demo</button> ·
+      <strong>DEMO</strong> · <button type="button" data-testid="reset-demo" onclick={() => deviceAccounts.resetDemo?.()}>Reset demo</button> ·
       <a data-testid="real-use" href={REAL_USE_URL}>Use it for real</a>
     </p>
   {/if}

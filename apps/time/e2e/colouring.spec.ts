@@ -20,10 +20,10 @@ test('with colouring off, nothing is written to the calendar', async ({ page }) 
 
 test('turning colouring on asks for edit access and colours newest first', async ({ page }) => {
   await openTime(page);
-  await firstRun(page);
+  const own = await firstRun(page);
   await page.getByRole('checkbox', { name: 'Colour my events' }).check();
   await expect.poll(() => colours(page)).toEqual(['new:green', 'old:green', 'typo:red']);
-  expect(await authCalls(page)).toEqual(['addAccess:drive', 'addAccess:edit']);
+  expect(await authCalls(page)).toEqual([...(own ? ['addAccess:drive'] : []), 'addAccess:edit']);
   expect(await page.evaluate(() => window.__omarkTime!.calendar.patches.map((p) => p.eventId))).toEqual(['new', 'typo', 'old']);
 });
 

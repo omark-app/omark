@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { authCalls, driveFile, firstRun, openTime, reload, rowIds } from './helpers';
+import { authCalls, chooseStorage, driveFile, firstRun, openTime, reload, rowIds } from './helpers';
 
 test('signed out, the app offers Google sign-in', async ({ page }) => {
   await openTime(page, { auth: 'signed-out' });
@@ -33,7 +33,7 @@ test('after the first run, a reload goes straight to the synced home', async ({ 
 
 test('a second calendar can be chosen in the first run', async ({ page }) => {
   await openTime(page);
-  await page.getByRole('button', { name: 'Google Drive' }).click();
+  await chooseStorage(page);
   await page.getByRole('checkbox', { name: 'Work' }).check();
   await page.getByRole('button', { name: 'Start' }).click();
   await expect(page.getByTestId('status')).toContainText('Synced');

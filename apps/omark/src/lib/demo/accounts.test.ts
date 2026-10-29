@@ -21,6 +21,7 @@ describe('demoAccounts (U.6)', () => {
   it('is the demo: no storage to choose, every sign-in already done', async () => {
     const a = open();
     expect(a.demo).toBe(true);
+    expect(a.resetDemo).toBeTypeOf('function');
     expect(await a.storages()).toEqual([]);
     expect(a.calendar('folder')).toMatchObject({ access: null });
     expect(a.calendar('folder').auth.isSignedIn()).toBe(true);
@@ -46,6 +47,13 @@ describe('demoAccounts (U.6)', () => {
     // Edit access: colouring can write.
     const first = events.events[0]!;
     await expect(time.source!.setColour('primary', first.id, { colorId: '10', marker: null })).resolves.toBeUndefined();
+  });
+
+  it('leaves a picture out when the host answers with a page instead of the image', async () => {
+    // Cloudflare Pages and `vite dev` answer a missing file with index.html and 200.
+    vi.stubGlobal('fetch', async () => new Response('<!doctype html>', { status: 200, headers: { 'content-type': 'text/html' } }));
+    const place = (await demoAccounts({ today: () => DAY, timeZone: ZONE, reset: () => false, local: null }).open('folder'))!;
+    expect(await place.pictures().readBytes('health.jpg')).toBeNull();
   });
 
   it('keeps edits across opens, and a reset brings the world back', async () => {

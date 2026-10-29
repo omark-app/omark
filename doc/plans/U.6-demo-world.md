@@ -29,7 +29,7 @@ All dates relative to today; the calendar in the browser's time zone.
 - `apps/omark/src/lib/demo/world.ts` (pure): `demoWorld(today, timeZone)` gives each folder's files and the calendar. A unit test reads it with tasks-core, time-core and goals-core: Home needs update and the others don't; the codes exist; the unknown code is the only one; the cases are there.
 - `IdbDrive` gains `readBytes` and `createBytes` (a binary contract test), so the pictures live with the other demo files.
 - `demoAccounts()` in `places.ts` (demo builds): one place on `IdbDrive`s named `omark-demo:<folder>`, seeded when empty, pictures fetched from the build's own assets; Tasks' copy, Goals' copy and pictures in IndexedDB under the demo's names. Time gets a fake calendar (`openFake` with the world's events and edit access), the device choices done (`started`, `askedEdit`), and the Calendar view on. `Accounts.demo` makes the shell open the place at once.
-- Reset: a flag for the next start, as in Tasks; at start every demo database is deleted before anything opens, then the seed goes in again.
+- Reset: a flag for the next start, as in Tasks; at start every demo store is emptied before anything opens (cleared, not deleted: a delete waits for every open connection), then the seed goes in again.
 - Footer: Tasks' own demo controls, its reset pointed at the shell's (`part.resetDemo`); Time's and Goals' tabs get the same line from the shell.
 - Time: `calendarView` in its deps shows the Calendar view (ported from the archive); `prefs` can be given.
 
@@ -62,6 +62,24 @@ Deploying to `demo.omark.app` and the previews (U.7). Retiring `apps/tasks`' and
 ## What was built
 
 - `demoAccounts()` is in `apps/omark/src/lib/demo/accounts.ts`, not `places.ts`; `openDemo` is the plan's `openDemoWorld`. Time's device choices are a `MemoryPrefs` starting past the first run, so nothing of the demo's Time choices is kept.
-- The pictures are not imported: Vite emits an imported asset in every build, even when the code using it is dropped. `vite.config.ts` copies them to `demo/` in the demo build only, and the demo fetches them from there. A non-demo build has no demo world, database names or pictures (checked in `demo.spec.ts`); the Reset demo helper and its footer markup stay in it, as Tasks' own demo controls always have (Svelte keeps `{#if}` branches on build constants).
+- The pictures are not imported: Vite emits an imported asset in every build, even when the code using it is dropped. `vite.config.ts` copies them to `demo/` in the demo build only, and the demo fetches them from there. A non-demo build has no demo world, database names or pictures (checked in `demo.spec.ts` on the fake build; the production build drops the same code). Reset demo is on the demo's `Accounts` (`resetDemo`), not imported by the screens, so it is not in other builds either; only the footer line's markup is, as Tasks' own demo controls always have been (Svelte keeps `{#if}` branches on build constants). The Calendar view ships in every Time build, shown only with `calendarView`.
 - Reset demo, from any tab's footer or Settings, asks with Tasks' wording and reloads into a start that empties every demo store (`askDemoReset`); Tasks' own button calls it through `part.resetDemo`.
-- **Time's specs in the shell** (`pnpm --filter omark e2e:time`, in CI): a Time seed with no shell seed opens Time alone on Time's own fake drive and sign-in, so the specs read what they always read. `firstRun` skips the storage step where there is none. Skipped, as the shell owns them: `local-folder.spec.ts` (the shell picks the folder); "signed out, the app offers Google sign-in" (Time's own sign-in screen and title); "the first run asks for Drive access…" and "a second calendar can be chosen…" (Time's storage step); "turning colouring on asks for edit access…" (only for its `addAccess:drive`; the other colouring tests run).
+- **Time's specs in the shell** (`pnpm --filter omark e2e:time`, in CI): a Time seed with no shell seed opens Time alone on Time's own fake drive and sign-in, so the specs read what they always read. `chooseStorage` (in `firstRun`) skips the storage step where there is none, and says so, so the colouring test expects `addAccess:drive` only when Time asked for it. Skipped, as the shell owns them: `local-folder.spec.ts` (the shell picks the folder); "signed out, the app offers Google sign-in" (Time's own sign-in screen and title); "the first run asks for Drive access…" (Time's storage step: OneDrive offered but off, Drive access; the files it writes are checked in the shell's `time.spec.ts`).
+
+## Review (fresh eyes, 2026-10-29)
+
+Fixed:
+
+1. The reset e2e could pass before the reload landed, and checked Tasks only: it now waits for the load, and checks a Tasks and a Goals edit are gone, in the files too.
+2. A host that answers a missing picture with its index.html and 200 (Pages, `vite dev`) had the page stored as the picture: only an `image/` answer counts now.
+3. The pictures went in after the top folder, so a seed cut short between them stayed without pictures: they go in first now.
+4. Three Time specs were skipped whole for their storage step; two run in the shell now (see above).
+5. A multi-day all-day event showed on its first day only in the Calendar view: `eventOnDay` shows it on each day it covers.
+6. With session storage blocked, a confirmed Reset demo did nothing: it resets at once then (as Tasks' demo does), and reloads.
+
+Left, as notes:
+
+- Where IndexedDB is unusable the folders run in memory, but Time's calendar and Goals' copy still need IndexedDB, so those tabs may not open. Every current browser has IndexedDB in private windows.
+- Reset with a second demo tab open: that tab still holds the old copy, and its next save may write over the new seed. A demo only; a reload of that tab fixes it.
+- A timed event crossing midnight shows on its start day only in the Calendar view.
+- On a 375 px phone the demo's seven Time views fit (each 50 px, "Projects" 49 px); a narrower phone squeezes them.

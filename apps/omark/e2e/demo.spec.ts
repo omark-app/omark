@@ -122,12 +122,18 @@ test('an edit survives a reload, the pictures too; Reset demo asks, then brings 
   await expect(row(page, 'Send Nova the payments flow')).toBeVisible();
   await addTask(page, isMobile, 'Water the plants');
   await expect.poll(() => demoFile(page, 'tasks', 'tasks.md')).toContain('- [ ] Water the plants');
-  await page.reload();
-  await expect(row(page, 'Water the plants')).toBeVisible();
-
-  // From Goals' tab: the pictures are still there after the reload (WebKit keeps Blobs in IndexedDB).
   await toTab(page, 'Goals');
+  await page.getByRole('button', { name: 'Add area' }).click();
+  await page.locator('form.sheet').getByLabel('Name').fill('Garden');
+  await page.locator('form.sheet').getByRole('button', { name: 'Save' }).click();
+  await expect.poll(() => demoFile(page, 'goals', 'goals.md')).toContain('## Garden #garden');
+  await page.reload();
+  await expect(page.getByTestId('area-card')).toHaveCount(5);
+  // The pictures are still there after the reload (WebKit keeps Blobs in IndexedDB).
   await expect.poll(() => card(page, 'Health').getByTestId('area-picture').evaluate((img: HTMLImageElement) => img.naturalWidth > 0)).toBe(true);
+  await toTab(page, 'Tasks');
+  await expect(row(page, 'Water the plants')).toBeVisible();
+  await toTab(page, 'Goals');
 
   // A no keeps everything.
   page.once('dialog', (d) => void d.dismiss());
@@ -135,13 +141,15 @@ test('an edit survives a reload, the pictures too; Reset demo asks, then brings 
   await toTab(page, 'Tasks');
   await expect(row(page, 'Water the plants')).toBeVisible();
 
+  // Tasks' own Reset demo resets every part, after the reload it asks for.
   page.once('dialog', (d) => void d.accept());
-  // Tasks' own Reset demo resets every part.
-  await page.locator('[data-testid="reset-demo"]:visible').click();
+  await Promise.all([page.waitForEvent('load'), page.locator('[data-testid="reset-demo"]:visible').click()]);
   await expect(row(page, 'Send Nova the payments flow')).toBeVisible();
   await expect(row(page, 'Water the plants')).toHaveCount(0);
+  expect(await demoFile(page, 'tasks', 'tasks.md')).not.toContain('Water the plants');
   await toTab(page, 'Goals');
   await expect(page.getByTestId('area-card')).toHaveCount(4);
+  expect(await demoFile(page, 'goals', 'goals.md')).not.toContain('Garden');
 });
 
 test('no request leaves the site while going through every part and view', async ({ page }) => {

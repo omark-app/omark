@@ -54,19 +54,30 @@ export async function openView(page: Page, name: 'Hours' | 'Charts' | 'Fix list'
 }
 
 /**
- * Goes through the first run: Google Drive, the primary calendar, Start; waits for the first sync, then opens
- * Settings, where the calendars, colouring, Rebuild and the row count are.
+ * The first run's storage step: Google Drive. Inside the one Omark app (its playwright.time.config.ts) the
+ * storage is the app's, so Time starts at the calendars and there is nothing to click. True when Time chose it.
  */
-export async function firstRun(page: Page): Promise<void> {
-  // Inside the one Omark app (its playwright.time.config.ts) the storage is the app's: Time starts at the calendars.
+export async function chooseStorage(page: Page): Promise<boolean> {
   const drive = page.getByRole('button', { name: 'Google Drive' });
   await expect(drive.or(page.getByRole('checkbox', { name: 'Me' })).first()).toBeVisible();
-  if (await drive.isVisible()) await drive.click();
+  if (!(await drive.isVisible())) return false;
+  await drive.click();
+  return true;
+}
+
+/**
+ * Goes through the first run: Google Drive, the primary calendar, Start; waits for the first sync, then opens
+ * Settings, where the calendars, colouring, Rebuild and the row count are. True when Time chose its own storage
+ * (and so asked for Drive access).
+ */
+export async function firstRun(page: Page): Promise<boolean> {
+  const own = await chooseStorage(page);
   await expect(page.getByRole('checkbox', { name: 'Me' })).toBeChecked();
   await page.getByRole('button', { name: 'Start' }).click();
   // The first sync reads everything and writes three files; WebKit under a full parallel run needs more than 5 s.
   await expect(page.getByTestId('status')).toContainText('Synced', { timeout: 20_000 });
   await openView(page, 'Settings');
+  return own;
 }
 
 export function driveFile(page: Page, name: string): Promise<string | null> {

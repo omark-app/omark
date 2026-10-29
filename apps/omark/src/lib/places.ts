@@ -89,6 +89,11 @@ export interface Accounts {
   open(storage: Storage): Promise<Place | null>;
   /** The demo build: its one place opens at once, with no first run (U.6). */
   demo?: boolean;
+  /**
+   * The demo's Reset demo: asks, then reloads into a start that reseeds every part. On the accounts, not imported
+   * by the screens, so no other build has it (Svelte keeps `{#if}` branches on build constants).
+   */
+  resetDemo?: () => void;
 }
 
 const FOLDER_DB = 'omark:picked-folder';

@@ -11,14 +11,12 @@ export const TIME_IN_SHELL_SKIP = ['local-folder.spec.ts'];
 
 /**
  * Time's own first run, which the shell replaces: its Google sign-in screen and page title (the shell's calendar
- * sign-in is in e2e/time.spec.ts), and its storage step with the Drive access it asks for. The colouring test is
- * here only for its `addAccess:drive`; the other colouring tests run.
+ * sign-in is in e2e/time.spec.ts), and its storage step (OneDrive offered but off, the Drive access it asks for).
+ * The other tests skip the storage step where the shell has none (`chooseStorage` in apps/time/e2e/helpers.ts).
  */
 export const TIME_IN_SHELL_SKIP_TESTS = [
   /signed out, the app offers Google sign-in/,
   /the first run asks for Drive access, then the calendars, and writes the files/,
-  /a second calendar can be chosen in the first run/,
-  /turning colouring on asks for edit access and colours newest first/,
 ];
 
 export default defineConfig({

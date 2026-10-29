@@ -66,8 +66,9 @@ const FOLDERS = ['root', 'tasks', 'time', 'goals'] as const;
 /**
  * Opens the demo world's folders (one app spec, section 9). An empty demo (the first open, or after a reset) is
  * seeded with the world of `today`, the pictures fetched from the build; one with files is left alone, so edits
- * stay. The top folder is seeded last, so an interrupted seed starts again. Where IndexedDB is unusable (it can
- * throw on construction or first use, as in private mode), the world runs in memory.
+ * stay. The top folder is seeded last, after the pictures, so an interrupted seed starts again. Where IndexedDB is
+ * unusable (it can throw on construction or first use, as in private mode), the folders run in memory; Time's
+ * calendar and Goals' copy still need IndexedDB, so those parts may not open there.
  */
 export async function openDemo(today: ISODate, timeZone: string, opts: DemoOptions): Promise<OpenedDemo> {
   const local = opts.local === undefined ? browserLocal() : opts.local;
@@ -86,8 +87,9 @@ export async function openDemo(today: ISODate, timeZone: string, opts: DemoOptio
       day = today;
       set(local, DAY_KEY, day);
       const world = demoWorld(day, timeZone);
-      for (const f of [...FOLDERS].reverse()) await folders[f].seed(world[f]);
+      for (const f of FOLDERS.filter((f) => f !== 'root').reverse()) await folders[f].seed(world[f]);
       await addPictures(folders.images, world, opts.pictures);
+      await folders.root.seed(world.root);
     }
     return { ...folders, day, durable: true };
   } catch {
@@ -141,14 +143,14 @@ type Session = () => Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
 /**
  * Has the next start reset the demo; the caller then reloads. The reset runs there, before anything opens the
- * databases, so a save this page still has in flight cannot land after it. Without session storage nothing is
- * asked for: the demo then runs in memory anyway, and the reload starts it afresh.
+ * databases, so a save this page still has in flight cannot land after it. False where session storage is blocked.
  */
-export function requestDemoReset(session: Session = () => sessionStorage): void {
+export function requestDemoReset(session: Session = () => sessionStorage): boolean {
   try {
     session().setItem(RESET_KEY, '1');
+    return true;
   } catch {
-    // Blocked.
+    return false;
   }
 }
 
@@ -156,11 +158,15 @@ export function requestDemoReset(session: Session = () => sessionStorage): void 
 export const RESET_QUESTION = 'Reset the demo? Your demo edits are lost.';
 
 /** Reset demo, in each part's footer and Settings: asks first, then reloads into a start that resets every part. */
-export function askDemoReset(
-  env: { confirm(q: string): boolean; reload(): void; session?: Session } = { confirm: (q) => window.confirm(q), reload: () => location.reload() },
-): void {
+export async function askDemoReset(
+  env: { confirm(q: string): boolean; reload(): void; session?: Session; resetNow?: () => Promise<void> } = {
+    confirm: (q) => window.confirm(q),
+    reload: () => location.reload(),
+  },
+): Promise<void> {
   if (!env.confirm(RESET_QUESTION)) return;
-  requestDemoReset(env.session);
+  // Session storage blocked: reset now instead (as Tasks' own demo does), and the reload seeds again.
+  if (!requestDemoReset(env.session)) await (env.resetNow ?? (() => resetDemo()))().catch(() => {});
   env.reload();
 }
 

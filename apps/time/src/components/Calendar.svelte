@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { addDays, localDate, parseInstant, weekStartOf } from '@omark/time-core';
+  import { addDays, parseInstant, weekStartOf } from '@omark/time-core';
   import type { CalendarEvent } from '@omark/time-core';
   import type { TimeStore } from '../lib/store.svelte.ts';
+  import { eventOnDay } from '../lib/views.ts';
 
   /**
    * The demo's calendar strip (spec 12): one week, a column per day, each event in the colour Omark Time gave it
@@ -27,10 +28,6 @@
     });
   });
 
-  const dayOf = (e: CalendarEvent) => {
-    const start = e.start!;
-    return 'date' in start ? start.date : localDate(parseInstant(start.dateTime), store.timeZone);
-  };
   const timeOf = (e: CalendarEvent) =>
     e.start && 'dateTime' in e.start ? new Date(parseInstant(e.start.dateTime)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: store.timeZone }) : 'All day';
   const colourOf = (e: CalendarEvent) => (!week ? 'none' : e.colorId === week.ids.green ? 'green' : e.colorId === week.ids.red ? 'red' : 'none');
@@ -38,7 +35,7 @@
   const startOf = (e: CalendarEvent) => (e.start && 'dateTime' in e.start ? parseInstant(e.start.dateTime) : -Infinity);
   const onDay = (day: string) =>
     (week?.events ?? [])
-      .filter((e) => e.status !== 'cancelled' && e.start && dayOf(e) === day)
+      .filter((e) => e.status !== 'cancelled' && eventOnDay(e, day, store.timeZone))
       .sort((a, b) => startOf(a) - startOf(b));
   const label = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString([], { weekday: 'short', day: 'numeric', timeZone: 'UTC' });
 </script>

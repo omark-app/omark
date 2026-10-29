@@ -3,7 +3,6 @@
   import { part as tasksPart } from 'tasks/src/lib/part.svelte.ts';
   import StatusLine from 'tasks/src/components/StatusLine.svelte';
   import TimeSettings from 'time/src/components/Settings.svelte';
-  import { askDemoReset } from './lib/demo/open.ts';
   import type { Accounts } from './lib/places.ts';
   import { isAccount } from './lib/places.ts';
   import { registry } from './lib/registry.svelte.ts';
@@ -123,7 +122,7 @@
 
   <h3>This device</h3>
   {#if accounts.demo}
-    <button type="button" class="btn" data-testid="settings-reset-demo" onclick={() => askDemoReset()}>Reset demo</button>
+    <button type="button" class="btn" data-testid="settings-reset-demo" onclick={() => accounts.resetDemo?.()}>Reset demo</button>
   {:else}
     <button type="button" class="btn" onclick={signOut}>Sign out</button>
   {/if}

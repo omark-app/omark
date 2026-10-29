@@ -1,5 +1,5 @@
-import { isRealDate, keyOf } from '@omark/time-core';
-import type { DateRange, Project } from '@omark/time-core';
+import { isRealDate, keyOf, localDate, parseInstant } from '@omark/time-core';
+import type { CalendarEvent, DateRange, Project } from '@omark/time-core';
 
 export type View = 'hours' | 'charts' | 'fix' | 'projects' | 'report' | 'calendar' | 'settings';
 
@@ -14,6 +14,17 @@ export const VIEWS: readonly { id: View; label: string; short: string }[] = [
   { id: 'calendar', label: 'Calendar', short: 'Week' },
   { id: 'settings', label: 'Settings', short: 'Settings' },
 ];
+
+/**
+ * Whether the Calendar view shows `e` on `day`: an all-day event on each day it covers (its end date is the day
+ * after), a timed one on the day it starts in `timeZone`.
+ */
+export function eventOnDay(e: CalendarEvent, day: string, timeZone: string): boolean {
+  const start = e.start;
+  if (!start) return false;
+  if ('date' in start) return start.date <= day && (e.end && 'date' in e.end ? day < e.end.date : day === start.date);
+  return localDate(parseInstant(start.dateTime), timeZone) === day;
+}
 
 /** The view a `location.hash` names; hours for anything else. */
 export function viewOf(hash: string): View {

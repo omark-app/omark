@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import { keyOf } from '@omark/time-core';
-import { customRange, eventLink, newProject, reportFileName, viewOf, VIEWS } from './views.ts';
+import type { CalendarEvent } from '@omark/calendar';
+import { customRange, eventLink, eventOnDay, newProject, reportFileName, viewOf, VIEWS } from './views.ts';
 
 test('the hash picks the view; anything else is hours', () => {
   expect(viewOf('#/charts')).toBe('charts');
@@ -14,6 +15,16 @@ test('the hash picks the view; anything else is hours', () => {
   // The calendar view shows only where the deps ask for it (the one app's demo).
   expect(viewOf('#/calendar')).toBe('calendar');
   expect(VIEWS.map((v) => v.id)).toEqual(['hours', 'charts', 'fix', 'projects', 'report', 'calendar', 'settings']);
+});
+
+test('the Calendar view shows an all-day event on each day it covers, a timed one on its start day', () => {
+  const allDay = { start: { date: '2026-10-26' }, end: { date: '2026-10-28' } } as CalendarEvent;
+  expect(['2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28'].map((d) => eventOnDay(allDay, d, 'UTC'))).toEqual([false, true, true, false]);
+  // 23:30 in Lisbon on the 26th is the 27th in Warsaw.
+  const late = { start: { dateTime: '2026-10-26T23:30:00Z' }, end: { dateTime: '2026-10-27T00:30:00Z' } } as CalendarEvent;
+  expect(eventOnDay(late, '2026-10-26', 'Europe/Lisbon')).toBe(true);
+  expect(eventOnDay(late, '2026-10-27', 'Europe/Warsaw')).toBe(true);
+  expect(eventOnDay(late, '2026-10-26', 'Europe/Warsaw')).toBe(false);
 });
 
 test('a custom range needs two real dates, the first not after the second', () => {

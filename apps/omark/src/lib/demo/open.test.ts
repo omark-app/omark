@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { IdbCache } from '@omark/storage';
+import { IdbCache, IdbDrive } from '@omark/storage';
 import { describe, expect, it } from 'vitest';
 import { askDemoReset, DEMO_DBS, openDemo, requestDemoReset, resetDemo, takeDemoReset } from './open.ts';
 import { demoWorld } from './world.ts';
@@ -70,6 +70,25 @@ describe('openDemo', () => {
     expect(local.getItem('omark:parts-pending:demo')).toBeNull();
   });
 
+  it('adds the pictures before the top folder, so a seed cut short before them starts again', async () => {
+    await fresh();
+    const rootEmpty: boolean[] = [];
+    let root: { isEmpty(): Promise<boolean> } | null = null;
+    await openDemo('2026-10-29', ZONE, {
+      local: memoryStorage(),
+      drive: (name) => {
+        const d = new IdbDrive(name);
+        if (name === DEMO_DBS.root) root = d;
+        return d;
+      },
+      pictures: async (name) => {
+        rootEmpty.push(await root!.isEmpty());
+        return picture(name);
+      },
+    });
+    expect(rootEmpty).toEqual([true, true]);
+  });
+
   it('seeds the rest when a picture cannot be loaded', async () => {
     await fresh();
     const demo = await openDemo('2026-10-29', ZONE, {
@@ -104,17 +123,30 @@ describe('Reset demo', () => {
     expect(takeDemoReset(() => session)).toBe(false);
   });
 
-  it('asks first, then reloads into a start that resets; a no keeps everything', () => {
+  it('asks first, then reloads into a start that resets; a no keeps everything', async () => {
     const session = memoryStorage();
     const reloads: number[] = [];
     const answers = [false, true];
     const ask = () => askDemoReset({ confirm: () => answers.shift()!, reload: () => void reloads.push(1), session: () => session });
-    ask();
+    await ask();
     expect(reloads).toEqual([]);
     expect(takeDemoReset(() => session)).toBe(false);
-    ask();
+    await ask();
     expect(reloads).toEqual([1]);
     expect(takeDemoReset(() => session)).toBe(true);
+  });
+
+  it('resets at once where session storage is blocked, then reloads', async () => {
+    const steps: string[] = [];
+    await askDemoReset({
+      confirm: () => true,
+      reload: () => void steps.push('reload'),
+      session: () => {
+        throw new Error('blocked');
+      },
+      resetNow: async () => void steps.push('reset'),
+    });
+    expect(steps).toEqual(['reset', 'reload']);
   });
 
   it('is never asked for where session storage is blocked', () => {

@@ -3,7 +3,7 @@ import type { ISODate } from '@omark/tasks-core';
 import { localDate } from '@omark/time-core';
 import { MemoryPrefs } from 'time/src/lib/prefs.ts';
 import type { Accounts, Place } from '../places.ts';
-import { DEMO_DBS, DEMO_KEY, DEMO_SYNCED_KEY, openDemo, takeDemoReset } from './open.ts';
+import { askDemoReset, DEMO_DBS, DEMO_KEY, DEMO_SYNCED_KEY, openDemo, takeDemoReset } from './open.ts';
 import { demoWorld } from './world.ts';
 
 /** What the texts call the demo's storage: "Your files are in this browser". */
@@ -33,7 +33,8 @@ const signedIn: Auth = {
 /** A picture the world shows, from the demo build's own files (vite.config.ts puts them in `demo/`). */
 async function fetchPicture(name: string): Promise<Blob> {
   const res = await fetch(`/demo/${encodeURIComponent(name)}`);
-  if (!res.ok) throw new Error(`${name}: ${res.status}`);
+  // A host answers a missing file with its index.html and 200 (Cloudflare Pages, `vite dev`): not a picture.
+  if (!res.ok || !res.headers.get('content-type')?.startsWith('image/')) throw new Error(`${name}: not a picture`);
   return res.blob();
 }
 
@@ -48,6 +49,7 @@ export function demoAccounts(deps: DemoDeps = {}): Accounts {
   const reset = deps.reset ?? (() => takeDemoReset());
   return {
     demo: true,
+    resetDemo: () => void askDemoReset(),
     auth: () => signedIn,
     calendar: () => ({ auth: signedIn, access: null }),
     handleRedirect: async () => {},
