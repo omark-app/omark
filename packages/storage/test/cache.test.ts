@@ -126,5 +126,14 @@ for (const [name, make] of [
       await keep.delete('climbing.jpg');
       expect(await keep.get('climbing.jpg')).toBeNull();
     });
+
+    it('clear forgets every picture', async () => {
+      const keep = make();
+      await keep.put('a.jpg', new Blob(['a']));
+      await keep.put('b.jpg', new Blob(['b']));
+      await keep.clear();
+      expect(await keep.get('a.jpg')).toBeNull();
+      expect(await keep.get('b.jpg')).toBeNull();
+    });
   });
 }

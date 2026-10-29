@@ -1,4 +1,4 @@
-import { createStore, get, set } from 'idb-keyval';
+import { clear, createStore, get, set } from 'idb-keyval';
 import { demoSeed, FakeCalendar } from '@omark/calendar';
 import type { CalendarEvent, CalendarInfo, CalendarSource, FakeCalendarState } from '@omark/calendar';
 import { IdbDrive, OfflineError } from '@omark/storage';
@@ -45,10 +45,18 @@ declare global {
 
 const DEMO_ZONE = 'Europe/Warsaw';
 
-/** The fake calendar, drive and sign-in, kept in IndexedDB so a reload finds them as they were. */
-export async function openFake(): Promise<Fake> {
-  const store = createStore('omark-time-fake', 'fake');
-  const seed = window.__OMARK_TIME_SEED__ ?? {};
+/** The fake calendar's own databases; the one app's demo names its own (`db`). */
+const FAKE_DB = 'omark-time-fake';
+const storeOf = (db: string) => createStore(db, 'fake');
+
+/**
+ * The fake calendar, drive and sign-in, kept in IndexedDB so a reload finds them as they were. `db` and `seed`:
+ * the one app's demo world, its calendar under its own name and seeded with its events, not the e2e seed.
+ */
+export async function openFake(given?: { db: string; seed: FakeSeed }): Promise<Fake> {
+  const db = given?.db ?? FAKE_DB;
+  const store = storeOf(db);
+  const seed = given?.seed ?? window.__OMARK_TIME_SEED__ ?? {};
   let saved = await get<FakeCalendarState>('calendar', store);
   if (!saved) {
     const demo = demoSeed(localDate(Date.now(), DEMO_ZONE), DEMO_ZONE);
@@ -59,7 +67,7 @@ export async function openFake(): Promise<Fake> {
     await set('signedIn', seed.auth !== 'signed-out', store);
   }
   const calendar = FakeCalendar.fromJSON(saved);
-  const drive = new IdbDrive('omark-time-fake-drive');
+  const drive = new IdbDrive(`${db}-drive`);
   if (seed.files && (await drive.isEmpty())) {
     for (const [name, text] of Object.entries(seed.files)) await drive.externalWrite(name, text);
   }
@@ -109,4 +117,9 @@ export async function openFake(): Promise<Fake> {
   const fake = { calendar, source, setOffline, drive, auth, persist };
   window.__omarkTime = fake;
   return fake;
+}
+
+/** Empties a fake calendar's store (the demo's reset); the next open seeds it again. */
+export async function forgetFake(db: string): Promise<void> {
+  await clear(storeOf(db));
 }

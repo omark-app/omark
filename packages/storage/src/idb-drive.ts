@@ -1,19 +1,22 @@
 import { clear, createStore, get, keys, promisifyRequest as promisify, set } from 'idb-keyval';
 import type { UseStore } from 'idb-keyval';
-import type { RemoteFile, StorageAdapter } from './adapter.ts';
+import type { BinaryStore, RemoteFile, StorageAdapter } from './adapter.ts';
 import { ReopeningStore } from './cache.ts';
 import { OfflineError, PreconditionFailedError } from './errors.ts';
 
 interface StoredFile {
   text: string;
   version: number;
+  /** A binary file's bytes and type (a picture). Kept as bytes, not a Blob, which not every IndexedDB stores. */
+  bytes?: ArrayBuffer;
+  type?: string;
 }
 
 /**
  * A StorageAdapter that keeps its files in IndexedDB, with the same eTags as FakeOneDrive ("v1", "v2", ...).
  * A fake drive that survives reloads, for the demo.
  */
-export class IdbDrive implements StorageAdapter {
+export class IdbDrive implements StorageAdapter, BinaryStore {
   private readonly db: ReopeningStore;
   private offline = false;
 
@@ -60,6 +63,28 @@ export class IdbDrive implements StorageAdapter {
     const etag = await this.put(name, text, ifMatch);
     if (etag === null) throw new PreconditionFailedError(`Precondition failed for ${name}`);
     return { etag };
+  }
+
+  async readBytes(name: string): Promise<Blob | null> {
+    this.assertOnline();
+    const f = await this.db.run((store) => get<StoredFile>(name, store));
+    if (!f) return null;
+    return new Blob([f.bytes ?? f.text], f.type ? { type: f.type } : {});
+  }
+
+  async createBytes(name: string, data: Blob): Promise<void> {
+    this.assertOnline();
+    // Read before the transaction: an awaited Blob read inside it would let the transaction close.
+    const bytes = await data.arrayBuffer();
+    const made = await this.db.run((store) =>
+      store('readwrite', async (objectStore) => {
+        if ((await promisify<StoredFile | undefined>(objectStore.get(name))) !== undefined) return false;
+        objectStore.put({ text: '', version: 1, bytes, type: data.type } satisfies StoredFile, name);
+        await promisify(objectStore.transaction);
+        return true;
+      }),
+    );
+    if (!made) throw new PreconditionFailedError(`${name} already exists`);
   }
 
   /**

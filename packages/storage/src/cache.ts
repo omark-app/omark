@@ -89,6 +89,7 @@ export interface BlobKeep {
   get(name: string): Promise<Blob | null>;
   put(name: string, data: Blob): Promise<void>;
   delete(name: string): Promise<void>;
+  clear(): Promise<void>;
 }
 
 export class MemoryBlobs implements BlobKeep {
@@ -104,6 +105,10 @@ export class MemoryBlobs implements BlobKeep {
 
   async delete(name: string): Promise<void> {
     this.blobs.delete(name);
+  }
+
+  async clear(): Promise<void> {
+    this.blobs.clear();
   }
 }
 
@@ -127,6 +132,10 @@ export class IdbBlobs implements BlobKeep {
 
   async delete(name: string): Promise<void> {
     await this.store.run((store) => del(name, store));
+  }
+
+  async clear(): Promise<void> {
+    await this.store.run((store) => clear(store));
   }
 }
 

@@ -12,3 +12,4 @@ export { EditAccessRequiredError, SyncTokenExpiredError } from '@omark/time-core
 export * from './fake.ts';
 export * from './seed.ts';
 export * from './google.ts';
+export * from './world.ts';

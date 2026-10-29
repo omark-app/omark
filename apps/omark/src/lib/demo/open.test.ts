@@ -1,0 +1,114 @@
+import 'fake-indexeddb/auto';
+import { IdbCache } from '@omark/storage';
+import { describe, expect, it } from 'vitest';
+import { DEMO_DBS, openDemo, requestDemoReset, resetDemo, takeDemoReset } from './open.ts';
+import { demoWorld } from './world.ts';
+
+const ZONE = 'Europe/Lisbon';
+const picture = async (name: string) => new Blob([`bytes of ${name}`], { type: 'image/jpeg' });
+
+/** A stand-in for localStorage or sessionStorage. */
+function memoryStorage(): Storage {
+  const items = new Map<string, string>();
+  return {
+    get length() {
+      return items.size;
+    },
+    key: (i) => [...items.keys()][i] ?? null,
+    getItem: (k) => items.get(k) ?? null,
+    setItem: (k, v) => void items.set(k, v),
+    removeItem: (k) => void items.delete(k),
+    clear: () => items.clear(),
+  };
+}
+
+/** A demo with nothing kept yet, as on a new browser. */
+const fresh = () => resetDemo(null);
+
+describe('openDemo', () => {
+  it('seeds an empty demo with the world of the day, the pictures included', async () => {
+    await fresh();
+    const local = memoryStorage();
+    const demo = await openDemo('2026-10-29', ZONE, { pictures: picture, local });
+    const world = demoWorld('2026-10-29', ZONE);
+    expect(demo.durable).toBe(true);
+    expect(demo.day).toBe('2026-10-29');
+    expect((await demo.root.read('config.yaml'))?.text).toBe(world.root['config.yaml']);
+    expect((await demo.root.read('projects.csv'))?.text).toBe(world.root['projects.csv']);
+    expect((await demo.tasks.read('tasks.md'))?.text).toBe(world.tasks['tasks.md']);
+    expect((await demo.time.read('events-2026.csv'))?.text).toBe(world.time['events-2026.csv']);
+    expect((await demo.goals.read('goals.md'))?.text).toBe(world.goals['goals.md']);
+    expect(await (await demo.images.readBytes('health.jpg'))?.text()).toBe('bytes of health.jpg');
+    expect(await (await demo.images.readBytes('home.jpg'))?.text()).toBe('bytes of home.jpg');
+  });
+
+  it('keeps edits and the day it was seeded on the next open, even on a later day', async () => {
+    await fresh();
+    const local = memoryStorage();
+    const first = await openDemo('2026-10-29', ZONE, { pictures: picture, local });
+    const file = (await first.tasks.read('tasks.md'))!;
+    await first.tasks.write('tasks.md', `${file.text}- [ ] Buy stamps\n`, file.etag);
+    const again = await openDemo('2026-11-02', ZONE, { pictures: picture, local });
+    expect((await again.tasks.read('tasks.md'))?.text).toContain('- [ ] Buy stamps');
+    expect(again.day).toBe('2026-10-29');
+  });
+
+  it('a reset empties every demo store and seeds the world of the new day', async () => {
+    await fresh();
+    const local = memoryStorage();
+    const first = await openDemo('2026-10-29', ZONE, { pictures: picture, local });
+    await first.goals.write('goals.md', '# Vision\n\nChanged\n', (await first.goals.read('goals.md'))!.etag);
+    await new IdbCache(DEMO_DBS.tasksCopy).put('tasks.md', { base: 'x', local: 'y', baseEtag: '"v1"' } as never);
+    local.setItem('omark:parts:demo', 'parts: [tasks]\n');
+    local.setItem('omark:parts-pending:demo', '[]');
+
+    const reset = await openDemo('2026-11-02', ZONE, { pictures: picture, local, reset: true });
+    expect(reset.day).toBe('2026-11-02');
+    expect((await reset.goals.read('goals.md'))?.text).toBe(demoWorld('2026-11-02', ZONE).goals['goals.md']);
+    expect(await new IdbCache(DEMO_DBS.tasksCopy).get('tasks.md')).toBeNull();
+    expect(local.getItem('omark:parts:demo')).toBeNull();
+    expect(local.getItem('omark:parts-pending:demo')).toBeNull();
+  });
+
+  it('seeds the rest when a picture cannot be loaded', async () => {
+    await fresh();
+    const demo = await openDemo('2026-10-29', ZONE, {
+      pictures: async (name) => (name === 'home.jpg' ? Promise.reject(new Error('offline')) : picture(name)),
+      local: memoryStorage(),
+    });
+    expect(await demo.images.readBytes('home.jpg')).toBeNull();
+    expect(await demo.images.readBytes('health.jpg')).not.toBeNull();
+    expect((await demo.goals.read('goals.md'))?.text).toContain('## Home #home');
+  });
+
+  it('runs on the world in memory when IndexedDB is unusable', async () => {
+    const demo = await openDemo('2026-10-29', ZONE, {
+      pictures: picture,
+      local: memoryStorage(),
+      drive: () => {
+        throw new Error('IndexedDB blocked');
+      },
+    });
+    expect(demo.durable).toBe(false);
+    expect((await demo.tasks.read('tasks.md'))?.text).toBe(demoWorld('2026-10-29', ZONE).tasks['tasks.md']);
+    expect(await demo.images.readBytes('health.jpg')).not.toBeNull();
+  });
+});
+
+describe('Reset demo', () => {
+  it('is asked for once, for the next start', () => {
+    const session = memoryStorage();
+    expect(takeDemoReset(() => session)).toBe(false);
+    requestDemoReset(() => session);
+    expect(takeDemoReset(() => session)).toBe(true);
+    expect(takeDemoReset(() => session)).toBe(false);
+  });
+
+  it('is never asked for where session storage is blocked', () => {
+    const blocked = () => {
+      throw new Error('blocked');
+    };
+    expect(() => requestDemoReset(blocked)).not.toThrow();
+    expect(takeDemoReset(blocked)).toBe(false);
+  });
+});

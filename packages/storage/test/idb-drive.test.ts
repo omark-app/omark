@@ -4,7 +4,7 @@ import type { UseStore } from 'idb-keyval';
 import { describe, expect, it } from 'vitest';
 import { PreconditionFailedError } from '../src/errors.ts';
 import { IdbDrive } from '../src/idb-drive.ts';
-import { adapterContract } from './adapter-contract.ts';
+import { adapterContract, binaryContract } from './adapter-contract.ts';
 
 let n = 0;
 const freshName = (): string => `drive-test-${++n}`;
@@ -18,7 +18,21 @@ adapterContract(() => {
   };
 });
 
+binaryContract(() => {
+  const drive = new IdbDrive(freshName());
+  return { store: drive, offline: (on) => drive.setOffline(on) };
+});
+
 describe('IdbDrive', () => {
+  it('keeps a binary file and its type in a new instance on the same database', async () => {
+    const name = freshName();
+    await new IdbDrive(name).createBytes('sea.jpg', new Blob([new Uint8Array([255, 216, 255])], { type: 'image/jpeg' }));
+    const blob = await new IdbDrive(name).readBytes('sea.jpg');
+    expect(blob?.type).toBe('image/jpeg');
+    expect([...new Uint8Array(await blob!.arrayBuffer())]).toEqual([255, 216, 255]);
+  });
+
+
   it('is empty when new and not after seed; seeded files read back as v1', async () => {
     const drive = new IdbDrive(freshName());
     expect(await drive.isEmpty()).toBe(true);
