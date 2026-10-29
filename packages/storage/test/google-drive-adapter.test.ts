@@ -306,10 +306,49 @@ describe('GoogleDriveAdapter (Drive specifics)', () => {
     await expect(setup(fake).read('tasks.md')).rejects.toBeInstanceOf(OfflineError);
   });
 
-  it('refuses a folder that is not one folder name', () => {
-    for (const folder of ['a/b', '', '.', '..']) {
+  it('refuses a folder path with an empty, . or .. part', () => {
+    for (const folder of ['', '.', '..', 'a//b', 'a/', '/a', 'a/../b', 'a/./b']) {
       expect(() => new GoogleDriveAdapter({ folder, getToken: async () => 'tok' })).toThrow(/folder/);
     }
+  });
+});
+
+describe('GoogleDriveAdapter on a folder path', () => {
+  const PATH = 'Omark/tasks';
+  const on = (fake: FakeGoogleDrive, folder = PATH) => new GoogleDriveAdapter({ folder, getToken: async () => 'tok', fetch: fake.fetch });
+
+  adapterContract(() => {
+    const fake = new FakeGoogleDrive({}, PATH);
+    return { adapter: on(fake), external: (n, t) => fake.externalWrite(n, t), offline: (o) => fake.setOffline(o) };
+  });
+
+  it('reads nothing and creates nothing until the first write, which makes each level once', async () => {
+    const fake = new FakeGoogleDrive({}, PATH);
+    const a = on(fake);
+    expect(await a.read('tasks.md')).toBeNull();
+    expect(fake.folders()).toEqual([]);
+    await Promise.all([a.write('tasks.md', 'a', null), a.write('done.md', 'd', null)]);
+    expect(fake.folders()).toEqual(['Omark', 'tasks']);
+    expect(fake.peek('tasks.md')).toBe('a');
+  });
+
+  it('a second part shares the top folder and gets its own subfolder', async () => {
+    const fake = new FakeGoogleDrive({}, PATH);
+    await on(fake).write('tasks.md', 'a', null);
+    const time = on(fake, 'Omark/time');
+    expect(await time.read('tasks.md')).toBeNull();
+    await time.write('events-2026.csv', 'e', null);
+    expect(fake.folders()).toEqual(['Omark', 'tasks', 'time']);
+    expect((await on(fake).read('tasks.md'))?.text).toBe('a');
+  });
+
+  it('finds a subfolder only inside its own top folder', async () => {
+    const fake = new FakeGoogleDrive({ 'tasks.md': 'theirs' }, 'Other/tasks');
+    const a = on(fake);
+    expect(await a.read('tasks.md')).toBeNull();
+    await a.write('tasks.md', 'ours', null);
+    expect((await a.read('tasks.md'))?.text).toBe('ours');
+    expect(fake.folders()).toEqual(['Other', 'tasks', 'Omark', 'tasks']);
   });
 });
 

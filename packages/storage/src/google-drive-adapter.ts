@@ -7,7 +7,7 @@ const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const DEFAULT_TIMEOUT_MS = 20_000;
 
 export interface GoogleDriveAdapterOptions {
-  /** One folder name in My Drive, created on the first write. */
+  /** A folder in My Drive, one name (`Omark Tasks`) or a path (`Omark/tasks`); each level is created on the first write. */
   folder: string;
   /** `fresh`: Google rejected the last token, so get a new one. */
   getToken: (opts?: { fresh?: boolean }) => Promise<string>;
@@ -25,13 +25,14 @@ interface Metadata {
 
 /**
  * Files by name in one folder of My Drive. Drive allows several files with one name, so the oldest
- * (by `createdTime`) is the one in use, for the folder too. Writes go through API v2, the only one that
+ * (by `createdTime`) is the one in use, for each folder level too. Writes go through API v2, the only one that
  * honours `If-Match` (v3 overwrites whatever the etag). Folder and file ids are kept in memory; when one
  * turns out gone or trashed, both are forgotten and looked up again. One adapter serves several files at
  * once, so concurrent calls share one folder lookup, and one "look up, else create" step for a new file.
  */
 export class GoogleDriveAdapter implements StorageAdapter {
-  private folder: string;
+  /** The folder's path, one name per level; the first sits at the top of My Drive. */
+  private path: string[];
   private http: Http;
   private folderId: string | null = null;
   /** A folder lookup in progress, shared by concurrent calls. */
@@ -41,9 +42,9 @@ export class GoogleDriveAdapter implements StorageAdapter {
   private fileIds = new Map<string, string>();
 
   constructor(opts: GoogleDriveAdapterOptions) {
-    const f = opts.folder;
-    if (f === '' || f === '.' || f === '..' || f.includes('/')) throw new Error('The Google Drive folder must be one folder name');
-    this.folder = f;
+    const path = opts.folder.split('/');
+    if (path.some((p) => p === '' || p === '.' || p === '..')) throw new Error('The Google Drive folder path has an empty, . or .. part');
+    this.path = path;
     this.http = createHttp({ getToken: opts.getToken, fetch: opts.fetch, timeoutMs: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS });
   }
 
@@ -134,8 +135,8 @@ export class GoogleDriveAdapter implements StorageAdapter {
   /** The cached folder id, or a lookup (one in progress is shared). `fresh` skips the cached id. */
   private async findFolder(fresh = false): Promise<string | null> {
     if (this.folderId !== null && !fresh) return this.folderId;
-    this.lookingUpFolder ??= this.list(this.folderQuery())
-      .then((ids) => (this.folderId = ids[0] ?? null))
+    this.lookingUpFolder ??= this.walk(false)
+      .then((id) => (this.folderId = id))
       .finally(() => (this.lookingUpFolder = null));
     return this.lookingUpFolder;
   }
@@ -146,27 +147,36 @@ export class GoogleDriveAdapter implements StorageAdapter {
    * starts while another one is in this step joins it, rather than miss a folder still being made.
    */
   private ensureFolder(): Promise<string> {
-    this.ensuringFolder ??= this.findFolder(true)
-      .then((found) => found ?? this.createFolder())
+    this.ensuringFolder ??= this.walk(true)
+      .then((id) => (this.folderId = id!))
       .finally(() => (this.ensuringFolder = null));
     return this.ensuringFolder;
   }
 
-  /** Two devices may create the folder at once; both then use the oldest. */
-  private async createFolder(): Promise<string> {
+  /** Follows the path level by level; a missing level is null, or is made when `create`. */
+  private async walk(create: boolean): Promise<string | null> {
+    let parent: string | null = null;
+    for (const name of this.path) {
+      const found: string | undefined = (await this.list(folderQuery(name, parent)))[0];
+      if (found === undefined && !create) return null;
+      parent = found ?? (await this.createFolder(name, parent));
+    }
+    return parent;
+  }
+
+  /** Two devices may create a folder at once; both then use the oldest. */
+  private async createFolder(name: string, parent: string | null): Promise<string> {
     const res = await this.api(`${API}drive/v3/files?fields=id`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify({ name: this.folder, mimeType: FOLDER_MIME }),
+      body: JSON.stringify({ name, mimeType: FOLDER_MIME, ...(parent === null ? {} : { parents: [parent] }) }),
     });
+    // The parent was deleted for good after we looked it up; the sync's next try makes it again.
+    if (res.status === 404) throw new PreconditionFailedError(`The folder for ${name} is gone`);
     if (!res.ok) throw new Error(`Google Drive folder create failed: ${res.status}`);
-    const id = (await this.list(this.folderQuery()))[0];
+    const id = (await this.list(folderQuery(name, parent)))[0];
     if (id === undefined) throw new Error('Google Drive did not list the new folder');
-    return (this.folderId = id);
-  }
-
-  private folderQuery(): string {
-    return `name='${escapeQuery(this.folder)}' and mimeType='${FOLDER_MIME}' and trashed=false`;
+    return id;
   }
 
   /** The ids that match `q`, oldest first. */
@@ -190,6 +200,12 @@ export class GoogleDriveAdapter implements StorageAdapter {
     this.fileIds.delete(name);
     this.folderId = null;
   }
+}
+
+/** A folder by name at the top of My Drive (`parent` null), or in the folder `parent`. */
+function folderQuery(name: string, parent: string | null): string {
+  const inParent = parent === null ? '' : ` and '${parent}' in parents`;
+  return `name='${escapeQuery(name)}' and mimeType='${FOLDER_MIME}'${inParent} and trashed=false`;
 }
 
 function fileQuery(name: string, folderId: string): string {

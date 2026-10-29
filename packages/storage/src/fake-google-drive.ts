@@ -5,7 +5,10 @@
 const API = 'https://www.googleapis.com';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const NAME = String.raw`'((?:[^'\\]|\\.)*)'`;
-const FOLDER_QUERY = new RegExp(`^name=${NAME} and mimeType='${FOLDER_MIME.replaceAll('.', '\\.')}' and trashed=false$`);
+/** A folder by name: at the top of My Drive (no parent named), or in a parent folder. */
+const FOLDER_QUERY = new RegExp(
+  `^name=${NAME} and mimeType='${FOLDER_MIME.replaceAll('.', '\\.')}'(?: and '([^'\\\\]+)' in parents)? and trashed=false$`,
+);
 const FILE_QUERY = new RegExp(`^name=${NAME} and '([^'\\\\]+)' in parents and trashed=false$`);
 
 export interface DriveCall {
@@ -17,8 +20,9 @@ export interface DriveCall {
 interface Item {
   id: string;
   name: string;
-  /** The folder a file is in; null for a folder, which sits in My Drive. */
+  /** The folder it is in; null for a folder at the top of My Drive. */
   parent: string | null;
+  isFolder: boolean;
   created: number;
   trashed: boolean;
   etag: string;
@@ -41,20 +45,25 @@ export class FakeGoogleDrive {
   private offline = false;
   private holds: Hold[] = [];
 
-  /** `files` go into a new folder `folder`; without files there is no folder yet. */
-  constructor(
-    files: Record<string, string> = {},
-    private folder = 'Omark Tasks',
-  ) {
+  /** The folder's path from the top of My Drive, one name per level. */
+  private path: string[];
+
+  /** `files` go into a new folder `folder` (a path such as `Omark/tasks`); without files there is no folder yet. */
+  constructor(files: Record<string, string> = {}, folder = 'Omark Tasks') {
+    this.path = folder.split('/');
     for (const [name, text] of Object.entries(files)) this.externalWrite(name, text);
   }
 
-  /** Simulates another device writing the file, creating the folder and the file as needed. */
+  /** Simulates another device writing the file, creating the folders and the file as needed. */
   externalWrite(name: string, text: string): void {
-    const folder = this.currentFolder() ?? this.add(this.folder, null);
+    let folder: Item | undefined;
+    for (const level of this.path) {
+      const parent: string | null = folder?.id ?? null;
+      folder = this.childFolder(level, parent) ?? this.add(level, parent, true);
+    }
     const file = this.currentFile(name);
     if (file) this.setText(file, text);
-    else this.setText(this.add(name, folder.id), text);
+    else this.setText(this.add(name, folder!.id), text);
   }
 
   peek(name: string): string | null {
@@ -97,14 +106,14 @@ export class FakeGoogleDrive {
     }
   }
 
-  /** The names of the untrashed folders, oldest first. */
+  /** The names of the untrashed folders at every level, oldest first. */
   folders(): string[] {
-    return this.sorted((i) => i.parent === null && !i.trashed).map((i) => i.name);
+    return this.sorted((i) => i.isFolder && !i.trashed).map((i) => i.name);
   }
 
   /** The names of the untrashed files in every folder, oldest first. */
   files(): string[] {
-    return this.sorted((i) => i.parent !== null && !i.trashed).map((i) => i.name);
+    return this.sorted((i) => !i.isFolder && !i.trashed).map((i) => i.name);
   }
 
   /**
@@ -161,21 +170,24 @@ export class FakeGoogleDrive {
     let found: Item[];
     let m: RegExpExecArray | null;
     if ((m = FOLDER_QUERY.exec(q))) {
-      const name = unescape(m[1]!);
-      found = this.sorted((i) => i.parent === null && i.name === name && !i.trashed);
+      const [name, parent] = [unescape(m[1]!), m[2] ?? null];
+      found = this.sorted((i) => i.isFolder && i.parent === parent && i.name === name && !i.trashed);
     } else if ((m = FILE_QUERY.exec(q))) {
       const [name, parent] = [unescape(m[1]!), m[2]!];
-      found = this.sorted((i) => i.parent === parent && i.name === name && !i.trashed);
+      found = this.sorted((i) => !i.isFolder && i.parent === parent && i.name === name && !i.trashed);
     } else unexpected(call);
     return Response.json({ files: found.map((i) => ({ id: i.id })) });
   }
 
-  /** v3 create, metadata only: a folder in My Drive. */
+  /** v3 create, metadata only: a folder at the top of My Drive, or in the folder `parents` names. */
   private createFolder(call: DriveCall, url: URL, body: string | undefined): Response {
     expectQuery(call, url, { fields: 'id' });
-    const meta = jsonBody(call, body, ['mimeType', 'name']) as { name: string; mimeType: string };
-    if (meta.mimeType !== FOLDER_MIME) unexpected(call);
-    return Response.json({ id: this.add(meta.name, null).id });
+    const keys = body?.includes('"parents"') ? ['mimeType', 'name', 'parents'] : ['mimeType', 'name'];
+    const meta = jsonBody(call, body, keys) as { name: string; mimeType: string; parents?: string[] };
+    if (meta.mimeType !== FOLDER_MIME || (meta.parents && meta.parents.length !== 1)) unexpected(call);
+    const parent = meta.parents?.[0] ?? null;
+    if (parent !== null && !this.items.get(parent)?.isFolder) return googleError(404, 'notFound');
+    return Response.json({ id: this.add(meta.name, parent, true).id });
   }
 
   private trashItem(call: DriveCall, url: URL, id: string, body: string | undefined): Response {
@@ -221,7 +233,7 @@ export class FakeGoogleDrive {
     };
     if (mediaPart.type !== `${meta.mimeType}; charset=utf-8` || meta.parents.length !== 1) unexpected(call);
     const folder = this.items.get(meta.parents[0]!.id);
-    if (!folder || folder.parent !== null) return googleError(404, 'notFound');
+    if (!folder || !folder.isFolder) return googleError(404, 'notFound');
     const file = this.add(meta.title, folder.id);
     this.setText(file, mediaPart.content);
     return Response.json({ id: file.id, etag: file.etag });
@@ -234,7 +246,7 @@ export class FakeGoogleDrive {
     const typed = /^text\/\S+; charset=utf-8$/.test(call.headers['content-type'] ?? '');
     if (ifMatch === undefined || body === undefined || !typed) unexpected(call);
     const file = this.items.get(decodeURIComponent(id));
-    if (!file || file.parent === null) return googleError(404, 'notFound');
+    if (!file || file.isFolder) return googleError(404, 'notFound');
     if (ifMatch !== file.etag) {
       if (!file.etags.has(ifMatch)) return googleError(500, 'backendError');
       return Response.json(
@@ -246,12 +258,13 @@ export class FakeGoogleDrive {
     return Response.json({ etag: file.etag });
   }
 
-  private add(name: string, parent: string | null): Item {
+  private add(name: string, parent: string | null, isFolder = false): Item {
     const n = ++this.clock;
     const item: Item = {
       id: `id${n}`,
       name,
       parent,
+      isFolder,
       created: n,
       trashed: false,
       etag: '',
@@ -280,9 +293,19 @@ export class FakeGoogleDrive {
     return [...this.items.values()].filter(keep).sort((a, b) => a.created - b.created);
   }
 
-  /** The oldest untrashed folder named `folder`, which is the one the adapter uses. */
+  /** The oldest untrashed folder with this name in `parent` (null: the top of My Drive). */
+  private childFolder(name: string, parent: string | null): Item | undefined {
+    return this.sorted((i) => i.isFolder && i.parent === parent && i.name === name && !i.trashed)[0];
+  }
+
+  /** The folder at the end of the path, taking the oldest at each level, as the adapter does. */
   private currentFolder(): Item | undefined {
-    return this.sorted((i) => i.parent === null && i.name === this.folder && !i.trashed)[0];
+    let folder: Item | undefined;
+    for (const level of this.path) {
+      folder = this.childFolder(level, folder?.id ?? null);
+      if (!folder) return undefined;
+    }
+    return folder;
   }
 
   private currentFile(name: string): Item | undefined {
