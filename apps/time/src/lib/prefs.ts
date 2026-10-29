@@ -31,12 +31,14 @@ export class MemoryPrefs implements PrefsStore {
   }
 }
 
+/** `key`: whose choices; the one Omark app keeps them per place, as each place has its own calendar sign-in. */
 export class IdbPrefs implements PrefsStore {
   private readonly store: UseStore = createStore('omark-time-device', 'prefs');
+  constructor(private readonly key = 'prefs') {}
   async load(): Promise<DevicePrefs> {
-    return { ...FRESH_PREFS, ...((await get<DevicePrefs>('prefs', this.store)) ?? {}) };
+    return { ...FRESH_PREFS, ...((await get<DevicePrefs>(this.key, this.store)) ?? {}) };
   }
   async save(prefs: DevicePrefs): Promise<void> {
-    await set('prefs', prefs, this.store);
+    await set(this.key, prefs, this.store);
   }
 }

@@ -28,6 +28,8 @@
         return `Offline · ${fix}`;
       case 'signin':
         return 'Sign in again to sync';
+      case 'storage':
+        return `Sign in again to reach ${store.storageName} · ${fix}`;
       case 'folder':
         return `Allow access to ${store.storageName} to sync · ${fix}`;
       case 'failed':
@@ -125,13 +127,12 @@
   @media (max-width: 719.98px) {
     .shell {
       display: block;
-      padding-bottom: calc(64px + var(--part-tabs, 0px));
+      padding-bottom: 64px;
     }
     nav {
       position: fixed;
       top: auto;
-      /* Above the one Omark app's tab bar on a phone (it sets --part-tabs). */
-      bottom: var(--part-tabs, 0px);
+      bottom: 0;
       left: 0;
       right: 0;
       z-index: 10;
@@ -140,6 +141,11 @@
       background: var(--surface);
       border-top: 1px solid var(--line);
       padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+    }
+    /* In the one Omark app, just above its tab bar (whose height, safe area included, it sets as --part-tabs-bar). */
+    :global(html.part-tabs) nav {
+      bottom: var(--part-tabs-bar, 0px);
+      padding-bottom: 6px;
     }
     nav a {
       flex: 1 1 0;

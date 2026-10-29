@@ -18,6 +18,7 @@ import { folderStorageName, STORAGE_NAMES } from 'tasks/src/lib/environment.ts';
 import { TASK_FILES } from 'tasks/src/lib/workspace.ts';
 import type { TimeGiven } from 'time/src/lib/boot.ts';
 import { GOOGLE_ROOT, STORAGE_MODE } from '../env.ts';
+import { redirectFor } from './redirect.ts';
 import type { Part } from './suite.ts';
 
 /** Where this device keeps the Omark folder: an account's drive, or a folder picked on this computer. */
@@ -93,23 +94,8 @@ const SCOPE_TEXTS: Record<string, Record<string, string>> = {
   google: { calendar: CALENDAR_TEXT, edit: EDIT_TEXT },
   googlecal: { '': CALENDAR_TEXT, edit: EDIT_TEXT },
 };
-/** The accesses Time adds, so a sign-in error about them is Time's to show. */
-const CALENDAR_ACCESSES = ['calendar', 'edit'];
-
 export function accounts(): Accounts {
   return STORAGE_MODE === 'fake' ? fakeAccounts() : realAccounts();
-}
-
-/** Whether the page is the return from a calendar sign-in that failed: Time shows that one, not the shell. */
-function calendarError(): boolean {
-  const q = new URL(location.href).searchParams;
-  if (q.get('signin_error') === null) return false;
-  return q.get('provider') === 'googlecal' || CALENDAR_ACCESSES.includes(q.get('add') ?? '');
-}
-
-/** Which session a sign-in redirect's error is about: its `?provider=`, else the default (Microsoft). */
-function redirectProvider(): Account {
-  return new URL(location.href).searchParams.get('provider') === 'google' ? 'google' : 'microsoft';
 }
 
 function folderParts(
@@ -151,14 +137,19 @@ function realAccounts(): Accounts {
   const timeOn = (storage: Storage, storageName: string, key: string, top: StorageAdapter, own: StorageAdapter, folder?: TimeGiven['folder']) =>
     async (): Promise<TimeGiven> => {
       const { auth, access } = calendar(storage);
-      return { storage, storageName, key, top, own, calendar: auth, calendarAccess: access, ...(folder && { folder }) };
+      return {
+        storage, storageName, key, top, own, calendar: auth, calendarAccess: access,
+        ...(folder && { folder }),
+        ...(isAccount(storage) && { storageSignIn: () => client(storage).signIn(undefined, { returnTo: '/time' }) }),
+      };
     };
   return {
     auth: (account) => client(account),
     calendar,
     async handleRedirect() {
-      if (calendarError()) return;
-      await client(redirectProvider()).handleRedirect();
+      // A calendar sign-in's error stays in the address for Time, which reads it when it starts.
+      const whose = redirectFor(location.href);
+      if (whose !== null && whose !== 'time') await client(whose).handleRedirect();
     },
     async storages() {
       const providers = (await client('microsoft').availableProviders()).filter((p): p is Account => p === 'microsoft' || p === 'google');
@@ -273,6 +264,7 @@ function fakeAccounts(): Accounts {
       calendarAccess: signIn.access,
       source,
       persist,
+      ...(isAccount(storage) && { storageSignIn: () => client(storage).signIn(undefined, { returnTo: '/time' }) }),
     };
   };
   return {

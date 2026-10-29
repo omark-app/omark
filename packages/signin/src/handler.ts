@@ -19,7 +19,7 @@ export interface AuthOptions {
    * `per-provider` (the one Omark app): a session, account name and signed-in cookie per provider
    * (`<prefix>_<provider>_session`…), so a Microsoft and a Google sign-in live side by side. `token` and
    * `logout` then take `?provider=` (the default one when absent; `logout` without it signs out of all), and the
-   * signed-in cookie also lists the accesses the session has (`google:calendar,edit`). Default `one`.
+   * signed-in cookie also lists the accesses the session has (`google:calendar+edit`). Default `one`.
    */
   sessions?: 'one' | 'per-provider';
 }
@@ -255,7 +255,8 @@ async function callback(base: Base): Promise<Response> {
   const login = await unseal<LoginState>(base.key, LOGIN.name, base.cookies.get(LOGIN.name));
   // Sealed by `login`, so it can be trusted even when stale; checked again in case the app's paths changed.
   const home = login?.r !== undefined && returnsTo(base.options, login.r) ? login.r : '/';
-  const back = (reason: string, id?: string, add?: string) =>
+  // The access being added is named on every failure, so the part that asked for it can show it (U.4).
+  const back = (reason: string, id?: string, add = login?.a) =>
     redirect(`${home}?signin_error=${reason}${id ? `&provider=${id}` : ''}${add ? `&add=${add}` : ''}`, [clearLogin]);
   const id = login?.p ?? defaultProvider(base.options);
   const known = login && login.exp >= base.now && hasProvider(base.options, id) ? id : undefined;
@@ -265,7 +266,11 @@ async function callback(base: Base): Promise<Response> {
     return back(error === 'access_denied' ? 'cancelled' : 'failed', known);
   }
   const state = q.get('state');
-  if (!login || !known || !state || state !== login.state) return back('expired');
+  if (!login || !known || !state || state !== login.state) {
+    // Per provider, a stale sign-in still says whose it was (it is sealed), so the right session's part shows it.
+    const whose = perProvider(base.options) && login?.p !== undefined && hasProvider(base.options, login.p) ? login.p : undefined;
+    return back('expired', whose);
+  }
   const ctx = withProvider(base, id);
   if (ctx instanceof Response) return ctx;
   const code = q.get('code');
@@ -362,9 +367,9 @@ async function sessionCookies(ctx: Context, rt: string, sc?: string): Promise<st
   const maxAge = ctx.provider.sessionMaxAge;
   const session: Session = { rt, exp: ctx.now + maxAge * 1000, p: ctx.providerId, ...(sc === undefined ? {} : { sc }) };
   const sealed = await seal(ctx.key, SESSION.name, session);
-  // Per provider, the app can read which added accesses the session has (`google:calendar,edit`).
+  // Per provider, the app can read which added accesses the session has (`google:calendar+edit`; no comma in a cookie).
   const accesses = perProvider(ctx.options) ? accessesOf(ctx.provider, sc) : [];
-  const signedIn = accesses.length > 0 ? `${ctx.providerId}:${accesses.join(',')}` : ctx.providerId;
+  const signedIn = accesses.length > 0 ? `${ctx.providerId}:${accesses.join('+')}` : ctx.providerId;
   return [
     ...chunkedCookies(SESSION.name, sealed, { path: SESSION.path, maxAge }),
     serializeCookie(SIGNED_IN.name, signedIn, { path: SIGNED_IN.path, maxAge, httpOnly: false }),

@@ -160,8 +160,9 @@
   .tabs a { padding: 6px 14px; border-radius: 8px; color: var(--muted); text-decoration: none; font-weight: 500; }
   .tabs a[aria-current='page'] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
   @media (max-width: 719.98px) {
-    .tabs { position: fixed; top: auto; bottom: 0; left: 0; right: 0; justify-content: space-around; border-top: 1px solid var(--line); border-bottom: 0; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
-    :global(html.part-tabs) { --part-tabs: 56px; }
+    .tabs { position: fixed; top: auto; bottom: 0; left: 0; right: 0; justify-content: space-around; border-top: 1px solid var(--line); border-bottom: 0; padding-bottom: max(8px, env(safe-area-inset-bottom)); box-sizing: border-box; height: var(--part-tabs-bar); }
+    /* --part-tabs-bar: the bar's own height, safe area included, for a part's bar that sits on top of it (Time's). */
+    :global(html.part-tabs) { --part-tabs: 56px; --part-tabs-bar: calc(48px + max(8px, env(safe-area-inset-bottom))); }
     :global(html.part-tabs body) { padding-bottom: 56px; }
   }
 </style>

@@ -161,6 +161,18 @@ test('a drive that refuses the sign-in shows "sign in", not "synced"', async () 
   expect(store.sync).toBe('signin');
 });
 
+test('in the one app, a storage whose sign-in lapsed asks for the storage\'s sign-in, not Google\'s (U.4)', async () => {
+  const { deps, net, calls } = setup();
+  const given = new TimeStore({ ...deps, storage: 'google-drive', embedded: true, storageSignIn: async () => void calls.push('storageSignIn') });
+  await given.start();
+  await given.chooseCalendars(['primary']);
+  net.refuse = true;
+  await given.syncNow();
+  expect(given.sync).toBe('storage');
+  await given.signInStorage();
+  expect(calls).toEqual(['storageSignIn']);
+});
+
 test('turning colouring off stops a pass that is running', async () => {
   const { store, calendar, ready } = setup();
   for (let i = 1; i <= 20; i++) calendar.add(event(`e${i}`, `2026-10-${String(i).padStart(2, '0')}`));

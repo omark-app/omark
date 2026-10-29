@@ -68,6 +68,8 @@ test('Tasks alone never asks about the calendar or loads Time', async ({ page })
   expect(await signIns(page)).toEqual([]);
   expect(await sessions(page)).toEqual({ microsoft: [] });
   expect(scripts.some((s) => /TimePart|Charts|time/i.test(s.split('/').at(-1)!))).toBe(false);
+  // Time's fake calendar is set up only by Time's code.
+  expect(await page.evaluate(() => '__omarkTime' in window)).toBe(false);
 });
 
 test('turning Time on next to OneDrive: a calendar-only Google sign-in beside Microsoft, files in time/ and projects.csv at the top', async ({ page }) => {
@@ -104,6 +106,15 @@ test('on Google Drive the calendar is added to the same Google sign-in', async (
   ]);
   expect(await sessions(page)).toEqual({ google: ['calendar'] });
   await expect.poll(() => files(page, 'time')).toContain('events-2026.csv');
+});
+
+test("on a phone, Time's own view bar sits just above the shell's tabs", async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'the bars are at the bottom only on a phone');
+  await open(page, { seed: { root: { 'config.yaml': 'parts: [tasks, time]\n', 'projects.csv': PROJECTS } }, path: '/time' });
+  await connect(page);
+  const views = (await page.getByRole('navigation', { name: 'Views' }).boundingBox())!;
+  const parts = (await tabs(page).boundingBox())!;
+  expect(Math.abs(views.y + views.height - parts.y)).toBeLessThanOrEqual(1);
 });
 
 test('switching tabs keeps Time where it was', async ({ page }) => {

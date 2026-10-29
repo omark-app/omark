@@ -205,7 +205,7 @@ export function createAuth(opts: AuthOptions): Auth {
     },
     accesses() {
       const list = signedInValue()?.split(':')[1];
-      return list ? list.split(',').filter((a) => a !== '') : [];
+      return list ? list.split('+').filter((a) => a !== '') : [];
     },
     async signOut() {
       cached = null;

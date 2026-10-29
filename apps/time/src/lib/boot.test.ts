@@ -76,6 +76,18 @@ test('in the one app, a calendar-only sign-in is its own session, and Time signs
   expect(cal.calls).toEqual([['signIn', null, { returnTo: '/time' }], ['signOut']]);
 });
 
+test('in the one app, this device\'s Time choices are kept per place, and the storage\'s sign-in is handed on (U.4)', async () => {
+  const signIns: string[] = [];
+  const a = timeDeps({ ...given(calendarAuth(true).auth, null), key: 'microsoft', storageSignIn: async () => void signIns.push('ms') });
+  const b = timeDeps({ ...given(calendarAuth(true).auth, null), key: 'google' });
+  await a.prefs.save({ storage: null, started: true, askedDrive: false, askedEdit: true });
+  expect(await b.prefs.load()).toMatchObject({ started: false, askedEdit: false });
+  expect(await a.prefs.load()).toMatchObject({ started: true, askedEdit: true });
+  await a.storageSignIn!();
+  expect(signIns).toEqual(['ms']);
+  expect(b.storageSignIn).toBeUndefined();
+});
+
 test('in the one app, the storage is fixed and named as given, with no folder picker (U.4)', async () => {
   const deps = timeDeps(given(calendarAuth(true).auth, null));
   expect(deps.storage).toBe('onedrive');

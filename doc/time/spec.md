@@ -162,6 +162,8 @@ All files are UTF-8 CSV (RFC 4180: commas, a header row, fields quoted when need
 - OneDrive: the app folder `Apps/Omark Time`.
 - Local folder: the folder the user picks.
 
+In the one Omark app (roadmap U.4, [one app spec](../suite/one-app-spec.md) section 4) they live in the Omark folder instead: `events-YYYY.csv` and `config.yaml` in `time/`, and `projects.csv` at the top, shared with Goals. The file formats don't change.
+
 ### 7.1 `projects.csv`
 
 ```

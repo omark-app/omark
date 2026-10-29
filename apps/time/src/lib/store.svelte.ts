@@ -28,7 +28,8 @@ export type Phase = 'loading' | 'signin' | 'storage' | 'calendars' | 'ready' | '
  * `offline`: Google or the storage can't be reached; `signin`: the sign-in has lapsed or lacks a permission;
  * `folder`: the browser wants permission for the folder on this computer again (`allowFolder`, from a click).
  */
-export type SyncState = 'syncing' | 'synced' | 'offline' | 'signin' | 'folder' | 'failed';
+/** `storage`: inside the one Omark app, the storage's own sign-in lapsed (the calendar's is `signin`). */
+export type SyncState = 'syncing' | 'synced' | 'offline' | 'signin' | 'storage' | 'folder' | 'failed';
 /** `running`: patches are going out; `colourLeft` says how many. */
 export type ColourState = ColourOutcome | 'running';
 
@@ -153,6 +154,14 @@ export class TimeStore {
       if (!prefs.askedDrive) await this.deps.auth.addAccess('drive');
       await this.deps.prefs.save({ ...prefs, storage: kind, askedDrive: true });
       await this.start();
+    });
+  }
+
+  /** Inside the one Omark app: the storage's own sign-in again (it leaves the page; the fake one then syncs). */
+  signInStorage(): Promise<void> {
+    return this.guard(async () => {
+      await this.deps.storageSignIn?.();
+      await this.syncNow();
     });
   }
 
@@ -330,7 +339,7 @@ export class TimeStore {
     const files = this.place?.files.status();
     if (files === 'offline') return 'offline';
     // For a folder, "sign in" means the browser wants permission again.
-    if (files === 'signin') return this.place?.folder ? 'folder' : 'signin';
+    if (files === 'signin') return this.place?.folder ? 'folder' : this.deps.storageSignIn ? 'storage' : 'signin';
     return ok;
   }
 

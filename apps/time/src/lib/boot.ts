@@ -56,6 +56,11 @@ export interface AppDeps {
   storage?: StorageKind;
   /** Inside the one Omark app, which owns storage and sign-out: Time offers neither. */
   embedded?: boolean;
+  /**
+   * Inside the one Omark app: signs in to the storage again. Its session is not the calendar's, so a storage that
+   * asks for a sign-in shows `sync` `storage`, with this, rather than the calendar's sign-in.
+   */
+  storageSignIn?: () => Promise<void>;
 }
 
 /** The IndexedDB database that keeps the picked folder's handle; the picker's id lets it reopen where it was. */
@@ -159,6 +164,8 @@ export interface TimeGiven {
   now?: () => number;
   /** Fake builds: keep the fake calendar after the app changed it. */
   persist?: () => Promise<void>;
+  /** The storage's own sign-in again (OneDrive's, Google Drive's), when its session lapsed; none for a folder. */
+  storageSignIn?: () => Promise<void>;
 }
 
 const KINDS: Record<TimeGiven['storage'], StorageKind> = { microsoft: 'onedrive', google: 'google-drive', folder: 'local-folder' };
@@ -185,7 +192,7 @@ export function timeDeps(given: TimeGiven): AppDeps {
   return {
     auth,
     source: given.source ?? new GoogleCalendarSource({ getToken: (opts) => calendar.getToken(opts) }),
-    prefs: new IdbPrefs(),
+    prefs: new IdbPrefs(`prefs-${given.key}`),
     openPlace: async () => ({
       files: filesOn(routed(given.top, given.own), cacheName, now),
       state: new IdbState(cacheName),
@@ -200,6 +207,7 @@ export function timeDeps(given: TimeGiven): AppDeps {
       await new IdbState(cacheName).clear();
     },
     ...(given.persist && { persist: given.persist }),
+    ...(given.storageSignIn && { storageSignIn: given.storageSignIn }),
     storage: KINDS[given.storage],
     embedded: true,
   };

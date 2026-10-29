@@ -691,6 +691,7 @@ describe('one session per provider (the one Omark app, U.4)', () => {
     },
     cookiePrefix: 'omark',
     sessions: 'per-provider',
+    returnPaths: ['/time'],
   };
   const headers = { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' };
   const sendO = (path: string, init: RequestInit & { headers?: Record<string, string> } = {}) => send(path, init, ENV, OMARK);
@@ -756,11 +757,11 @@ describe('one session per provider (the one Omark app, U.4)', () => {
     await signInO('google', { access_token: 'g1', expires_in: 3600, refresh_token: 'grt2', scope: scopes(DRIVE, READ) }, 'calendar');
     expect(jar.cookies.get('omark_google_signed_in')!.value).toBe('google:calendar');
     await signInO('google', { access_token: 'g2', expires_in: 3600, refresh_token: 'grt3', scope: scopes(DRIVE, READ, EDIT) }, 'edit');
-    expect(jar.cookies.get('omark_google_signed_in')!.value).toBe('google:calendar,edit');
+    expect(jar.cookies.get('omark_google_signed_in')!.value).toBe('google:calendar+edit');
     gg.ok({ access_token: 'g3', expires_in: 3600 });
     await postO('/api/auth/token?provider=google');
     expect(gg.calls.at(-1)!.get('scope')).toBe(`${DRIVE} ${READ} ${EDIT}`);
-    expect(jar.cookies.get('omark_google_signed_in')!.value).toBe('google:calendar,edit');
+    expect(jar.cookies.get('omark_google_signed_in')!.value).toBe('google:calendar+edit');
   });
 
   it('names the account per provider: a Microsoft hint is not sent to Google', async () => {
@@ -769,6 +770,17 @@ describe('one session per provider (the one Omark app, U.4)', () => {
     expect(toMs.searchParams.get('login_hint')).toBe('me@outlook.com');
     const toGoogle = new URL((await sendO('/api/auth/login?provider=googlecal')).headers.get('Location')!);
     expect(toGoogle.searchParams.get('login_hint')).toBeNull();
+  });
+
+  it('a calendar sign-in that fails for any reason names its provider and access, so Time can show it', async () => {
+    const stateOf = (res: Response) => new URL(res.headers.get('Location')!).searchParams.get('state')!;
+    const cancelled = await sendO('/api/auth/login?provider=google&add=calendar&return=/time');
+    expect((await sendO(`/api/auth/callback?error=access_denied&state=${stateOf(cancelled)}`)).headers.get('Location'))
+      .toBe('/time?signin_error=cancelled&provider=google&add=calendar');
+    const stale = await sendO('/api/auth/login?provider=googlecal&return=/time');
+    now += 11 * 60 * 1000;
+    expect((await sendO(`/api/auth/callback?code=c0de&state=${stateOf(stale)}`)).headers.get('Location'))
+      .toBe('/time?signin_error=expired&provider=googlecal');
   });
 
   it('answers 400 unknown_provider for a token or logout call naming a provider the app does not have', async () => {

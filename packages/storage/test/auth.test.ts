@@ -341,7 +341,7 @@ describe('createAuth bound to one provider (the one Omark app, U.4)', () => {
     expect(bound('googlecal').accesses()).toEqual(['edit']);
     expect(bound('google').isSignedIn()).toBe(false);
     expect(bound('google').signedInProvider()).toBeNull();
-    cookie = 'omark_google_signed_in=google:calendar,edit';
+    cookie = 'omark_google_signed_in=google:calendar+edit';
     expect(bound('google').accesses()).toEqual(['calendar', 'edit']);
   });
 

@@ -54,6 +54,16 @@ Still nothing on a real host: the one app gets one in U.7. On a local run or a f
 
 Time's own specs (`apps/time/e2e`) do not run inside the shell. Every one starts with Time's own first run (its Google sign-in, then "Google Drive" or a folder) and reads Time's own fake drive (`__omarkTime.drive`), and the shell replaces both. They keep running on `apps/time`, whose screens the part uses unchanged. They move into the shell with the demo world (U.6), when Time's demo seed becomes the shell's.
 
+### Fresh-eyes review (2026-10-29)
+
+The broker's per-provider mode, the client and Time's seam held up (CSRF on every path, `?provider=` checked with `hasOwn`, sessions sealed to their cookie names, the default mode unchanged). Fixed, with tests first:
+
+1. A lapsed OneDrive or Google Drive sign-in showed in Time as "Your Google sign-in has lapsed", and its button signed in to the calendar. Time now shows `Sign in again to reach OneDrive` (`sync` `storage`) and signs in to the storage.
+2. A calendar sign-in on Google Drive that was cancelled or failed (not only one missing a scope) came back without `add=calendar`, so the shell showed it instead of Time. The broker now names the access on every failure, and the provider on a stale one in per-provider mode. The routing is `redirectFor` in `apps/omark/src/lib/redirect.ts`, with its own test.
+3. Time's device choices (calendars step done, edit access asked) are kept per place, not once per device.
+4. The signed-in cookie lists accesses with `+` (`google:calendar+edit`): a comma isn't allowed in a cookie value.
+5. On a phone, Time's view bar overlapped the shell's tabs by 6 px: the tab bar now has an explicit height (`--part-tabs-bar`) that Time's bar sits on, checked in the e2e. Time's folder notice no longer offers "pick the folder again" in the shell, and the Tasks-only e2e also checks that Time's fake calendar was never set up.
+
 ## Risks
 
 - **Two sessions on one origin:** cookies are per provider, so a sign-in with one never clears the other. The login cookie is shared: two sign-ins started in two tabs at once, the later one wins and the earlier one reads as `expired`, as today.

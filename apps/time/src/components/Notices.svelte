@@ -10,8 +10,8 @@
     <h2>Allow access to {store.storageName}</h2>
     <p>
       {store.folderRefused
-        ? `Access to ${store.storageName} was refused. Allow it, or pick the folder again.`
-        : 'Your browser asks again before Omark Time may read and write the folder. If you moved or renamed it, pick it again.'}
+        ? `Access to ${store.storageName} was refused. Allow it${store.embedded ? '' : ', or pick the folder again'}.`
+        : `Your browser asks again before Omark Time may read and write the folder.${store.embedded ? '' : ' If you moved or renamed it, pick it again.'}`}
     </p>
     <div class="row">
       <button class="primary" onclick={() => store.allowFolder()}>Allow access</button>
@@ -33,6 +33,13 @@
       <button class="primary" onclick={() => store.syncNow()}>Sync now</button>
       <button class="secondary" onclick={() => store.signOut({ anyway: true })}>Sign out anyway</button>
     </div>
+  </section>
+{/if}
+
+{#if store.sync === 'storage'}
+  <section class="card" role="alert">
+    <p>Sign in again to reach {store.storageName}: Omark Time keeps your hours there.</p>
+    <button class="primary" onclick={() => store.signInStorage()}>Sign in</button>
   </section>
 {/if}
 
