@@ -1,6 +1,7 @@
-import type { RemoteFile, StorageAdapter } from './adapter.ts';
+import { binaryType } from './adapter.ts';
+import type { BinaryStore, RemoteFile, StorageAdapter } from './adapter.ts';
 import { PreconditionFailedError, StorageFullError } from './errors.ts';
-import { createHttp, type Http } from './http.ts';
+import { createHttp, type Http, type Reply } from './http.ts';
 import { quickXorHash } from './quick-xor-hash.ts';
 
 const GRAPH = {
@@ -32,7 +33,7 @@ interface DriveItem {
   file?: { hashes?: { quickXorHash?: string } };
 }
 
-export class OneDriveAdapter implements StorageAdapter {
+export class OneDriveAdapter implements StorageAdapter, BinaryStore {
   private base: string;
   private http: Http;
 
@@ -55,6 +56,17 @@ export class OneDriveAdapter implements StorageAdapter {
    * both requests are repeated, and after 3 tries the read fails (the sync reads as offline and retries).
    */
   async read(name: string): Promise<RemoteFile | null> {
+    const got = await this.download(name);
+    return got && { text: got.body.text, etag: got.etag };
+  }
+
+  async readBytes(name: string): Promise<Blob | null> {
+    const got = await this.download(name);
+    return got && new Blob([got.body.bytes as Uint8Array<ArrayBuffer>], { type: binaryType(name) });
+  }
+
+  /** The file's content with its eTag, checked against its hash as `read` says; null when there is none. */
+  private async download(name: string): Promise<{ body: Reply; etag: string } | null> {
     for (let attempt = 1; ; attempt++) {
       const meta = await this.http.authed(this.base + encodeURIComponent(name), {});
       if (meta.status === 404) return null;
@@ -64,19 +76,24 @@ export class OneDriveAdapter implements StorageAdapter {
       const body = await this.http.send(item['@microsoft.graph.downloadUrl'], {});
       if (!body.ok) throw new Error(`Download failed: ${body.status}`);
       const expected = item.file?.hashes?.quickXorHash;
-      if (expected === undefined || quickXorHash(body.bytes) === expected) return { text: body.text, etag: item.eTag };
+      if (expected === undefined || quickXorHash(body.bytes) === expected) return { body, etag: item.eTag };
       if (attempt >= MAX_READ_ATTEMPTS) throw new Error(`OneDrive sent ${name} content that does not match its eTag`);
     }
   }
 
   async write(name: string, text: string, ifMatch: string | null): Promise<{ etag: string }> {
+    return this.put(name, text, 'text/plain; charset=utf-8', ifMatch);
+  }
+
+  async createBytes(name: string, data: Blob): Promise<void> {
+    await this.put(name, data, binaryType(name), null);
+  }
+
+  private async put(name: string, body: string | Blob, type: string, ifMatch: string | null): Promise<{ etag: string }> {
     const res = await this.http.authed(this.base + encodeURIComponent(name) + ':/content', {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-        ...(ifMatch === null ? { 'If-None-Match': '*' } : { 'If-Match': ifMatch }),
-      },
-      body: text,
+      headers: { 'Content-Type': type, ...(ifMatch === null ? { 'If-None-Match': '*' } : { 'If-Match': ifMatch }) },
+      body,
     });
     if (res.status === 412 || (res.status === 409 && ifMatch === null)) {
       throw new PreconditionFailedError(`Precondition failed for ${name}`);

@@ -12,7 +12,7 @@ import {
   SavedFolder,
 } from '../src/local-folder.ts';
 import type { FolderHandle } from '../src/local-folder.ts';
-import { adapterContract } from './adapter-contract.ts';
+import { adapterContract, binaryContract } from './adapter-contract.ts';
 import { MemoryFolder } from './memory-folder.ts';
 
 adapterContract(() => {
@@ -32,6 +32,27 @@ adapterContract(() => {
   return {
     adapter: new LocalFolderAdapter(root, { subfolder: 'tasks' }),
     external: (name, text) => root.sub('tasks').external(name, text),
+    offline: (on) => {
+      root.gone = on;
+    },
+  };
+});
+
+binaryContract(() => {
+  const folder = new MemoryFolder();
+  return {
+    store: new LocalFolderAdapter(folder),
+    offline: (on) => {
+      folder.gone = on;
+    },
+  };
+});
+
+// Goals' pictures live two levels down, in goals/images.
+binaryContract(() => {
+  const root = new MemoryFolder('Omark');
+  return {
+    store: new LocalFolderAdapter(root, { subfolder: 'goals/images' }),
     offline: (on) => {
       root.gone = on;
     },
@@ -61,8 +82,8 @@ describe('LocalFolderAdapter in a subfolder', () => {
     await expect(new LocalFolderAdapter(root, { subfolder: 'tasks' }).read('tasks.md')).rejects.toBeInstanceOf(AuthRequiredError);
   });
 
-  it('refuses a subfolder that is not one plain name', () => {
-    for (const subfolder of ['', '.', '..', 'a/b', 'a\\b']) {
+  it('refuses a subfolder path with an empty, . or .. part, or a backslash', () => {
+    for (const subfolder of ['', '.', '..', 'a\\b', 'a//b', '/a', 'a/', 'a/..', './a']) {
       expect(() => new LocalFolderAdapter(new MemoryFolder(), { subfolder })).toThrow(/subfolder/);
     }
   });

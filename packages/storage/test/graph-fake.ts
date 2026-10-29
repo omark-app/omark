@@ -14,7 +14,8 @@ export interface Call {
 }
 
 export class GraphFake {
-  files = new Map<string, { text: string; n: number; prev?: string }>();
+  /** Each file's bytes (a text is kept as UTF-8), its version, and its bytes before the last write. */
+  files = new Map<string, { bytes: Uint8Array; n: number; prev?: Uint8Array }>();
   calls: Call[] = [];
   offline = false;
   /** Number of upcoming Graph (not download) requests to answer with 401. */
@@ -29,9 +30,10 @@ export class GraphFake {
     private root: 'approot' | 'drive' = 'drive',
   ) {}
 
-  external(name: string, text: string): void {
+  external(name: string, content: string | Uint8Array): void {
     const cur = this.files.get(name);
-    this.files.set(name, { text, n: (cur?.n ?? 0) + 1, prev: cur?.text });
+    const bytes = typeof content === 'string' ? new TextEncoder().encode(content) : content;
+    this.files.set(name, { bytes, n: (cur?.n ?? 0) + 1, prev: cur?.bytes });
   }
 
   private etag(name: string): string {
@@ -51,9 +53,9 @@ export class GraphFake {
       if (!f) return new Response('', { status: 404 });
       if (this.staleDownloads > 0 && f.prev !== undefined) {
         this.staleDownloads--;
-        return new Response(f.prev, { status: 200 });
+        return new Response(f.prev as Uint8Array<ArrayBuffer>, { status: 200 });
       }
-      return new Response(f.text, { status: 200 });
+      return new Response(f.bytes as Uint8Array<ArrayBuffer>, { status: 200 });
     }
     if (this.unauthorized > 0) {
       this.unauthorized--;
@@ -74,7 +76,7 @@ export class GraphFake {
       return Response.json({
         eTag: this.etag(name),
         '@microsoft.graph.downloadUrl': DL + encodeURIComponent(name),
-        file: this.hashes ? { hashes: { quickXorHash: quickXorHash(new TextEncoder().encode(f.text)) } } : {},
+        file: this.hashes ? { hashes: { quickXorHash: quickXorHash(f.bytes) } } : {},
       });
     }
     if (isContent && method === 'PUT') {
@@ -83,7 +85,7 @@ export class GraphFake {
       if (ifMatch !== undefined && (!f || this.etag(name) !== ifMatch)) {
         return new Response('', { status: 412 });
       }
-      this.external(name, String(init?.body ?? ''));
+      this.external(name, new Uint8Array(await new Response(init?.body ?? '').arrayBuffer()));
       return Response.json({ eTag: this.etag(name) }, { status: f ? 200 : 201 });
     }
     return new Response('', { status: 400 });

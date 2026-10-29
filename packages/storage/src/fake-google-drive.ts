@@ -29,7 +29,8 @@ interface Item {
   /** Every etag the item has had: a stale one gets 412, one never issued gets 500. */
   etags: Set<string>;
   headRevisionId: string;
-  revisions: Map<string, string>;
+  /** Each revision's bytes (a text as UTF-8). */
+  revisions: Map<string, Uint8Array>;
   /** Made while lists lag: only calls with this Authorization header list it, until `settleLists`. */
   unlistedFor?: string;
 }
@@ -66,13 +67,13 @@ export class FakeGoogleDrive {
       folder = this.childFolder(level, parent) ?? this.add(level, parent, true);
     }
     const file = this.currentFile(name);
-    if (file) this.setText(file, text);
-    else this.setText(this.add(name, folder!.id), text);
+    if (file) this.setContent(file, utf8(text));
+    else this.setContent(this.add(name, folder!.id), utf8(text));
   }
 
   peek(name: string): string | null {
     const file = this.currentFile(name);
-    return file ? file.revisions.get(file.headRevisionId)! : null;
+    return file ? new TextDecoder().decode(file.revisions.get(file.headRevisionId)!) : null;
   }
 
   setOffline(offline: boolean): void {
@@ -164,8 +165,11 @@ export class FakeGoogleDrive {
     new Headers(init?.headers).forEach((v, k) => (call.headers[k] = v));
     this.calls.push(call);
     if (this.offline) throw new TypeError('Failed to fetch');
-    if (init?.body !== undefined && typeof init.body !== 'string') unexpected(call);
-    const res = this.answer(call, init?.body);
+    const raw = init?.body;
+    if (raw !== undefined && typeof raw !== 'string' && !(raw instanceof Blob)) unexpected(call);
+    // A Blob (a picture's multipart insert) arrives as its bytes, one character per byte.
+    const body = raw instanceof Blob ? binary(new Uint8Array(await raw.arrayBuffer())) : raw;
+    const res = this.answer(call, body, raw instanceof Blob);
     const i = this.holds.findIndex((h) => h.match(call));
     if (i >= 0) {
       const [hold] = this.holds.splice(i, 1);
@@ -175,7 +179,7 @@ export class FakeGoogleDrive {
     return res;
   };
 
-  private answer(call: DriveCall, body: string | undefined): Response {
+  private answer(call: DriveCall, body: string | undefined, bytes: boolean): Response {
     if (!call.headers['authorization']?.startsWith('Bearer ')) return googleError(401, 'authError');
     const url = new URL(call.url);
     if (url.origin !== API) unexpected(call);
@@ -189,7 +193,8 @@ export class FakeGoogleDrive {
     if (method === 'GET' && (m = /^\/drive\/v3\/files\/([^/]+)\/revisions\/([^/]+)$/.exec(path))) {
       return this.revision(call, url, m[1]!, m[2]!);
     }
-    if (method === 'POST' && path === '/upload/drive/v2/files') return this.insert(call, url, body);
+    if (method === 'POST' && path === '/upload/drive/v2/files') return this.insert(call, url, bytes ? body : body && binary(utf8(body)));
+    if (bytes) unexpected(call);
     if (method === 'PUT' && (m = /^\/upload\/drive\/v2\/files\/([^/]+)$/.exec(path))) return this.update(call, url, m[1]!, body);
     unexpected(call);
   }
@@ -243,12 +248,12 @@ export class FakeGoogleDrive {
   /** v3 revision content: exactly the bytes of that revision. */
   private revision(call: DriveCall, url: URL, id: string, revisionId: string): Response {
     expectQuery(call, url, { alt: 'media' });
-    const text = this.items.get(decodeURIComponent(id))?.revisions.get(decodeURIComponent(revisionId));
-    if (text === undefined) return googleError(404, 'notFound');
-    return new Response(text, { status: 200 });
+    const content = this.items.get(decodeURIComponent(id))?.revisions.get(decodeURIComponent(revisionId));
+    if (content === undefined) return googleError(404, 'notFound');
+    return new Response(content as Uint8Array<ArrayBuffer>, { status: 200 });
   }
 
-  /** v2 multipart insert: metadata `{ title, parents: [{ id }], mimeType }`, then the content. */
+  /** v2 multipart insert: metadata `{ title, parents: [{ id }], mimeType }`, then the content. `body` one character per byte. */
   private insert(call: DriveCall, url: URL, body: string | undefined): Response {
     expectQuery(call, url, { uploadType: 'multipart', fields: 'id,etag' });
     if (this.full) return googleError(403, 'storageQuotaExceeded');
@@ -258,16 +263,17 @@ export class FakeGoogleDrive {
     if (parts.length !== 4 || parts[0] !== '' || parts[3] !== '--') unexpected(call);
     const [metaPart, mediaPart] = [part(call, parts[1]!), part(call, parts[2]!)];
     if (metaPart.type !== 'application/json; charset=UTF-8') unexpected(call);
-    const meta = jsonBody(call, metaPart.content, ['mimeType', 'parents', 'title']) as {
+    const meta = jsonBody(call, new TextDecoder().decode(bytesOf(metaPart.content)), ['mimeType', 'parents', 'title']) as {
       title: string;
       parents: { id: string }[];
       mimeType: string;
     };
-    if (mediaPart.type !== `${meta.mimeType}; charset=utf-8` || meta.parents.length !== 1) unexpected(call);
+    const type = meta.mimeType.startsWith('text/') ? `${meta.mimeType}; charset=utf-8` : meta.mimeType;
+    if (mediaPart.type !== type || meta.parents.length !== 1) unexpected(call);
     const folder = this.items.get(meta.parents[0]!.id);
     if (!folder || !folder.isFolder) return googleError(404, 'notFound');
     const file = this.add(meta.title, folder.id, false, this.by(call));
-    this.setText(file, mediaPart.content);
+    this.setContent(file, bytesOf(mediaPart.content));
     return Response.json({ id: file.id, etag: file.etag });
   }
 
@@ -287,7 +293,7 @@ export class FakeGoogleDrive {
         { status: 412 },
       );
     }
-    this.setText(file, body);
+    this.setContent(file, utf8(body));
     return Response.json({ etag: file.etag });
   }
 
@@ -312,9 +318,9 @@ export class FakeGoogleDrive {
     return item;
   }
 
-  private setText(file: Item, text: string): void {
+  private setContent(file: Item, content: Uint8Array): void {
     file.headRevisionId = `rev${++this.clock}`;
-    file.revisions.set(file.headRevisionId, text);
+    file.revisions.set(file.headRevisionId, content);
     this.newEtag(file);
   }
 
@@ -400,6 +406,17 @@ function part(call: DriveCall, raw: string): { type: string; content: string } {
   if (!m) unexpected(call);
   return { type: m[1]!, content: m[2]! };
 }
+
+const utf8 = (text: string): Uint8Array => new TextEncoder().encode(text);
+
+/** Bytes as a string of one character each, so a multipart body splits on its boundaries without decoding. */
+function binary(bytes: Uint8Array): string {
+  let s = '';
+  for (const b of bytes) s += String.fromCharCode(b);
+  return s;
+}
+
+const bytesOf = (s: string): Uint8Array => Uint8Array.from(s, (c) => c.charCodeAt(0));
 
 function unescape(quoted: string): string {
   return quoted.replace(/\\(.)/g, '$1');

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AuthRequiredError, OfflineError, StorageFullError } from '../src/errors.ts';
 import { OneDriveAdapter } from '../src/onedrive-adapter.ts';
-import { adapterContract } from './adapter-contract.ts';
+import { adapterContract, binaryContract } from './adapter-contract.ts';
 import { GraphFake } from './graph-fake.ts';
 
 const FOLDER = 'Prod/Tasks';
@@ -16,6 +16,16 @@ adapterContract(() => {
   return {
     adapter,
     external: (n, t) => graph.external(n, t),
+    offline: (on) => {
+      graph.offline = on;
+    },
+  };
+});
+
+binaryContract(() => {
+  const { graph, adapter } = setup();
+  return {
+    store: adapter,
     offline: (on) => {
       graph.offline = on;
     },

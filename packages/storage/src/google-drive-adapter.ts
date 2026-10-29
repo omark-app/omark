@@ -1,4 +1,5 @@
-import type { RemoteFile, StorageAdapter } from './adapter.ts';
+import { binaryType } from './adapter.ts';
+import type { BinaryStore, RemoteFile, StorageAdapter } from './adapter.ts';
 import { AuthRequiredError, PreconditionFailedError, StorageFullError } from './errors.ts';
 import { createHttp, type Http, type Reply } from './http.ts';
 
@@ -30,7 +31,7 @@ interface Metadata {
  * turns out gone or trashed, both are forgotten and looked up again. One adapter serves several files at
  * once, so concurrent calls share one folder lookup, and one "look up, else create" step for a new file.
  */
-export class GoogleDriveAdapter implements StorageAdapter {
+export class GoogleDriveAdapter implements StorageAdapter, BinaryStore {
   /** The folder's path, one name per level; the first sits at the top of My Drive. */
   private path: string[];
   private http: Http;
@@ -53,6 +54,21 @@ export class GoogleDriveAdapter implements StorageAdapter {
    * content, so a write landing between the two requests cannot pair new text with an older etag.
    */
   async read(name: string): Promise<RemoteFile | null> {
+    const got = await this.download(name);
+    return got && { text: got.body.text, etag: got.etag, source: got.id };
+  }
+
+  async readBytes(name: string): Promise<Blob | null> {
+    const got = await this.download(name);
+    return got && new Blob([got.body.bytes as Uint8Array<ArrayBuffer>], { type: binaryType(name) });
+  }
+
+  async createBytes(name: string, data: Blob): Promise<void> {
+    await this.create(name, data);
+  }
+
+  /** The file's content with its etag, as `read` says; null when there is none. */
+  private async download(name: string): Promise<{ body: Reply; etag: string; id: string } | null> {
     for (;;) {
       const cached = this.fileIds.get(name);
       const id = cached ?? (await this.findFile(name));
@@ -66,7 +82,7 @@ export class GoogleDriveAdapter implements StorageAdapter {
           const rev = `${API}drive/v3/files/${encodeURIComponent(id)}/revisions/${encodeURIComponent(meta.headRevisionId)}?alt=media`;
           const body = await this.api(rev, {});
           if (!body.ok) throw new Error(`Google Drive download failed: ${body.status}`);
-          return { text: body.text, etag: meta.etag, source: id };
+          return { body, etag: meta.etag, id };
         }
       }
       this.forget(name);
@@ -102,14 +118,17 @@ export class GoogleDriveAdapter implements StorageAdapter {
    * Drive has no create-if-absent, so: look, create, then look again. When another device created the
    * same name meanwhile, the older file wins and ours goes to the trash, which reads as a 412.
    */
-  private async create(name: string, text: string): Promise<{ etag: string; source: string }> {
+  private async create(name: string, content: string | Blob): Promise<{ etag: string; source: string }> {
     const folderId = await this.ensureFolder();
     if ((await this.list(fileQuery(name, folderId))).length > 0) throw new PreconditionFailedError(`${name} already exists`);
     const boundary = `boundary-${crypto.randomUUID()}`;
     const meta = { title: name, parents: [{ id: folderId }], mimeType: mimeType(name) };
-    const body =
+    const head =
       `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n` +
-      `--${boundary}\r\nContent-Type: ${contentType(name)}\r\n\r\n${text}\r\n--${boundary}--`;
+      `--${boundary}\r\nContent-Type: ${contentType(name)}\r\n\r\n`;
+    const tail = `\r\n--${boundary}--`;
+    // A binary file's bytes go in untouched, in a Blob; a text stays one string.
+    const body = typeof content === 'string' ? head + content + tail : new Blob([head, content, tail]);
     const res = await this.api(`${API}upload/drive/v2/files?uploadType=multipart&fields=id,etag`, {
       method: 'POST',
       headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
@@ -229,12 +248,15 @@ function escapeQuery(s: string): string {
   return s.replace(/[\\']/g, '\\$&');
 }
 
+const isBinary = (name: string): boolean => binaryType(name) !== 'application/octet-stream';
+
 function mimeType(name: string): string {
+  if (isBinary(name)) return binaryType(name);
   return name.endsWith('.md') ? 'text/markdown' : 'text/plain';
 }
 
 function contentType(name: string): string {
-  return `${mimeType(name)}; charset=utf-8`;
+  return isBinary(name) ? mimeType(name) : `${mimeType(name)}; charset=utf-8`;
 }
 
 /**

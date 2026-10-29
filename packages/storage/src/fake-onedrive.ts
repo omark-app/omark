@@ -1,9 +1,10 @@
-import type { RemoteFile, StorageAdapter } from './adapter.ts';
+import { binaryType } from './adapter.ts';
+import type { BinaryStore, RemoteFile, StorageAdapter } from './adapter.ts';
 import { OfflineError, PreconditionFailedError } from './errors.ts';
 
-/** In-memory StorageAdapter with per-file eTags "v1", "v2", ... */
-export class FakeOneDrive implements StorageAdapter {
-  private files = new Map<string, { text: string; version: number }>();
+/** In-memory StorageAdapter with per-file eTags "v1", "v2", ..., and binary files (`data`) beside the texts. */
+export class FakeOneDrive implements StorageAdapter, BinaryStore {
+  private files = new Map<string, { text: string; version: number; data?: Blob }>();
   private offline = false;
 
   constructor(files: Record<string, string> = {}) {
@@ -43,6 +44,18 @@ export class FakeOneDrive implements StorageAdapter {
       throw new PreconditionFailedError(`Precondition failed for ${name}`);
     }
     return { etag: this.put(name, text) };
+  }
+
+  async readBytes(name: string): Promise<Blob | null> {
+    this.assertOnline();
+    const f = this.files.get(name);
+    return f ? (f.data ?? new Blob([f.text], { type: binaryType(name) })) : null;
+  }
+
+  async createBytes(name: string, data: Blob): Promise<void> {
+    this.assertOnline();
+    if (this.files.has(name)) throw new PreconditionFailedError(`${name} already exists`);
+    this.files.set(name, { text: '', version: 1, data });
   }
 
   private put(name: string, text: string): string {

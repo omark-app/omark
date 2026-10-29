@@ -5,7 +5,7 @@ import { FakeGoogleDrive } from '../src/fake-google-drive.ts';
 import { GoogleDriveAdapter } from '../src/google-drive-adapter.ts';
 import { MemoryCache } from '../src/cache.ts';
 import { FileSync } from '../src/file-sync.ts';
-import { adapterContract } from './adapter-contract.ts';
+import { adapterContract, binaryContract } from './adapter-contract.ts';
 
 const FOLDER = 'Omark Tasks';
 const FOLDER_MIME_Q = "mimeType='application/vnd.google-apps.folder'";
@@ -347,6 +347,11 @@ describe('GoogleDriveAdapter on a folder path', () => {
   adapterContract(() => {
     const fake = new FakeGoogleDrive({}, PATH);
     return { adapter: on(fake), external: (n, t) => fake.externalWrite(n, t), offline: (o) => fake.setOffline(o) };
+  });
+
+  binaryContract(() => {
+    const fake = new FakeGoogleDrive({}, PATH);
+    return { store: on(fake), offline: (o) => fake.setOffline(o) };
   });
 
   it('reads nothing and creates nothing until the first write, which makes each level once', async () => {

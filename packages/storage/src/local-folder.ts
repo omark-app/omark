@@ -1,13 +1,14 @@
 import { createStore, del, get, set } from 'idb-keyval';
 import type { UseStore } from 'idb-keyval';
-import type { RemoteFile, StorageAdapter } from './adapter.ts';
+import { binaryType } from './adapter.ts';
+import type { BinaryStore, RemoteFile, StorageAdapter } from './adapter.ts';
 import { AuthRequiredError, OfflineError, PreconditionFailedError, StorageFullError } from './errors.ts';
 
 export type FolderPermission = 'granted' | 'prompt' | 'denied';
 
 /** The part of `FileSystemWritableFileStream` the adapter uses. */
 export interface WritableFile {
-  write(data: string): Promise<void>;
+  write(data: string | Blob): Promise<void>;
   close(): Promise<void>;
   abort?(): Promise<void>;
 }
@@ -47,19 +48,20 @@ const READWRITE = { mode: 'readwrite' } as const;
  * Lost permission is `AuthRequiredError` (the user allows access again with a click, `requestFolderAccess`);
  * a folder that has gone away (renamed, unplugged) is `OfflineError`.
  *
- * With `subfolder`, the files live in that folder inside the picked one (the one Omark app: `tasks/`); a
- * missing subfolder reads as no files and is made on the first write.
+ * With `subfolder`, the files live in that folder inside the picked one (the one Omark app: `tasks/`, or a path
+ * such as `goals/images`); a missing subfolder reads as no files and is made on the first write.
  */
-export class LocalFolderAdapter implements StorageAdapter {
-  private readonly subfolder: string | null;
+export class LocalFolderAdapter implements StorageAdapter, BinaryStore {
+  /** The subfolder's path, one name per level; empty for the picked folder itself. */
+  private readonly subfolder: string[];
 
   constructor(
     private readonly folder: FolderHandle,
     opts: { subfolder?: string } = {},
   ) {
-    const sub = opts.subfolder ?? null;
-    if (sub !== null && (sub === '' || sub === '.' || sub === '..' || /[/\\]/.test(sub))) {
-      throw new Error('The subfolder must be one plain folder name');
+    const sub = opts.subfolder?.split('/') ?? [];
+    if (sub.some((p) => p === '' || p === '.' || p === '..' || p.includes('\\'))) {
+      throw new Error('The subfolder path has an empty, . or .. part, or a backslash');
     }
     this.subfolder = sub;
   }
@@ -81,22 +83,43 @@ export class LocalFolderAdapter implements StorageAdapter {
       const current = existing ? await etagOf(await (await existing.getFile()).text()) : null;
       if (current !== ifMatch) throw new PreconditionFailedError(`Precondition failed for ${name}`);
       // Past the check there is a folder: a create made it, an update found its file in it.
-      const dir = found!;
-      // Creating the file puts an empty one there at once; the text lands only when the stream closes.
-      const file = existing ?? (await dir.getFileHandle(name, { create: true }));
-      let stream: WritableFile | undefined;
-      try {
-        stream = await file.createWritable();
-        await stream.write(text);
-        await stream.close();
-      } catch (e) {
-        await stream?.abort?.().catch(() => {});
-        // Take away the empty file this write created (only if still empty), so it never reads as content.
-        if (!existing) await this.removeIfEmpty(dir, file).catch(() => {});
-        throw e;
-      }
+      await this.save(found!, name, existing, text);
       return { etag: await etagOf(text) };
     });
+  }
+
+  async readBytes(name: string): Promise<Blob | null> {
+    return this.guard(async () => {
+      const dir = await this.dir(false);
+      const file = dir && (await this.fileOrNull(dir, name));
+      if (!file) return null;
+      return new Blob([await (await file.getFile()).arrayBuffer()], { type: binaryType(name) });
+    });
+  }
+
+  async createBytes(name: string, data: Blob): Promise<void> {
+    return this.guard(async () => {
+      const dir = (await this.dir(true))!;
+      if (await this.fileOrNull(dir, name)) throw new PreconditionFailedError(`${name} already exists`);
+      await this.save(dir, name, null, data);
+    });
+  }
+
+  /** Writes `data` into the file (`existing`, or a new one by `name`). */
+  private async save(dir: FolderHandle, name: string, existing: FolderFileHandle | null, data: string | Blob): Promise<void> {
+    // Creating the file puts an empty one there at once; the content lands only when the stream closes.
+    const file = existing ?? (await dir.getFileHandle(name, { create: true }));
+    let stream: WritableFile | undefined;
+    try {
+      stream = await file.createWritable();
+      await stream.write(data);
+      await stream.close();
+    } catch (e) {
+      await stream?.abort?.().catch(() => {});
+      // Take away the empty file this write created (only if still empty), so it never reads as content.
+      if (!existing) await this.removeIfEmpty(dir, file).catch(() => {});
+      throw e;
+    }
   }
 
   /**
@@ -104,9 +127,10 @@ export class LocalFolderAdapter implements StorageAdapter {
    * and `create` is false.
    */
   private async dir(create: boolean): Promise<FolderHandle | null> {
-    if (this.subfolder === null) return this.folder;
+    let dir = this.folder;
     try {
-      return await this.folder.getDirectoryHandle!(this.subfolder, { create });
+      for (const level of this.subfolder) dir = await dir.getDirectoryHandle!(level, { create });
+      return dir;
     } catch (e) {
       if (!isError(e, 'NotFoundError')) throw e;
       await this.mustExist(this.folder);

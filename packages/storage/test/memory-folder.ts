@@ -9,7 +9,8 @@ const notFound = (what: string): DOMException => new DOMException(`${what} not f
  */
 export class MemoryFolder implements FolderHandle {
   readonly kind = 'directory';
-  readonly files = new Map<string, { text: string; lastModified: number }>();
+  /** A file written with a Blob keeps it in 'data' (its 'text' is then empty). */
+  readonly files = new Map<string, { text: string; lastModified: number; data?: Blob }>();
   /** Folders inside this one; they share its permission and go away with it. */
   readonly folders = new Map<string, MemoryFolder>();
   permission: FolderPermission = 'granted';
@@ -81,14 +82,14 @@ export class MemoryFolder implements FolderHandle {
         this.check();
         const f = this.files.get(name);
         if (!f) throw notFound(name);
-        return new File([f.text], name, { lastModified: f.lastModified });
+        return new File([f.data ?? f.text], name, { lastModified: f.lastModified });
       },
       createWritable: async () => {
         this.check();
-        let text = '';
+        const parts: (string | Blob)[] = [];
         return {
-          write: async (data: string) => {
-            text += data;
+          write: async (data: string | Blob) => {
+            parts.push(data);
           },
           abort: async () => {},
           // Like a real handle, the file changes only when the stream closes.
@@ -96,7 +97,8 @@ export class MemoryFolder implements FolderHandle {
             this.check();
             if (this.failClose) throw new DOMException('The file is locked', 'NoModificationAllowedError');
             if (this.full) throw new DOMException('The disk is full', 'QuotaExceededError');
-            this.files.set(name, { text, lastModified: ++this.clock });
+            const text = parts.every((x) => typeof x === 'string');
+            this.files.set(name, text ? { text: parts.join(''), lastModified: ++this.clock } : { text: '', data: new Blob(parts), lastModified: ++this.clock });
           },
         };
       },
