@@ -1,0 +1,64 @@
+# U.3: the `apps/omark` shell
+
+Roadmap U.3. Builds sections 4–7 of [the one app spec](../suite/one-app-spec.md): one app, one storage choice, one folder, parts on and off, tabs, the merged first run. Tasks moves in unchanged. Written 2026-10-29 in fast mode (no approval wait).
+
+## What changes for users
+
+Nothing yet: the one app gets no host until U.7, and the bridge (`tasks.alipka.com`) keeps running from `apps/tasks`. On a local run or a fake build, `apps/omark`:
+
+- asks once where the files live (OneDrive, Google Drive, a folder), then which parts to use (Tasks ticked);
+- keeps everything in one folder: `config.yaml` at the top, `tasks/` for Tasks;
+- with only Tasks on, looks exactly like Omark Tasks today: no tab bar, no calendar question;
+- with more parts on, shows tabs (top on desktop, bottom on the phone) and a path per part: `/tasks`, `/time`, `/goals`.
+
+Time and Goals are placeholders in U.3 ("Omark Time arrives in the next update"), so tabs and switching can be built and tested; U.4 and G.2 fill them.
+
+## How
+
+**Tasks stays where it is.** `apps/omark` imports Tasks' UI and logic from `apps/tasks/src` (a workspace dependency on `tasks`), so the bridge build and the one app share one copy until 3.7 removes the bridge. Tasks gets one seam: its boot can be handed a ready storage place by the shell instead of choosing one itself. Without that, `apps/tasks` boots as today.
+
+**The shell owns storage.** One sign-in client (`createAuth`, cookie prefix `omark`), one device choice (`omark:storage`), one picked-folder handle. For each part it builds an adapter on the part's subfolder:
+
+| Storage | Root | Part folder |
+|---|---|---|
+| OneDrive | the app folder (`Apps/Omark`, `Apps/Omark Staging` by registration) | `tasks` |
+| Google Drive | `My Drive/Omark` (`Omark Staging` on staging and previews) | `Omark/tasks` |
+| Local folder | the picked folder | `tasks/`, created on the first write |
+
+**The suite `config.yaml`** sits at the root: `parts: [tasks, time, goals]` in tab order, default `[tasks]`; unknown keys are kept. It syncs with `FileSync` like any part file.
+
+**Sign-in.** `apps/omark/functions/api/auth/[[path]].ts` is the one app's own Pages Function (deployed from `apps/omark`, as the Time demo is), with Microsoft and Google (`drive.file`, calendar as extra access for U.4) and cookie prefix `omark`. No `OMARK_APP`; the root `functions/` keeps serving the bridge until 3.7. The callback returns to the path the sign-in started from (`/tasks`, `/time`, `/goals`, else `/`), kept in the sealed login state. Holding a Microsoft and a Google session at once is U.4's job: only Time needs it.
+
+**Names.** IndexedDB, localStorage and cookies use `omark*` names. Nothing migrates: it is a new origin.
+
+## Steps (each test first, then a commit)
+
+1. **Storage:** `GoogleDriveAdapter` takes a folder path (`Omark/tasks`), finding or creating each level; `LocalFolderAdapter.subfolder(name)` reads through a missing folder as "no file" and creates it on the first write. Contract tests for both.
+2. **Broker:** `returnTo` in the login state (only `/`, `/tasks`, `/time`, `/goals`), the callback and `?signin_error=` go back there; the `omark` function config. Handler tests.
+3. **Suite logic** (`apps/omark/src/lib`, pure): suite `config.yaml` read and write (parts, order, unknown keys kept); the path → part decision (`/` → first part on, a part that is off → offer to turn it on); the first-run decision (choice, session, folder, suite file present → skip the parts question).
+4. **Tasks seam:** `boot({ place })` with a given adapter, cache name, auth and storage name; `apps/tasks` tests unchanged and green.
+5. **The app:** Vite and Svelte set up like `apps/tasks` (fake, demo and real modes), the merged first run, parts on and off, the tab bar, lazy-loaded parts (Tasks-only loads nothing else), keys to switch parts, the PWA manifest "Omark" with the suite icon.
+6. **e2e** (desktop and iPhone, fake storage), from spec 12:
+   - first run with Tasks only: no tab bar, no calendar question, only `config.yaml` and `tasks/` created;
+   - turning Time and Goals on: tabs appear, a part's subfolder appears on its first write;
+   - switching tabs keeps each part's state (Tasks' scroll and an open search);
+   - a second device on the same folder skips the parts question;
+   - Tasks' own e2e specs run against the shell's fake build with Tasks only (a second Playwright project); any that can't are listed with the reason.
+7. **CI:** `apps/omark`'s typecheck, unit tests, build and e2e in the check job. Deploys come in U.7.
+
+## Acceptance
+
+- The spec 12 e2e above pass in both projects; Tasks' specs pass inside the shell, or the exceptions are listed here.
+- A Tasks-only first load fetches no Time or Goals code (checked in the e2e by the requested scripts).
+- `apps/tasks` builds and its tests and e2e pass unchanged: the bridge is untouched.
+- `pnpm typecheck`, `pnpm test` and the builds pass.
+
+## Risks
+
+- **Tasks' module-level env** (`STORAGE_MODE`, `HOSTS`, `BRAND`, build defines) is read from `apps/omark`'s Vite config when imported there; the shell's config must define the same names. Caught by the Tasks-in-shell e2e.
+- **Google path folders**: two devices creating `Omark` at once can make two folders; the adapter already uses the oldest, and the same rule applies per level.
+- **Pages routes**: `/tasks` etc. need the SPA fallback; checked on the U.7 preview.
+
+## Out of scope
+
+Time inside the shell and two sessions at once (U.4), the one Settings page (U.5; U.3 keeps Tasks' own settings and adds parts on/off to it), Goals (G.2), the demo world (U.6), hosts, deploys and redirects (U.7), the cutover (3.6).
