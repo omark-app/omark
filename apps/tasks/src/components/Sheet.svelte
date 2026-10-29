@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import type { Snippet } from 'svelte';
+  import { part } from '../lib/part.svelte.ts';
 
   let { open, onclose, children }: { open: boolean; onclose: () => void; children: Snippet } = $props();
 
@@ -26,7 +27,7 @@
   });
 
   function onkeydown(e: KeyboardEvent): void {
-    if (!open) return;
+    if (!open || !part.active) return;
     if (e.key === 'Escape') {
       e.preventDefault();
       onclose();

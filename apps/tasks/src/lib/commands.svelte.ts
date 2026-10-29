@@ -3,6 +3,7 @@ import { findTask } from '@omark/tasks-core';
 import type { Command, ISODate } from '@omark/tasks-core';
 import type { AppStore } from './store.svelte.ts';
 import { commandFor, keyInput } from './keys.ts';
+import { part } from './part.svelte.ts';
 
 /** What the views report upward: the app shell owns the pickers. Each carries the task id. */
 /** `habitRepeat` is the repeat picker for making a habit (no `when done`, every day to start). */
@@ -93,6 +94,7 @@ export function createCommands(opts: {
 
   return {
     onkeydown(e) {
+      if (!part.active) return;
       const command = commandFor(keyInput(e), store.config.shortcuts);
       if (command === 'edit' && isControl(e.target)) return;
       if (command !== null && run(command)) e.preventDefault();

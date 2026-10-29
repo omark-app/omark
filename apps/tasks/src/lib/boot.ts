@@ -133,6 +133,55 @@ interface Place {
   provider: StorageKind;
   folder: string;
   storageName: string;
+  /** The one Omark app names the cache's database and the synced-at key itself (`omark-tasks:…`). */
+  cacheDb?: string;
+  syncedKey?: string;
+}
+
+/**
+ * The storage the one Omark app (apps/omark) opened for Tasks: the adapter on its `tasks/` folder, the names
+ * of its offline copy, and the sign-in it belongs to. `memory` keeps the copy in memory (the shell's fake
+ * build); `folder` is the picked folder's handle and its `tasks/` folder's conflict copies.
+ */
+export interface GivenPlace {
+  adapter: StorageAdapter;
+  provider: StorageKind;
+  storageName: string;
+  cacheDb: string;
+  syncedKey: string;
+  auth: Auth | null;
+  memory?: boolean;
+  folder?: { allow(): Promise<boolean>; conflicts(): Promise<string[]> };
+}
+
+/**
+ * Opens Tasks on a storage the one Omark app chose and opened: no storage choice or first run of its own, and
+ * no storage switch (the shell changes storage). Where a folder needs access allowed again, `folder.allow`
+ * asks, then the store re-reads.
+ */
+export async function openGiven(given: GivenPlace): Promise<BootResult> {
+  const place: Place = {
+    provider: given.provider,
+    folder: '',
+    storageName: given.storageName,
+    cacheDb: given.cacheDb,
+    syncedKey: given.syncedKey,
+  };
+  const opened = given.memory ? await inMemory() : await openCache(place);
+  const result = await ready(createWorkspace(given.adapter, opened.cache), opened, given.auth, place);
+  if (!given.folder) return result;
+  const store = result.store;
+  const access = given.folder;
+  const folder: OpenFolder = {
+    async allow() {
+      if (!(await access.allow())) return false;
+      await store.refresh();
+      if (store.status === 'signin') await store.refresh();
+      return true;
+    },
+    conflicts: () => access.conflicts(),
+  };
+  return { ...result, folder };
 }
 const ONEDRIVE: Place = { provider: 'microsoft', folder: ONEDRIVE_FOLDER, storageName: STORAGE_NAMES.microsoft };
 const GOOGLE: Place = { provider: 'google', folder: GOOGLE_FOLDER, storageName: STORAGE_NAMES.google };
@@ -388,7 +437,7 @@ export function settlesWithin(p: Promise<unknown>, ms: number): Promise<boolean>
 
 /** `syncedAt` in localStorage, so a reopened app can say since when it has not synced. One key per cache. */
 function syncedAtStore(place: Place) {
-  const key = syncedAtKey(place.provider, place.folder);
+  const key = place.syncedKey ?? syncedAtKey(place.provider, place.folder);
   return {
     load(): Date | null {
       try {
@@ -430,12 +479,12 @@ const MIGRATED_KEY = 'taskapp:cache-migrated';
 async function openCache(place: Place): Promise<{ cache: LocalCache } & CacheInfo> {
   let cache: IdbCache;
   try {
-    cache = new IdbCache(cacheName(place.provider, place.folder));
+    cache = new IdbCache(place.cacheDb ?? cacheName(place.provider, place.folder));
     await cache.get('tasks.md');
   } catch {
     return { cache: new MemoryCache(), cacheWarning: cacheWarning(place.storageName), durableCache: false };
   }
-  if (place.provider === 'microsoft') await migrateLegacyCache(cache);
+  if (place.provider === 'microsoft' && place.cacheDb === undefined) await migrateLegacyCache(cache);
   // Ask the browser not to evict the cache under storage pressure (it may hold unsynced edits).
   void navigator.storage?.persist?.().catch(() => {});
   return { cache, cacheWarning: null, durableCache: true };

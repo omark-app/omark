@@ -4,6 +4,7 @@
   import SettingsPage from '@omark/settings/SettingsPage.svelte';
   import { BRAND } from './brand.ts';
   import { boot } from './lib/boot.ts';
+  import { part } from './lib/part.svelte.ts';
   import type { StorageChoice } from './lib/storage-choice.ts';
   import { conflictNote } from './lib/folder-note.ts';
   import type { BootResult } from './lib/boot.ts';
@@ -68,7 +69,12 @@
 
   const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-  boot().then(
+  /** How this Tasks starts: its own boot, or the one Omark app's, which hands it the storage it opened. */
+  let { start = boot }: { start?: () => Promise<BootResult> } = $props();
+
+  // Tasks boots once, with the start it was given.
+  // svelte-ignore state_referenced_locally
+  start().then(
     (r) => {
       result = r;
       if (r.kind === 'ready') r.updates.setBusy(busy);
@@ -117,7 +123,7 @@
    * ignore both). Neither works on the Settings page or while search is open.
    */
   function onkeydown(e: KeyboardEvent): void {
-    if (result?.kind !== 'ready' || onSettings || search.mode === 'open') return;
+    if (!part.active || result?.kind !== 'ready' || onSettings || search.mode === 'open') return;
     const command = commandFor(keyInput(e), result.store.config.shortcuts);
     if (command === 'search') {
       e.preventDefault();
