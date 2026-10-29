@@ -24,6 +24,7 @@ Cut ideas go to [the backlog](doc/TaskApp%20backlog.md).
 
 - `packages/tasks-core`: parsing and logic, pure (no DOM, network or storage).
 - `packages/time-core`: Omark Time's logic, pure (no DOM, network or storage).
+- `packages/goals-core`: Omark Goals' logic, pure (no DOM, network or storage).
 - `packages/calendar`: calendar sources for Omark Time (the fake, later Google).
 - `packages/storage`: OneDrive, Google Drive, the offline cache, sync.
 - `packages/settings`: the schema-driven Settings page both apps share.

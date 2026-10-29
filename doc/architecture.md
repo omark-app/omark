@@ -10,6 +10,7 @@ TypeScript, pnpm workspaces, one repository for the whole suite.
 |---|---|
 | `packages/tasks-core` | Omark Tasks' logic, pure: parse and write `tasks.md`, `done.md`, `config.yaml`; buckets, recurrence, habits, stats, search, quick add; the three-way merge |
 | `packages/time-core` | Omark Time's logic, pure: the title parser, events to rows, hours, colours, CSV files, projects, summaries, charts, reports; the `CalendarSource` interface |
+| `packages/goals-core` | Omark Goals' logic, pure: `goals.md` read, write and edits (byte for byte), area tags, links and last activity per area, goal status chips |
 | `packages/calendar` | Calendar sources for Omark Time: a fake calendar, its demo seed and the shared contract test (Google comes next) |
 | `packages/storage` | Shared by both apps: the `StorageAdapter` interface, the OneDrive and Google Drive adapters, in-memory and IndexedDB fakes, the offline cache, file sync and the sign-in client |
 | `packages/settings` | The schema-driven Settings page and the `config.yaml` reader and writer both apps use ([its README](../packages/settings/README.md)) |

@@ -1,0 +1,14 @@
+{
+  "name": "@omark/goals-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "vitest run --root ../.. --project @omark/goals-core"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5"
+  }
+}

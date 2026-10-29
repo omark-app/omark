@@ -217,7 +217,7 @@ The same design language as O.Tasks and O.Time: calm, phone and desktop, light a
 ## 9. O.Tasks changes
 
 - **Tag suggestions in quick add**: typing `#` offers the project codes from `projects.csv` (unarchived) and the area tags from `goals.md`. *(my call: without it, linking means remembering codes.)*
-- Nothing else changes in O.Tasks. Tags already survive into `done.md` (to be checked by the builder; section 16).
+- Nothing else changes in O.Tasks. Tags already survive into `done.md` (checked in G.1, pinned by a tasks-core test).
 
 O.Time needs no change for O.Goals beyond the one-folder design.
 

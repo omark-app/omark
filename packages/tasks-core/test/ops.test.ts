@@ -134,6 +134,19 @@ describe('completeTask', () => {
     expect(findTask(r.state, id)!.date).toBe('2026-10-26');
     expect(serializeDone(r.state.done)).toBe('- [x] Water the plants 🔁 every week on Monday ✅ 2026-10-16\n');
   });
+  test('#tags in the title are kept on the done line, for a task and a habit (Goals spec 16)', () => {
+    let n = 0;
+    const s: State = {
+      doc: parseTasks('# Tasks\n\n- [ ] Book flights #CLIMB 📅 2026-10-16\n- [ ] Family walk #family 🌱 🔁 every day 📅 2026-10-16\n', () => `t${++n}`),
+      done: parseDone(''),
+    };
+    const a = completeTask(s, 't1', TODAY).state;
+    const b = completeTask(a, 't2', TODAY).state;
+    expect(serializeDone(b.done)).toBe(
+      '- [x] Book flights #CLIMB ✅ 2026-10-16\n- [x] Family walk #family 🌱 🔁 every day ✅ 2026-10-16\n',
+    );
+    expect(parseDone(serializeDone(b.done)).lines.map((l) => l.entry?.title)).toEqual(['Book flights #CLIMB', 'Family walk #family']);
+  });
   test('unknown id', () => {
     const s = make();
     expect(completeTask(s, 'nope', TODAY)).toEqual({ state: s, next: null });
