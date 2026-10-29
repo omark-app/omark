@@ -2,7 +2,8 @@
 // Checks that the one Omark app's sign-in helper is live and asks for what the app expects (one app spec,
 // section 5): /api/auth/login goes to Microsoft for MSAL_TENANT with the app folder; ?provider=google to Google
 // with Drive's own files and no calendar; ?provider=googlecal with the calendar read scopes and neither Drive
-// nor edit access (both are added later, only when the user asks). Run by CI and Promote with SIGNIN_URL
+// nor edit access (both are added later, only when the user asks). The Google ones only when the helper offers
+// Google (/api/auth/providers), as a copy without the Google secrets doesn't. Run by CI and Promote with SIGNIN_URL
 // (APP_STAGING_URL or APP_PROD_URL) and MSAL_TENANT (APP_MSAL_TENANT, empty means consumers).
 
 import { pathToFileURL } from 'node:url';
@@ -35,6 +36,15 @@ export async function checkOmarkSignin({
   const ms = await checkSignin({ url, tenant, scope: 'appfolder', fetch: f, attempts, waitMs, sleep });
   if (!ms.ok) return ms;
   const base = url.replace(/\/+$/, '');
+  // Google is optional for a copy of Omark: only a helper with both Google secrets lists it, and only then is
+  // it checked. If the list can't be read, it is checked anyway.
+  const offered = await f(`${base}/api/auth/providers`)
+    .then((res) => (res.ok ? res.json() : null))
+    .then((body) => (Array.isArray(body?.providers) ? body.providers : null))
+    .catch(() => null);
+  if (offered && !offered.includes('google')) {
+    return { ok: true, message: 'Sign-in helper OK (Microsoft; no Google: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not set)' };
+  }
   for (const g of GOOGLE) {
     let message = '';
     for (let i = 1; i <= attempts; i++) {

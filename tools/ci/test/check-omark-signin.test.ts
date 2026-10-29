@@ -12,10 +12,11 @@ const google = (scopes: string[]) =>
   `https://accounts.google.com/o/oauth2/v2/auth?client_id=x&scope=${encodeURIComponent(['openid', 'email', ...scopes].join(' '))}`;
 
 /** Answers by provider: a Location for a 302, or a bare status. A list gives one answer per call, the last repeating. */
-function setup(answers: Record<string, string | number | (string | number)[]>) {
+function setup(answers: Record<string, string | number | (string | number)[]>, providers = ['microsoft', 'google', 'googlecal']) {
   const calls: { url: string; redirect?: string }[] = [];
   const count: Record<string, number> = {};
   const fake = (async (input: string | URL | Request, init?: RequestInit) => {
+    if (new URL(String(input)).pathname.endsWith('/providers')) return Response.json({ providers });
     calls.push({ url: String(input), redirect: init?.redirect });
     const provider = new URL(String(input)).searchParams.get('provider') ?? 'microsoft';
     const list = [answers[provider] ?? 404].flat();
@@ -70,7 +71,15 @@ describe('checkOmarkSignin', () => {
     }
   });
 
-  it('fails when Google is not set up, naming the secrets', async () => {
+  it('checks only Microsoft when the helper offers no Google (a copy without the Google secrets)', async () => {
+    const s = setup({ microsoft: microsoft() }, ['microsoft']);
+    const r = await checkOmarkSignin({ url: URL_, fetch: s.fake, sleep: s.sleep });
+    expect(r.ok).toBe(true);
+    expect(r.message).toMatch(/no Google/);
+    expect(s.calls.map((c) => c.url)).toEqual([`${URL_}/api/auth/login`]);
+  });
+
+  it('fails when the helper lists Google but its sign-in is broken, naming the secrets', async () => {
     const r = await checkOmarkSignin({ url: URL_, fetch: setup({ ...GOOD, google: 500, googlecal: 500 }).fake, sleep: async () => {}, attempts: 1 });
     expect(r.ok).toBe(false);
     expect(r.message).toMatch(/does not redirect.*GOOGLE_CLIENT_ID/);

@@ -166,6 +166,21 @@ describe('promoteCheck', () => {
     await expect(check(gh, A)).rejects.toThrow(/no CI run/);
   });
 
+  it('refuses an omark commit whose run never built omark-dist (staging never ran it), even by default', async () => {
+    const gh = world();
+    gh.apps = { [A]: ['tasks', 'omark'] };
+    // Run 2 passed but its omark-staging was skipped or didn't exist yet: no omark-dist at all.
+    await expect(check(gh, A, 'omark')).rejects.toThrow(/no omark-dist build.*staging/);
+    await expect(check(gh, '', 'omark')).rejects.toThrow(/no omark-dist build/);
+  });
+
+  it('still rebuilds an omark commit whose omark-dist has expired', async () => {
+    const gh = world();
+    gh.apps = { [A]: ['omark'] };
+    gh.artifacts[2] = [{ name: 'omark-dist', expired: true }];
+    expect(await check(gh, A, 'omark')).toMatchObject({ sha: A, artifact: false, artifactName: 'omark-dist', appDir: 'apps/omark', filter: 'omark' });
+  });
+
   it('refuses a typo with a clear message, naming both kinds of tag', async () => {
     await expect(check(world(), 'deadbeefx')).rejects.toThrow(/deadbeefx.*not found/);
     await expect(check(world(), 'deadbeefx')).rejects.toThrow(/tasks-prod-.* prod-/);

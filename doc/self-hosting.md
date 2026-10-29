@@ -82,7 +82,7 @@ CI and Promote refuse to deploy when a `*_URL` isn't `https://` followed by its 
 
 Staging and production run the same build. The app picks its environment from the host name (`apps/tasks/src/lib/environment.ts`).
 
-**Promote** asks which app (`omark`; `tasks` is the bridge below) and which commit (empty means what staging runs now). It refuses a commit that isn't on `main` with a passing CI run. It deploys the build staging ran (or rebuilds it if that build expired after 30 days), checks the sign-in helper, tags it `omark-prod-YYYY-MM-DD-n`, and creates a release.
+**Promote** asks which app (`omark`; `tasks` is the bridge below) and which commit (empty means what staging runs now). It refuses a commit that isn't on `main` with a passing CI run, or whose run never made the app's build (`omark-dist`), because then staging never ran it. It deploys the build staging ran (or rebuilds it if that build expired after 30 days), checks the sign-in helper, tags it `omark-prod-YYYY-MM-DD-n`, and creates a release.
 
 **Rollback:** run Promote with an older `omark-prod-` tag. Cloudflare's dashboard rollback also works.
 

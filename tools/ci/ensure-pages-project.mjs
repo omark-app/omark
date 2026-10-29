@@ -2,8 +2,8 @@
 // Makes sure the Cloudflare Pages project exists and, when a domain is given, that its custom domain and DNS
 // record do too. Idempotent: it only creates what is missing and never changes what is there. Run by CI with
 // CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID, and CF_PROJECT (required), PAGES_DOMAIN and CF_ZONE_ID (both
-// or neither; the workflows fill them from the app's repository variables, e.g. CF_TASKS_STAGING_PROJECT or
-// CF_TASKS_DEMO_PROJECT); prints the project's pages.dev subdomain to $GITHUB_OUTPUT as `subdomain`.
+// or neither; the workflows fill them from repository variables, e.g. CF_APP_STAGING_PROJECT or
+// CF_DEMO_PROJECT); prints the project's pages.dev subdomain to $GITHUB_OUTPUT as `subdomain`.
 import { appendFileSync } from 'node:fs';
 
 const API = 'https://api.cloudflare.com/client/v4';

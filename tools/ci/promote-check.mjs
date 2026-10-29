@@ -82,6 +82,11 @@ export async function promoteCheck({ repo, token, input, app, fetch: f = fetch }
   const artifacts = (await get(`/actions/runs/${passed.id}/artifacts`)).data.artifacts ?? [];
   const live = new Set(artifacts.filter((/** @type {any} */ a) => !a.expired).map((/** @type {any} */ a) => a.name));
   const names = legacy ? [`${app}-dist`, 'web-dist'] : [`${app}-dist`];
+  // A run that never made the build (its staging job skipped, or older than the app's deploy) never put this
+  // commit on staging, so it isn't promoted. Tasks' oldest runs predate its artifacts, so it is exempt.
+  if (!legacy && !artifacts.some((/** @type {any} */ a) => a.name === `${app}-dist`)) {
+    throw new Refused(`CI for ${short} has no ${app}-dist build, so staging never ran it; promote a commit staging deployed.`);
+  }
   const found = names.find((n) => live.has(n));
   const artifactName = found ?? (layout.appDir === 'apps/web' ? 'web-dist' : `${app}-dist`);
   // When the run started, in the footer's `YYYY-MM-DD HH:MM UTC` form: a rebuild keeps the original build's date.

@@ -23,7 +23,9 @@ describe('redirect sites', () => {
     const files = siteFiles('https://demo.omark.app/time');
     // Pages applies redirects before files, so /sw.js needs a rule of its own above the catch-all.
     expect(files._redirects).toBe('/sw.js /retire-sw.js 200\n/* https://demo.omark.app/time 301\n');
-    expect(files._headers).toContain('/sw.js\n  Cache-Control: no-cache');
+    // No _headers: Pages doesn't apply them to a rewritten file, and browsers fetch the worker script past
+    // their HTTP cache anyway.
+    expect(Object.keys(files).sort()).toEqual(['_redirects', 'retire-sw.js']);
   });
 
   it('has a service worker that removes itself and its caches, then reloads the open pages', () => {
@@ -40,7 +42,7 @@ describe('redirect sites', () => {
     writeSites(dir);
     expect(readdirSync(dir).sort()).toEqual(REDIRECTS.map((r) => r.project).sort());
     for (const r of REDIRECTS) {
-      expect(readdirSync(join(dir, r.project)).sort()).toEqual(['_headers', '_redirects', 'retire-sw.js']);
+      expect(readdirSync(join(dir, r.project)).sort()).toEqual(['_redirects', 'retire-sw.js']);
       expect(readFileSync(join(dir, r.project, '_redirects'), 'utf8')).toContain(` ${r.to} 301`);
     }
   });

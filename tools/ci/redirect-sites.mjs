@@ -38,7 +38,6 @@ self.addEventListener('activate', (event) => {
 export function siteFiles(to) {
   return {
     _redirects: `/sw.js /retire-sw.js 200\n/* ${to} 301\n`,
-    _headers: '/sw.js\n  Cache-Control: no-cache\n',
     'retire-sw.js': RETIRE_SW,
   };
 }

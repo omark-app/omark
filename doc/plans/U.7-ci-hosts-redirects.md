@@ -80,3 +80,14 @@ Deleting the old Pages projects, DNS records and Google project (3.7). The one a
 - Redirects deployed to `omark-tasks-demo`, `omark-time-demo`, `omark-time-staging` and checked with curl: `/` answers 301 to the part, `/sw.js` is the retiring worker.
 - Landing page: three cards (Tasks, Time, Goals) with "Try the demo" to `demo.omark.app/<part>` and "Open" coming soon; a Goals icon in the brand family (amber tile `#A84C08`, a dot in the ring); privacy, README and SECURITY name `app.` and `demo.omark.app`. The bridge Tasks build's "Try the demo" goes to `demo.omark.app/tasks`.
 - Docs: `doc/self-hosting.md` for the one app, `doc/factory.md`, `.env.example`, `apps/site/README.md`, the one app spec 10, roadmap U.7 and 3.7.
+
+## Review
+
+One fresh-eyes review over 1b4a350..4c498f3. Fixed:
+
+- Promote with an empty commit picked the last green run (U.6), which staging never ran and which has no `omark-dist`: `promote-check.mjs` now refuses an app's commit whose run never built `<app>-dist` (the bridge's `tasks` is exempt, its oldest runs predate artifacts).
+- The sign-in check failed any copy without Google, which the docs call optional: it now checks Google only when `/api/auth/providers` lists it.
+- The redirect sites' `_headers` was not applied by Pages to the rewritten `/sw.js`: dropped (browsers fetch the worker past their HTTP cache anyway); redeployed and rechecked.
+- Stale lines: the Tasks spec's demo URL default, `ci.yml` comments naming `tasks-preview`, `ensure-pages-project.mjs` naming `CF_TASKS_DEMO_PROJECT`.
+
+Not fixed here: CI never ran on these commits (GitHub refused to start the jobs: Actions billing), so the jobs are checked only by hand deploys done the same way. `apps/tasks/src/lib/other-app.ts` and `apps/time/src/lib/views.ts` still link the old demo hosts; that code is no longer deployed there and goes in 3.7.
