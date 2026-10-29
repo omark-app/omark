@@ -5,7 +5,7 @@ export interface Auth {
    * Without a provider: the one last seen signed in, else the default. `add` asks the helper for a second consent
    * that adds that access to the sign-in (the helper's `login?add=`; Omark Time: `drive`, `edit`).
    */
-  signIn(provider?: string, opts?: { add?: string }): Promise<void>;
+  signIn(provider?: string, opts?: { add?: string; returnTo?: string }): Promise<void>;
   /** `fresh` skips the access token kept in memory (Graph rejected it). */
   getToken(opts?: { fresh?: boolean }): Promise<string>;
   isSignedIn(): boolean;
@@ -146,13 +146,15 @@ export function createAuth(opts: AuthOptions): Auth {
     async signIn(provider, o) {
       // A top-level navigation: the helper redirects to the provider and back to /api/auth/callback, which
       // returns to / (in an iOS home-screen app's scope). The helper adds the last account as login_hint.
+      // `returnTo` (the one Omark app): the helper comes back to that path instead of /, if it knows it.
       const id = provider ?? signedInProvider() ?? defaultProvider;
-      if (o?.add) {
-        navigate(`${BASE}/login?provider=${encodeURIComponent(id)}&add=${encodeURIComponent(o.add)}`);
-        return;
-      }
-      // The default keeps the plain URL (as before there were several providers), chosen or not.
-      navigate(id === defaultProvider ? `${BASE}/login` : `${BASE}/login?provider=${encodeURIComponent(id)}`);
+      const params = new URLSearchParams();
+      // The default keeps the plain URL (as before there were several providers), chosen or not, unless adding access.
+      if (id !== defaultProvider || o?.add) params.set('provider', id);
+      if (o?.add) params.set('add', o.add);
+      if (o?.returnTo) params.set('return', o.returnTo);
+      const query = params.toString();
+      navigate(query === '' ? `${BASE}/login` : `${BASE}/login?${query}`);
     },
     async getToken(o) {
       if (!o?.fresh && cached && cached.expiresAt - RENEW_BEFORE_MS > now()) return cached.accessToken;

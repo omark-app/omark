@@ -153,6 +153,15 @@ describe('createAuth (sign-in helper)', () => {
     expect(navigate).toHaveBeenLastCalledWith('/api/auth/login');
   });
 
+  it('signIn with { returnTo } asks the helper to come back to that path', async () => {
+    await mk(undefined, BOTH).signIn('microsoft', { returnTo: '/time' });
+    expect(navigate).toHaveBeenLastCalledWith('/api/auth/login?return=%2Ftime');
+    await mk(undefined, BOTH).signIn('google', { returnTo: '/tasks' });
+    expect(navigate).toHaveBeenLastCalledWith('/api/auth/login?provider=google&return=%2Ftasks');
+    await mk(undefined, TIME).signIn('google', { add: 'calendar', returnTo: '/time' });
+    expect(navigate).toHaveBeenLastCalledWith('/api/auth/login?provider=google&add=calendar&return=%2Ftime');
+  });
+
   it('signIn with { add } asks the helper to add that access, naming the provider even when it is the default', async () => {
     await mk(undefined, TIME).signIn('google', { add: 'edit' });
     expect(navigate).toHaveBeenLastCalledWith('/api/auth/login?provider=google&add=edit');
