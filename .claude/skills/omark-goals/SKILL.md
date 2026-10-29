@@ -25,11 +25,11 @@ Never change Tasks' or Time's files.
 
 Keep every line you don't change byte for byte: other text, headings, comments, notes under goals, front matter, line order. Then:
 
-- **New area**: append `## {Name} #{tag}` after the last area (before `## Not now`), with a blank line before it. Make the tag from the name: lower case, accents dropped, letters and digits joined by `-` (`Family & friends` → `family-friends`). It must not equal a project code in `projects.csv` or another area's tag, ignoring case; if it does, add `-2`.
+- **New area**: append `## {Name} #{tag}` after the last area (before `## Not now`), with a blank line before it. Make the tag from the name: lower case, accents dropped, letters and digits joined by `-` (`Family & friends` → `family-friends`); a name of only digits gets `area-` in front (`2027` → `area-2027`). It must not equal a project code in `projects.csv` or another area's tag, ignoring case; if it does, add `-2`, or `-3` and on when that is taken too.
 - **Renaming an area**: change the name only. Never change its tag: tasks and habits link by it.
-- **New goal**: a line after the area's last goal: `- [ ] {text} #{CODE} 📅 {due} ➕ {today}`. Leave out `#CODE` when it has no project, and `📅` only when the user truly gives no date (ask for one first).
-- **Changing a goal's text, date or project**: rewrite the line as `- [ ] {text} #{CODE} ✏️ {today} 📅 {due} ➕ {set}`, keeping its `➕` and any other tags and emoji in the text. `✏️` goes before `📅`.
-- **Achieved**: `- [ ]` becomes `- [x]` and `✅ {today}` goes at the end. Achieved goals stay where they are; don't delete them.
+- **New goal**: a line after the area's last goal and the indented note lines under it (never between a goal and its notes): `- [ ] {text} #{CODE} 📅 {due} ➕ {today}`. Leave out `#CODE` when it has no project, and `📅` only when the user truly gives no date (ask for one first). A code must be one in `projects.csv`; only those link.
+- **Changing a goal's text, date or project**: rewrite the line as `{box} {text} #{CODE} ✏️ {today} 📅 {due} ➕ {set} ✅ {done}`, where `{box}` stays `- [ ]` or `- [x]` as it was, and an achieved goal keeps its `✅`. Keep its `➕` and any other tags and emoji in the text. `✏️` goes before `📅`; an Obsidian block id (`^id`) stays last.
+- **Achieved**: `- [ ]` becomes `- [x]` and `✅ {today}` goes after the other signs (before a `^id`). Achieved goals stay where they are; don't delete them.
 - **Deleting** an area or a goal: only when the user asks, and say what goes (an area takes its goals with it).
 - **Not now**: plain `- ` lines under `## Not now` at the end of the file; add the section if there is none.
 
@@ -45,7 +45,7 @@ When asked how the user is doing against their goals, or for a review:
    - where the hours go: most hours on projects that no goal links to, or on one that matches a Not now line;
    - goals near their date (or past it) with little or no linked activity;
    - habits linked to an area that were dropped (`- [-] … ❌` in `done.md`) or have gone quiet;
-   - areas the app shows as **Needs update**: linked, with nothing dated since `stale_after` months (a date exactly that old is not stale);
+   - areas the app shows as **Needs update**: linked, with nothing dated since `stale_after` months (a date exactly that old is not stale). Count a goal's code only when it is in `projects.csv`, as the app does;
    - a goal's wording that can't be checked (not a measurable outcome) or has no date.
 4. Give facts with numbers and dates ("12 h on NOVA this month, 1 h on COURSE"), then at most a few suggestions. Change nothing unless asked.
 

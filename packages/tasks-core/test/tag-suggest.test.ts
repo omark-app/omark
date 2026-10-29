@@ -26,3 +26,11 @@ test('completeTag puts the tag in, with a space after, and says where the caret 
   expect(completeTag('Book #CL', { start: 5, query: 'CL' }, 'CLIMB')).toEqual({ text: 'Book #CLIMB ', caret: 12 });
   expect(completeTag('Book #cl flights', { start: 5, query: 'cl' }, 'CLIMB')).toEqual({ text: 'Book #CLIMB flights', caret: 12 });
 });
+
+test('review fixes: a typed tag that is already one shows no list; mid-word is no tag; duplicates are offered once', () => {
+  expect(matchTags('home', ['HOMELAB', 'home'])).toEqual([]);
+  expect(matchTags('CLIMB', ['CLIMB', 'climbing'])).toEqual([]);
+  expect(matchTags('ho', ['home', 'HOME', 'homelab'])).toEqual(['home', 'homelab']);
+  expect(tagAtCaret('Book #CLIMB', 8)).toBeNull();
+  expect(tagAtCaret('Book #CL now', 8)).toEqual({ start: 5, query: 'CL' });
+});

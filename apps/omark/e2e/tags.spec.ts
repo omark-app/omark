@@ -56,3 +56,13 @@ test('an archived code is not offered, and Escape closes the list without leavin
   await list.getByRole('option', { name: '#home' }).click();
   await expect(input).toHaveValue('Tidy #home ');
 });
+
+test('a tag typed in full shows no list, so Enter adds the task as typed', async ({ page, isMobile }) => {
+  await open(page);
+  const input = await field(page, isMobile);
+  await input.pressSequentially('Book a wall #climb');
+  await expect(page.getByTestId('tag-suggestions')).toHaveCount(0);
+  if (isMobile) await page.getByTestId('sheet').getByRole('button', { name: 'Add', exact: true }).tap();
+  else await input.press('Enter');
+  await expect(page.getByTestId('task-row').filter({ hasText: 'Book a wall #climb' })).toHaveCount(1);
+});

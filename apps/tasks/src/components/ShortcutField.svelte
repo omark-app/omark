@@ -49,6 +49,11 @@
   let chosen = $state(0);
   const at = $derived(tags && tags.length > 0 && focused ? tagAtCaret(value, caret) : null);
   const hits = $derived(at && !closed ? matchTags(at.query, tags!) : []);
+  const listId = `tags-${Math.random().toString(36).slice(2, 8)}`;
+  /** Read by assistive tech: the field controls the list while it is open, with the chosen option active. */
+  const combo = $derived(
+    tags ? { role: 'combobox' as const, 'aria-autocomplete': 'list' as const, 'aria-expanded': hits.length > 0, 'aria-controls': listId, 'aria-activedescendant': hits.length > 0 ? `${listId}-${chosen}` : undefined } : {},
+  );
   const noteCaret = (): void => {
     caret = input?.selectionStart ?? null;
   };
@@ -56,6 +61,8 @@
   async function choose(tag: string): Promise<void> {
     if (!at || !input) return;
     const done = completeTag(value, at, tag);
+    // Dismissed shortcut words after the tag move with the text.
+    dismissed = carryDismissed(dismissed, value, done.text);
     value = done.text;
     ontype?.();
     await tick();
@@ -70,7 +77,7 @@
         chosen = (chosen + (e.key === 'ArrowDown' ? 1 : hits.length - 1)) % hits.length;
         return;
       }
-      if (e.key === 'Enter' || e.key === 'Tab') {
+      if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
         e.preventDefault();
         void choose(hits[Math.min(chosen, hits.length - 1)]!);
         return;
@@ -118,7 +125,11 @@
   // Moving the caret by tap or with the space bar on iOS can scroll the input with no key or scroll event.
   $effect(() => {
     const onselection = (): void => {
-      if (document.activeElement === input) sync();
+      if (document.activeElement === input) {
+        sync();
+        // A click or tap that moves the caret fires no key event.
+        noteCaret();
+      }
     };
     document.addEventListener('selectionchange', onselection);
     return () => document.removeEventListener('selectionchange', onselection);
@@ -190,6 +201,7 @@
       onfocus={() => (sync(), (focused = true), noteCaret())}
       onblur={(e) => ((focused = false), onleave?.(e))}
       onkeydown={keydown}
+      {...combo}
     ></textarea>
   {:else}
     <input
@@ -206,13 +218,14 @@
       onfocus={() => (sync(), (focused = true), noteCaret())}
       onblur={(e) => ((focused = false), onleave?.(e))}
       onkeydown={keydown}
+      {...combo}
     />
   {/if}
   {#if hits.length > 0}
-    <ul class="tags" role="listbox" aria-label="Tags" data-testid="tag-suggestions">
-      {#each hits as t, i (t)}
+    <ul class="tags" id={listId} role="listbox" aria-label="Tags" data-testid="tag-suggestions">
+      {#each hits as t, i (i)}
         <!-- mousedown, so the field keeps its focus and the list is still there for the click. -->
-        <li role="option" aria-selected={i === chosen} class:on={i === chosen} onmousedown={(e) => (e.preventDefault(), void choose(t))}>#{t}</li>
+        <li role="option" id="{listId}-{i}" aria-selected={i === chosen} class:on={i === chosen} onmousedown={(e) => (e.preventDefault(), void choose(t))}>#{t}</li>
       {/each}
     </ul>
   {/if}

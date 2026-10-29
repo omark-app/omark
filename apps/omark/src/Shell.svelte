@@ -19,10 +19,17 @@
     if (!place) return;
     const { suggestionTags } = await import('./lib/tags.ts');
     const tags = await suggestionTags(place.root, place.part('goals'));
-    if (shell.place === place) tasksPart.tags = tags;
+    // A read that failed (offline) keeps what was offered.
+    if (shell.place === place && tags !== null) tasksPart.tags = tags;
   }
   $effect(() => {
-    if (shell.phase === 'ready' && shell.place) void loadTags();
+    // Signed out or another storage: the old folder's tags go at once, before the new one's are read.
+    void shell.place;
+    tasksPart.tags = [];
+  });
+  $effect(() => {
+    // When a folder opens, and each time Tasks' tab shows (an area or project added in another part meanwhile).
+    if (shell.phase === 'ready' && shell.place && shell.current === 'tasks') void loadTags();
   });
   void shell.start();
 

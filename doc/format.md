@@ -6,8 +6,9 @@ Omark keeps your data in plain files that any editor, script or AI agent can rea
 
 - [Omark Tasks](#omark-tasks): `tasks.md`, `done.md`, `config.yaml`.
 - [Omark Time](#omark-time): calendar event titles, `events-YYYY.csv`, `projects.csv`, `config.yaml`.
+- [Omark Goals](#omark-goals): `goals.md`, `config.yaml`.
 
-The examples and tables on this page are checked against `packages/tasks-core` and `packages/time-core` by `tools/ci/test/docs.test.ts`.
+The examples and tables on this page are checked against `packages/tasks-core` and `packages/time-core` by `tools/ci/test/docs.test.ts`, and the Omark Goals part against `packages/goals-core` by its `test/format-doc.test.ts`.
 
 ## The Omark folder
 
@@ -418,11 +419,11 @@ Trips across the world to climb in interesting places.
 - New client projects that need an office
 ```
 
-- **The vision line**: the text under the first `#` heading, up to the first `##`. Optional. Front matter before it is skipped.
+- **The vision line**: the text under the first `#` heading, up to the next heading of any level (or the first `##`). Optional. Front matter before it is skipped.
 - **An area**: a `##` heading other than `## Not now`, written `## {name} #{tag}`.
   - The tag is the area's key: lower case letters, digits and `-`, made from the name when the area is created and never changed. Renaming changes only the name.
   - A tag can't equal a project code, ignoring case.
-  - A heading without a tag is still an area; nothing links to it until the app gives it a tag on its first edit.
+  - A heading without a tag is still an area. Its goals, and the codes on them, still link to it; tasks and habits can only once it has a tag, which the app adds on the area's first edit.
   - Areas show in file order.
 - **The picture**: the first line in the area, before its first goal, that is only a Markdown image (`![alt](images/x.jpg)`), with a path relative to `goals.md`. Optional.
 - **The vision text**: the area's other text before its first goal, on one line. Optional.
@@ -431,7 +432,7 @@ Trips across the world to climb in interesting places.
   - `➕` the date it was set;
   - `✅` the date it was achieved (read on `- [x]` lines only);
   - `✏️` the date its text, date or project last changed;
-  - at most one project code: the last upper-case `#TAG` on the line.
+  - at most one project code: the last upper-case `#TAG` on the line. It links only when it is a code in `projects.csv` (when that file can be read).
 
   The last valid date after a sign wins. The rest of the line is the goal's text, its other tags and emoji included.
 - **A goal as the app writes it**: `- [ ] {text} #{CODE} ✏️ {date} 📅 {due} ➕ {set} ✅ {done}`. `✏️` comes before `📅` because Obsidian Tasks reads its signs from the line's end and stops at one it doesn't know. An Obsidian block id (`^id`) stays at the end.
