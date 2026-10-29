@@ -126,6 +126,7 @@ test.describe('desktop board', () => {
 
   test('the rail has no empty block without habits', async ({ page }) => {
     await openApp(page, { files: { 'tasks.md': '# Tasks\n- [ ] Plain task 📅 2026-10-16\n' } });
+    await expect(page.getByText('Plain task').first()).toBeVisible();
     await page.keyboard.press('v');
     await expect(page.getByTestId('board')).toBeVisible();
     const blocks = page.getByTestId('rail').locator('.rblock');
@@ -135,12 +136,14 @@ test.describe('desktop board', () => {
 
   test('the rail group is a single box', async ({ page }) => {
     await openApp(page, { files: { 'tasks.md': `# Tasks\n${habit('Meditate', '2026-10-16')}` } });
+    await expect(page.getByText('Meditate').first()).toBeVisible();
     await page.keyboard.press('v');
     await expect(page.getByTestId('rail').locator('.rblock')).toHaveCount(1);
   });
 
   test('the board rail shows the group', async ({ page }) => {
     await openApp(page, { files: { 'tasks.md': `# Tasks\n${habit('Meditate', '2026-10-16')}` } });
+    await expect(page.getByText('Meditate').first()).toBeVisible();
     await page.keyboard.press('v');
     await expect(page.getByTestId('board')).toBeVisible();
     await expect(page.getByTestId('rail').getByTestId('habits-group')).toContainText('Meditate');
@@ -296,6 +299,7 @@ test('renaming asks first', async ({ page, isMobile }) => {
 test('the board rail opens a habit from the Habits group', async ({ page, isMobile }) => {
   test.skip(isMobile, 'the board is a desktop view');
   await openApp(page, { files: { 'tasks.md': line('Meditate', '2026-10-16') } });
+  await expect(page.getByText('Meditate').first()).toBeVisible();
   await page.keyboard.press('v');
   await expect(page.getByTestId('board')).toBeVisible();
   await page.getByTestId('rail').getByTestId('habit-item').click();
