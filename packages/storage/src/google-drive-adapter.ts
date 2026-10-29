@@ -74,6 +74,14 @@ export class GoogleDriveAdapter implements StorageAdapter {
     }
   }
 
+  /** Whether the file with this id is still in Drive and not in the trash (a trashed folder trashes it too). */
+  async exists(source: string): Promise<boolean> {
+    const res = await this.api(`${API}drive/v2/files/${encodeURIComponent(source)}?fields=etag,headRevisionId,labels/trashed`, {});
+    if (res.status === 404) return false;
+    if (!res.ok) throw new Error(`Google Drive read failed: ${res.status}`);
+    return !(JSON.parse(res.text) as Metadata).labels.trashed;
+  }
+
   async write(name: string, text: string, ifMatch: string | null): Promise<{ etag: string; source: string }> {
     if (ifMatch === null) return this.create(name, text);
     const id = this.fileIds.get(name) ?? (await this.findFile(name));
@@ -195,8 +203,8 @@ export class GoogleDriveAdapter implements StorageAdapter {
     const res = await this.http.authed(url, init);
     if (res.status === 403) {
       const reasons = reasonsOf(res);
-      if (reasons.includes('insufficientPermissions')) throw new AuthRequiredError('Google Drive access not granted');
-      if (reasons.includes('storageQuotaExceeded')) throw new StorageFullError('Google Drive is full');
+      if (reasons.includes('insufficientpermissions')) throw new AuthRequiredError('Google Drive access not granted');
+      if (reasons.includes('storagequotaexceeded')) throw new StorageFullError('Google Drive is full');
     }
     return res;
   }
@@ -229,12 +237,22 @@ function contentType(name: string): string {
   return `${mimeType(name)}; charset=utf-8`;
 }
 
-/** The first `reason` in a Google error body's `errors` and the ones in its `details` (newer replies). */
-function reasonsOf(res: Reply): (string | undefined)[] {
+/**
+ * The first `reason` in a Google error body's `errors` and the ones in its `details` (newer replies, which
+ * spell them `STORAGE_QUOTA_EXCEEDED`), lower case without `_`. A malformed part is skipped, not the rest.
+ */
+function reasonsOf(res: Reply): string[] {
+  let error: unknown;
   try {
-    const error = (JSON.parse(res.text) as { error?: { errors?: { reason?: string }[]; details?: { reason?: string }[] } }).error;
-    return [error?.errors?.[0]?.reason, ...(error?.details ?? []).map((d) => d.reason)];
+    error = (JSON.parse(res.text) as { error?: unknown }).error;
   } catch {
     return [];
   }
+  const e = error as { errors?: unknown; details?: unknown } | null | undefined;
+  const reasonIn = (x: unknown): unknown => (typeof x === 'object' && x !== null ? (x as { reason?: unknown }).reason : undefined);
+  const found = [
+    Array.isArray(e?.errors) ? reasonIn(e.errors[0]) : undefined,
+    ...(Array.isArray(e?.details) ? e.details.map(reasonIn) : []),
+  ];
+  return found.filter((r): r is string => typeof r === 'string').map((r) => r.replace(/_/g, '').toLowerCase());
 }

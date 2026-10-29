@@ -47,6 +47,15 @@ The status stays `offline` on purpose. Omark Time's `files.ts` folds statuses by
 - **OneDrive's answer** varies (507 Insufficient Storage, or `quotaLimitReached`). Both are covered; anything else reads as today.
 - **A full drive that a read still serves:** reads keep working, so the list stays current. Only saves fail, which is what the banner says.
 
+## Review (2026-10-29)
+
+A fresh-eyes review of 8d8e142 found, and the next commit fixed (tests first):
+
+1. After a full failure, a retry that stalled (or a cache failure) still read as "full": every status change but the full failure itself now clears it.
+2. A malformed `details` list in Google's reply hid the reason in `errors` (a sign-in could read as offline); each part is read on its own, and `details`' `STORAGE_QUOTA_EXCEEDED` spelling counts too.
+
+Kept: the banner says "full" when any of the three files' last save failed on a full storage.
+
 ## Out of scope
 
 - Omark Time showing the "full" text (its lane can use `FileSync.full()`).

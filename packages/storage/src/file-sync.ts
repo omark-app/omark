@@ -207,7 +207,7 @@ export class FileSync {
   private enqueue(op: () => Promise<void>, onlyIfDirty = false): Promise<boolean> {
     const run = this.chain.then(async () => {
       if (onlyIfDirty && !this.file.dirty) return true;
-      this.setStatus('syncing');
+      this.setStatus('syncing', this.isFull); // a retry under way still has the last failure's cause
       // Every step has its own time limit, but an operation can take several (up to three writes and
       // reads): past `stallMs` the status stops claiming progress. The chain still waits for the
       // operation, so writes never overlap.
@@ -245,6 +245,11 @@ export class FileSync {
    * read was in flight is merged rather than overwritten. Sets `remoteChanged` when `local` changes.
    */
   private async absorb(remote: RemoteFile | null): Promise<void> {
+    // Another file answering to the name while the one the base came from is still there means two copies
+    // (#67). One that is gone was trashed or deleted, and the file in use was made again: taken as usual.
+    const before = this.file.baseSource;
+    const twoCopies = remote?.source !== undefined && before != null && remote.source !== before
+      && (await this.opts.adapter.exists?.(before)) === true;
     const f = this.file;
     if (remote === null) {
       // Missing: create it from `local` (whether never created or deleted elsewhere, the text is kept).
@@ -253,9 +258,9 @@ export class FileSync {
       this.set(sourced({ ...f, base: '', baseEtag: null, dirty: true }, undefined));
     } else if (remote.etag === f.baseEtag) {
       return;
-    } else if (remote.source !== undefined && f.baseSource != null && remote.source !== f.baseSource) {
-      // Another file answers to the name now (a second copy on Google Drive, #67): the base describes the
-      // one before, so both are merged from an empty base and the result goes to the file in use.
+    } else if (twoCopies && f.baseSource === before) {
+      // The base describes the other copy, so both are merged from an empty base and the result goes to
+      // the file in use. The other copy stays as it is.
       const merged = this.opts.merge('', f.local, remote.text);
       const same = normalize(merged) === normalize(remote.text);
       this.set(sourced({ base: remote.text, baseEtag: remote.etag, local: same ? remote.text : merged, dirty: !same }, remote.source));
@@ -362,8 +367,8 @@ export class FileSync {
     }
   }
 
-  /** Sets the status, and `full()` when `full` is given; listeners hear of a change to either. */
-  private setStatus(s: SyncStatus, full = this.isFull): void {
+  /** Sets the status and `full()` (true only for a full-storage failure); listeners hear of a change to either. */
+  private setStatus(s: SyncStatus, full = false): void {
     if (s === this.current && full === this.isFull) return;
     this.current = s;
     this.isFull = full;

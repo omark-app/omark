@@ -404,6 +404,40 @@ describe('GoogleDriveAdapter when two files answer to one name (#67)', () => {
     expect(made.source).not.toBe(read!.source);
   });
 
+  it('exists says whether a file id is still there and out of the trash', async () => {
+    const fake = new FakeGoogleDrive({ 'tasks.md': 'a', 'done.md': 'd' });
+    const adapter = setup(fake);
+    const tasks = (await adapter.read('tasks.md'))!.source!;
+    const done = (await adapter.read('done.md'))!.source!;
+    expect(await adapter.exists(tasks)).toBe(true);
+    fake.trash('tasks.md');
+    expect(await adapter.exists(tasks)).toBe(false);
+    fake.deleteFolder();
+    expect(await adapter.exists(done)).toBe(false);
+  });
+
+  it('a file trashed and made again by another device is taken as it is: a task deleted there stays deleted', async () => {
+    const fake = new FakeGoogleDrive({ 'tasks.md': '# Tasks\n- [ ] Keep\n- [ ] Delete me\n' });
+    const a = sync(device(fake, 'tok-a'), new MemoryCache());
+    const b = sync(device(fake, 'tok-b'), new MemoryCache());
+    await a.open();
+    const opened = await b.open();
+    await b.save('# Tasks\n- [ ] Keep\n', opened);
+    fake.trash('tasks.md');
+    await b.pull(); // finds it missing and makes it again from its own text
+    expect(fake.peek('tasks.md')).toBe('# Tasks\n- [ ] Keep\n');
+    expect((await a.pull()).text).toBe('# Tasks\n- [ ] Keep\n');
+    expect(fake.peek('tasks.md')).toBe('# Tasks\n- [ ] Keep\n');
+  });
+
+  it('a malformed details list keeps the reason in errors', async () => {
+    const fake = new FakeGoogleDrive({ 'tasks.md': 'a' });
+    const reply = Response.json({ error: { code: 403, errors: [{ reason: 'insufficientPermissions' }], details: [null] } }, { status: 403 });
+    await expect(setup(fake, replying(fake, reply)).read('tasks.md')).rejects.toBeInstanceOf(AuthRequiredError);
+    const upper = Response.json({ error: { code: 403, details: [{ reason: 'STORAGE_QUOTA_EXCEEDED' }] } }, { status: 403 });
+    await expect(setup(fake, replying(fake, upper)).write('done.md', 'd', null)).rejects.toBeInstanceOf(StorageFullError);
+  });
+
   it('a lagging list lets two first runs at once make two folders, each with its own tasks.md', async () => {
     const fake = new FakeGoogleDrive();
     fake.setListLag(true);

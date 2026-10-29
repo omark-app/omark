@@ -53,6 +53,15 @@ Today, a device whose cached base came from the newer file reads the oldest one 
 - **`done.md` and `config.yaml` use their own merges.** From an empty base, `mergeDoneText` keeps both sides' entries. `mergeSettings` keeps local values where both set a key. Both are tested.
 - **Cache shape:** `baseSource` is a new optional field in the IndexedDB cache. An older cache reads it as missing, which means "as today" until the next successful sync records it.
 
+## Review (2026-10-29)
+
+A fresh-eyes review of c8cab51 found, and the next commit fixed (tests first):
+
+1. The empty-base merge also ran when the file was trashed and made again by another device, so a task deleted there came back. Now it runs only while the file the base came from still exists: adapters that give sources also have `exists(source)` (Drive: the id is there and not trashed).
+2. The adapter contract had been loosened to `toMatchObject`; it is exact again, with `source` where the storage gives one.
+
+Accepted: with two real copies, a task deleted or completed in only one of them comes back once, since nothing tells which copy is newer. The spec says so.
+
 ## Out of scope
 
 - Trashing or renaming the other copy after the merge (it stays, untouched).

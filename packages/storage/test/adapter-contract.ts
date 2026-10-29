@@ -17,9 +17,13 @@ export function adapterContract(make: () => ContractHarness): void {
 
     it('creates a file with ifMatch null and rejects a second create', async () => {
       const { adapter } = make();
-      const { etag } = await adapter.write('tasks.md', 'a', null);
+      const written = await adapter.write('tasks.md', 'a', null);
+      const { etag } = written;
       expect(etag).toBeTruthy();
-      expect(await adapter.read('tasks.md')).toMatchObject({ text: 'a', etag }); // plus `source` where the storage has one
+      // A storage that names files (Google Drive) gives the same `source` on both; the rest give none.
+      const read = await adapter.read('tasks.md');
+      const source = written.source === undefined ? {} : { source: written.source };
+      expect(read).toEqual({ text: 'a', etag, ...source });
       await expect(adapter.write('tasks.md', 'b', null)).rejects.toBeInstanceOf(PreconditionFailedError);
     });
 

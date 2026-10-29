@@ -860,6 +860,30 @@ describe('FileSync full storage (#68)', () => {
     expect(seen).toContainEqual(['offline', false]);
   });
 
+  it('a retry that stalls after a full failure reads as offline, not full', async () => {
+    vi.useFakeTimers();
+    try {
+      const adapter = new TrackingAdapter(new FakeOneDrive({ [NAME]: S }));
+      const sync = new FileSync({ name: NAME, adapter, cache: new MemoryCache(), merge: mergeTasksText, initial: INITIAL, stallMs: 5000 });
+      await sync.open();
+      adapter.failWrites = new StorageFullError('full');
+      await sync.save(withLocal, S);
+      expect(sync.full()).toBe(true);
+      adapter.failWrites = null;
+      const g = gate();
+      adapter.readGate = g.promise;
+      const pulled = sync.pull();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect([sync.status(), sync.full()]).toEqual(['offline', false]);
+      g.open();
+      await vi.runAllTimersAsync();
+      await pulled;
+      expect([sync.status(), sync.full()]).toEqual(['saved', false]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('a sign-in failure is not full', async () => {
     const adapter = new TrackingAdapter(new FakeOneDrive({ [NAME]: S }));
     const sync = makeSync(adapter);
@@ -890,6 +914,13 @@ class SourceAdapter implements StorageAdapter {
 
   use(id: string): void {
     this.current = id;
+  }
+
+  /** Files trashed or deleted: `exists` says no. */
+  gone = new Set<string>();
+
+  async exists(source: string): Promise<boolean> {
+    return this.files.has(source) && !this.gone.has(source);
   }
 
   async read(): Promise<RemoteFile | null> {
@@ -947,6 +978,18 @@ describe('FileSync when another file answers to the name (#67)', () => {
     both(sync.text());
     expect(sync.text()).toContain('- [ ] Edited here');
     both(adapter.files.get('old')!.text);
+  });
+
+  it('when the old file is gone (trashed, then made again), the new one is taken as before', async () => {
+    const adapter = new SourceAdapter();
+    adapter.add('x', withRemote);
+    const sync = makeSync(adapter);
+    await sync.open();
+    adapter.gone.add('x');
+    adapter.add('y', S); // made again by a device that had deleted the remote task
+    adapter.use('y');
+    expect((await sync.pull()).text).toBe(S);
+    expect(adapter.files.get('y')!.text).toBe(S);
   });
 
   it('the same file is merged against the real base, as before', async () => {
