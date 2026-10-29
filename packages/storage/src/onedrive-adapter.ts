@@ -1,5 +1,5 @@
 import type { RemoteFile, StorageAdapter } from './adapter.ts';
-import { PreconditionFailedError } from './errors.ts';
+import { PreconditionFailedError, StorageFullError } from './errors.ts';
 import { createHttp, type Http } from './http.ts';
 import { quickXorHash } from './quick-xor-hash.ts';
 
@@ -81,8 +81,21 @@ export class OneDriveAdapter implements StorageAdapter {
     if (res.status === 412 || (res.status === 409 && ifMatch === null)) {
       throw new PreconditionFailedError(`Precondition failed for ${name}`);
     }
+    // A full OneDrive answers 507 Insufficient Storage, or 403 with `quotaLimitReached` (#68).
+    if (res.status === 507 || (res.status === 403 && graphCode(res.text) === 'quotaLimitReached')) {
+      throw new StorageFullError('OneDrive is full');
+    }
     if (!res.ok) throw new Error(`Graph write failed: ${res.status}`);
     const item = JSON.parse(res.text) as { eTag: string };
     return { etag: item.eTag };
+  }
+}
+
+/** The `error.code` of a Graph error body, if there is one. */
+function graphCode(text: string): string | undefined {
+  try {
+    return (JSON.parse(text) as { error?: { code?: string } }).error?.code;
+  } catch {
+    return undefined;
   }
 }

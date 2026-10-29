@@ -17,10 +17,12 @@ async function addTask(page: Page, title: string, isMobile: boolean) {
   await expect(row(page, title)).toHaveCount(1);
 }
 
-type Fake = { folders(): string[]; setOffline(o: boolean): void };
+type Fake = { folders(): string[]; setOffline(o: boolean): void; setFull(f: boolean): void };
 const folders = (page: Page) => page.evaluate(() => (window as unknown as { __taskappFake: Fake }).__taskappFake.folders());
 const setOffline = (page: Page, on: boolean) =>
   page.evaluate((o) => (window as unknown as { __taskappFake: Fake }).__taskappFake.setOffline(o), on);
+const setFull = (page: Page, on: boolean) =>
+  page.evaluate((f) => (window as unknown as { __taskappFake: Fake }).__taskappFake.setFull(f), on);
 
 const signInWith = (page: Page) =>
   page.evaluate(() => (window as unknown as { __taskappAuth: { signInWith: (string | null)[] } }).__taskappAuth.signInWith);
@@ -77,6 +79,22 @@ test('signed in with Google, a save that meets an outside edit merges it in', as
   await expect(row(page, 'Added on the phone')).toHaveCount(1);
   await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Added here');
   expect(await driveFile(page, 'tasks.md')).toContain('- [ ] Added on the phone 📅 2026-10-16');
+  await expect(page.getByTestId('status')).toHaveText('saved');
+});
+
+test('a full Google Drive says so; once there is room, the next refresh saves and clears it (#68)', async ({ page, isMobile }) => {
+  await openApp(page, { auth: 'google', files: { 'tasks.md': SPEC_TASKS } });
+  await expect(page.getByTestId('status')).toHaveText('saved');
+  await setFull(page, true);
+  await addTask(page, 'Written on a full drive', isMobile);
+  await expect(page.getByTestId('sync-banner')).toHaveText(
+    "Your Google Drive is full — changes are kept on this device until there's room",
+  );
+  expect(await driveFile(page, 'tasks.md')).not.toContain('Written on a full drive');
+  await setFull(page, false);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Written on a full drive');
+  await expect(page.getByTestId('sync-banner')).toHaveCount(0);
   await expect(page.getByTestId('status')).toHaveText('saved');
 });
 

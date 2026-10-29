@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AuthRequiredError, OfflineError } from '../src/errors.ts';
+import { AuthRequiredError, OfflineError, StorageFullError } from '../src/errors.ts';
 import { OneDriveAdapter } from '../src/onedrive-adapter.ts';
 import { adapterContract } from './adapter-contract.ts';
 import { GraphFake } from './graph-fake.ts';
@@ -153,6 +153,20 @@ describe('OneDriveAdapter (Graph specifics)', () => {
       }) as typeof fetch,
     });
     await expect(adapter.read('tasks.md')).rejects.toBeInstanceOf(OfflineError);
+  });
+
+  it('a full OneDrive is StorageFullError: 507, or quotaLimitReached on a 403 or 507 (#68)', async () => {
+    const full = async (reply: Response) => {
+      const adapter = new OneDriveAdapter({ folder: '', getToken: async () => 't', fetch: (async () => reply) as typeof fetch });
+      return adapter.write('tasks.md', 'a', null).catch((e: unknown) => e);
+    };
+    const graphError = (status: number, code: string) => Response.json({ error: { code, message: code } }, { status });
+    expect(await full(new Response('', { status: 507 }))).toBeInstanceOf(StorageFullError);
+    expect(await full(graphError(507, 'insufficientStorage'))).toBeInstanceOf(StorageFullError);
+    expect(await full(graphError(403, 'quotaLimitReached'))).toBeInstanceOf(StorageFullError);
+    const other = await full(graphError(403, 'accessDenied'));
+    expect(other).toBeInstanceOf(Error);
+    expect((other as Error).constructor).toBe(Error);
   });
 
   it('a request that honours the abort signal times out as OfflineError', async () => {

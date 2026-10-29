@@ -1,6 +1,6 @@
 import type { RemoteFile, StorageAdapter } from './adapter.ts';
 import type { CachedFile, LocalCache } from './cache.ts';
-import { AuthRequiredError, PreconditionFailedError } from './errors.ts';
+import { AuthRequiredError, PreconditionFailedError, StorageFullError } from './errors.ts';
 
 export type SyncStatus = 'saved' | 'syncing' | 'offline' | 'signin';
 
@@ -50,6 +50,8 @@ export class FileSync {
   private absorbed = false;
   private readonly remoteListeners = new Set<() => void>();
   private current: SyncStatus = 'syncing';
+  /** The last operation failed because the storage is full (#68); cleared by the next success or other failure. */
+  private isFull = false;
   private readonly listeners = new Set<(s: SyncStatus) => void>();
   private chain: Promise<unknown> = Promise.resolve();
   private persisting: Promise<unknown> = Promise.resolve();
@@ -71,6 +73,14 @@ export class FileSync {
 
   status(): SyncStatus {
     return this.current;
+  }
+
+  /**
+   * True while the last failure was a full storage. The status is `offline` then, so the sync retries as
+   * it does for any failure; `onStatus` listeners are also called when this changes.
+   */
+  full(): boolean {
+    return this.isFull;
   }
 
   onStatus(cb: (s: SyncStatus) => void): () => void {
@@ -211,13 +221,13 @@ export class FileSync {
       } catch (e) {
         // OfflineError, exhausted 412 retries, transient Graph errors and cache failures all leave the
         // edit in memory (and in the cache when it works); the next pull or save retries.
-        this.setStatus(e instanceof AuthRequiredError ? 'signin' : 'offline');
+        this.setStatus(e instanceof AuthRequiredError ? 'signin' : 'offline', e instanceof StorageFullError);
         return false;
       } finally {
         clearTimeout(stall);
       }
       // Still dirty only if a save arrived meanwhile; its own queued operation will write it.
-      if (!this.file.dirty) this.setStatus('saved');
+      this.setStatus(this.file.dirty ? this.current : 'saved', false);
       return true;
     }).finally(() => this.reportAbsorbed());
     this.chain = run.catch(() => {});
@@ -346,9 +356,11 @@ export class FileSync {
     }
   }
 
-  private setStatus(s: SyncStatus): void {
-    if (s === this.current) return;
+  /** Sets the status, and `full()` when `full` is given; listeners hear of a change to either. */
+  private setStatus(s: SyncStatus, full = this.isFull): void {
+    if (s === this.current && full === this.isFull) return;
     this.current = s;
+    this.isFull = full;
     for (const cb of this.listeners) {
       try {
         cb(s);

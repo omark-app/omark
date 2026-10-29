@@ -22,6 +22,7 @@ export function sinceText(at: Date, now: Date): string {
  * `syncing` until it has lasted `QUIET_SYNC_MS` (`slow`). `syncedAt` is when this device last had every
  * file in step with the storage (`storageName`); the list on screen is that copy plus edits made since.
  * `reconnect` is how the storage is reached again: `signin` for an account, `allow` for a picked folder.
+ * `full`: an `offline` status came from a full storage (#68), which the text says instead.
  */
 export function bannerText(
   status: SyncStatus,
@@ -30,6 +31,7 @@ export function bannerText(
   now: Date,
   storageName = 'OneDrive',
   reconnect: Reconnect = 'signin',
+  full = false,
 ): string | null {
   const since = syncedAt ? ` since ${sinceText(syncedAt, now)}` : '';
   switch (status) {
@@ -38,6 +40,10 @@ export function bannerText(
     case 'syncing':
       return slow ? `Still reaching ${storageName} — showing your last saved copy${since ? ` (synced${since})` : ''}` : null;
     case 'offline':
+      if (full) {
+        const where = reconnect === 'allow' ? `The disk with ${storageName}` : `Your ${storageName}`;
+        return `${where} is full — changes are kept on this device until there's room`;
+      }
       return `Can't reach ${storageName}${since} — showing your last saved copy`;
     case 'signin':
       return `${reconnect === 'allow' ? 'Allow access' : 'Sign in'} again to reach ${storageName}${since} — showing your last saved copy`;

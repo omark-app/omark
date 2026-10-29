@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { RemoteFile, StorageAdapter } from '../src/adapter.ts';
 import type { CachedFile, LocalCache } from '../src/cache.ts';
 import { MemoryCache } from '../src/cache.ts';
-import { AuthRequiredError, OfflineError, PreconditionFailedError } from '../src/errors.ts';
+import { AuthRequiredError, OfflineError, PreconditionFailedError, StorageFullError } from '../src/errors.ts';
 import { FakeOneDrive } from '../src/fake-onedrive.ts';
 import { FileSync } from '../src/file-sync.ts';
 import type { SyncStatus } from '../src/file-sync.ts';
@@ -826,6 +826,49 @@ describe('FileSync', () => {
     await sync.pull();
     expect(sync.status()).toBe('saved');
     expect(await cache.get(NAME)).toMatchObject({ base: withLocal, local: withLocal, dirty: false });
+  });
+});
+
+describe('FileSync full storage (#68)', () => {
+  it('full() is true after a full-storage failure, with status offline, until the next success', async () => {
+    const adapter = new TrackingAdapter(new FakeOneDrive({ [NAME]: S }));
+    const sync = makeSync(adapter);
+    await sync.open();
+    const seen: [SyncStatus, boolean][] = [];
+    sync.onStatus((s) => seen.push([s, sync.full()]));
+    adapter.failWrites = new StorageFullError('full');
+    await sync.save(withLocal, S);
+    expect([sync.status(), sync.full()]).toEqual(['offline', true]);
+    expect(seen.at(-1)).toEqual(['offline', true]);
+    adapter.failWrites = null;
+    await sync.pull();
+    expect([sync.status(), sync.full()]).toEqual(['saved', false]);
+    expect(adapter.drive.peek(NAME)).toBe(withLocal);
+  });
+
+  it('another failure after a full one clears full() and tells the listeners, though the status stays offline', async () => {
+    const adapter = new TrackingAdapter(new FakeOneDrive({ [NAME]: S }));
+    const sync = makeSync(adapter);
+    await sync.open();
+    adapter.failWrites = new StorageFullError('full');
+    await sync.save(withLocal, S);
+    const seen: [SyncStatus, boolean][] = [];
+    sync.onStatus((s) => seen.push([s, sync.full()]));
+    adapter.failAll = new OfflineError('down');
+    await sync.pull();
+    expect([sync.status(), sync.full()]).toEqual(['offline', false]);
+    expect(seen).toContainEqual(['offline', false]);
+  });
+
+  it('a sign-in failure is not full', async () => {
+    const adapter = new TrackingAdapter(new FakeOneDrive({ [NAME]: S }));
+    const sync = makeSync(adapter);
+    await sync.open();
+    adapter.failWrites = new StorageFullError('full');
+    await sync.save(withLocal, S);
+    adapter.failAll = new AuthRequiredError('again');
+    await sync.pull();
+    expect([sync.status(), sync.full()]).toEqual(['signin', false]);
   });
 });
 

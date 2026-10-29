@@ -1,7 +1,7 @@
 import { createStore, del, get, set } from 'idb-keyval';
 import type { UseStore } from 'idb-keyval';
 import type { RemoteFile, StorageAdapter } from './adapter.ts';
-import { AuthRequiredError, OfflineError, PreconditionFailedError } from './errors.ts';
+import { AuthRequiredError, OfflineError, PreconditionFailedError, StorageFullError } from './errors.ts';
 
 export type FolderPermission = 'granted' | 'prompt' | 'denied';
 
@@ -143,6 +143,7 @@ export class LocalFolderAdapter implements StorageAdapter {
     } catch (e) {
       if (isError(e, 'NotAllowedError') || isError(e, 'SecurityError')) throw this.accessNeeded();
       if (isError(e, 'NotFoundError')) throw new OfflineError(`The folder ${this.folder.name} can't be found`);
+      if (isError(e, 'QuotaExceededError')) throw new StorageFullError(`The disk with the folder ${this.folder.name} is full`);
       throw e;
     }
   }

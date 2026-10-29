@@ -1,5 +1,5 @@
 export type { RemoteFile, StorageAdapter } from './adapter.ts';
-export { AuthRequiredError, OfflineError, PreconditionFailedError } from './errors.ts';
+export { AuthRequiredError, OfflineError, PreconditionFailedError, StorageFullError } from './errors.ts';
 export { FakeOneDrive } from './fake-onedrive.ts';
 export { OneDriveAdapter } from './onedrive-adapter.ts';
 export type { DriveRoot, OneDriveAdapterOptions } from './onedrive-adapter.ts';

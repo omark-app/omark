@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AuthRequiredError, OfflineError, PreconditionFailedError } from '../src/errors.ts';
+import { AuthRequiredError, OfflineError, PreconditionFailedError, StorageFullError } from '../src/errors.ts';
 import { FakeGoogleDrive } from '../src/fake-google-drive.ts';
 import { GoogleDriveAdapter } from '../src/google-drive-adapter.ts';
 import { adapterContract } from './adapter-contract.ts';
@@ -298,6 +298,30 @@ describe('GoogleDriveAdapter (Drive specifics)', () => {
     await plainError(setup(fake, replying(fake, googleError(403, 'rateLimitExceeded'))).read('tasks.md'));
     await plainError(setup(fake, replying(fake, googleError(403, 'userRateLimitExceeded'))).read('tasks.md'));
     await plainError(setup(fake, replying(fake, googleError(429, 'rateLimitExceeded'))).write('done.md', 'd', null));
+  });
+
+  it('a full Drive is StorageFullError, on a create and on a write (#68)', async () => {
+    const fake = new FakeGoogleDrive({ 'tasks.md': 'a' });
+    const adapter = setup(fake);
+    const { etag } = (await adapter.read('tasks.md'))!;
+    fake.setFull(true);
+    await expect(adapter.write('tasks.md', 'b', etag)).rejects.toBeInstanceOf(StorageFullError);
+    await expect(adapter.write('done.md', 'd', null)).rejects.toBeInstanceOf(StorageFullError);
+    expect(fake.peek('tasks.md')).toBe('a');
+    expect((await adapter.read('tasks.md'))?.text).toBe('a');
+    fake.setFull(false);
+    await adapter.write('tasks.md', 'b', etag);
+    expect(fake.peek('tasks.md')).toBe('b');
+  });
+
+  it('reads the full reason from error.details too, as newer replies carry it', async () => {
+    const fake = new FakeGoogleDrive({ 'tasks.md': 'a' });
+    const reply = Response.json(
+      { error: { code: 403, message: 'full', details: [{ '@type': 'type.googleapis.com/google.rpc.ErrorInfo', reason: 'storageQuotaExceeded' }] } },
+      { status: 403 },
+    );
+    const adapter = setup(fake, replying(fake, reply));
+    await expect(adapter.write('done.md', 'd', null)).rejects.toBeInstanceOf(StorageFullError);
   });
 
   it('throws OfflineError when the network is down', async () => {

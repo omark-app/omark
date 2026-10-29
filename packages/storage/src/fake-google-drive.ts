@@ -43,6 +43,7 @@ export class FakeGoogleDrive {
   private items = new Map<string, Item>();
   private clock = 0;
   private offline = false;
+  private full = false;
   private holds: Hold[] = [];
 
   /** The folder's path from the top of My Drive, one name per level. */
@@ -73,6 +74,11 @@ export class FakeGoogleDrive {
 
   setOffline(offline: boolean): void {
     this.offline = offline;
+  }
+
+  /** A full Drive: creating or updating a file answers 403 `storageQuotaExceeded`; reads still work. */
+  setFull(full: boolean): void {
+    this.full = full;
   }
 
   /** A rename-like change elsewhere: a new etag, the same text. */
@@ -220,6 +226,7 @@ export class FakeGoogleDrive {
   /** v2 multipart insert: metadata `{ title, parents: [{ id }], mimeType }`, then the content. */
   private insert(call: DriveCall, url: URL, body: string | undefined): Response {
     expectQuery(call, url, { uploadType: 'multipart', fields: 'id,etag' });
+    if (this.full) return googleError(403, 'storageQuotaExceeded');
     const boundary = /^multipart\/related; boundary=(\S+)$/.exec(call.headers['content-type'] ?? '')?.[1];
     if (!boundary || body === undefined) unexpected(call);
     const parts = body.split(`--${boundary}`);
@@ -242,6 +249,7 @@ export class FakeGoogleDrive {
   /** v2 media update, honouring `If-Match` (v3 would ignore it). */
   private update(call: DriveCall, url: URL, id: string, body: string | undefined): Response {
     expectQuery(call, url, { uploadType: 'media', fields: 'etag' });
+    if (this.full) return googleError(403, 'storageQuotaExceeded');
     const ifMatch = call.headers['if-match'];
     const typed = /^text\/\S+; charset=utf-8$/.test(call.headers['content-type'] ?? '');
     if (ifMatch === undefined || body === undefined || !typed) unexpected(call);

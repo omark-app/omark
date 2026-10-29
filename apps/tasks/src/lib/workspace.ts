@@ -63,6 +63,8 @@ export interface Workspace {
   onConfigConflict(cb: (labels: string[], dropped: Dropped) => void): () => void;
   /** Worst of the three files: signin > offline > syncing > saved. */
   status(): SyncStatus;
+  /** A file's last save failed because the storage is full (#68); `onStatus` also fires when this changes. */
+  full(): boolean;
   onStatus(cb: (s: SyncStatus) => void): () => void;
 }
 
@@ -95,12 +97,16 @@ export function createWorkspace(adapter: StorageAdapter, cache: LocalCache): Wor
   const status = (): SyncStatus =>
     all.reduce<SyncStatus>((w, f) => (RANK[f.status()] > RANK[w] ? f.status() : w), 'saved');
 
+  const full = (): boolean => all.some((f) => f.full());
+
   const listeners = new Set<(s: SyncStatus) => void>();
   let last = status();
+  let lastFull = full();
   const onChange = (): void => {
     const s = status();
-    if (s === last) return;
+    if (s === last && full() === lastFull) return;
     last = s;
+    lastFull = full();
     for (const cb of listeners) {
       try {
         cb(s);
@@ -148,6 +154,7 @@ export function createWorkspace(adapter: StorageAdapter, cache: LocalCache): Wor
       if (errors.length > 0) throw errors[0];
     },
     status,
+    full,
     onRemoteChange(cb) {
       const offs = all.map((f) => f.onRemoteChange(cb));
       return () => {
@@ -164,6 +171,7 @@ export function createWorkspace(adapter: StorageAdapter, cache: LocalCache): Wor
       if (!wired) {
         wired = true;
         last = status();
+        lastFull = full();
         for (const f of all) f.onStatus(onChange);
       }
       listeners.add(cb);

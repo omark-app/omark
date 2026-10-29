@@ -16,6 +16,8 @@ export class MemoryFolder implements FolderHandle {
   gone = false;
   /** Makes closing a write stream fail (a lock, a full disk), after the file was created. */
   failClose = false;
+  /** Makes closing a write stream fail as a full disk does. */
+  full = false;
   /** Answers to `requestPermission`; the default grants it. */
   answer: FolderPermission = 'granted';
   private clock = 1;
@@ -93,6 +95,7 @@ export class MemoryFolder implements FolderHandle {
           close: async () => {
             this.check();
             if (this.failClose) throw new DOMException('The file is locked', 'NoModificationAllowedError');
+            if (this.full) throw new DOMException('The disk is full', 'QuotaExceededError');
             this.files.set(name, { text, lastModified: ++this.clock });
           },
         };

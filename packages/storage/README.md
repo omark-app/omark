@@ -12,3 +12,5 @@ Every storage is a `StorageAdapter` (`src/adapter.ts`): `read(name)` gives the t
 | `IdbDrive`, `FakeOneDrive`, `FakeGoogleDrive` | IndexedDB (the demo) and fakes for tests | |
 
 For a picked folder: `folderSupported(window)` says whether the browser can pick one, `pickFolder` shows the picker, `SavedFolder` keeps the handle in IndexedDB, `folderAccess` and `requestFolderAccess` handle the permission a later visit may need (lost permission is `AuthRequiredError`), and `conflictCopies` names sync clients' conflict copies (`notes (1).md` and similar).
+
+A storage with no room left is `StorageFullError`: a 403 `storageQuotaExceeded` from Drive, a 507 or `quotaLimitReached` from OneDrive, a `QuotaExceededError` from a folder (#68). `FileSync` then shows `offline` and retries as for any failure, and `full()` is true until the next success or a different failure; its `onStatus` listeners hear when `full()` changes too.

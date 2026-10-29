@@ -40,6 +40,24 @@ describe('sync banner', () => {
     );
   });
 
+  it('says when the storage is full, for an account and for a folder (#68)', () => {
+    const at = new Date(2026, 9, 18, 11, 2);
+    expect(bannerText('offline', false, at, now, 'Google Drive', 'signin', true)).toBe(
+      "Your Google Drive is full — changes are kept on this device until there's room",
+    );
+    expect(bannerText('offline', false, at, now, 'OneDrive', 'signin', true)).toBe(
+      "Your OneDrive is full — changes are kept on this device until there's room",
+    );
+    expect(bannerText('offline', false, at, now, 'the folder Tasks', 'allow', true)).toBe(
+      "The disk with the folder Tasks is full — changes are kept on this device until there's room",
+    );
+    // Only an `offline` status reads as full; a sign-in or a quiet sync keep their own texts.
+    expect(bannerText('signin', false, at, now, 'OneDrive', 'signin', true)).toBe(
+      'Sign in again to reach OneDrive since 11:02 — showing your last saved copy',
+    );
+    expect(bannerText('saved', false, at, now, 'OneDrive', 'signin', true)).toBeNull();
+  });
+
   it('gives the day when the last sync was not today', () => {
     expect(sinceText(new Date(2026, 9, 18, 9, 5), now)).toBe('09:05');
     expect(sinceText(new Date(2026, 9, 17, 23, 59), now)).toBe('Sat 23:59');

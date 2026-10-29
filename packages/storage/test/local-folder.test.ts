@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import type { UseStore } from 'idb-keyval';
 import { describe, expect, it } from 'vitest';
-import { AuthRequiredError, OfflineError, PreconditionFailedError } from '../src/errors.ts';
+import { AuthRequiredError, OfflineError, PreconditionFailedError, StorageFullError } from '../src/errors.ts';
 import {
   conflictCopies,
   folderAccess,
@@ -93,6 +93,17 @@ describe('LocalFolderAdapter', () => {
     folder.failClose = true;
     await expect(adapter.write('tasks.md', 'b', etag)).rejects.toMatchObject({ name: 'NoModificationAllowedError' });
     expect(folder.files.get('tasks.md')?.text).toBe('a');
+  });
+
+  it('a full disk is StorageFullError, and the file stays as it was (#68)', async () => {
+    const folder = new MemoryFolder();
+    const adapter = new LocalFolderAdapter(folder);
+    const { etag } = await adapter.write('tasks.md', 'a', null);
+    folder.full = true;
+    await expect(adapter.write('tasks.md', 'b', etag)).rejects.toBeInstanceOf(StorageFullError);
+    await expect(adapter.write('done.md', 'd', null)).rejects.toBeInstanceOf(StorageFullError);
+    expect(folder.files.get('tasks.md')?.text).toBe('a');
+    expect(folder.files.has('done.md')).toBe(false);
   });
 
   it('notices an outside edit of the same size and modified time', async () => {

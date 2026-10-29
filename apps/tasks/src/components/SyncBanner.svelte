@@ -25,7 +25,7 @@
     return () => clearTimeout(timer);
   });
 
-  const text = $derived(bannerText(store.status, slow, store.syncedAt, new Date(), storageName, reconnect));
+  const text = $derived(bannerText(store.status, slow, store.syncedAt, new Date(), storageName, reconnect, store.full));
 </script>
 
 {#if text}

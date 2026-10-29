@@ -12,3 +12,8 @@ export class OfflineError extends Error {
 export class AuthRequiredError extends Error {
   override name = 'AuthRequiredError';
 }
+
+/** The storage has no room left for the write (a full Drive, OneDrive or disk); the sync retries later. */
+export class StorageFullError extends Error {
+  override name = 'StorageFullError';
+}

@@ -1,5 +1,5 @@
 import type { RemoteFile, StorageAdapter } from './adapter.ts';
-import { AuthRequiredError, PreconditionFailedError } from './errors.ts';
+import { AuthRequiredError, PreconditionFailedError, StorageFullError } from './errors.ts';
 import { createHttp, type Http, type Reply } from './http.ts';
 
 const API = 'https://www.googleapis.com/';
@@ -187,11 +187,16 @@ export class GoogleDriveAdapter implements StorageAdapter {
     return (JSON.parse(res.text) as { files: { id: string }[] }).files.map((f) => f.id);
   }
 
-  /** An authenticated call. A 403 for a missing scope (Drive unticked or revoked) needs a new sign-in. */
+  /**
+   * An authenticated call. A 403 for a missing scope (Drive unticked or revoked) needs a new sign-in; one
+   * for a full Drive is `StorageFullError` (#68).
+   */
   private async api(url: string, init: RequestInit): Promise<Reply> {
     const res = await this.http.authed(url, init);
-    if (res.status === 403 && reasonOf(res) === 'insufficientPermissions') {
-      throw new AuthRequiredError('Google Drive access not granted');
+    if (res.status === 403) {
+      const reasons = reasonsOf(res);
+      if (reasons.includes('insufficientPermissions')) throw new AuthRequiredError('Google Drive access not granted');
+      if (reasons.includes('storageQuotaExceeded')) throw new StorageFullError('Google Drive is full');
     }
     return res;
   }
@@ -224,11 +229,12 @@ function contentType(name: string): string {
   return `${mimeType(name)}; charset=utf-8`;
 }
 
-/** The first `reason` in a Google error body, if there is one. */
-function reasonOf(res: Reply): string | undefined {
+/** The first `reason` in a Google error body's `errors` and the ones in its `details` (newer replies). */
+function reasonsOf(res: Reply): (string | undefined)[] {
   try {
-    return (JSON.parse(res.text) as { error?: { errors?: { reason?: string }[] } }).error?.errors?.[0]?.reason;
+    const error = (JSON.parse(res.text) as { error?: { errors?: { reason?: string }[]; details?: { reason?: string }[] } }).error;
+    return [error?.errors?.[0]?.reason, ...(error?.details ?? []).map((d) => d.reason)];
   } catch {
-    return undefined;
+    return [];
   }
 }

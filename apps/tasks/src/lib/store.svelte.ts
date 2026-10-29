@@ -114,6 +114,8 @@ export interface AppStore {
   readonly view: View;
   readonly toast: Toast | null;
   readonly status: SyncStatus;
+  /** The `offline` status is a full storage (#68). */
+  readonly full: boolean;
   /** When every file was last in step with OneDrive (status `saved`), here or in an earlier session. */
   readonly syncedAt: Date | null;
   readonly stats: Stats;
@@ -286,6 +288,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   let settleOnPull = snap.fromCache;
   let toast = $state.raw<Toast | null>(null);
   let status = $state<SyncStatus>(workspace.status());
+  let full = $state(workspace.full());
   // Opening without a cache pulled before this point, so a `saved` status here is a fresh sync.
   let syncedAt = $state.raw<Date | null>(status === 'saved' ? clock.now() : (deps.syncedAtStore?.load() ?? null));
   const stats = $derived(computeStats(state.done, ctx.today));
@@ -298,6 +301,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   let unsynced = false;
   workspace.onStatus((s) => {
     status = s;
+    full = workspace.full();
     if (s === 'saved' && !isDirty()) unsynced = false;
     if (s === 'saved') {
       syncedAt = clock.now();
@@ -855,6 +859,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     get view() { return view; },
     get toast() { return toast; },
     get status() { return status; },
+    get full() { return full; },
     get syncedAt() { return syncedAt; },
     get stats() { return stats; },
     get habits() { return habits; },

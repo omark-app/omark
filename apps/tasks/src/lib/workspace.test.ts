@@ -1,5 +1,5 @@
 import { DEFAULT_CONFIG_YAML } from '@omark/tasks-core';
-import { FakeOneDrive, MemoryCache, OfflineError } from '@omark/storage';
+import { FakeOneDrive, MemoryCache, OfflineError, StorageFullError } from '@omark/storage';
 import type { CachedFile, RemoteFile, StorageAdapter, SyncStatus } from '@omark/storage';
 import { describe, expect, it } from 'vitest';
 import { createWorkspace } from './workspace.ts';
@@ -11,6 +11,7 @@ const S = '# Always\n\n# Tasks\n- [ ] Buy milk\n- [ ] Call mom\n';
 /** Delegates to a drive but can take single files offline. */
 class PerFileAdapter implements StorageAdapter {
   down = new Set<TaskFile>();
+  full = false;
   constructor(readonly drive: FakeOneDrive) {}
   async read(name: TaskFile): Promise<RemoteFile | null> {
     if (this.down.has(name)) throw new OfflineError('Offline');
@@ -18,6 +19,7 @@ class PerFileAdapter implements StorageAdapter {
   }
   async write(name: TaskFile, text: string, ifMatch: string | null) {
     if (this.down.has(name)) throw new OfflineError('Offline');
+    if (this.full) throw new StorageFullError('Full');
     return this.drive.write(name, text, ifMatch);
   }
 }
@@ -115,6 +117,24 @@ describe('createWorkspace', () => {
     expect(out).toContain('Remote task');
     expect(out).toContain('Local task');
     expect(out).toContain('Buy milk');
+  });
+
+  it('full() is true while a file\'s last save failed on a full storage, and onStatus tells of it (#68)', async () => {
+    const drive = new FakeOneDrive();
+    const adapter = new PerFileAdapter(drive);
+    const ws = createWorkspace(adapter, new MemoryCache());
+    const snap = await ws.open();
+    const seen: [SyncStatus, boolean][] = [];
+    ws.onStatus((s) => seen.push([s, ws.full()]));
+    adapter.full = true;
+    await ws.save({ tasks: { text: '# Tasks\n- [ ] a\n', base: snap.tasks } });
+    expect([ws.status(), ws.full()]).toEqual(['offline', true]);
+    expect(seen.at(-1)).toEqual(['offline', true]);
+    adapter.full = false;
+    adapter.down.add('tasks.md');
+    await ws.refresh();
+    expect([ws.status(), ws.full()]).toEqual(['offline', false]);
+    expect(seen.at(-1)).toEqual(['offline', false]);
   });
 
   it('status is the worst of the three and onStatus fires on combined changes', async () => {
