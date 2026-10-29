@@ -83,6 +83,16 @@ describe('GoalsStore', () => {
     expect(store.projects.map((p) => p.code)).toEqual(['CLIMB', 'HOME']);
   });
 
+  it('sets stale_after in goals/config.yaml, keeping its other lines, and refuses a value outside 1–24', async () => {
+    const { store, goals } = folders({ goals: { 'goals.md': '## Home #home\n', 'config.yaml': '# mine\nother: x\n' } });
+    await store.open();
+    expect(await store.setStaleAfter(30)).toMatch(/24/);
+    expect(await store.setStaleAfter(6)).toBeNull();
+    await store.settled();
+    expect(goals.peek('config.yaml')).toBe('# mine\nother: x\nstale_after: 6\n');
+    expect(store.staleAfter).toBe(6);
+  });
+
   it('a new project with no projects.csv yet creates it with the header', async () => {
     const { store, top } = folders();
     await store.open();

@@ -174,6 +174,11 @@ describe('goals', () => {
     const d = parseGoals(text);
     expect(editGoal(d, 0, 0, { text: 'Run #outdoors 🏃', due: '2027-01-01', code: 'RUN', achieved: false }, TODAY)).toBe(d);
   });
+  test('deleting the last goal at the end of the file leaves no blank line behind (G.2)', () => {
+    expect(run('## A #a\n\n- [ ] x ➕ 2026-01-01\n', (d) => deleteGoal(d, 0, 0))).toBe('## A #a\n');
+    expect(run('## A #a\n\n- [ ] x\n\n## B #b\n', (d) => deleteGoal(d, 0, 0))).toBe('## A #a\n\n## B #b\n');
+    expect(run('## Not now\n\n- boat\n', (d) => deleteNotNow(d, 0))).toBe('## Not now\n');
+  });
   test('deleteGoal removes the line and its notes', () => {
     expect(run('## A #a\n- [ ] x\n    - note\n- [ ] y\n', (d) => deleteGoal(d, 0, 0))).toBe('## A #a\n- [ ] y\n');
     expect(run(spec, (d) => deleteGoal(d, 0, 0))).toBe(spec.replace('- [ ] Live within an hour of quality rock 📅 2028-06-30 ➕ 2026-10-28\n\n', ''));

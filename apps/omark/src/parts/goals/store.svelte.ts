@@ -3,6 +3,7 @@ import {
   parseGoals, projectFacts, serializeGoals, setVision,
 } from '@omark/goals-core';
 import type { Area, AreaPatch, DoneInput, Goal, GoalPatch, GoalsDoc, HoursRow, ISODate, NewGoal, OpenInput, ProjectFacts } from '@omark/goals-core';
+import { setSetting } from '@omark/settings';
 import { FileSync } from '@omark/storage';
 import type { LocalCache, StorageAdapter, SyncStatus } from '@omark/storage';
 import { allTasks, habitProgress, habitsInProgress, parseConfig, parseDone, parseTasks } from '@omark/tasks-core';
@@ -24,6 +25,7 @@ export interface GoalsDeps {
 
 const GOALS = 'goals.md';
 const PROJECTS = 'projects.csv';
+const CONFIG = 'config.yaml';
 const HEADER = `${PROJECT_COLUMNS.join(',')}\n`;
 /** Hours count from this many years of Time's files, back from this one (the stale period is at most 24 months). */
 const YEARS = 3;
@@ -64,6 +66,10 @@ export class GoalsStore {
   private today = $state<ISODate>('');
 
   private readonly goals: FileSync;
+  /** Goals' `config.yaml`, synced once it exists or is first written. */
+  private readonly config: FileSync;
+  private configText: string | null = null;
+  private configOpen = false;
   private readonly projectsSync: FileSync;
 
   activity = $derived(
@@ -80,6 +86,7 @@ export class GoalsStore {
     this.goals = new FileSync({ name: GOALS, adapter: deps.goals, cache: deps.cache, merge: mergeGoalsText, initial: '' });
     this.goals.onStatus((s) => (this.status = s));
     this.goals.onRemoteChange(() => this.show(this.goals.text()));
+    this.config = new FileSync({ name: CONFIG, adapter: deps.goals, cache: deps.cache, merge: mergeGoalsText, initial: '' });
     this.projectsSync = new FileSync({ name: PROJECTS, adapter: deps.top, cache: deps.cache, merge: mergeProjects, initial: HEADER });
   }
 
@@ -109,6 +116,7 @@ export class GoalsStore {
   async settled(): Promise<void> {
     if (this.text !== '') await this.goals.pull();
     if (this.projectsOpen) await this.projectsSync.pull();
+    if (this.configOpen) await this.config.pull();
   }
 
   setVision = (text: string) => this.apply(setVision(this.doc, text));
@@ -144,6 +152,20 @@ export class GoalsStore {
     this.setProjects(text);
     this.projectsOpen = true;
     await this.projectsSync.stage(text, base).catch(() => {});
+    return null;
+  }
+
+  /** Sets `stale_after` (Goals spec 6.3) in Goals' `config.yaml`, keeping its other lines. Null when set, else why not. */
+  async setStaleAfter(months: number): Promise<string | null> {
+    if (!Number.isInteger(months) || months < 1 || months > 24) return 'Needs update after must be a whole number of months from 1 to 24';
+    if (this.configText !== null && !this.configOpen) this.configText = await this.config.open();
+    this.configOpen = true;
+    const base = this.configText ?? '';
+    const text = setSetting(base, ['stale_after'], months);
+    this.configText = text;
+    this.staleAfter = months;
+    this.configError = null;
+    await this.config.stage(text, base).catch(() => {});
     return null;
   }
 
@@ -210,7 +232,8 @@ export class GoalsStore {
         ? habitsInProgress(tasksDoc).map((t) => ({ title: t.title, progress: habitProgress(t, done, today, habitConfig) }))
         : [],
     };
-    const config = goalsConfig(goalsConfigText ?? '');
+    if (!this.configOpen && goalsConfigText !== undefined) this.configText = goalsConfigText;
+    const config = goalsConfig(this.configText ?? '');
     this.staleAfter = config.staleAfter;
     this.configError = config.error;
     if (projectsFile !== undefined) {

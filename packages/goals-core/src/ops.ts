@@ -168,7 +168,7 @@ export function deleteGoal(doc: GoalsDoc, i: number, g: number): GoalsDoc {
   const goal = pos >= 0 ? (doc.sections[pos] as Area).goals[g] : undefined;
   if (!goal) return doc;
   const lines = doc.sections[pos]!.lines;
-  return withSection(doc, pos, cut(lines, goal.line, blockEnd(lines, goal.line)));
+  return withSection(doc, pos, cut(lines, goal.line, blockEnd(lines, goal.line), pos === doc.sections.length - 1));
 }
 
 /** Adds a Not now line after the last one, making the section at the end of the file when there is none. */
@@ -206,7 +206,7 @@ export function deleteNotNow(doc: GoalsDoc, k: number): GoalsDoc {
   const item = pos >= 0 ? (doc.sections[pos] as NotNow).items[k] : undefined;
   if (!item) return doc;
   const lines = doc.sections[pos]!.lines;
-  return withSection(doc, pos, cut(lines, item.line, blockEnd(lines, item.line)));
+  return withSection(doc, pos, cut(lines, item.line, blockEnd(lines, item.line), pos === doc.sections.length - 1));
 }
 
 const heading = (name: string, tag: string): string => ['##', name, `#${tag}`].filter((p) => p !== '').join(' ');
@@ -253,10 +253,14 @@ function lastText(lines: string[]): number {
   return -1;
 }
 
-/** Removes lines `[from, to)` and, when that leaves two blank lines together, one of them. */
-function cut(lines: string[], from: number, to: number): string[] {
+/**
+ * Removes lines `[from, to)` and, when that leaves two blank lines together, one of them. At the end of the file
+ * (`last`: the lines are the last section's), the end counts as a blank line, so the separator before goes too.
+ */
+function cut(lines: string[], from: number, to: number, last = false): string[] {
   const out = lines.toSpliced(from, to - from);
-  if (from > 0 && isBlank(out[from - 1]) && isBlank(out[from])) out.splice(from, 1);
+  const after = from === out.length && last ? true : isBlank(out[from]);
+  if (from > 1 && isBlank(out[from - 1]) && after) out.splice(from === out.length ? from - 1 : from, 1);
   return out;
 }
 

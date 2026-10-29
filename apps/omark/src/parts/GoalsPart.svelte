@@ -1,17 +1,47 @@
 <script lang="ts">
-  // Omark Goals fills this tab in roadmap G.2 (it then opens on the `place` it is given); until then the tab holds its place.
+  import { IdbCache, MemoryCache } from '@omark/storage';
+  import { toISODate } from '@omark/tasks-core';
+  import { STORAGE_MODE } from '../env.ts';
   import type { Place } from '../lib/places.ts';
+  import { registry } from '../lib/registry.svelte.ts';
+  import Board from './goals/Board.svelte';
+  import { GoalsStore } from './goals/store.svelte.ts';
 
-  let { place: _place }: { place: Place; openSettings?: () => void } = $props();
+  /** Omark Goals as a part (roadmap G.2): its `goals/` folder, reading Tasks', Time's and the top's files. */
+  let { place, active = true, openSettings }: { place: Place; openSettings?: () => void; active?: boolean } = $props();
+
+  // One store per place: switching tabs keeps it, a new storage gets a new one.
+  const store = $derived.by(() => {
+    const s = new GoalsStore({
+      goals: place.part('goals'),
+      top: place.root,
+      tasks: place.part('tasks'),
+      time: place.part('time'),
+      // The fake build's folders live in memory, so its copy does too.
+      cache: STORAGE_MODE === 'fake' ? new MemoryCache() : new IdbCache(`omark-goals-${place.key}`),
+      today: () => toISODate(new Date()),
+    });
+    void s.open();
+    return s;
+  });
+  // Published for the one Settings page; gone with its part, so the page never shows another folder's store.
+  $effect(() => {
+    const mine = store;
+    registry.goals = mine;
+    return () => {
+      if (registry.goals === mine) registry.goals = null;
+    };
+  });
+
+  // Shown again (its tab): what changed in the other parts meanwhile shows.
+  let shown = false;
+  $effect(() => {
+    if (active && shown) void store.refresh();
+    shown ||= active;
+  });
 </script>
 
-<section class="soon">
-  <h1>Omark Goals</h1>
-  <p>Your life areas, their vision and goals, linked to your tasks and hours. Omark Goals comes to this tab soon.</p>
-</section>
+<!-- Another part's changes (a ticked habit, new hours) show when Goals is looked at again. -->
+<svelte:window onfocus={() => void store.refresh()} />
 
-<style>
-  .soon { max-width: 36rem; margin: 48px auto; padding: 0 20px; font-family: var(--sans); color: var(--ink); }
-  h1 { font-size: 22px; font-weight: 600; }
-  p { color: var(--muted); }
-</style>
+<Board {store} {openSettings} />

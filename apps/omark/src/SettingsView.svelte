@@ -23,6 +23,8 @@
   const place = $derived(shell.place!);
   const tasks = $derived(shell.on.includes('tasks') ? tasksPart.settings : null);
   const time = $derived(shell.on.includes('time') ? registry.time : null);
+  const goals = $derived(shell.on.includes('goals') ? registry.goals : null);
+  let staleError = $state<string | null>(null);
 
   // Sign-in cookies aren't reactive: read them again after this page changes one.
   let signIns = $state(0);
@@ -61,6 +63,7 @@
   const sections = $derived([
     { id: 'omark', title: 'Omark', body: omarkCard },
     ...(shell.on.includes('time') ? [{ id: 'time', title: 'Omark Time', body: timeCard }] : []),
+    ...(shell.on.includes('goals') ? [{ id: 'goals', title: 'Omark Goals', body: goalsCard }] : []),
     // Tasks is on but not open (still starting, or its start failed): the Omark card stays in reach.
     ...(shell.on.includes('tasks') && !tasks ? [{ id: 'tasks', title: 'Omark Tasks', body: tasksWaiting }] : []),
   ]);
@@ -119,6 +122,25 @@
   <p class="muted">Omark Tasks' settings show here once it opens.</p>
 {/snippet}
 
+{#snippet goalsCard()}
+  {#if goals}
+    <label class="stale">
+      Needs update after
+      <input
+        type="number"
+        min="1"
+        max="24"
+        value={goals.staleAfter}
+        onchange={async (e) => (staleError = await goals.setStaleAfter(Number(e.currentTarget.value)))}
+      />
+      months without anything linked
+    </label>
+    {#if staleError ?? goals.configError}<p class="error" role="alert">{staleError ?? goals.configError}</p>{/if}
+  {:else}
+    <p class="muted">Opening Omark Goals…</p>
+  {/if}
+{/snippet}
+
 {#snippet timeCard()}
   {#if time && time.phase === 'ready'}
     <div class="omark-time in-page"><TimeSettings store={time} inPage /></div>
@@ -165,6 +187,8 @@
   .part small, .muted { color: var(--muted); }
   .btn { padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 500 14px var(--sans); cursor: pointer; }
   .error { color: var(--danger); }
+  .stale { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .stale input { width: 4.5em; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: 15px var(--sans); }
   .plain { max-width: 44rem; margin: 0 auto; padding: 24px 16px 48px; }
   .plain .card { background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); padding: 20px; margin-top: 16px; }
   .plain .card h2 { margin: 0 0 8px; font-size: 17px; }
