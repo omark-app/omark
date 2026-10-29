@@ -63,6 +63,8 @@ export interface AppDeps {
   storageSignIn?: () => Promise<void>;
   /** Inside the one Omark app: opens its Settings page. */
   openSettings?: () => void;
+  /** The one app's demo: the Calendar view, drawing the week's events in their colours (spec 12). */
+  calendarView?: boolean;
 }
 
 /** The IndexedDB database that keeps the picked folder's handle; the picker's id lets it reopen where it was. */
@@ -170,6 +172,10 @@ export interface TimeGiven {
   storageSignIn?: () => Promise<void>;
   /** Opens the one app's Settings page (through its router, so its back link comes back here). */
   openSettings?: () => void;
+  /** The demo: this device's Time choices (its first run done), instead of the ones kept per place in IndexedDB. */
+  prefs?: PrefsStore;
+  /** The demo: the Calendar view. */
+  calendarView?: boolean;
 }
 
 const KINDS: Record<TimeGiven['storage'], StorageKind> = { microsoft: 'onedrive', google: 'google-drive', folder: 'local-folder' };
@@ -196,7 +202,7 @@ export function timeDeps(given: TimeGiven): AppDeps {
   return {
     auth,
     source: given.source ?? new GoogleCalendarSource({ getToken: (opts) => calendar.getToken(opts) }),
-    prefs: new IdbPrefs(`prefs-${given.key}`),
+    prefs: given.prefs ?? new IdbPrefs(`prefs-${given.key}`),
     openPlace: async () => ({
       files: filesOn(routed(given.top, given.own), cacheName, now),
       state: new IdbState(cacheName),
@@ -213,6 +219,7 @@ export function timeDeps(given: TimeGiven): AppDeps {
     ...(given.persist && { persist: given.persist }),
     ...(given.storageSignIn && { storageSignIn: given.storageSignIn }),
     ...(given.openSettings && { openSettings: given.openSettings }),
+    ...(given.calendarView && { calendarView: true }),
     storage: KINDS[given.storage],
     embedded: true,
   };

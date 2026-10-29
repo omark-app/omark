@@ -9,6 +9,7 @@
     "typecheck": "svelte-check --tsconfig ./tsconfig.json",
     "e2e": "playwright test",
     "e2e:tasks": "playwright test -c playwright.tasks.config.ts",
+    "e2e:time": "playwright test -c playwright.time.config.ts",
     "test": "vitest run --root ../.. --project omark"
   },
   "devDependencies": {

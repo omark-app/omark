@@ -16,8 +16,10 @@ import type { Auth, BinaryStore, FolderHandle, StorageAdapter } from '@omark/sto
 import type { GivenPlace } from 'tasks/src/lib/boot.ts';
 import { folderStorageName, STORAGE_NAMES } from 'tasks/src/lib/environment.ts';
 import { TASK_FILES } from 'tasks/src/lib/workspace.ts';
+import type { Access } from 'time/src/lib/auth.ts';
 import type { TimeGiven } from 'time/src/lib/boot.ts';
 import { GOOGLE_ROOT, STORAGE_MODE } from '../env.ts';
+import { demoAccounts } from './demo/accounts.ts';
 import { redirectFor } from './redirect.ts';
 import type { Part } from './suite.ts';
 
@@ -85,6 +87,8 @@ export interface Accounts {
   /** Shows the folder picker (needs a click); false when cancelled. */
   pickFolder(): Promise<boolean>;
   open(storage: Storage): Promise<Place | null>;
+  /** The demo build: its one place opens at once, with no first run (U.6). */
+  demo?: boolean;
 }
 
 const FOLDER_DB = 'omark:picked-folder';
@@ -101,6 +105,7 @@ const SCOPE_TEXTS: Record<string, Record<string, string>> = {
   googlecal: { '': CALENDAR_TEXT, edit: EDIT_TEXT },
 };
 export function accounts(): Accounts {
+  if (STORAGE_MODE === 'demo') return demoAccounts();
   return STORAGE_MODE === 'fake' ? fakeAccounts() : realAccounts();
 }
 
@@ -219,8 +224,10 @@ function realAccounts(): Accounts {
 function fakeAccounts(): Accounts {
   const seed = window.__OMARK_SEED__ ?? {};
   const tasksSeed = window.__TASKAPP_SEED__;
+  // Time's own e2e (playwright.time.config.ts) seed its fake calendar and no shell folders: Time alone, as in apps/time.
+  const timeAlone = window.__OMARK_TIME_SEED__ !== undefined && window.__OMARK_SEED__ === undefined;
   const fake = {
-    root: new FakeOneDrive(tasksSeed ? { 'config.yaml': 'parts: [tasks]\n', ...seed.root } : seed.root),
+    root: new FakeOneDrive(tasksSeed ? { 'config.yaml': 'parts: [tasks]\n', ...seed.root } : timeAlone ? { 'config.yaml': 'parts: [time]\n' } : seed.root),
     tasks: new FakeOneDrive(tasksSeed ?? seed.tasks),
     time: new FakeOneDrive(seed.time),
     goals: new FakeOneDrive(seed.goals),
@@ -266,7 +273,21 @@ function fakeAccounts(): Accounts {
     }
     // Time's own fake calendar (its demo seed, or `__OMARK_TIME_SEED__`), loaded with the Time part only.
     const { openFake } = await import('time/src/lib/fake.ts');
-    const { source, persist } = await openFake();
+    const { source, persist, drive, auth } = await openFake();
+    if (timeAlone) {
+      // Time's own e2e: its files on its own fake drive, its fake sign-in as the calendar's (they read both).
+      const calendarAuth: Auth = {
+        signIn: (_, o) => (o?.add ? auth.addAccess(o.add as Access) : auth.signIn()),
+        getToken: () => auth.getToken(),
+        isSignedIn: () => auth.isSignedIn(),
+        signedInProvider: () => (auth.isSignedIn() ? 'googlecal' : null),
+        availableProviders: async () => ['googlecal'],
+        handleRedirect: () => auth.handleRedirect(),
+        accesses: () => [],
+        signOut: () => auth.signOut(),
+      };
+      return { storage, storageName: STORAGE_NAMES.microsoft, key: `fake-${storage}`, top: drive, own: drive, calendar: calendarAuth, calendarAccess: null, source, persist };
+    }
     return {
       storage,
       storageName: STORAGE_NAMES[storage === 'google' ? 'google' : 'microsoft'],

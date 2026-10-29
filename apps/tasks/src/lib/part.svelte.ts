@@ -25,6 +25,8 @@ class Part {
   settings = $state.raw<PartSettings | null>(null);
   /** Set by the one app: the project codes and area tags quick add offers as `#` is typed (Goals spec 9). */
   tags = $state.raw<readonly string[]>([]);
+  /** Set by the one app's demo: Reset demo resets every part's files (it asks first and reloads), not Tasks' alone. */
+  resetDemo = $state.raw<(() => void) | null>(null);
 }
 
 export const part = new Part();

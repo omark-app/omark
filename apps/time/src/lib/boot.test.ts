@@ -5,6 +5,7 @@ import type { CalendarSource } from '@omark/calendar';
 import type { Auth, FolderHandle } from '@omark/storage';
 import { forgetDevice, timeDeps } from './boot.ts';
 import type { TimeGiven } from './boot.ts';
+import { MemoryPrefs } from './prefs.ts';
 import { freshState, IdbState } from './state.ts';
 
 test('forgetting the device clears Google Drive\'s and the picked folder\'s copies, states and the folder itself', async () => {
@@ -86,6 +87,15 @@ test('in the one app, this device\'s Time choices are kept per place, and the st
   await a.storageSignIn!();
   expect(signIns).toEqual(['ms']);
   expect(b.storageSignIn).toBeUndefined();
+});
+
+test('in the one app, the demo hands Time its own device choices and the calendar view (U.6)', async () => {
+  const prefs = new MemoryPrefs({ started: true, askedEdit: true });
+  const deps = timeDeps({ ...given(calendarAuth(true).auth, null), prefs, calendarView: true });
+  expect(deps.prefs).toBe(prefs);
+  expect(await deps.prefs.load()).toMatchObject({ started: true, askedEdit: true, askedDrive: false });
+  expect(deps.calendarView).toBe(true);
+  expect(timeDeps(given(calendarAuth(true).auth, null)).calendarView).toBeUndefined();
 });
 
 test('in the one app, the storage is fixed and named as given, with no folder picker (U.4)', async () => {

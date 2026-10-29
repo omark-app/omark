@@ -85,6 +85,7 @@ jobs:
       - run: pnpm --filter time e2e --project=${{ matrix.project }}
       - run: pnpm --filter omark e2e --project=${{ matrix.project }}
       - run: pnpm --filter omark e2e:tasks --project=${{ matrix.project }}
+      - run: pnpm --filter omark e2e:time --project=${{ matrix.project }}
   tasks-preview:
     # Same-repo PRs only: a fork's PR has no secrets, and its code must never meet ours. It waits for check
     # but not e2e, so a maintainer can look while e2e runs; the PR is ready only once e2e is green too.

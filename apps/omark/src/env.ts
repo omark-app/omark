@@ -1,6 +1,7 @@
-import { APP_ENV, STORAGE_MODE } from 'tasks/src/env.ts';
+import { APP_ENV, REAL_USE_URL, STORAGE_MODE } from 'tasks/src/env.ts';
 
-export { APP_ENV, STORAGE_MODE };
+/** `REAL_USE_URL`: where the demo's "Use it for real" goes (`VITE_REAL_USE_URL`, default omark.app). */
+export { APP_ENV, REAL_USE_URL, STORAGE_MODE };
 
 /**
  * The Omark folder in My Drive (one app spec, section 4). OneDrive needs no name: the app folder is named after

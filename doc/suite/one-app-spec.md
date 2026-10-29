@@ -149,6 +149,8 @@ The person *(my call; the builder writes the data)*: **Maya, a freelance product
 
 The Tasks and Time demos' existing checks (no outside requests, Reset demo, the footer) carry over.
 
+**Built (U.6, 2026-10-29).** A demo build of the one app (`VITE_STORAGE=demo`) opens at once on Tasks, with the three tabs and no welcome or sign-in. The files are in IndexedDB (`omark-demo:*`), seeded for today when empty; the pictures are `apps/omark/src/lib/demo/*.jpg`, made for this repo (CC0), and only the demo build has them. Time reads a made-up calendar made for the same day, with edit access and colouring on, and has a **Calendar** view that draws the week's events in their colours (Time spec 12). Each tab's footer says DEMO, with **Reset demo** (asks first, then reseeds every part) and **Use it for real** (`VITE_REAL_USE_URL`). Settings says the files are in this browser and offers no Change, sign-in or Sign out. The code is in `apps/omark/src/lib/demo/`; `apps/omark/e2e/demo.spec.ts` checks it.
+
 ## 10. Hosting, CI and deploys
 
 - **Cloudflare Pages projects**: one for production (`app.omark.app`), one for staging (`staging-app.omark.app`), one for the demo (`demo.omark.app`), plus `omark.app` for the site. The per-app projects that exist are retired after the redirects are in place.

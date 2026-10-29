@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { IdbCache } from '@omark/storage';
 import { describe, expect, it } from 'vitest';
-import { DEMO_DBS, openDemo, requestDemoReset, resetDemo, takeDemoReset } from './open.ts';
+import { askDemoReset, DEMO_DBS, openDemo, requestDemoReset, resetDemo, takeDemoReset } from './open.ts';
 import { demoWorld } from './world.ts';
 
 const ZONE = 'Europe/Lisbon';
@@ -102,6 +102,19 @@ describe('Reset demo', () => {
     requestDemoReset(() => session);
     expect(takeDemoReset(() => session)).toBe(true);
     expect(takeDemoReset(() => session)).toBe(false);
+  });
+
+  it('asks first, then reloads into a start that resets; a no keeps everything', () => {
+    const session = memoryStorage();
+    const reloads: number[] = [];
+    const answers = [false, true];
+    const ask = () => askDemoReset({ confirm: () => answers.shift()!, reload: () => void reloads.push(1), session: () => session });
+    ask();
+    expect(reloads).toEqual([]);
+    expect(takeDemoReset(() => session)).toBe(false);
+    ask();
+    expect(reloads).toEqual([1]);
+    expect(takeDemoReset(() => session)).toBe(true);
   });
 
   it('is never asked for where session storage is blocked', () => {

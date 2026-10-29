@@ -21,8 +21,12 @@ export interface PrefsStore {
   save(prefs: DevicePrefs): Promise<void>;
 }
 
+/** `start`: choices already made (the one app's demo starts past the first run). */
 export class MemoryPrefs implements PrefsStore {
-  private prefs = { ...FRESH_PREFS };
+  private prefs: DevicePrefs;
+  constructor(start: Partial<DevicePrefs> = {}) {
+    this.prefs = { ...FRESH_PREFS, ...start };
+  }
   async load(): Promise<DevicePrefs> {
     return { ...this.prefs };
   }

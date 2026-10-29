@@ -152,6 +152,18 @@ export function requestDemoReset(session: Session = () => sessionStorage): void 
   }
 }
 
+/** The question Reset demo asks, in every part (Tasks' own reset asks the same). */
+export const RESET_QUESTION = 'Reset the demo? Your demo edits are lost.';
+
+/** Reset demo, in each part's footer and Settings: asks first, then reloads into a start that resets every part. */
+export function askDemoReset(
+  env: { confirm(q: string): boolean; reload(): void; session?: Session } = { confirm: (q) => window.confirm(q), reload: () => location.reload() },
+): void {
+  if (!env.confirm(RESET_QUESTION)) return;
+  requestDemoReset(env.session);
+  env.reload();
+}
+
 /** True once after `requestDemoReset`. */
 export function takeDemoReset(session: Session = () => sessionStorage): boolean {
   try {

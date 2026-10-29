@@ -8,3 +8,8 @@ export function e2ePort(dir: string, env: Record<string, string | undefined>): n
   // Above apps/tasks' range (4200–4899).
   return 5000 + (hash % 700);
 }
+
+/** The demo build's preview port (e2e/demo.spec.ts): after the fake build's and Tasks-in-the-shell's (+1). */
+export function demoPort(dir: string, env: Record<string, string | undefined>): number {
+  return e2ePort(dir, env) + 2;
+}

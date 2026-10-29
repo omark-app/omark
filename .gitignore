@@ -9,6 +9,7 @@ test-results
 dist-real
 dist-demo
 dist-tasks
+dist-time
 .env
 .env.*
 !.env.example

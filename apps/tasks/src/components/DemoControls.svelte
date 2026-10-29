@@ -1,9 +1,11 @@
 <script lang="ts">
   import { REAL_USE_URL } from '../env.ts';
   import { requestDemoReset, RESET_CONFIRM } from '../lib/demo.ts';
+  import { part } from '../lib/part.svelte.ts';
 
-  /** The demo's Reset demo button and its link to the real app. */
+  /** The demo's Reset demo button and its link to the real app. In the one app's demo, its reset is the shell's. */
   async function reset(): Promise<void> {
+    if (part.resetDemo) return part.resetDemo();
     if (!confirm(RESET_CONFIRM)) return;
     await requestDemoReset();
     location.reload();

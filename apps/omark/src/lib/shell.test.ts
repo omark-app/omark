@@ -143,6 +143,18 @@ describe('start-up', () => {
   });
 });
 
+describe('the demo (U.6)', () => {
+  it('opens its place at once: no welcome, no storage question, and no choice kept for the device', async () => {
+    const { accounts: a, opened } = accounts({ drives: { folder: { root: new FakeOneDrive({ 'config.yaml': 'parts: [tasks, time, goals]\n' }) } } });
+    const shell = new Shell({ ...a, demo: true });
+    await shell.start();
+    expect(opened).toEqual(['folder']);
+    expect(shell.phase).toBe('ready');
+    expect(shell.on).toEqual(['tasks', 'time', 'goals']);
+    expect(store.has('omark:storage')).toBe(false);
+  });
+});
+
 describe('the parts a device remembers', () => {
   it('are not kept from a first open that could not read the folder, so the next start asks', async () => {
     store.set('omark:storage', 'microsoft');

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Component } from 'svelte';
-  import { DEMO_URL } from './env.ts';
+  import { DEMO_URL, REAL_USE_URL, STORAGE_MODE } from './env.ts';
+  import { askDemoReset } from './lib/demo/open.ts';
   import { accounts } from './lib/places.ts';
   import type { Place, Storage } from './lib/places.ts';
   import { SETTINGS_PATH, Shell } from './lib/shell.svelte.ts';
@@ -11,6 +12,8 @@
 
   const deviceAccounts = accounts();
   const shell = new Shell(deviceAccounts);
+  // The demo: Tasks' own Reset demo resets every part.
+  if (STORAGE_MODE === 'demo') tasksPart.resetDemo = askDemoReset;
 
   // Tasks' quick add offers the project codes and area tags as # is typed (Goals spec 9); read when a folder opens
   // and on focus, through a lazy import so a start loads no parsers for them.
@@ -155,6 +158,13 @@
       {/if}
     </div>
   {/each}
+  {#if STORAGE_MODE === 'demo' && (shell.current === 'time' || shell.current === 'goals')}
+    <!-- Tasks has this line in its own status line; Time's and Goals' tabs get it here. -->
+    <p class="demo-line" data-testid="demo-line">
+      <strong>DEMO</strong> · <button type="button" data-testid="reset-demo" onclick={() => askDemoReset()}>Reset demo</button> ·
+      <a data-testid="real-use" href={REAL_USE_URL}>Use it for real</a>
+    </p>
+  {/if}
   {#if shell.settings}
     <!-- Loaded the first time: it brings Time's settings, which a Tasks-only start never needs. -->
     {#await import('./SettingsView.svelte') then view}<view.default {shell} accounts={deviceAccounts} />{/await}
@@ -183,6 +193,8 @@
   .primary:disabled { opacity: .5; cursor: default; }
   .error { color: var(--danger); }
   .banner { text-align: center; font-family: var(--sans); }
+  .demo-line { margin: 0 auto 32px; text-align: center; font: 12px var(--mono); color: var(--muted); }
+  .demo-line button, .demo-line a { border: 0; padding: 0; background: none; font: inherit; color: var(--accent); text-decoration: none; cursor: pointer; }
   .tabs { position: sticky; top: 0; z-index: 40; display: flex; justify-content: center; gap: 4px; padding: 8px max(12px, env(safe-area-inset-left)); background: var(--bg); border-bottom: 1px solid var(--line); font-family: var(--sans); }
   .tabs a { padding: 6px 14px; border-radius: 8px; color: var(--muted); text-decoration: none; font-weight: 500; }
   .tabs a[aria-current='page'] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }

@@ -58,7 +58,10 @@ export async function openView(page: Page, name: 'Hours' | 'Charts' | 'Fix list'
  * Settings, where the calendars, colouring, Rebuild and the row count are.
  */
 export async function firstRun(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Google Drive' }).click();
+  // Inside the one Omark app (its playwright.time.config.ts) the storage is the app's: Time starts at the calendars.
+  const drive = page.getByRole('button', { name: 'Google Drive' });
+  await expect(drive.or(page.getByRole('checkbox', { name: 'Me' })).first()).toBeVisible();
+  if (await drive.isVisible()) await drive.click();
   await expect(page.getByRole('checkbox', { name: 'Me' })).toBeChecked();
   await page.getByRole('button', { name: 'Start' }).click();
   // The first sync reads everything and writes three files; WebKit under a full parallel run needs more than 5 s.

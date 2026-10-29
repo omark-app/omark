@@ -1,4 +1,6 @@
 import { execFileSync } from 'node:child_process';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { defineConfig, loadEnv } from 'vite';
 import type { Plugin } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
@@ -33,13 +35,33 @@ function versionFile(build: string, number: number | null): Plugin {
   };
 }
 
+/**
+ * The demo world's pictures (src/lib/demo/*.jpg) at `/demo/<name>`, in the demo build only: an `import` of them
+ * would emit them in every build, as Vite emits an asset when it loads the module, before tree-shaking drops it.
+ */
+function demoPictures(on: boolean): Plugin {
+  const dir = join(import.meta.dirname, 'src/lib/demo');
+  return {
+    name: 'omark-demo-pictures',
+    apply: 'build',
+    generateBundle() {
+      if (!on) return;
+      for (const name of readdirSync(dir).filter((f) => f.endsWith('.jpg'))) {
+        this.emitFile({ type: 'asset', fileName: `demo/${name}`, source: readFileSync(join(dir, name)) });
+      }
+    },
+  };
+}
+
 const BUILD_ID = buildId();
 const BUILD_NUMBER = buildNumber();
+
+const storageOf = (mode: string) => storageMode(loadEnv(mode, import.meta.dirname, 'VITE_').VITE_STORAGE);
 
 export default defineConfig(({ mode }) => ({
   // The same build constants as apps/tasks, whose code runs inside this app (Tasks' src/env.ts reads them).
   define: {
-    __STORAGE_MODE__: JSON.stringify(storageMode(loadEnv(mode, import.meta.dirname, 'VITE_').VITE_STORAGE)),
+    __STORAGE_MODE__: JSON.stringify(storageOf(mode)),
     __BUILD_ID__: JSON.stringify(BUILD_ID),
     __BUILD_NUMBER__: JSON.stringify(BUILD_NUMBER),
     __BUILD_TIME__: JSON.stringify(process.env.BUILD_TIME || `${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`),
@@ -48,6 +70,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     svelte(),
     versionFile(BUILD_ID, BUILD_NUMBER),
+    demoPictures(storageOf(mode) === 'demo'),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icons/apple-touch-icon.png'],

@@ -346,6 +346,8 @@ A `demo` mode like Tasks' (launch spec 6.3):
 
 It is deployed at `demo-time.omark.app` from `main`. It makes no request outside its own origin, and an e2e test checks this.
 
+**Since U.6 (2026-10-29)** Time's demo is part of the one app's demo world ([one app spec](../suite/one-app-spec.md), section 9): Maya's calendar, colouring on, and the calendar strip as a **Calendar** view (a week, a column per day), shown only where the one app asks for it (`calendarView`).
+
 ## 13. Architecture
 
 In the monorepo (launch spec section 6.12):

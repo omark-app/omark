@@ -3,6 +3,7 @@
   import { part as tasksPart } from 'tasks/src/lib/part.svelte.ts';
   import StatusLine from 'tasks/src/components/StatusLine.svelte';
   import TimeSettings from 'time/src/components/Settings.svelte';
+  import { askDemoReset } from './lib/demo/open.ts';
   import type { Accounts } from './lib/places.ts';
   import { isAccount } from './lib/places.ts';
   import { registry } from './lib/registry.svelte.ts';
@@ -75,8 +76,12 @@
 </script>
 
 {#snippet omarkCard()}
-  <p>Your files are in <strong>{place.storageName}</strong>, in the Omark folder.</p>
-  <button type="button" class="btn" onclick={() => void shell.changeStorage()}>Change</button>
+  {#if accounts.demo}
+    <p>The demo keeps its files in <strong>{place.storageName}</strong>. Your changes stay here until you reset it.</p>
+  {:else}
+    <p>Your files are in <strong>{place.storageName}</strong>, in the Omark folder.</p>
+    <button type="button" class="btn" onclick={() => void shell.changeStorage()}>Change</button>
+  {/if}
 
   <h3>Parts</h3>
   <div class="parts">
@@ -96,12 +101,14 @@
   {#if shell.pending}<p class="muted" role="status">Saved on this device. The Omark folder gets it once it can be reached.</p>{/if}
 
   <h3>Sign-ins</h3>
-  {#if isAccount(place.storage)}
+  {#if accounts.demo}
+    <p>The demo needs no sign-in.{shell.on.includes('time') ? ' Omark Time reads a made-up calendar.' : ''}</p>
+  {:else if isAccount(place.storage)}
     <p>{PROVIDER_NAMES[place.storage]}, for {place.storageName}.</p>
   {:else}
     <p>{place.storageName} needs no sign-in.</p>
   {/if}
-  {#if shell.on.includes('time')}
+  {#if shell.on.includes('time') && !accounts.demo}
     {#if calendar.connected}
       <p>Google Calendar, for Omark Time{calendar.access ? ', in the same Google sign-in' : ''}.</p>
       {#if calendar.access === null}
@@ -115,7 +122,11 @@
   {#if error || shell.error}<p class="error" role="alert">{error ?? shell.error}</p>{/if}
 
   <h3>This device</h3>
-  <button type="button" class="btn" onclick={signOut}>Sign out</button>
+  {#if accounts.demo}
+    <button type="button" class="btn" data-testid="settings-reset-demo" onclick={() => askDemoReset()}>Reset demo</button>
+  {:else}
+    <button type="button" class="btn" onclick={signOut}>Sign out</button>
+  {/if}
 {/snippet}
 
 {#snippet tasksWaiting()}

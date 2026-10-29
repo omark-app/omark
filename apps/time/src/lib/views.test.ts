@@ -11,7 +11,9 @@ test('the hash picks the view; anything else is hours', () => {
   for (const h of ['', '#', '#/', '#/nope', '#/constructor', 'charts']) expect(viewOf(h), h).toBe('hours');
   // Omark Tasks' settings link to Time's as `#settings`.
   expect(viewOf('#settings')).toBe('settings');
-  expect(VIEWS.map((v) => v.id)).toEqual(['hours', 'charts', 'fix', 'projects', 'report', 'settings']);
+  // The calendar view shows only where the deps ask for it (the one app's demo).
+  expect(viewOf('#/calendar')).toBe('calendar');
+  expect(VIEWS.map((v) => v.id)).toEqual(['hours', 'charts', 'fix', 'projects', 'report', 'calendar', 'settings']);
 });
 
 test('a custom range needs two real dates, the first not after the second', () => {

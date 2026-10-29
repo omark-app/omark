@@ -327,6 +327,21 @@ test('the store has the rows and projects after a sync, and offline', async () =
   expect(store.allRows.map((r) => r.eventId)).toEqual(['a']);
 });
 
+test('the calendar view reads a week of events and the colour ids, only where the deps ask for it (U.6)', async () => {
+  const { store, deps, calendar, net, ready } = setup();
+  for (const [id, date] of [['before', '2026-10-25'], ['mon', '2026-10-26'], ['sun', '2026-11-01'], ['after', '2026-11-02']]) calendar.add(event(id!, date!));
+  await ready();
+  expect(store.calendarView).toBe(false);
+  expect(new TimeStore({ ...deps, calendarView: true }).calendarView).toBe(true);
+  const week = await store.weekEvents('2026-10-26', '2026-11-02');
+  expect(week?.events.map((e) => e.id).sort()).toEqual(['mon', 'sun']);
+  expect(week?.ids).toEqual({ green: '10', red: '11' });
+  net.offline = true;
+  const unreachable = { readRange: () => Promise.reject(new OfflineError('Network unreachable')) };
+  const failing = new TimeStore({ ...deps, source: { ...calendar, ...unreachable } as unknown as AppDeps['source'] });
+  expect(await failing.weekEvents('2026-10-26', '2026-11-02')).toBeNull();
+});
+
 test('adding a project writes projects.csv and syncs, so its events turn known', async () => {
   const { store, calendar, ready } = setup();
   calendar.add({ ...event('t', '2026-10-20'), title: 'ACMEE; x' });

@@ -118,6 +118,11 @@ export class Shell {
   }
 
   private async begin(): Promise<void> {
+    if (this.accounts.demo) {
+      // The demo has one place and needs no sign-in: it opens at once, and keeps no choice for the device.
+      await this.open('folder');
+      return;
+    }
     try {
       await this.accounts.handleRedirect();
     } catch (e) {

@@ -58,3 +58,10 @@ All dates relative to today; the calendar in the browser's time zone.
 ## Out of scope
 
 Deploying to `demo.omark.app` and the previews (U.7). Retiring `apps/tasks`' and `apps/time`'s own demos (U.7, 3.7).
+
+## What was built
+
+- `demoAccounts()` is in `apps/omark/src/lib/demo/accounts.ts`, not `places.ts`; `openDemo` is the plan's `openDemoWorld`. Time's device choices are a `MemoryPrefs` starting past the first run, so nothing of the demo's Time choices is kept.
+- The pictures are not imported: Vite emits an imported asset in every build, even when the code using it is dropped. `vite.config.ts` copies them to `demo/` in the demo build only, and the demo fetches them from there. A non-demo build has no demo world, database names or pictures (checked in `demo.spec.ts`); the Reset demo helper and its footer markup stay in it, as Tasks' own demo controls always have (Svelte keeps `{#if}` branches on build constants).
+- Reset demo, from any tab's footer or Settings, asks with Tasks' wording and reloads into a start that empties every demo store (`askDemoReset`); Tasks' own button calls it through `part.resetDemo`.
+- **Time's specs in the shell** (`pnpm --filter omark e2e:time`, in CI): a Time seed with no shell seed opens Time alone on Time's own fake drive and sign-in, so the specs read what they always read. `firstRun` skips the storage step where there is none. Skipped, as the shell owns them: `local-folder.spec.ts` (the shell picks the folder); "signed out, the app offers Google sign-in" (Time's own sign-in screen and title); "the first run asks for Drive access…" and "a second calendar can be chosen…" (Time's storage step); "turning colouring on asks for edit access…" (only for its `addAccess:drive`; the other colouring tests run).
