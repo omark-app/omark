@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Promote to production, last step: the app's next <app>-prod- tag and the release notes (the PRs merged since
-// its last release tag; for tasks that includes the prod- tags from before the monorepo move). Usage, in a full
+// its last release tag; for tasks that includes the prod- tags from before the monorepo move), or its commits when no
+// pull request was merged (fast mode commits straight to main). Usage, in a full
 // clone: release-notes.mjs <sha> <app>. Writes `tag` to $GITHUB_OUTPUT and the notes to release-notes.md.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, writeFileSync } from 'node:fs';
@@ -32,10 +33,11 @@ export function tagPatterns(app) {
 }
 
 /**
- * @param {{ merges: { subject: string, body: string }[], rollback: boolean, sha: string }} opts
- *   merges: the merge commits since the last release, newest first
+ * @param {{ merges: { subject: string, body: string }[], commits?: { short: string, subject: string }[],
+ *   rollback: boolean, sha: string }} opts
+ *   merges: the merge commits since the last release, newest first; commits: all of them on main's first parent
  */
-export function releaseNotes({ merges, rollback, sha }) {
+export function releaseNotes({ merges, commits = [], rollback, sha }) {
   if (rollback) return `Rollback to ${sha}.\n`;
   const lines = [];
   for (const m of merges) {
@@ -44,7 +46,9 @@ export function releaseNotes({ merges, rollback, sha }) {
     const title = m.body.split('\n')[0]?.trim() || pr[2];
     lines.push(`- #${pr[1]} ${title}`);
   }
-  return lines.length ? `${lines.join('\n')}\n` : 'No new pull requests since the last release.\n';
+  if (lines.length) return `${lines.join('\n')}\n`;
+  if (commits.length) return commits.map((c) => `- ${c.subject} (${c.short})\n`).join('');
+  return 'No new pull requests since the last release.\n';
 }
 
 /** @param {string[]} args */
@@ -74,8 +78,15 @@ function main() {
       const [subject = '', body = ''] = r.split('\x1f');
       return { subject, body };
     });
+  const commits = git('log', '--first-parent', '--format=%h%x1f%s', ...range)
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const [short = '', subject = ''] = line.split('\x1f');
+      return { short, subject };
+    });
   const tag = nextTag(tags, new Date().toISOString().slice(0, 10), app);
-  writeFileSync('release-notes.md', releaseNotes({ merges, rollback, sha: sha.slice(0, 7) }));
+  writeFileSync('release-notes.md', releaseNotes({ merges, commits, rollback, sha: sha.slice(0, 7) }));
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `tag=${tag}\n`);
   console.log(`Tag ${tag}`);
   return 0;

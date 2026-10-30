@@ -14,7 +14,9 @@
     "e2e": "pnpm -r --if-present e2e",
     "dev:signin": "pnpm --filter tasks build && wrangler pages dev apps/tasks/dist --port 5173",
     "e2e:real:login": "pnpm --filter tasks e2e:real:login",
-    "e2e:real": "pnpm --filter tasks e2e:real"
+    "e2e:real": "pnpm --filter tasks e2e:real",
+    "ship": "node tools/ci/local-deploy.mjs ship",
+    "promote": "node tools/ci/local-deploy.mjs promote"
   },
   "devDependencies": {
     "typescript": "^5.9.0",

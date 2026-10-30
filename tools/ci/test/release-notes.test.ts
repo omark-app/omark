@@ -113,4 +113,16 @@ describe('releaseNotes', () => {
   it('marks a rollback', () => {
     expect(releaseNotes({ merges: [], rollback: true, sha: 'abc1234' })).toBe('Rollback to abc1234.\n');
   });
+
+  it('lists the commits when no pull requests were merged (commits straight to main)', () => {
+    const commits = [
+      { short: 'bbb2222', subject: 'Fix the U.7 review findings' },
+      { short: 'aaa1111', subject: 'Deploy the one app (U.7)' },
+    ];
+    expect(releaseNotes({ merges: [], commits, rollback: false, sha: 'abc1234' })).toBe(
+      '- Fix the U.7 review findings (bbb2222)\n- Deploy the one app (U.7) (aaa1111)\n',
+    );
+    // Pull requests win when there are any.
+    expect(releaseNotes({ merges, commits, rollback: false, sha: 'abc1234' })).toContain('- #16 ');
+  });
 });

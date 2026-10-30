@@ -88,6 +88,8 @@ Staging and production run the same build. The app picks its environment from th
 
 The demo is its own build (`VITE_STORAGE=demo`), deployed from inside `apps/omark/dist` so the sign-in helper stays out; CI checks after each deploy that the page loads and `/api/auth` is absent (`tools/ci/check-demo.mjs`).
 
+**Without GitHub Actions** (a private fork with no Actions minutes left, say): `pnpm ship` does what CI does on `main` from your computer, and `pnpm promote [commit | omark-prod- tag]` does what Promote does. They need `gh` and `wrangler` signed in, read the same repository variables, and build in a git worktree of the commit under `~/.omark-deploy` (`tools/ci/local-deploy.mjs`). Promote takes only a commit `pnpm ship` deployed to staging from that computer, or a release tag to roll back, and asks for a yes first.
+
 ## Running it locally with sign-in
 
 `pnpm dev` and `pnpm demo` run the bridge Tasks build's demo, with no sign-in. Local sign-in still runs that build (`apps/tasks`) until roadmap 3.7:
