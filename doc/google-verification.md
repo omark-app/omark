@@ -3,25 +3,49 @@
 What to submit for the production Google project `omark-app` ("Omark"), so users stop seeing the "unverified app"
 screen when they turn Time on, and the 100-user cap goes away. Time spec 10.3; one app spec 15, step 4.
 
-## What's already done
+## Status
+
+**Submitted 2026-10-30; data access under review.**
 
 - `omark.app` is verified in Google Search Console, owned by `hello@omark.app` (2026-10-26).
-- The consent screen's branding (name "Omark", links) points at `omark.app`. Check before submitting that it has
-  the logo, the homepage, the privacy policy and terms links, and `omark.app` as an authorised domain: Google
-  reviews the branding too.
+- Branding verified and published (2026-10-30): name "Omark", the Omark logo (120 px, from
+  `brand/png/omark-avatar-500.png`), homepage, privacy and terms links, `omark.app` as the authorised domain.
 - The privacy policy (`omark.app/privacy/`) carries Google's Limited Use statement.
-- The project is published (In production, unverified).
+- The project is published (In production). One OAuth client, "Omark web" (`141879606503-…`).
+- Video: <https://youtu.be/XjJhFhpdWnk> (Unlisted).
+- Google counts only `calendar.events.owned` and `calendar.events.owned.readonly` as sensitive; the calendar list,
+  `drive.file`, `openid` and `email` are not. None is restricted, so no security assessment (CASA).
 
 ## What's left
 
-1. Record the video below and upload it to YouTube as **Unlisted**.
-2. Google Auth Platform → **Verification Center** → start verification. Paste the justifications below and the
-   video link.
-3. Answer Google's emails (they come to `hello@omark.app`). Google quotes 3–5 business days; reports say up to
-   several weeks, often with a question or two first.
+1. Answer Google's emails (they come to `hello@omark.app`). Google quotes 3–5 business days; reports say up to
+   several weeks, often with a question or two first. Don't change the scopes, branding or publishing status while
+   the review runs: Google says that can restart it.
+2. When it's approved, the "unverified app" screen and the 100-user cap go away. Check by connecting Google Calendar
+   on app.omark.app with a fresh account.
 
-Only the calendar scopes need the review. `drive.file`, `openid` and `email` are not sensitive. None of the scopes is
-restricted, so no security assessment (CASA) is needed.
+## What was submitted
+
+The Data Access page takes one justification for all sensitive scopes (1000 characters at most). This went in:
+
+> Omark Time turns the user's own calendar events into hours per project. It runs in the browser: calendar data is
+> never sent to or stored on Omark's servers (ours only exchange sign-in tokens). The hours go to CSV files in the
+> user's own Google Drive.
+>
+> calendar.events.owned.readonly: reads the events on the calendars the user picked, for the days they choose, and
+> adds up hours by project from each title ("CODE; Category; description"). It is the narrowest scope that gives
+> event times and titles.
+>
+> calendar.events.owned: asked for only if the user turns on "Colour my events" in Settings (incremental
+> authorization). The app then colours the user's own events: green for a known project code, red for an unknown
+> one, so typos show in the calendar. It changes only colorId and a private marker of the colours it set, never the
+> title, time or guests. No narrower scope can set an event's colour.
+
+Additional info: the edit scope is incremental; the video shows both consent screens with the client ID; the
+project has one OAuth client; links to app.omark.app and demo.omark.app; `omark-tasks-staging` serves staging only
+and is being retired. Questionnaire: not personal, internal, testing-only or a WordPress plugin.
+
+The longer per-scope wording below is for answering Google's questions.
 
 ## Scope justifications
 
