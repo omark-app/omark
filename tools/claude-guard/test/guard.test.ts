@@ -171,8 +171,9 @@ describe('guard', () => {
 
   it('follows cd into another repository', () => {
     const other = checkout('git@github.com:someone/notes.git');
-    expect(bash(`cd ${other} && git push -u origin main`).code).toBe(0);
-    expect(bash(`git -C ${other} push origin main`).code).toBe(0);
+    // Quoted, as a shell needs it: a Windows temp path has backslashes.
+    expect(bash(`cd '${other}' && git push -u origin main`).code).toBe(0);
+    expect(bash(`git -C '${other}' push origin main`).code).toBe(0);
   });
 
   it.each(['https://github.com/omark-app/omark.git', 'https://github.com/someone/TaskApp', 'git@github.com:someone/omark.git'])(
