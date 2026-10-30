@@ -174,6 +174,17 @@ test('no request leaves the site while going through every part and view', async
   expect(outside).toEqual([]);
 });
 
+test("Time's charts colour each project, not black", async ({ page }) => {
+  await open(page, '/time');
+  await synced(page);
+  await time(page).getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Charts' }).click();
+  const bars = time(page).locator('svg rect');
+  await expect(bars.first()).toBeVisible();
+  const fills = await bars.evaluateAll((rects) => rects.map((r) => getComputedStyle(r).fill));
+  expect(fills.length).toBeGreaterThan(0);
+  expect(fills.filter((f) => f === 'rgb(0, 0, 0)')).toEqual([]);
+});
+
 test('only the demo build has the demo world and its pictures', async () => {
   test.skip(test.info().project.name !== 'desktop', 'a check of the build folders: once is enough');
   const files = (dir: string): string[] =>

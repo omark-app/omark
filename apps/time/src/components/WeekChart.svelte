@@ -1,6 +1,7 @@
 <script lang="ts">
   import { formatHours } from '@omark/time-core';
   import type { WeeklySeries } from '@omark/time-core';
+  import '../styles/series.css';
 
   /** Hours per week, one stacked bar per week, one colour per series; drawn here, so nothing is fetched. */
   let { data, title }: { data: WeeklySeries; title: string } = $props();
