@@ -16,6 +16,9 @@ describe('redirect sites', () => {
       { project: 'omark-tasks-demo', to: 'https://demo.omark.app/tasks' },
       { project: 'omark-time-demo', to: 'https://demo.omark.app/time' },
       { project: 'omark-time-staging', to: 'https://staging-app.omark.app/time' },
+      // The bridge, after the cutover (roadmap 3.6): tasks.alipka.com and its staging.
+      { project: 'taskapp', to: 'https://app.omark.app/tasks' },
+      { project: 'taskapp-staging', to: 'https://staging-app.omark.app/tasks' },
     ]);
   });
 
