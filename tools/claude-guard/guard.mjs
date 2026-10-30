@@ -7,7 +7,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
 
 const MAIN = 'main';
 
@@ -35,20 +35,21 @@ const unguarded = (url) => {
 };
 
 /**
- * The push URL of `remote` in `dir` (a URL or path is returned as is), or null when it can't be read.
+ * The URLs a push to `remote` from `dir` may reach: all of its push URLs, or every remote's when none is
+ * named, since git's default may be any of them. A URL or path is returned as is. Empty when unreadable.
  * @param {string | undefined} dir
- * @param {string} remote
+ * @param {string | undefined} remote
+ * @returns {string[]}
  */
-function remoteUrl(dir, remote) {
-  if (/^([a-z][a-z0-9+.-]*:\/\/|[^/]+@[^/]+:|\.{0,2}\/|~)/i.test(remote)) return remote;
+function pushUrls(dir, remote) {
+  if (remote !== undefined && /^([a-z][a-z0-9+.-]*:\/\/|[^/]+@[^/]+:|\.{0,2}\/|~)/i.test(remote)) return [remote];
+  /** @param {string[]} args */
+  const git = (args) =>
+    execFileSync('git', args, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').filter(Boolean);
   try {
-    return execFileSync('git', ['remote', 'get-url', '--push', remote], {
-      cwd: dir,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
+    return (remote === undefined ? git(['remote']) : [remote]).flatMap((r) => git(['remote', 'get-url', '--push', '--all', r]));
   } catch {
-    return null;
+    return [];
   }
 }
 
@@ -94,14 +95,13 @@ function dropHeredocs(command) {
 
 /**
  * Splits a shell command into simple commands (on unquoted `&&`, `||`, `;`, `|`, `&`, brackets and new lines),
- * each a list of words with quotes removed, the operator that ends it, and how deep in brackets it is.
+ * each a list of words with quotes removed and the operator that ends it.
  * @param {string} command
- * @returns {{ words: string[], end: string, depth: number }[]}
+ * @returns {{ words: string[], end: string }[]}
  */
 function parse(command) {
-  /** @type {{ words: string[], end: string, depth: number }[]} */
+  /** @type {{ words: string[], end: string }[]} */
   const commands = [];
-  let depth = 0;
   /** @type {string[]} */
   let words = [];
   let word = '';
@@ -116,7 +116,7 @@ function parse(command) {
   /** @param {string} end */
   const endCommand = (end) => {
     endWord();
-    if (words.length) commands.push({ words, end, depth });
+    if (words.length) commands.push({ words, end });
     words = [];
   };
   for (let i = 0; i < command.length; i++) {
@@ -137,8 +137,6 @@ function parse(command) {
     } else if (';&|\n(){}'.includes(c)) {
       const end = (c === '&' || c === '|') && command[i + 1] === c ? c + command[++i] : c;
       endCommand(end);
-      if (c === '(' || c === '{') depth++;
-      if (c === ')' || c === '}') depth--;
     } else if (c === ' ' || c === '\t') {
       endWord();
     } else {
@@ -173,14 +171,19 @@ const branchName = (ref) => ref.replace(/^refs\/heads\//, '');
  * Why a `git …` command is blocked, or null.
  * @param {string[]} words the words after `git`
  * @param {string | undefined} cwd
+ * @param {boolean} sure whether `cwd` is surely where it runs; if not, no other-repository pass and no fast mode
  */
-function checkGit(words, cwd) {
+function checkGit(words, cwd, sure) {
   let dir = cwd;
   let i = 0;
   // Global options before the subcommand.
   while (i < words.length && /** @type {string} */ (words[i]).startsWith('-')) {
     const w = /** @type {string} */ (words[i]);
-    if (w === '-C') dir = words[i + 1];
+    if (w === '-C') {
+      const to = words[i + 1] ?? '';
+      dir = resolve(dir ?? process.cwd(), to);
+      if (isAbsolute(to)) sure = true;
+    }
     if (w === '-C' || w === '-c' || w === '--git-dir' || w === '--work-tree' || w === '--namespace') i++;
     i++;
   }
@@ -190,10 +193,12 @@ function checkGit(words, cwd) {
   let del = false;
   let mirror = false;
   let prune = false;
+  let repoOption = false;
   /** @type {string[]} */
   const positional = [];
   for (let j = i + 1; j < words.length; j++) {
     const w = /** @type {string} */ (words[j]);
+    if (w.startsWith('--repo')) repoOption = true;
     if (w === '--force' || w.startsWith('--force-with-lease') || w === '--force-if-includes') force = true;
     else if (w === '--delete') del = true;
     else if (w === '--mirror' || w === '--all' || w === '--branches') mirror = true;
@@ -205,14 +210,15 @@ function checkGit(words, cwd) {
       if (w.includes('o')) j++;
     } else if (!w.startsWith('-')) positional.push(w);
   }
-  if (unguarded(remoteUrl(dir, positional[0] ?? 'origin'))) return null;
+  const urls = sure && !repoOption ? pushUrls(dir, positional[0]) : [];
+  if (urls.length > 0 && urls.every(unguarded)) return null;
   if (force) return 'force push';
   if (mirror) return 'push with --mirror/--all';
   if (prune) return 'push with --prune (deletes remote branches)';
 
   const refspecs = positional.slice(1);
   const branch = () => currentBranch(dir);
-  const toMain = () => (fastMode(dir) ? null : 'push to main');
+  const toMain = () => (sure && fastMode(dir) ? null : 'push to main');
   if (refspecs.some((r) => r.includes('*'))) return 'push with a wildcard refspec';
   if (del) {
     const own = branch();
@@ -266,7 +272,7 @@ function checkGh(words) {
   }
   if (path === null) return null;
   const bare = path.split('?')[0] ?? '';
-  if (unguarded(/^\/?repos\/[A-Za-z0-9._-]+\/([A-Za-z0-9._-]+)(\/|$)/.exec(bare)?.[1])) return null;
+  if (!/\.\.|%/.test(bare) && unguarded(/^\/?repos\/[A-Za-z0-9._-]+\/([A-Za-z0-9._-]+)(\/|$)/.exec(bare)?.[1])) return null;
   if (/\/merges?\/?$/.test(bare)) return 'merging through the API (a maintainer merges)';
   if (/\/dispatches\/?$/.test(bare) && /promote/i.test(bare)) return PROMOTE;
   const writes = method !== 'GET' || fields.length > 0;
@@ -301,11 +307,16 @@ function checkGitHubTool(tool, input) {
  * Why `command` is blocked, or null when it may run.
  * @param {string} command
  * @param {string | undefined} cwd
+ * @param {boolean} [sure] whether `cwd` is surely where it runs
  * @returns {string | null}
  */
-function check(command, cwd) {
+function check(command, cwd, sure = true) {
   let dir = cwd;
-  for (const { words, end, depth } of parse(dropHeredocs(command))) {
+  // A `cd` is followed only when it surely runs and holds for what follows: no brackets in the line, every
+  // command before it ended with `;` or a new line, and it ends with one of those or `&&`. After a `cd` that
+  // isn't followed, the guard can't tell where it is and guards as if in Omark.
+  let plain = !/[(){}]/.test(command);
+  for (const { words, end } of parse(dropHeredocs(command))) {
     // Skip `VAR=value` prefixes and wrappers such as `env` or `sudo`.
     let k = 0;
     while (k < words.length) {
@@ -315,21 +326,19 @@ function check(command, cwd) {
     }
     const name = (words[k] ?? '').split('/').pop();
     const rest = words.slice(k + 1);
-    // Follow a plain `cd` (`cd other && git push`), so the push is judged in the other checkout. One in
-    // brackets, before `||` or a pipe, or to `-` may not take effect for what follows, so it is ignored.
     if (name === 'cd') {
-      const target = rest[0] ?? '~';
-      if (depth === 0 && ['&&', ';', '\n', ''].includes(end) && target !== '-') {
-        dir = resolve(dir ?? process.cwd(), target.replace(/^~(?=\/|$)/, homedir()));
-      }
-      continue;
+      const target = (rest[0] ?? '~').replace(/^~(?=\/|$)/, homedir());
+      if (plain && target !== '-' && ['&&', ';', '\n', ''].includes(end)) dir = resolve(dir ?? process.cwd(), target);
+      else sure = false;
     }
+    plain = plain && [';', '\n'].includes(end);
+    if (name === 'cd') continue;
     // `bash -c "…"` and `eval "…"` run their argument as a command line of its own.
     const inner = SHELLS.has(name ?? '') ? rest[rest.indexOf('-c') + 1] : name === 'eval' ? rest.join(' ') : undefined;
     const reason =
-      name === 'git' ? checkGit(rest, dir)
+      name === 'git' ? checkGit(rest, dir, sure)
       : name === 'gh' ? checkGh(rest)
-      : inner !== undefined && (name === 'eval' || rest.includes('-c')) ? check(inner, dir)
+      : inner !== undefined && (name === 'eval' || rest.includes('-c')) ? check(inner, dir, sure)
       : null;
     if (reason) return reason;
   }

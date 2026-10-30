@@ -218,12 +218,38 @@ describe('guard', () => {
     }
   });
 
-  it.each(['(cd OTHER); git push origin main', 'cd OTHER || git push origin main', 'cd OTHER | git push origin main', '(cd OTHER && git push origin main)'])(
+  it('reads every push URL, and every remote when none is named', () => {
+    const dir = checkout('https://github.com/someone/notes.git');
+    execFileSync('git', ['remote', 'add', 'real', 'https://github.com/omark-app/omark.git'], { cwd: dir });
+    execFileSync('git', ['config', 'remote.pushDefault', 'real'], { cwd: dir });
+    execFileSync('git', ['remote', 'add', 'two', 'https://github.com/someone/notes.git'], { cwd: dir });
+    execFileSync('git', ['remote', 'set-url', '--add', '--push', 'two', 'https://github.com/someone/notes.git'], { cwd: dir });
+    execFileSync('git', ['remote', 'set-url', '--add', '--push', 'two', 'https://github.com/omark-app/omark.git'], { cwd: dir });
+    for (const command of ['git push', 'git push -f', 'git push two main', 'git push --repo=real main']) {
+      expect(run({ tool_name: 'Bash', tool_input: { command }, cwd: dir }).code, command).toBe(2);
+    }
+  });
+
+  it('blocks a gh api path that climbs out with .. or %', () => {
+    expect(bash('gh api -X PUT repos/someone/notes/../../omark-app/omark/pulls/1/merge').code).toBe(2);
+    expect(bash('gh api -X PUT repos/someone/notes%2F..%2F..%2Fomark-app/omark/pulls/1/merge').code).toBe(2);
+  });
+
+  it.each([
+    '(cd OTHER); git push origin main',
+    'cd OTHER || git push origin main',
+    'cd OTHER | git push origin main',
+    '(cd OTHER && git push origin main)',
+    'true || cd OTHER; git push origin main',
+    'false && cd OTHER; git push origin main',
+    '(echo a}; cd OTHER; true); git push origin main',
+    'cd OTHER && cd OMARK && git push origin main',
+  ])(
     'does not follow the cd in %j',
     (command) => {
       const other = checkout('https://github.com/someone/notes.git');
       const omark = checkout('https://github.com/omark-app/omark.git');
-      const r = run({ tool_name: 'Bash', tool_input: { command: command.replace('OTHER', other) }, cwd: omark });
+      const r = run({ tool_name: 'Bash', tool_input: { command: command.replace('OTHER', other).replace('OMARK', omark) }, cwd: omark });
       expect(r.code).toBe(2);
     },
   );
