@@ -43,7 +43,7 @@ Further tools, such as notes, are only a direction in PHILOSOPHY.md for now.
 ### 2.2 Success after 3 months from going public
 
 - At least **2 outside contributors** have each had at least one feature merged (an issue labelled `enhancement`).
-- **300 GitHub stars** as the target, **1,000** as the stretch. One front-page Show HN typically brings 300–800.
+- **300 GitHub stars** as the target, **1,000** as the stretch.
 
 ### 2.3 Non-goals for the launch
 
@@ -493,19 +493,8 @@ I will also ask 5–10 developers I know to take one each before and right after
 
 ### 6.11 Launch
 
-- **Build in public for 3–4 weeks before the launch.** Weekly LinkedIn posts: why I left Todoist, building with a software factory, files your AI can read, the philosophy. A waitlist is not needed; the demo is the call to action.
-- **Launch day**, a Tuesday to Thursday, posting around 8–10 am US Eastern:
-  - Show HN;
-  - r/ObsidianMD, r/selfhosted, r/gtd, r/ClaudeAI;
-  - a LinkedIn post.
-- **Material:** a 20–30 second GIF or video per app:
-  - Tasks: quick add, completing a task, the file changing in Obsidian, and Claude editing it;
-  - Time: a calendar event turning green, Claude adding an event for the day, and a DuckDB or Claude answer from the CSV.
-
-  Plus one Show HN post for the suite.
-- **After the launch:**
-  - Submit to awesome-lists where the project fits their rules.
-  - Answer every issue and Discussion within 24 hours in the first two weeks.
+- The launch's promotion (posts, channels, timing and material) is planned outside this repository, which holds the product.
+- **After the launch:** answer every issue and Discussion within 24 hours in the first two weeks.
 
 ### 6.12 The monorepo (large: CI, deploy and every path)
 
@@ -564,7 +553,7 @@ Specified in the [Omark Time spec](time/spec.md) and built in the roadmap's mile
 3. **Milestone 3, real use:** 6.4 local folder, 6.4.1 Google Drive, 6.5 hosted app, then my cutover (6.5.1) and removal of the bridge values.
    - **Milestone T, Omark Time (6.13), runs alongside milestone 3.** It starts after the monorepo move. Google's verification is requested as soon as Omark Time works on staging and the landing page is live.
 4. **Milestone 4, open the doors:** 6.9 issues, the rest of 6.10.
-5. **Milestone 5:** 6.11 launch. The build-in-public posts can start during milestone 2.
+5. **Milestone 5:** 6.11 launch.
 
 **The launch waits for both apps.** If Omark Time's build isn't ready, the date moves. If only Google's verification is missing, Omark Time launches unverified.
 
@@ -589,7 +578,7 @@ Each large workstream gets a plan in `doc/plans/` and my approval, as the factor
 - GitHub: create the org, transfer the repo, give pilot developers Read or Triage, set repository variables and secrets, the Actions approval setting, Discussions; at the end, branch protection and flipping to public.
 - The cutover (6.5.1), then retiring my old host.
 - Approve the PHILOSOPHY principles and wording.
-- Write and post the LinkedIn posts; ask the developers I know.
+- Ask the developers I know.
 
 ## 9. Left to the builder
 

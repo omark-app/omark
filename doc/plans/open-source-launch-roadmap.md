@@ -85,8 +85,6 @@ Each row is one issue and one PR; rows marked Plan get a detailed plan first.
 
 Order: 2.1, then 2.8, then 2.2–2.5. 2.8 went before 2.1 by AL's choice, so #31 (demo mode) rebases onto the new paths.
 
-Build-in-public posts on LinkedIn can start here.
-
 ## Milestone 3: real use
 
 | # | Workstream | Spec | Size | Depends on |
@@ -157,9 +155,8 @@ Builds [the Omark Goals spec](../goals/spec.md). Launches with Tasks and Time.
 
 | # | Step | Spec |
 |---|---|---|
-| 5.1 | Demo GIF or video per app: Tasks (quick add, complete, the file changing in Obsidian, Claude editing it); Time (an event turning green, Claude adding an event, a DuckDB or Claude answer) | 6.11 |
-| 5.2 | AL: launch day: Show HN, r/ObsidianMD, r/selfhosted, r/gtd, r/ClaudeAI, LinkedIn | 6.11 |
-| 5.3 | Awesome-list submissions; answer issues and Discussions within 24 h for two weeks | 6.11 |
+| 5.1 | AL: the launch, promoted as planned outside this repository | 6.11 |
+| 5.2 | Answer issues and Discussions within 24 h for two weeks | 6.11 |
 
 ## Spec coverage
 
@@ -177,7 +174,7 @@ Builds [the Omark Goals spec](../goals/spec.md). Launches with Tasks and Time.
 | 6.8 | 2.5, 2.6 |
 | 6.9 | 4.1, 4.2 |
 | 6.10 | 0.1–0.3, 4.3 |
-| 6.11 | 5.1–5.3 |
+| 6.11 | 5.1, 5.2 |
 | 6.12 | 2.8 |
 | 6.13 and the Omark Time spec | T.1–T.11 |
 | The one app spec | U.1–U.7, 3.6 |
