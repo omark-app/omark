@@ -107,6 +107,10 @@ Branch protection comes with the public repository. Until then, and for every ag
 - writing to `main` through the API;
 - starting Promote.
 
+It guards repositories named `omark` (and the old name, `TaskApp`), and any it can't identify. A `git push` (it reads the remote's push URL, and follows a plain `cd`), a `gh api` call on `repos/<owner>/<name>` or a GitHub tool call that it can tell is for another repository passes: the guard is installed for this repository, not for the others an agent works in. Merging with `gh pr merge` and starting Promote stay blocked everywhere.
+
+Until the launch, `CLAUDE.md` has a "Fast mode until launch" section, and while it is there the guard lets pushes to `main` through and the two push-to-main deny rules are left out of `.claude/settings.json`. Force pushes, merges and Promote stay blocked.
+
 It blocks every agent the same way, a maintainer's included: merging and Promote are for maintainers to do themselves. A blocked call says why: `Blocked by the Omark guard: merging a PR (a maintainer merges). See AGENTS.md, Hard rules.`
 
 The guard is best-effort: it reads the command line and can't see what a script or alias does. Its tests run in CI's `check` job.
