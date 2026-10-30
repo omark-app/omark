@@ -12,13 +12,13 @@ test('shows the sections in order', async ({ page }) => {
   await expectNoSideScroll(page);
 });
 
-// One demo world (Maya) at demo.omark.app, each part at its own path; "Open" goes live at the cutover (3.6).
+// Each part opens at its own path in the one app (live since the cutover, 3.6) and in the demo world (Maya).
 for (const [name, path] of [['Omark Tasks', 'tasks'], ['Omark Time', 'time'], ['Omark Goals', 'goals']] as const) {
-  test(`links ${name} to its part of the demo, with Open still coming soon`, async ({ page }) => {
+  test(`links ${name} to its part of the app and of the demo`, async ({ page }) => {
     const card = page.locator('.card').filter({ has: page.locator('h2', { hasText: name }) });
-    await expect(card.locator('.button.coming')).toHaveCount(1);
-    await expect(card.locator('.button.coming')).toContainText('Open');
-    await expect(card.locator('a')).toHaveCount(1);
+    await expect(card.locator('.button.coming')).toHaveCount(0);
+    await expect(card.locator('a')).toHaveCount(2);
+    await expect(card.getByRole('link', { name: 'Open', exact: true })).toHaveAttribute('href', `https://app.omark.app/${path}`);
     await expect(card.getByRole('link', { name: 'Try the demo' })).toHaveAttribute('href', `https://demo.omark.app/${path}`);
   });
 }

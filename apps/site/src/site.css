@@ -92,6 +92,11 @@ code {
   background: var(--accent);
   color: var(--on-accent);
 }
+.button.secondary {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--faint);
+}
 .button.coming {
   background: transparent;
   color: var(--muted);

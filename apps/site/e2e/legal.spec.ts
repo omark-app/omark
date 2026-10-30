@@ -5,6 +5,7 @@ import { PAGES, expectNoSideScroll } from './pages';
 const ALLOWED_HOSTS = [
   'omark.app',
   'demo.omark.app',
+  'app.omark.app',
   'github.com',
   'developers.google.com',
   'policies.google.com',
