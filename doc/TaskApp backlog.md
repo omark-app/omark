@@ -47,6 +47,25 @@ Ideas deliberately left out of v1 ([the Tasks spec](tasks/spec.md)). Grouped by 
 - **First offline run orders `done.md` completions before remote history**: cosmetic.
 - **Contrast on selected rows**: `--muted` (4.27:1) and `--danger` (4.41:1) on `--sel` are under 4.5:1 app-wide (e.g. an overdue date on a selected row). Found during #44; the habit colours were fixed there.
 
+## Calendars (Omark Time)
+
+Time reads only Google Calendar today; `packages/calendar`'s `CalendarSource` (list calendars, incremental event
+changes, set colour) is the seam for others (Time spec 13). Added 2026-10-30.
+
+- **Outlook / Microsoft 365** (doable, the natural next one): Microsoft Graph works for personal and work accounts.
+  Widen the existing Microsoft sign-in with `Calendars.Read` (incremental consent, as Google's calendar access is
+  added); events from `calendarView` with delta queries for the incremental changes. Colouring maps to Graph's
+  event categories (named, coloured) and needs `Calendars.ReadWrite`. No Google-style verification; publisher
+  verification (3.5) removes the "unverified" label.
+- **iCloud** (hard, and at odds with the philosophy): Apple has no OAuth calendar API, only CalDAV
+  (`caldav.icloud.com`) with an app-specific password, and browsers can't reach it (no CORS). It would need a proxy
+  that sees the password and the calendar data, which Omark's servers must not ([PHILOSOPHY.md](../PHILOSOPHY.md)).
+  Options to weigh: a read-only public `.ics` link of the calendar through a stateless, self-hostable proxy; a
+  desktop wrapper (Tauri) that talks CalDAV itself; or iCloud users subscribing to their calendar from Google or
+  Outlook.
+- **Any CalDAV server** (Fastmail, Nextcloud): the same CORS and password issue as iCloud.
+- **A local `.ics` file** in local-folder mode: read-only, no colouring; simple, but the user keeps it exported.
+
 ## AI
 
 - **In-app "ask Claude about this task"** (like the inspiration's ⌘K): needs API keys and has a per-use cost.
