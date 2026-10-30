@@ -36,6 +36,8 @@ export async function checkOmarkSignin({
   const ms = await checkSignin({ url, tenant, scope: 'appfolder', fetch: f, attempts, waitMs, sleep });
   if (!ms.ok) return ms;
   const base = url.replace(/\/+$/, '');
+  const live = await personalAccounts(`${base}/api/auth/login`);
+  if (live !== '') return { ok: false, message: live };
   // Google is optional for a copy of Omark: only a helper with both Google secrets lists it, and only then is
   // it checked. If the list can't be read, it is checked anyway.
   const offered = await f(`${base}/api/auth/providers`)
@@ -78,7 +80,33 @@ export async function checkOmarkSignin({
     if (missing.length > 0) return `${login} does not ask for ${missing.join(' ')}.`;
     const extra = never.filter((s) => words.includes(s));
     if (extra.length > 0) return `${login} asks for ${extra.join(' ')}, which the app adds only when the user asks.`;
+    // Google answers a client or redirect address it doesn't know with an error page before anyone signs in.
+    try {
+      const error = (await (await f(location)).text()).match(/Error 40\d[^<]*/)?.[0];
+      if (error) return `${login}: Google shows "${error.trim()}"; check the client and its redirect URIs in Google Cloud.`;
+    } catch (e) {
+      return `Google's sign-in page could not be reached (${e instanceof Error ? e.message : String(e)}).`;
+    }
     return '';
+  }
+
+  /**
+   * The consumers endpoint hands personal accounts to login.live.com, which refuses a client whose registration
+   * doesn't allow them, before anyone signs in. Other tenants are left alone.
+   * @param {string} login
+   * @returns {Promise<string>} empty when the client is accepted, else what is wrong
+   */
+  async function personalAccounts(login) {
+    if (tenant !== 'consumers') return '';
+    try {
+      const authorize = (await f(login, { redirect: 'manual' })).headers.get('location') ?? '';
+      const live = (await f(authorize, { redirect: 'manual' })).headers.get('location') ?? '';
+      if (!live.startsWith('https://login.live.com/')) return '';
+      if (!(await (await f(live)).text()).includes('unauthorized_client')) return '';
+      return "Microsoft won't let personal Microsoft accounts use the app's client (unauthorized_client): in Entra, set the registration's supported account types to include personal Microsoft accounts.";
+    } catch (e) {
+      return `Microsoft's sign-in page could not be reached (${e instanceof Error ? e.message : String(e)}).`;
+    }
   }
 }
 
