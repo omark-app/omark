@@ -1,8 +1,7 @@
 #!/usr/bin/env node
-// Promote to production, last step: the app's next <app>-prod- tag and the release notes (the PRs merged since
-// its last release tag; for tasks that includes the prod- tags from before the monorepo move), or its commits when no
-// pull request was merged (fast mode commits straight to main). Usage, in a full
-// clone: release-notes.mjs <sha> <app>. Writes `tag` to $GITHUB_OUTPUT and the notes to release-notes.md.
+// Promote to production, last step: the app's next <app>-prod- tag and the release notes (the PRs merged and the
+// commits made straight to main since its last release tag; for tasks that includes the prod- tags from before the
+// monorepo move). Usage, in a full clone: release-notes.mjs <sha> <app>. Writes `tag` to $GITHUB_OUTPUT and the notes to release-notes.md.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -33,22 +32,19 @@ export function tagPatterns(app) {
 }
 
 /**
- * @param {{ merges: { subject: string, body: string }[], commits?: { short: string, subject: string }[],
- *   rollback: boolean, sha: string }} opts
- *   merges: the merge commits since the last release, newest first; commits: all of them on main's first parent
+ * @param {{ commits: { short: string, subject: string, body: string }[], rollback: boolean, sha: string }} opts
+ *   commits: main's first-parent commits since the last release, newest first. A PR's merge shows as the PR; a
+ *   commit made straight to main (fast mode) as its subject; other merges not at all.
  */
-export function releaseNotes({ merges, commits = [], rollback, sha }) {
+export function releaseNotes({ commits, rollback, sha }) {
   if (rollback) return `Rollback to ${sha}.\n`;
   const lines = [];
-  for (const m of merges) {
-    const pr = m.subject.match(/^Merge pull request #(\d+) from (\S+)/);
-    if (!pr) continue;
-    const title = m.body.split('\n')[0]?.trim() || pr[2];
-    lines.push(`- #${pr[1]} ${title}`);
+  for (const c of commits) {
+    const pr = c.subject.match(/^Merge pull request #(\d+) from (\S+)/);
+    if (pr) lines.push(`- #${pr[1]} ${c.body.split('\n')[0]?.trim() || pr[2]}`);
+    else if (!c.subject.startsWith('Merge ')) lines.push(`- ${c.subject} (${c.short})`);
   }
-  if (lines.length) return `${lines.join('\n')}\n`;
-  if (commits.length) return commits.map((c) => `- ${c.subject} (${c.short})\n`).join('');
-  return 'No new pull requests since the last release.\n';
+  return lines.length ? `${lines.join('\n')}\n` : 'Nothing new since the last release.\n';
 }
 
 /** @param {string[]} args */
@@ -69,24 +65,17 @@ function main() {
   const latest = tags.length ? git('for-each-ref', '--sort=-creatordate', '--count=1', '--format=%(refname:short)', ...refs) : '';
   const rollback = latest !== '' && git('rev-parse', `${latest}^{commit}`) !== sha && isAncestor(sha, latest);
   const range = last ? [`${last}..${sha}`] : [sha, '-n', '20'];
-  const log = git('log', '--merges', '--first-parent', '--format=%s%x1f%b%x1e', ...range);
-  const merges = log
+  const log = git('log', '--first-parent', '--format=%h%x1f%s%x1f%b%x1e', ...range);
+  const commits = log
     .split('\x1e')
     .map((r) => r.trim())
     .filter(Boolean)
     .map((r) => {
-      const [subject = '', body = ''] = r.split('\x1f');
-      return { subject, body };
-    });
-  const commits = git('log', '--first-parent', '--format=%h%x1f%s', ...range)
-    .split('\n')
-    .filter(Boolean)
-    .map((line) => {
-      const [short = '', subject = ''] = line.split('\x1f');
-      return { short, subject };
+      const [short = '', subject = '', body = ''] = r.split('\x1f');
+      return { short, subject, body };
     });
   const tag = nextTag(tags, new Date().toISOString().slice(0, 10), app);
-  writeFileSync('release-notes.md', releaseNotes({ merges, commits, rollback, sha: sha.slice(0, 7) }));
+  writeFileSync('release-notes.md', releaseNotes({ commits, rollback, sha: sha.slice(0, 7) }));
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `tag=${tag}\n`);
   console.log(`Tag ${tag}`);
   return 0;

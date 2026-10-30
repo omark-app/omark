@@ -32,6 +32,9 @@ export function checkVars(vars, kind) {
   if (kind === 'promote' && vars.APP_PROD_URL !== `https://${vars.APP_PROD_HOST}`) {
     throw new Refused('APP_PROD_URL must be https:// followed by APP_PROD_HOST.');
   }
+  if (kind === 'ship' && vars.APP_STAGING_URL !== `https://${vars.APP_STAGING_HOST}`) {
+    throw new Refused('APP_STAGING_URL must be https:// followed by APP_STAGING_HOST.');
+  }
 }
 
 /**
@@ -106,9 +109,9 @@ export async function checkSite({
 
   async function probe() {
     try {
-      const privacy = await f(`${base}/privacy/`);
+      const privacy = await f(`${base}/privacy/`, { signal: AbortSignal.timeout(20_000) });
       if (!privacy.ok || !(await privacy.text()).includes('Limited Use')) return `${base}/privacy/ has no Limited Use text.`;
-      const home = await f(`${base}/`);
+      const home = await f(`${base}/`, { signal: AbortSignal.timeout(20_000) });
       if (!home.headers.get('content-security-policy')) return `${base}/ sends no Content-Security-Policy header.`;
       return '';
     } catch (e) {
@@ -129,6 +132,15 @@ export function toPrune(records, keep) {
     .map((r) => r.sha);
 }
 
+/**
+ * One command line for the Windows shell, which runs pnpm (a .cmd there): the words with spaces quoted.
+ * @param {string} cmd
+ * @param {string[]} args
+ */
+export function shellLine(cmd, args) {
+  return [cmd, ...args].map((a) => (/[\s"]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a)).join(' ');
+}
+
 const REPO = fileURLToPath(new URL('../..', import.meta.url));
 const DIR = process.env.OMARK_DEPLOY_DIR || join(homedir(), '.omark-deploy');
 const KEEP = 5;
@@ -136,10 +148,11 @@ const KEEP = 5;
 /** @param {string[]} args @param {string} [cwd] */
 const git = (args, cwd = REPO) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
-/** Runs a command where its output shows; pnpm is a .cmd on Windows, so through the shell there. */
+/** Runs a command where its output shows; pnpm is a .cmd on Windows, so through the shell there, as one line. */
 function run(/** @type {string} */ cmd, /** @type {string[]} */ args, /** @type {{ cwd: string, env?: Record<string, string> }} */ { cwd, env = {} }) {
   console.log(`\n> ${cmd} ${args.join(' ')}`);
-  const r = spawnSync(cmd, args, { cwd, env: { ...process.env, ...env }, stdio: 'inherit', shell: process.platform === 'win32' });
+  const options = { cwd, env: { ...process.env, ...env }, stdio: /** @type {const} */ ('inherit') };
+  const r = process.platform === 'win32' ? spawnSync(shellLine(cmd, args), { ...options, shell: true }) : spawnSync(cmd, args, options);
   if (r.status !== 0) throw new Error(`${cmd} ${args.join(' ')} failed (exit ${r.status}).`);
 }
 
@@ -166,6 +179,27 @@ function worktree(/** @type {string} */ sha) {
   }
   if (!existsSync(join(dir, 'node_modules'))) run('pnpm', ['install', '--frozen-lockfile'], { cwd: dir });
   return dir;
+}
+
+/**
+ * Removes all but the newest kept builds. A worktree git can't remove (deleted by hand, a locked file, a path too
+ * long for Windows) is deleted directly and forgotten, so one bad folder never stops the next ship.
+ */
+function prune() {
+  for (const old of toPrune(readRecords(), KEEP)) {
+    const dir = join(DIR, old);
+    try {
+      git(['worktree', 'remove', '--force', dir]);
+    } catch {
+      try {
+        rmSync(dir, { recursive: true, force: true });
+      } catch (e) {
+        console.log(`Could not remove ${dir} (${e instanceof Error ? e.message : String(e)}); delete it by hand.`);
+      }
+    }
+    rmSync(join(DIR, `${old}.json`), { force: true });
+  }
+  git(['worktree', 'prune']);
 }
 
 /** @param {string} sha */
@@ -210,10 +244,7 @@ async function ship() {
   wrangler(sha, join(wt, 'apps', 'site'), 'dist', CF_SITE_PROJECT);
   report(await checkSite({ url: SITE_URL }));
 
-  for (const old of toPrune(readRecords(), KEEP)) {
-    git(['worktree', 'remove', '--force', join(DIR, old)]);
-    rmSync(join(DIR, `${old}.json`), { force: true });
-  }
+  prune();
   console.log(`\nShipped ${sha.slice(0, 7)} (build ${number}) to ${APP_STAGING_URL}, ${DEMO_URL} and ${SITE_URL}.`);
 }
 
@@ -254,8 +285,12 @@ async function promote(arg, yes) {
   const wt = worktree(sha);
   const app = join(wt, 'apps', 'omark');
   if (rebuild) {
+    // The same number as its first build: both count main's commits up to it.
     const number = Number(git(['rev-list', '--count', sha]));
-    run('pnpm', ['--filter', 'omark', 'build'], { cwd: wt, env: appBuildEnv(vars, { sha, number, builtAt: buildTime() }) });
+    const builtAt = buildTime();
+    run('pnpm', ['--filter', 'omark', 'build'], { cwd: wt, env: appBuildEnv(vars, { sha, number, builtAt }) });
+    // Recorded, so a later ship prunes this worktree like the others.
+    writeFileSync(join(DIR, `${sha}.json`), `${JSON.stringify({ sha, number, builtAt }, null, 2)}\n`);
   } else if (!existsSync(join(app, 'dist', 'version.json'))) {
     throw new Refused(`The kept build of ${sha.slice(0, 7)} is gone (${join(app, 'dist')}); run pnpm ship again.`);
   }

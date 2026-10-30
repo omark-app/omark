@@ -94,35 +94,25 @@ describe('release-notes.mjs in a repository', { timeout: 30_000 }, () => {
 });
 
 describe('releaseNotes', () => {
-  const merges = [
-    { subject: 'Merge pull request #16 from owner/issue-16-x', body: 'Fix the toast on iPhone\n' },
-    { subject: 'Merge pull request #15 from owner/factory-spec', body: '' },
-    { subject: 'Merge main into issue-16-x', body: '' },
+  // Main's first-parent line, newest first: PR merges and, in fast mode, commits made straight to main.
+  const commits = [
+    { short: 'ddd4444', subject: 'Fix the U.7 review findings', body: '' },
+    { short: 'ccc3333', subject: 'Merge pull request #16 from owner/issue-16-x', body: 'Fix the toast on iPhone\n' },
+    { short: 'bbb2222', subject: 'Merge pull request #15 from owner/factory-spec', body: '' },
+    { short: 'aaa1111', subject: 'Merge branch main into issue-16-x', body: '' },
   ];
 
-  it('lists the merged PRs with their titles', () => {
-    expect(releaseNotes({ merges, rollback: false, sha: 'abc1234' })).toBe(
-      '- #16 Fix the toast on iPhone\n- #15 owner/factory-spec\n',
+  it('lists the merged PRs with their titles and the commits made straight to main', () => {
+    expect(releaseNotes({ commits, rollback: false, sha: 'abc1234' })).toBe(
+      '- Fix the U.7 review findings (ddd4444)\n- #16 Fix the toast on iPhone\n- #15 owner/factory-spec\n',
     );
   });
 
-  it('says so when nothing was merged', () => {
-    expect(releaseNotes({ merges: [], rollback: false, sha: 'abc1234' })).toBe('No new pull requests since the last release.\n');
+  it('says so when there is nothing new', () => {
+    expect(releaseNotes({ commits: [], rollback: false, sha: 'abc1234' })).toBe('Nothing new since the last release.\n');
   });
 
   it('marks a rollback', () => {
-    expect(releaseNotes({ merges: [], rollback: true, sha: 'abc1234' })).toBe('Rollback to abc1234.\n');
-  });
-
-  it('lists the commits when no pull requests were merged (commits straight to main)', () => {
-    const commits = [
-      { short: 'bbb2222', subject: 'Fix the U.7 review findings' },
-      { short: 'aaa1111', subject: 'Deploy the one app (U.7)' },
-    ];
-    expect(releaseNotes({ merges: [], commits, rollback: false, sha: 'abc1234' })).toBe(
-      '- Fix the U.7 review findings (bbb2222)\n- Deploy the one app (U.7) (aaa1111)\n',
-    );
-    // Pull requests win when there are any.
-    expect(releaseNotes({ merges, commits, rollback: false, sha: 'abc1234' })).toContain('- #16 ');
+    expect(releaseNotes({ commits, rollback: true, sha: 'abc1234' })).toBe('Rollback to abc1234.\n');
   });
 });

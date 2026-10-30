@@ -43,6 +43,18 @@ requests were merged.
 - Build numbers: CI used its run number (211 at the switch). Local builds use main's commit count (556+), so the
   footer number jumps; it is only shown, never compared.
 
+## Review
+
+A fresh-eyes review found no way to ship the wrong commit or the wrong functions. Fixed after it:
+
+- Pruning a kept worktree git can't remove (a path too long for Windows, say) no longer fails every later ship;
+  a rollback's rebuild is recorded, so it is pruned too.
+- Release notes walk main's first-parent commits: PR merges and direct commits both show, so the first omark
+  release no longer lists 20 old pull requests instead.
+- Ship refuses an `APP_STAGING_URL` that isn't `https://` followed by `APP_STAGING_HOST`, as CI did.
+- On Windows, commands go to the shell as one quoted line (paths with spaces; no DEP0190 warning on Node 24).
+- The site check's requests time out after 20 seconds, as CI's curl did.
+
 ## Out of scope
 
 - Re-enabling CI and Promote on GitHub (before 4.3).

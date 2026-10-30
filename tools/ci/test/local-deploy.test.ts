@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appBuildEnv, checkSite, checkVars, choosePromote, demoBuildEnv, Refused, toPrune } from '../local-deploy.mjs';
+import { appBuildEnv, checkSite, checkVars, choosePromote, demoBuildEnv, Refused, shellLine, toPrune } from '../local-deploy.mjs';
 
 const VARS = {
   CF_APP_PROJECT: 'omark-app',
@@ -34,6 +34,16 @@ describe('checkVars', () => {
 
   it('refuses a production URL that is not the production host', () => {
     expect(() => checkVars({ ...VARS, APP_PROD_URL: 'https://other.test' }, 'promote')).toThrow(/APP_PROD_URL/);
+  });
+
+  it('refuses a staging URL that is not the staging host', () => {
+    expect(() => checkVars({ ...VARS, APP_STAGING_URL: 'https://other.test' }, 'ship')).toThrow(/APP_STAGING_URL/);
+  });
+});
+
+describe('shellLine', () => {
+  it('quotes the words with spaces, for the Windows shell', () => {
+    expect(shellLine('node', ['C:\\My Projects\\x.mjs', 'abc', '--title', 'a b'])).toBe('node "C:\\My Projects\\x.mjs" abc --title "a b"');
   });
 });
 
