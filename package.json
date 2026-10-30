@@ -11,7 +11,7 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "dev": "pnpm --filter tasks dev",
     "demo": "pnpm --filter tasks dev",
-    "e2e": "pnpm -r --if-present e2e",
+    "e2e": "pnpm -r --if-present e2e && pnpm --filter omark e2e:tasks && pnpm --filter omark e2e:time",
     "dev:signin": "pnpm --filter tasks build && wrangler pages dev apps/tasks/dist --port 5173",
     "e2e:real:login": "pnpm --filter tasks e2e:real:login",
     "e2e:real": "pnpm --filter tasks e2e:real",
