@@ -21,5 +21,6 @@ body:
       options:
         - Omark Tasks
         - Omark Time
-        - Both, or the whole suite
+        - Omark Goals
+        - Several, or the whole suite
         - A new tool

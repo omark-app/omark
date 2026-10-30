@@ -457,7 +457,10 @@ At launch, about ten issues are labelled `ready`, sized, and written with accept
 | Time: self-hosted Cloudflare cron that runs the sync 24/7 on your own account | large | help wanted |
 | Time: an `attendees` column ("time on calls with X"), filled by a rebuild | large (`format`) | help wanted |
 | Time: an Outlook / Microsoft 365 calendar source | large | help wanted |
-| Time: read calendars shared with you | small | good first issue |
+| Time: read calendars shared with you | large (new scope) | help wanted |
+| Goals: a guided vision exercise as an agent skill | large | help wanted |
+| Goals: show in Time which goal a project serves | large | help wanted |
+| Goals: a different "Needs update" period per area | large (`format`) | help wanted |
 
 The Google Drive adapter left this list: it is part of the launch now (6.4.1). Each issue also gets its `app:` label.
 

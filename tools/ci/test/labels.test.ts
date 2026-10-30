@@ -12,7 +12,7 @@ const file = parse(readFileSync(new URL('../../../.github/labels.yml', import.me
 // Launch spec 6.8, the label table.
 const SPEC = [
   'ready', 'good first issue', 'help wanted', 'size:small', 'size:large', 'plan-review', 'plan-approved', 'needs-human',
-  'needs-info', 'in-progress', 'format', 'bug', 'enhancement', 'task', 'app:tasks', 'app:time', 'app:suite',
+  'needs-info', 'in-progress', 'format', 'bug', 'enhancement', 'task', 'app:tasks', 'app:time', 'app:goals', 'app:suite',
 ];
 
 describe('.github/labels.yml', () => {

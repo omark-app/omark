@@ -36,7 +36,7 @@ When asked to "file a bug: …", "idea: …" or similar:
 
 1. **Required fields first.** Issues filed through the API skip the forms, so check them: the form for the issue's kind (`bug.yml`, `feature.yml`, `task.yml`) marks fields `required`. If one is missing or empty, add `needs-info`, ask for it in one comment, and stop.
 2. **Small** only if **all** hold: a bug fix or small tweak with clear expected behaviour; no change to the file formats, to sync, merge or saving, or to sign-in; no new dependency; no change to CI, deploy, `.claude/` or the guard; no new screen, gesture or flow. Anything else is large. When in doubt, large. File formats, sync and merge, sign-in, and anything that deletes or rewrites task lines are always large. A change to a file format also gets `format`.
-3. Add the size label, the app label from the issue's App field (`app:tasks`, `app:time`, or `app:suite` for both, shared packages, CI, docs or the landing page), and comment:
+3. Add the size label, the app label from the issue's App field (`app:tasks`, `app:time`, `app:goals`, or `app:suite` for several, shared packages, CI, docs or the landing page), and comment:
    `Sized **small**: <one-line reason>. Relabel if you disagree.`
 
 A maintainer's label wins. Never relabel what a maintainer labelled.

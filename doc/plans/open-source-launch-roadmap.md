@@ -147,7 +147,7 @@ Builds [the Omark Goals spec](../goals/spec.md). Launches with Tasks and Time.
 
 | # | Step | Spec | Depends on |
 |---|---|---|---|
-| 4.1 | Write the seeded issues (Tasks and Time) with acceptance criteria and labels | 6.9 | 2.5 |
+| 4.1 | *Done 2026-10-30 ([plan](../history/105-seeded-issues.md)): #107–#122, 16 `ready` issues (3 Goals ones added), and the `app:goals` label.* Write the seeded issues (Tasks and Time) with acceptance criteria and labels | 6.9 | 2.5 |
 | 4.2 | AL: ask 5–10 developers to take one each | 6.9 | 4.1 |
 | 4.3 | AL: delete stale branches, set repository settings (branch protection, fork approval, Discussions, vulnerability reporting, topics, social preview), skim Actions logs, flip to public | 6.10 | everything above, including milestone T |
 

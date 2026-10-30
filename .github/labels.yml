@@ -48,6 +48,9 @@
 - name: app:time
   color: "d4c5f9"
   description: About Omark Time
+- name: app:goals
+  color: "c2e0c6"
+  description: About Omark Goals
 - name: app:suite
   color: "ededed"
   description: Shared packages, CI, docs or the landing page

@@ -24,7 +24,7 @@ const form = (p: string) => parse(text(p)) as Form;
 const fields = (f: Form) =>
   f.body.filter((b) => b.type !== 'markdown').map((b) => `${b.attributes.label}${b.validations?.required ? '*' : ''}`);
 
-const APP = ['Omark Tasks', 'Omark Time', 'Both, or the whole suite'];
+const APP = ['Omark Tasks', 'Omark Time', 'Omark Goals', 'Several, or the whole suite'];
 
 describe('issue forms', () => {
   it.each([
@@ -53,6 +53,7 @@ describe('the Ideas form', () => {
   it('asks for the problem, how it is handled today, and which app', () => {
     const f = parse(text('DISCUSSION_TEMPLATE/ideas.yml')) as Form;
     expect(fields(f)).toEqual(['The problem*', 'How you handle it today', 'Which app']);
+    expect(f.body.find((b) => b.attributes.label === 'Which app')!.attributes.options).toEqual([...APP, 'A new tool']);
   });
 });
 

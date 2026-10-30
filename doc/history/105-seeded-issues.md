@@ -1,10 +1,10 @@
 # Seeded issues for the launch (#105)
 
-Roadmap item 4.1. Spec: [open source launch spec](../TaskApp%20open%20source%20launch%20spec.md), section 6.9. The issues below are drafts. None is created until a maintainer approves this plan; then they are created exactly as written here.
+Roadmap item 4.1. Spec: [open source launch spec](../TaskApp%20open%20source%20launch%20spec.md), section 6.9. Refreshed for the one app on 2026-10-30, with three Goals issues added, and created as written here (fast mode: no approval wait).
 
 ## What changes for users
 
-Contributors find 13 `ready` issues, each sized, labelled with its app, and written with acceptance criteria, so they (or their agents) can start without asking. Four are `good first issue`; the rest are `help wanted`.
+Contributors find 16 `ready` issues, each sized, labelled with its app, and written with acceptance criteria, so they (or their agents) can start without asking. Three are `good first issue`; the rest are `help wanted`.
 
 ## Acceptance criteria
 
@@ -59,14 +59,14 @@ Labels: `enhancement`, `ready`, `size:small`, `good first issue`, `app:tasks`
 
 Labels: `task`, `ready`, `size:small`, `good first issue`, `app:suite`
 
-**App:** Both, or the whole suite
+**App:** Several, or the whole suite
 
-**What and why:** `apps/tasks/public/_headers` and `apps/time/public/_headers` set only cache headers. The landing page (`apps/site/public/_headers`) already sends a CSP and security headers. The apps should too, starting in Report-Only mode so nothing breaks.
+**What and why:** The app's `apps/omark/public/_headers` sets only cache headers. The landing page (`apps/site/public/_headers`) already sends a CSP and security headers. The app should too, starting in Report-Only mode so nothing breaks.
 
 **Done when:**
 
-- Both apps send `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, a `Permissions-Policy`, and a `Content-Security-Policy-Report-Only`. It allows only the app itself, the sign-in helper, and the APIs each app calls (Microsoft Graph, Google APIs).
-- A test checks each app's `_headers`, like the site's.
+- The app sends `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, a `Permissions-Policy`, and a `Content-Security-Policy-Report-Only`. It allows only the app itself (with its sign-in helper) and the APIs it calls: Microsoft Graph, Google Drive and Google Calendar.
+- A test checks the app's `_headers`, like the site's.
 - The e2e passes, and the browser console on a preview shows no CSP reports in normal use.
 - SECURITY.md's "Known gaps" says Report-Only, with a follow-up to enforce it.
 
@@ -124,17 +124,17 @@ Labels: `enhancement`, `ready`, `size:large`, `help wanted`, `app:tasks`
 
 ### 6. Polish translation, and the i18n groundwork it needs
 
-Labels: `enhancement`, `ready`, `size:large`, `help wanted`, `app:tasks`
+Labels: `enhancement`, `ready`, `size:large`, `help wanted`, `app:suite`
 
-**App:** Omark Tasks
+**App:** Several, or the whole suite
 
-**The problem:** The app is English only.
+**The problem:** Omark is English only, in all three parts. `apps/tasks/src/lib/messages.ts` already gathers Tasks' toast wording in one place; nothing else does.
 
 **Who has it:** Polish speakers first; anyone adding another language after.
 
 **How I'll know it works:**
 
-- Every UI string comes from one message catalogue per language. A test checks that every key exists in every language.
+- Every UI string, in Tasks, Time, Goals, the shell and Settings, comes from one message catalogue per language. A test checks that every key exists in every language.
 - The language follows the browser, with a setting to choose. Dates and bucket names are localised.
 - The files don't change: repeat rules stay in English in `tasks.md` (`🔁 every week on Monday`), and the app shows them translated.
 - Polish is complete.
@@ -144,7 +144,7 @@ Labels: `enhancement`, `ready`, `size:large`, `help wanted`, `app:tasks`
 
 Labels: `enhancement`, `ready`, `size:large`, `help wanted`, `app:suite`
 
-**App:** Both, or the whole suite
+**App:** Several, or the whole suite
 
 **The problem:** Omark keeps files in OneDrive, Google Drive or a local folder. Dropbox users have no way in.
 
@@ -154,7 +154,7 @@ Labels: `enhancement`, `ready`, `size:large`, `help wanted`, `app:suite`
 
 - A `DropboxAdapter` in `packages/storage` passes the shared `adapterContract` test. It keeps the files in Dropbox's app folder and makes conditional writes with the file's `rev`.
 - The sign-in helper gets a Dropbox provider (authorization code with PKCE). As with the others, it keeps the refresh token only in the user's encrypted cookie.
-- The storage choice offers Dropbox.
+- The storage choice on the first run and in Settings offers Dropbox.
 - `doc/self-hosting.md` and `doc/architecture.md` describe it, and the privacy policy names it.
 
 ### 8. The week board on phones, as bucket tabs
@@ -261,3 +261,55 @@ Labels: `enhancement`, `ready`, `size:large`, `help wanted`, `app:time`
 - Shared calendars are read only: they are never coloured.
 - Their rows carry their calendar id, and `doc/time/spec.md`, the privacy policy and the scopes table are updated.
 - A test with the fake calendar covers a shared calendar.
+- Omark's Google verification covers only the owned-calendar scopes, so the new scope needs a new review. A maintainer re-submits it (`needs-human`) before the change reaches production.
+
+### 14. Goals: a guided vision exercise as an agent skill
+
+Labels: `enhancement`, `ready`, `size:large`, `help wanted`, `app:goals`
+
+**App:** Omark Goals
+
+**The problem:** Writing the vision for an area is the hardest part of `goals.md`, and the app on purpose has no wizard for it (`doc/goals/spec.md` section 2.2).
+
+**Who has it:** People starting their goals, or redoing them once a year.
+
+**How I'll know it works:**
+
+- A skill in `.claude/skills/` walks the user through one area at a time: the end state they want in a few years, then one to three dated goals. It asks one question at a time and suggests nothing the user didn't say.
+- It writes `goals.md` only as the `omark-goals` skill and `doc/format.md` allow, and keeps every other line byte for byte.
+- It is tried on the demo world's `goals.md`; the plan shows a short sample conversation.
+- `doc/goals/spec.md` section 14 is updated.
+
+### 15. Goals: show in Time which goal a project serves
+
+Labels: `enhancement`, `ready`, `size:large`, `help wanted`, `app:goals`
+
+**App:** Omark Goals
+
+**The problem:** A goal tagged with a project code (`#CLIMB`) links that project's hours to the goal, but Time's hours don't say which goal they serve. You switch to Goals to see why the hours matter.
+
+**Who has it:** People who use Goals and Time together.
+
+**How I'll know it works:**
+
+- In Time's hours summary, a project linked to a goal shows the goal's title and date, and opens it in Goals.
+- Nothing shows when Goals is off or `goals.md` is missing.
+- The link is worked out in `goals-core` (pure), with unit tests; one e2e test on the demo world.
+- `doc/goals/spec.md` (sections 2.2 and 14) and `doc/time/spec.md` are updated.
+
+### 16. Goals: a different "Needs update" period per area
+
+Labels: `enhancement`, `ready`, `size:large`, `help wanted`, `format`, `app:goals`
+
+**App:** Omark Goals
+
+**The problem:** An area shows "Needs update" after `stale_after` months without linked activity, the same for every area. Some areas move slowly (a five-year plan), others weekly.
+
+**Who has it:** People whose areas move at different speeds.
+
+**How I'll know it works:**
+
+- An area can set its own period in `goals.md`; the plan proposes the syntax. Areas without one use `stale_after`.
+- Files without it are read and written as today, byte for byte.
+- The area form has the field; `goals-core` has unit tests for it.
+- `doc/format.md`, the `omark-goals` skill and `doc/goals/spec.md` (sections 6.3 and 14) are updated.

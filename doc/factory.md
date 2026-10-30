@@ -49,7 +49,7 @@ Anything else is **large**. When in doubt, large. File formats, sync and merge, 
 | Label | Meaning |
 |---|---|
 | `bug`, `enhancement`, `task` | Kind of issue, one per form |
-| `app:tasks`, `app:time`, `app:suite` | Which app; `app:suite` for shared packages, CI, docs and the landing page. The agent adds it when sizing |
+| `app:tasks`, `app:time`, `app:goals`, `app:suite` | Which app; `app:suite` for shared packages, CI, docs and the landing page. The agent adds it when sizing |
 | `size:small`, `size:large` | Size |
 | `ready` | Can be picked up |
 | `good first issue`, `help wanted` | Starter and open work |

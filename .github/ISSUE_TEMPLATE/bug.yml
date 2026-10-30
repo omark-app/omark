@@ -9,7 +9,8 @@ body:
       options:
         - Omark Tasks
         - Omark Time
-        - Both, or the whole suite
+        - Omark Goals
+        - Several, or the whole suite
     validations:
       required: true
   - type: textarea
