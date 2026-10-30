@@ -52,13 +52,8 @@ export function eventLink(links: Record<string, string>, calendar: string, event
   return link && /^https:\/\/(www\.google\.com\/calendar|calendar\.google\.com)\//.test(link) ? link : null;
 }
 
-/** Omark Tasks' settings, on the matching host (as Tasks links to Time's: `timeSettingsUrl` in apps/tasks). */
-export function tasksSettingsUrl(host: string): string {
-  const h = host.toLowerCase();
-  if (h.startsWith('staging-time.')) return 'https://staging-tasks.omark.app/#settings';
-  if (h.startsWith('demo-time.')) return 'https://demo-tasks.omark.app/#settings';
-  return 'https://tasks.omark.app/#settings';
-}
+/** Omark Tasks' settings live in the one Omark app's Settings page; the standalone build links there. */
+export const TASKS_SETTINGS_URL = 'https://app.omark.app/settings';
 
 /** The project form's start: the code given (from the fix list), upper case. */
 export function newProject(code = ''): Project {

@@ -1,5 +1,4 @@
-import type { DriveRoot } from '@omark/storage';
-import { envForHost, folderFor, googleFolderFor, hostConfig, lookFor } from './lib/environment.ts';
+import { envForHost, googleFolderFor, hostConfig, lookFor } from './lib/environment.ts';
 import { storageMode } from './storage-mode.ts';
 import type { StorageMode } from './storage-mode.ts';
 
@@ -28,16 +27,15 @@ export const STORAGE_MODE: StorageMode =
   typeof __STORAGE_MODE__ === 'string' ? __STORAGE_MODE__ : storageMode(import.meta.env.VITE_STORAGE);
 export const REAL_USE_URL = realUseUrl(import.meta.env.VITE_REAL_USE_URL);
 export const DEMO_URL = demoUrl(import.meta.env.VITE_DEMO_URL);
-/** The hosts and folders this build serves, from its build variables. */
+/** The hosts this build serves, from its build variables. */
 export const HOSTS = hostConfig(import.meta.env);
 /** Production, staging, a PR preview or local, from the host name (staging and production share one build). */
 export const APP_ENV = envForHost(typeof location === 'undefined' ? '' : location.hostname, HOSTS);
 export const LOOK = lookFor(APP_ENV, STORAGE_MODE);
-export const ONEDRIVE_FOLDER: string = folderFor(APP_ENV, import.meta.env.VITE_ONEDRIVE_FOLDER ?? '', HOSTS);
+/** The folder in OneDrive's app folder; empty means the app folder itself. */
+export const ONEDRIVE_FOLDER: string = (import.meta.env.VITE_ONEDRIVE_FOLDER ?? '').trim();
 /** The folder in My Drive when signed in with Google. */
 export const GOOGLE_FOLDER: string = googleFolderFor(APP_ENV, import.meta.env.VITE_GOOGLE_FOLDER ?? '');
-/** `full` reaches the whole drive (the owner's deployment); anything else, the app folder. Must match the helper's `ONEDRIVE_SCOPE`. */
-export const ONEDRIVE_ROOT: DriveRoot = import.meta.env.VITE_ONEDRIVE_SCOPE === 'full' ? 'drive' : 'approot';
 
 declare const __BUILD_ID__: string | undefined;
 declare const __BUILD_TIME__: string | undefined;

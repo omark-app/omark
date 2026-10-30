@@ -31,7 +31,7 @@ export interface Deps {
 }
 
 /** What the client sends with every POST; a cross-origin page cannot set it without a CORS preflight, which is never allowed. */
-export const CSRF_HEADER = 'X-TaskApp-Auth';
+export const CSRF_HEADER = 'X-Omark-Auth';
 const UPSTREAM_TIMEOUT_MS = 10_000;
 
 const DAY = 24 * 60 * 60;

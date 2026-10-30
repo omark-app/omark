@@ -187,7 +187,7 @@ function realAccounts(): Accounts {
     async open(storage) {
       if (storage === 'microsoft') {
         const getToken = (o?: { fresh?: boolean }) => client('microsoft').getToken(o);
-        const drive = (folder: string) => new OneDriveAdapter({ root: 'approot', folder, getToken });
+        const drive = (folder: string) => new OneDriveAdapter({ folder, getToken });
         const name = STORAGE_NAMES.microsoft;
         return folderParts(storage, name, 'microsoft', client('microsoft'), drive(''), (p) => drive(p), () => drive(PICTURES), timeOn(storage, name, 'microsoft', drive(''), drive('time')));
       }

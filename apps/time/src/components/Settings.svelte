@@ -2,7 +2,7 @@
   import { isRealDate } from '@omark/time-core';
   import type { WeekStart } from '@omark/time-core';
   import type { TimeStore } from '../lib/store.svelte.ts';
-  import { tasksSettingsUrl } from '../lib/views.ts';
+  import { TASKS_SETTINGS_URL } from '../lib/views.ts';
 
   /**
    * Spec 9, Settings. Time's own page: the shared settings page (`@omark/settings`) refuses keys outside its schema,
@@ -45,7 +45,7 @@
       {#if store.embedded}
         <a href="/settings" onclick={toSettings}>All Omark settings</a>
       {:else}
-        <a href={tasksSettingsUrl(location.host)}>Omark Tasks settings ↗</a>
+        <a href={TASKS_SETTINGS_URL}>Omark Tasks settings ↗</a>
       {/if}
     </div>
     <p class="muted small">Settings are kept in config.yaml in your files, so they follow you to every device.</p>

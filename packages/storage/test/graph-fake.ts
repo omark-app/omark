@@ -1,10 +1,7 @@
 import { quickXorHash } from '../src/quick-xor-hash.ts';
 
 /** In-test emulation of the Graph endpoints the OneDriveAdapter calls. */
-const BASES = {
-  drive: 'https://graph.microsoft.com/v1.0/me/drive/root:/',
-  approot: 'https://graph.microsoft.com/v1.0/me/drive/special/approot:/',
-};
+const BASE = 'https://graph.microsoft.com/v1.0/me/drive/special/approot:/';
 const DL = 'https://download.example.test/';
 
 export interface Call {
@@ -25,10 +22,7 @@ export class GraphFake {
   /** False to leave the hashes out of the item metadata. */
   hashes = true;
 
-  constructor(
-    private folder: string,
-    private root: 'approot' | 'drive' = 'drive',
-  ) {}
+  constructor(private folder: string) {}
 
   external(name: string, content: string | Uint8Array): void {
     const cur = this.files.get(name);
@@ -61,7 +55,6 @@ export class GraphFake {
       this.unauthorized--;
       return new Response('', { status: 401 });
     }
-    const BASE = BASES[this.root];
     if (!url.startsWith(BASE)) return new Response('', { status: 400 });
     let path = decodeURIComponent(url.slice(BASE.length));
     const isContent = path.endsWith(':/content');

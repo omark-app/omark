@@ -28,18 +28,13 @@ describe('checkSignin', () => {
     expect(s.calls[0]).toEqual({ url: `${URL_}/api/auth/login`, redirect: 'manual' });
   });
 
-  it('passes for whole-drive scope when full is expected', async () => {
-    const s = setup([login('consumers', 'Files.ReadWrite')]);
-    const r = await checkSignin({ url: URL_, scope: 'full', fetch: s.fake, sleep: s.sleep });
-    expect(r.ok).toBe(true);
-  });
-
-  it('fails when the helper grants app-folder but full is expected', async () => {
-    const s = setup([login('consumers', 'Files.ReadWrite.AppFolder')]);
-    const r = await checkSignin({ url: URL_, scope: 'full', fetch: s.fake, sleep: s.sleep });
-    expect(r.ok).toBe(false);
-    expect(r.message).toContain('Files.ReadWrite.AppFolder');
-    expect(r.message).toContain('full');
+  it('fails when the helper asks for the whole drive', async () => {
+    for (const scope of ['Files.ReadWrite', 'Files.ReadWrite Files.ReadWrite.AppFolder']) {
+      const s = setup([login('consumers', scope)]);
+      const r = await checkSignin({ url: URL_, fetch: s.fake, sleep: s.sleep, attempts: 1 });
+      expect(r.ok, scope).toBe(false);
+      expect(r.message, scope).toContain('whole drive');
+    }
   });
 
   it('fails when the redirect goes to another tenant', async () => {

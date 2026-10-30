@@ -31,7 +31,7 @@ describe("the one app's sign-in function", () => {
     const res = await onRequest({
       request: new Request('https://app.example/api/auth/token?provider=googlecal', {
         method: 'POST',
-        headers: { 'X-TaskApp-Auth': '1', Origin: 'https://app.example', 'Sec-Fetch-Site': 'same-origin' },
+        headers: { 'X-Omark-Auth': '1', Origin: 'https://app.example', 'Sec-Fetch-Site': 'same-origin' },
       }),
       env: ENV,
     });

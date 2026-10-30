@@ -16,13 +16,13 @@ describe('the Pages Function', () => {
     const res = await onRequest({ request: login(), env: ENV });
     expect(res.status).toBe(302);
     expect(res.headers.get('Location')!.startsWith('https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?')).toBe(true);
-    expect(res.headers.getSetCookie().map((c) => c.split('=')[0])).toEqual(['taskapp_login']);
+    expect(res.headers.getSetCookie().map((c) => c.split('=')[0])).toEqual(['omarktasks_login']);
   });
 
   it('runs Tasks when OMARK_APP is tasks', async () => {
     const res = await onRequest({ request: login(), env: { ...ENV, OMARK_APP: 'tasks' } });
     expect(res.status).toBe(302);
-    expect(res.headers.getSetCookie().map((c) => c.split('=')[0])).toEqual(['taskapp_login']);
+    expect(res.headers.getSetCookie().map((c) => c.split('=')[0])).toEqual(['omarktasks_login']);
   });
 
   it('lists Microsoft and Google for Tasks when both are configured', async () => {

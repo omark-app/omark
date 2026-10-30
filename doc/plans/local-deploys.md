@@ -19,7 +19,7 @@ CI and Promote are switched off on GitHub and their deploys run from this comput
   build in a git worktree of the exact commit outside the repository (`~/.omark-deploy/<sha>`), so the working
   copy and its uncommitted files never ship.
 - Release notes list the commits since the last release when there are no merged pull requests (fast mode has none).
-- The bridge (`tasks` to tasks.alipka.com) is not covered: it is retired at the cutover (3.6, 3.7).
+- The bridge (`tasks`, the old Tasks host) is not covered: it is retired at the cutover (3.6, 3.7).
 
 ## Acceptance criteria
 

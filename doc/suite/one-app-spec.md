@@ -153,20 +153,20 @@ The Tasks and Time demos' existing checks (no outside requests, Reset demo, the 
 
 ## 10. Hosting, CI and deploys
 
-*Built 2026-10-29 (roadmap U.7, [plan](../plans/U.7-ci-hosts-redirects.md)): `omark-preview`, `omark-staging`, `omark-demo` and Promote's `omark`; the old per-app hosts redirect; the Goals card is on the landing page. The old Pages projects are retired in 3.7.*
+*Built 2026-10-29 (roadmap U.7, [plan](../history/U.7-ci-hosts-redirects.md)): `omark-preview`, `omark-staging`, `omark-demo` and Promote's `omark`; the old per-app hosts redirect; the Goals card is on the landing page. The old Pages projects are retired in 3.7.*
 
 - **Cloudflare Pages projects**: one for production (`app.omark.app`), one for staging (`staging-app.omark.app`), one for the demo (`demo.omark.app`), plus `omark.app` for the site. The per-app projects that exist are retired after the redirects are in place.
 - **CI**: one app build, one preview per PR, one staging deploy from `main`, one demo deploy, one Promote (no app question). The per-app jobs, artifacts and variables (`TASKS_*`, `CF_TASKS_*` and Time's) become one set.
 - **Self-hosting** (`doc/self-hosting.md`): one app, one Pages project, one Entra registration and one Google project.
 - **Landing page**: the cards for Tasks, Time and Goals link to their part's path (`app.omark.app/time`) and the demo's; a Goals card is added.
-- **AL's own instance until the cutover**: the bridge jobs stay. CI keeps building `apps/tasks` for `tasks-staging.alipka.com` and Promote keeps a "bridge" target for `tasks.alipka.com` (flat `ALAI/TaskApp`, drive-root scope), next to the one app's jobs, until 3.6. The one app never runs in bridge mode: pointed at the flat folder it would read Tasks' `config.yaml` as the suite file. 3.7 then removes `apps/tasks`'s bridge build, its jobs and variables. *(my call)*
+- **AL's own instance until the cutover**: the bridge jobs stay. CI keeps building `apps/tasks` for AL's old staging host and Promote keeps a "bridge" target for the old production host (a flat folder, drive-root scope), next to the one app's jobs, until 3.6. The one app never runs in bridge mode: pointed at the flat folder it would read Tasks' `config.yaml` as the suite file. 3.7 then removes `apps/tasks`'s bridge build, its jobs and variables. *(my call)*
 
 ## 11. Moving what exists
 
 Nobody but AL has real data, so this is short.
 
-- **AL's cutover (roadmap 3.6)** now targets `app.omark.app`: sign in with OneDrive once so `Apps/Omark` exists, then copy `tasks.md`, `done.md` and `config.yaml` from `ALAI/TaskApp` into `Apps/Omark/tasks/`. The rest of the checklist stays (wait for "saved" everywhere, check counts, re-add the phone icon, redirect `tasks.alipka.com`, keep `ALAI/TaskApp` a month).
-- **Staging** uses `Apps/Omark Staging` from the new staging registration. `ALAI/TaskApp-staging` stays as it is until the bridge is removed (3.7).
+- **AL's cutover (roadmap 3.6)** now targets `app.omark.app`: sign in with OneDrive once so `Apps/Omark` exists, then copy `tasks.md`, `done.md` and `config.yaml` from the old folder into `Apps/Omark/tasks/`. The rest of the checklist stays (wait for "saved" everywhere, check counts, re-add the phone icon, redirect the old host, keep the old folder a month).
+- **Staging** uses `Apps/Omark Staging` from the new staging registration. The old staging folder stays as it is until the bridge is removed (3.7).
 - **Time on AL's calendar** (T.11) starts on `app.omark.app`, so there is no Time data to move.
 - **Test data** in the old staging Google projects is left behind.
 

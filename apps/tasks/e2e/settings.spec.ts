@@ -56,7 +56,7 @@ test('the footer gear opens Settings with every setting', async ({ page, isMobil
   await expect(page.getByTestId('bucket-today')).toHaveCount(0);
   await expect(page.getByTestId('fab')).toHaveCount(0);
   await expect(page.getByTestId('open-settings')).toHaveCount(0);
-  await expect(settings(page).getByRole('link', { name: /Omark Time/ })).toHaveAttribute('href', 'https://time.omark.app/#settings');
+  await expect(settings(page).getByRole('link', { name: /Omark Time/ })).toHaveAttribute('href', 'https://app.omark.app/settings');
 
   for (const field of allFields(TASKS_SCHEMA)) await expect(page.getByTestId(`field-${fieldId(field)}`)).toBeVisible();
   await page.getByTestId('keys-show-all').getByRole('button', { name: 'Show all' }).click();

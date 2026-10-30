@@ -16,7 +16,7 @@ export interface TimeAuth {
 }
 
 /** Must match `CSRF_HEADER` in `packages/signin`. */
-const CSRF_HEADER = 'X-TaskApp-Auth';
+const CSRF_HEADER = 'X-Omark-Auth';
 
 /** Google through the sign-in helper at /api/auth (the `time` app there: cookie prefix `omarktime`). */
 export function createTimeAuth(): TimeAuth {

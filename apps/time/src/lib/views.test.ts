@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { keyOf } from '@omark/time-core';
 import type { CalendarEvent } from '@omark/calendar';
-import { customRange, eventLink, eventOnDay, newProject, reportFileName, viewOf, VIEWS } from './views.ts';
+import { customRange, eventLink, eventOnDay, newProject, reportFileName, TASKS_SETTINGS_URL, viewOf, VIEWS } from './views.ts';
 
 test('the hash picks the view; anything else is hours', () => {
   expect(viewOf('#/charts')).toBe('charts');
@@ -52,4 +52,8 @@ test('an event links to Google Calendar only when the sync kept its link', () =>
 
 test('a new project starts with the code given, upper case, and nothing else', () => {
   expect(newProject('acmee')).toEqual({ code: 'ACMEE', description: '', client: '', rate: null, currency: '', archived: '', extra: {} });
+});
+
+test('the standalone app links to the one Omark app’s Settings, which has Tasks’', () => {
+  expect(TASKS_SETTINGS_URL).toBe('https://app.omark.app/settings');
 });

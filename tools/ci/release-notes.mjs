@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // Promote to production, last step: the app's next <app>-prod- tag and the release notes (the PRs merged and the
-// commits made straight to main since its last release tag; for tasks that includes the prod- tags from before the
-// monorepo move). Usage, in a full clone: release-notes.mjs <sha> <app>. Writes `tag` to $GITHUB_OUTPUT and the notes to release-notes.md.
+// commits made straight to main since its last release tag). Usage, in a full clone: release-notes.mjs <sha> <app>. Writes `tag` to $GITHUB_OUTPUT and the notes to release-notes.md.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -24,11 +23,11 @@ export function nextTag(tags, today, app) {
 }
 
 /**
- * The git patterns for an app's release tags. Tasks was released as prod-YYYY-MM-DD-n before the monorepo move.
+ * The git patterns for an app's release tags.
  * @param {string} app
  */
 export function tagPatterns(app) {
-  return app === 'tasks' ? ['tasks-prod-*', 'prod-*'] : [`${app}-prod-*`];
+  return [`${app}-prod-*`];
 }
 
 /**

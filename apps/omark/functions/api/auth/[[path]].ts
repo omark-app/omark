@@ -13,8 +13,8 @@ const CALENDAR_EDIT = ['https://www.googleapis.com/auth/calendar.events.owned'];
  * The one Omark app's sign-in: Microsoft for OneDrive, Google for Google Drive with the calendar added when Time
  * is on, and `googlecal`, the same Google client for the calendar alone, next to OneDrive or a folder (it never
  * asks for Drive). One session per provider, so a Microsoft and a Google sign-in live side by side (U.4).
- * Deployed from `apps/omark`, so it needs no `OMARK_APP`; the root `functions/` serves the bridge
- * (`tasks.alipka.com`) until roadmap 3.7.
+ * Deployed from `apps/omark`, so it needs no `OMARK_APP`; the root `functions/` serves the standalone apps' local
+ * runs.
  */
 const OMARK: AuthOptions = {
   providers: {

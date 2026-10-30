@@ -31,10 +31,10 @@ describe('microsoft', () => {
     expect(microsoft.name).toBe('Microsoft');
   });
 
-  it('asks for the whole drive when ONEDRIVE_SCOPE is full', () => {
+  it('asks only for the app folder, even with a leftover ONEDRIVE_SCOPE=full', () => {
     const config = microsoft.configure({ ...ENV, ONEDRIVE_SCOPE: 'full' }) as ProviderConfig;
-    expect(config.scope).toBe('Files.ReadWrite offline_access');
-    expect(config.signinScope).toBe('openid profile Files.ReadWrite offline_access');
+    expect(config.scope).toBe('Files.ReadWrite.AppFolder offline_access');
+    expect(config.signinScope).toBe('openid profile Files.ReadWrite.AppFolder offline_access');
   });
 
   it('uses MSAL_TENANT for both endpoints', () => {

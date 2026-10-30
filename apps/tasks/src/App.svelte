@@ -24,7 +24,7 @@
   import SearchPanel from './components/SearchPanel.svelte';
   import DoneSheet from './components/DoneSheet.svelte';
   import StatusLine from './components/StatusLine.svelte';
-  import { timeSettingsUrl } from './lib/other-app.ts';
+  import { TIME_SETTINGS_URL } from './lib/other-app.ts';
   import HabitHistory from './components/HabitHistory.svelte';
   import { createSearch } from './lib/search.svelte.ts';
   import type { SearchResult } from './lib/search.svelte.ts';
@@ -334,7 +334,7 @@
         text={store.configText}
         onwrite={(text) => store.writeConfig(text)}
         back={{ label: '‹ Tasks', href: '#', onclick: settingsDirect ? undefined : backToTasks }}
-        apps={{ current: 'Omark Tasks', other: { label: 'Omark Time', href: timeSettingsUrl(location.host) } }}
+        apps={{ current: 'Omark Tasks', other: { label: 'Omark Time', href: TIME_SETTINGS_URL } }}
         note={store.configNote}
         defaultText={DEFAULT_CONFIG_YAML}
         extraSections={storage ? [{ id: 'storage', title: 'Storage', body: storageCard }] : []}

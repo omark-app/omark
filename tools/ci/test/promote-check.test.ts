@@ -12,7 +12,7 @@ interface FakeGh {
   onMain: Set<string>;
   runs: Run[]; // newest first
   artifacts: Record<number, { name: string; expired: boolean }[]>;
-  apps: Record<string, string[]>; // sha -> the folders under apps/ (none before the monorepo move)
+  apps: Record<string, string[]>; // sha -> the folders under apps/
   contentsStatus?: number; // forces the /contents answer, for errors
 }
 
@@ -51,64 +51,46 @@ function fakeFetch(gh: FakeGh): typeof fetch {
   }) as typeof fetch;
 }
 
-// A is after the monorepo move (apps/tasks, tasks-dist); B is before it (apps/web, web-dist) and has a legacy prod- tag.
+// A is the newest staging build; B an older one whose build has expired, tagged by an earlier release.
 function world(): FakeGh {
   return {
-    commits: { [A]: A, [B]: B, [OFF]: OFF, [A.slice(0, 7)]: A, 'prod-2026-10-01-1': B, 'tasks-prod-2026-11-02-1': A },
+    commits: { [A]: A, [B]: B, [OFF]: OFF, [A.slice(0, 7)]: A, 'omark-prod-2026-10-30-1': B, 'omark-prod-2026-11-02-1': A },
     onMain: new Set([A, B]),
     runs: [
       { id: 2, head_sha: A, status: 'completed', conclusion: 'success' },
       { id: 1, head_sha: B, status: 'completed', conclusion: 'success' },
     ],
-    artifacts: { 2: [{ name: 'tasks-dist', expired: false }], 1: [{ name: 'web-dist', expired: true }] },
-    apps: { [A]: ['tasks'] },
+    artifacts: { 2: [{ name: 'omark-dist', expired: false }], 1: [{ name: 'omark-dist', expired: true }] },
+    apps: { [A]: ['omark'], [B]: ['omark'], [OFF]: ['omark'] },
   };
 }
-const check = (gh: FakeGh, input: string, app = 'tasks') => promoteCheck({ repo: REPO, token: 't', input, app, fetch: fakeFetch(gh) });
-const NEW_LAYOUT = { appDir: 'apps/tasks', filter: 'tasks' };
-const OLD_LAYOUT = { appDir: 'apps/web', filter: 'web' };
+const check = (gh: FakeGh, input: string, app = 'omark') => promoteCheck({ repo: REPO, token: 't', input, app, fetch: fakeFetch(gh) });
+const LAYOUT = { appDir: 'apps/omark', filter: 'omark' };
 
 describe('promoteCheck', () => {
   it('defaults to the commit of the last successful staging deploy', async () => {
     expect(await check(world(), '')).toEqual({
-      sha: A, runId: 2, runNumber: 20, builtAt: '2026-10-02 14:43 UTC', artifact: true, artifactName: 'tasks-dist', ...NEW_LAYOUT,
+      sha: A, runId: 2, runNumber: 20, builtAt: '2026-10-02 14:43 UTC', artifact: true, artifactName: 'omark-dist', ...LAYOUT,
     });
   });
 
   it('accepts a CI run started by hand on main', async () => {
     const gh = world();
     gh.runs = [{ id: 7, head_sha: A, status: 'completed', conclusion: 'success', event: 'workflow_dispatch' }];
+    gh.artifacts[7] = [{ name: 'omark-dist', expired: false }];
     expect(await check(gh, '')).toEqual({
-      sha: A, runId: 7, runNumber: 70, builtAt: '2026-10-07 14:43 UTC', artifact: false, artifactName: 'tasks-dist', ...NEW_LAYOUT,
+      sha: A, runId: 7, runNumber: 70, builtAt: '2026-10-07 14:43 UTC', artifact: true, artifactName: 'omark-dist', ...LAYOUT,
     });
     expect((await check(gh, A)).runId).toBe(7);
   });
 
-  it('accepts a tasks-prod- tag', async () => {
-    expect((await check(world(), 'tasks-prod-2026-11-02-1')).sha).toBe(A);
+  it('accepts an omark-prod- tag', async () => {
+    expect((await check(world(), 'omark-prod-2026-11-02-1')).sha).toBe(A);
   });
 
-  it('uses the web-dist build of a run from before the move', async () => {
-    const gh = world();
-    gh.artifacts[1] = [{ name: 'web-dist', expired: false }];
-    expect(await check(gh, B)).toMatchObject({ sha: B, artifact: true, artifactName: 'web-dist' });
-  });
-
-  it('prefers the app’s own build when a run has both', async () => {
-    const gh = world();
-    gh.artifacts[2] = [{ name: 'web-dist', expired: false }, { name: 'tasks-dist', expired: false }];
-    expect(await check(gh, A)).toMatchObject({ artifact: true, artifactName: 'tasks-dist' });
-  });
-
-  it('finds apps/web in a commit from before the move', async () => {
-    expect(await check(world(), B)).toMatchObject({ sha: B, ...OLD_LAYOUT });
-  });
-
-  it('rolls back to a legacy prod- tag from before the move, using its build', async () => {
-    const gh = world();
-    gh.artifacts[1] = [{ name: 'web-dist', expired: false }];
-    expect(await check(gh, 'prod-2026-10-01-1')).toEqual({
-      sha: B, runId: 1, runNumber: 10, builtAt: '2026-10-01 14:43 UTC', artifact: true, artifactName: 'web-dist', ...OLD_LAYOUT,
+  it('rolls back to an older omark-prod- tag, rebuilding when its build has expired', async () => {
+    expect(await check(world(), 'omark-prod-2026-10-30-1')).toEqual({
+      sha: B, runId: 1, runNumber: 10, builtAt: '2026-10-01 14:43 UTC', artifact: false, artifactName: 'omark-dist', ...LAYOUT,
     });
   });
 
@@ -120,7 +102,7 @@ describe('promoteCheck', () => {
     const gh = world();
     gh.contentsStatus = 500;
     await expect(check(gh, A)).rejects.toThrow(Refused);
-    await expect(check(gh, A)).rejects.toThrow(/apps\/tasks.*500/);
+    await expect(check(gh, A)).rejects.toThrow(/apps\/omark.*500/);
   });
 
   it('ignores a pull request run from a branch called main', async () => {
@@ -133,12 +115,6 @@ describe('promoteCheck', () => {
 
   it('accepts a short SHA', async () => {
     expect((await check(world(), A.slice(0, 7))).sha).toBe(A);
-  });
-
-  it('accepts an older prod- tag (rollback), with its artifact expired', async () => {
-    expect(await check(world(), 'prod-2026-10-01-1')).toEqual({
-      sha: B, runId: 1, runNumber: 10, builtAt: '2026-10-01 14:43 UTC', artifact: false, artifactName: 'web-dist', ...OLD_LAYOUT,
-    });
   });
 
   it('refuses a commit not on main', async () => {
@@ -168,7 +144,7 @@ describe('promoteCheck', () => {
 
   it('refuses an omark commit whose run never built omark-dist (staging never ran it), even by default', async () => {
     const gh = world();
-    gh.apps = { [A]: ['tasks', 'omark'] };
+    gh.artifacts[2] = [];
     // Run 2 passed but its omark-staging was skipped or didn't exist yet: no omark-dist at all.
     await expect(check(gh, A, 'omark')).rejects.toThrow(/no omark-dist build.*staging/);
     await expect(check(gh, '', 'omark')).rejects.toThrow(/no omark-dist build/);
@@ -176,13 +152,12 @@ describe('promoteCheck', () => {
 
   it('still rebuilds an omark commit whose omark-dist has expired', async () => {
     const gh = world();
-    gh.apps = { [A]: ['omark'] };
     gh.artifacts[2] = [{ name: 'omark-dist', expired: true }];
     expect(await check(gh, A, 'omark')).toMatchObject({ sha: A, artifact: false, artifactName: 'omark-dist', appDir: 'apps/omark', filter: 'omark' });
   });
 
-  it('refuses a typo with a clear message, naming both kinds of tag', async () => {
+  it('refuses a typo with a clear message, naming the tag', async () => {
     await expect(check(world(), 'deadbeefx')).rejects.toThrow(/deadbeefx.*not found/);
-    await expect(check(world(), 'deadbeefx')).rejects.toThrow(/tasks-prod-.* prod-/);
+    await expect(check(world(), 'deadbeefx')).rejects.toThrow(/omark-prod-…/);
   });
 });

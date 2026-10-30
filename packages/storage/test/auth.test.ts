@@ -34,8 +34,8 @@ let api: ReturnType<typeof helper>;
 let now: number;
 let cookie: string;
 const navigate = vi.fn();
-const TASKS = { cookiePrefix: 'taskapp', providers: { microsoft: 'Microsoft' } };
-const BOTH = { cookiePrefix: 'taskapp', providers: { microsoft: 'Microsoft', google: 'Google' } };
+const TASKS = { cookiePrefix: 'omarktasks', providers: { microsoft: 'Microsoft' } };
+const BOTH = { cookiePrefix: 'omarktasks', providers: { microsoft: 'Microsoft', google: 'Google' } };
 const TIME = {
   cookiePrefix: 'omarktime',
   providers: { google: 'Google' },
@@ -51,7 +51,7 @@ const mk = (
 beforeEach(() => {
   api = helper();
   now = NOW;
-  cookie = 'other=1; taskapp_signed_in=1';
+  cookie = 'other=1; omarktasks_signed_in=1';
   navigate.mockReset();
 });
 
@@ -62,7 +62,7 @@ describe('createAuth (sign-in helper)', () => {
     const { url, init } = api.calls[0]!;
     expect(url).toBe('/api/auth/token');
     expect(init.method).toBe('POST');
-    expect(init.headers).toEqual({ 'X-TaskApp-Auth': '1' });
+    expect(init.headers).toEqual({ 'X-Omark-Auth': '1' });
     expect(init.credentials).toBe('same-origin');
   });
 
@@ -142,13 +142,13 @@ describe('createAuth (sign-in helper)', () => {
   });
 
   it('signIn without a provider uses the one last seen signed in, else the default', async () => {
-    cookie = 'taskapp_signed_in=google';
+    cookie = 'omarktasks_signed_in=google';
     await mk(undefined, BOTH).signIn();
     expect(navigate).toHaveBeenLastCalledWith('/api/auth/login?provider=google');
     cookie = 'other=1';
     await mk(undefined, BOTH).signIn();
     expect(navigate).toHaveBeenLastCalledWith('/api/auth/login');
-    cookie = 'taskapp_signed_in=1';
+    cookie = 'omarktasks_signed_in=1';
     await mk(undefined, BOTH).signIn();
     expect(navigate).toHaveBeenLastCalledWith('/api/auth/login');
   });
@@ -172,25 +172,25 @@ describe('createAuth (sign-in helper)', () => {
   });
 
   it('signedInProvider reads the provider from the hint cookie; 1 is the default provider', () => {
-    cookie = 'taskapp_signed_in=google';
+    cookie = 'omarktasks_signed_in=google';
     expect(mk(undefined, BOTH).signedInProvider()).toBe('google');
-    cookie = 'other=1; taskapp_signed_in=1';
+    cookie = 'other=1; omarktasks_signed_in=1';
     expect(mk(undefined, BOTH).signedInProvider()).toBe('microsoft');
-    cookie = 'taskapp_signed_in=microsoft';
+    cookie = 'omarktasks_signed_in=microsoft';
     expect(mk(undefined, BOTH).signedInProvider()).toBe('microsoft');
     cookie = 'other=1';
     expect(mk(undefined, BOTH).signedInProvider()).toBeNull();
-    cookie = 'taskapp_signed_in=';
+    cookie = 'omarktasks_signed_in=';
     expect(mk(undefined, BOTH).signedInProvider()).toBeNull();
   });
 
   it.each(['nope', 'constructor', 'toString'])('signedInProvider reads a cookie value that is no provider (%s) as the default', (value) => {
-    cookie = `taskapp_signed_in=${value}`;
+    cookie = `omarktasks_signed_in=${value}`;
     expect(mk(undefined, BOTH).signedInProvider()).toBe('microsoft');
   });
 
   it('isSignedIn is true for a signed-in Google session too', () => {
-    cookie = 'taskapp_signed_in=google';
+    cookie = 'omarktasks_signed_in=google';
     expect(mk(undefined, BOTH).isSignedIn()).toBe(true);
   });
 
@@ -231,7 +231,7 @@ describe('createAuth (sign-in helper)', () => {
     expect(mk().isSignedIn()).toBe(true);
     cookie = 'other=1';
     expect(mk().isSignedIn()).toBe(false);
-    cookie = 'not_taskapp_signed_in=1';
+    cookie = 'not_omarktasks_signed_in=1';
     expect(mk().isSignedIn()).toBe(false);
   });
 
@@ -360,11 +360,11 @@ describe('createAuth bound to one provider (the one Omark app, U.4)', () => {
     await bound('googlecal').signOut();
     expect(api.calls[0]!.url).toBe('/api/auth/logout?provider=googlecal');
     expect(api.calls[0]!.init.method).toBe('POST');
-    expect((api.calls[0]!.init.headers as Record<string, string>)['X-TaskApp-Auth']).toBe('1');
+    expect((api.calls[0]!.init.headers as Record<string, string>)['X-Omark-Auth']).toBe('1');
   });
 
   it('an unbound client has no accesses and signs out of everything', async () => {
-    cookie = 'taskapp_signed_in=microsoft';
+    cookie = 'omarktasks_signed_in=microsoft';
     expect(mk().accesses()).toEqual([]);
     api.status(200, { ok: true });
     await mk().signOut();

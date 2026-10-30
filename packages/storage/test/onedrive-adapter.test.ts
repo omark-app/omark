@@ -7,7 +7,7 @@ import { GraphFake } from './graph-fake.ts';
 const FOLDER = 'Prod/Tasks';
 function setup(getToken: (opts?: { fresh?: boolean }) => Promise<string> = async () => 'tok') {
   const graph = new GraphFake(FOLDER);
-  const adapter = new OneDriveAdapter({ root: 'drive', folder: FOLDER, getToken, fetch: graph.fetch as typeof fetch });
+  const adapter = new OneDriveAdapter({ folder: FOLDER, getToken, fetch: graph.fetch as typeof fetch });
   return { graph, adapter };
 }
 
@@ -39,14 +39,14 @@ describe('OneDriveAdapter (Graph specifics)', () => {
     const file = await adapter.read('tasks.md');
     expect(file?.text).toBe('hello');
     expect(graph.calls).toHaveLength(2);
-    expect(graph.calls[0]!.url).toBe('https://graph.microsoft.com/v1.0/me/drive/root:/Prod/Tasks/tasks.md');
+    expect(graph.calls[0]!.url).toBe('https://graph.microsoft.com/v1.0/me/drive/special/approot:/Prod/Tasks/tasks.md');
     expect(graph.calls[0]!.headers['authorization']).toBe('Bearer tok');
     expect(graph.calls[1]!.url).toContain('https://download.example.test/');
     expect(graph.calls[1]!.headers['authorization']).toBeUndefined();
   });
 
   it('reads from the app folder by default', async () => {
-    const graph = new GraphFake('', 'approot');
+    const graph = new GraphFake('');
     const adapter = new OneDriveAdapter({ folder: '', getToken: async () => 'tok', fetch: graph.fetch as typeof fetch });
     graph.external('tasks.md', 'hello');
     expect((await adapter.read('tasks.md'))?.text).toBe('hello');
@@ -54,26 +54,16 @@ describe('OneDriveAdapter (Graph specifics)', () => {
   });
 
   it('puts a folder under the app folder', async () => {
-    const graph = new GraphFake('Tasks/Sub', 'approot');
+    const graph = new GraphFake('Tasks/Sub');
     const adapter = new OneDriveAdapter({ folder: 'Tasks/Sub', getToken: async () => 'tok', fetch: graph.fetch as typeof fetch });
     await adapter.read('tasks.md');
     expect(graph.calls[0]!.url).toBe('https://graph.microsoft.com/v1.0/me/drive/special/approot:/Tasks/Sub/tasks.md');
   });
 
-  it('writes to the drive root path when root is drive', async () => {
-    const { graph, adapter } = setup();
-    await adapter.write('tasks.md', 'a', null);
-    expect(graph.calls[0]!.url).toBe('https://graph.microsoft.com/v1.0/me/drive/root:/Prod/Tasks/tasks.md:/content');
-  });
-
-  it.each(['drive', 'approot'] as const)('refuses dot segments in the folder (%s)', (root) => {
+  it('refuses dot segments in the folder', () => {
     for (const folder of ['.', 'a/..', '../a']) {
-      expect(() => new OneDriveAdapter({ root, folder, getToken: async () => 'tok' })).toThrow(/folder/);
+      expect(() => new OneDriveAdapter({ folder, getToken: async () => 'tok' })).toThrow(/folder/);
     }
-  });
-
-  it('refuses a whole-drive adapter without a folder', () => {
-    expect(() => new OneDriveAdapter({ root: 'drive', folder: '', getToken: async () => 'tok' })).toThrow(/folder/);
   });
 
   it('reads again when the download is older than the eTag it came with, and returns the matching pair', async () => {
@@ -114,7 +104,7 @@ describe('OneDriveAdapter (Graph specifics)', () => {
     const { etag } = await adapter.write('tasks.md', 'a', null);
     const create = graph.calls[0]!;
     expect(create.method).toBe('PUT');
-    expect(create.url).toBe('https://graph.microsoft.com/v1.0/me/drive/root:/Prod/Tasks/tasks.md:/content');
+    expect(create.url).toBe('https://graph.microsoft.com/v1.0/me/drive/special/approot:/Prod/Tasks/tasks.md:/content');
     expect(create.headers['if-none-match']).toBe('*');
     expect(create.headers['if-match']).toBeUndefined();
     expect(create.headers['content-type']).toBe('text/plain; charset=utf-8');
@@ -126,13 +116,12 @@ describe('OneDriveAdapter (Graph specifics)', () => {
   it('encodes path segments', async () => {
     const graph = new GraphFake('My Stuff/Task App');
     const adapter = new OneDriveAdapter({
-      root: 'drive',
       folder: 'My Stuff/Task App',
       getToken: async () => 't',
       fetch: graph.fetch as typeof fetch,
     });
     await adapter.write('tasks.md', 'a', null);
-    expect(graph.calls[0]!.url).toContain('/root:/My%20Stuff/Task%20App/tasks.md:/content');
+    expect(graph.calls[0]!.url).toContain('/approot:/My%20Stuff/Task%20App/tasks.md:/content');
   });
 
   it('retries once with a fresh token after a 401', async () => {
@@ -155,7 +144,6 @@ describe('OneDriveAdapter (Graph specifics)', () => {
 
   it('maps a fetch TypeError to OfflineError', async () => {
     const adapter = new OneDriveAdapter({
-      root: 'drive',
       folder: FOLDER,
       getToken: async () => 't',
       fetch: (async () => {
@@ -184,28 +172,27 @@ describe('OneDriveAdapter (Graph specifics)', () => {
       new Promise<Response>((_, reject) => {
         init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
       })) as typeof fetch;
-    const adapter = new OneDriveAdapter({ root: 'drive', folder: FOLDER, getToken: async () => 't', fetch: fetchFn, timeoutMs: 10 });
+    const adapter = new OneDriveAdapter({ folder: FOLDER, getToken: async () => 't', fetch: fetchFn, timeoutMs: 10 });
     await expect(adapter.read('tasks.md')).rejects.toBeInstanceOf(OfflineError);
     await expect(adapter.write('tasks.md', 'x', null)).rejects.toBeInstanceOf(OfflineError);
   });
 
   it('a request that never settles still times out as OfflineError', async () => {
     const fetchFn = (() => new Promise<Response>(() => {})) as typeof fetch;
-    const adapter = new OneDriveAdapter({ root: 'drive', folder: FOLDER, getToken: async () => 't', fetch: fetchFn, timeoutMs: 10 });
+    const adapter = new OneDriveAdapter({ folder: FOLDER, getToken: async () => 't', fetch: fetchFn, timeoutMs: 10 });
     await expect(adapter.read('tasks.md')).rejects.toBeInstanceOf(OfflineError);
   });
 
   it('a body that stalls after the headers also times out', async () => {
     const fetchFn = (async () =>
       new Response(new ReadableStream({ start() {} }), { status: 200 })) as typeof fetch;
-    const adapter = new OneDriveAdapter({ root: 'drive', folder: FOLDER, getToken: async () => 't', fetch: fetchFn, timeoutMs: 10 });
+    const adapter = new OneDriveAdapter({ folder: FOLDER, getToken: async () => 't', fetch: fetchFn, timeoutMs: 10 });
     await expect(adapter.read('tasks.md')).rejects.toBeInstanceOf(OfflineError);
   });
 
   it('a token acquisition that never settles times out as OfflineError', async () => {
     const fetchFn = vi.fn() as unknown as typeof fetch;
     const adapter = new OneDriveAdapter({
-      root: 'drive',
       folder: FOLDER,
       getToken: () => new Promise<string>(() => {}),
       fetch: fetchFn,
@@ -220,7 +207,7 @@ describe('OneDriveAdapter (Graph specifics)', () => {
     vi.useFakeTimers();
     try {
       const fetchFn = (() => new Promise<Response>(() => {})) as typeof fetch;
-      const adapter = new OneDriveAdapter({ root: 'drive', folder: FOLDER, getToken: async () => 't', fetch: fetchFn });
+      const adapter = new OneDriveAdapter({ folder: FOLDER, getToken: async () => 't', fetch: fetchFn });
       let settled: unknown = null;
       const p = adapter.read('tasks.md').catch((e: unknown) => (settled = e));
       await vi.advanceTimersByTimeAsync(19_999);

@@ -82,7 +82,7 @@ CI and Promote refuse to deploy when a `*_URL` isn't `https://` followed by its 
 
 Staging and production run the same build. The app picks its environment from the host name (`apps/tasks/src/lib/environment.ts`).
 
-**Promote** asks which app (`omark`; `tasks` is the bridge below) and which commit (empty means what staging runs now). It refuses a commit that isn't on `main` with a passing CI run, or whose run never made the app's build (`omark-dist`), because then staging never ran it. It deploys the build staging ran (or rebuilds it if that build expired after 30 days), checks the sign-in helper, tags it `omark-prod-YYYY-MM-DD-n`, and creates a release.
+**Promote** asks which app (`omark`, the only one) and which commit (empty means what staging runs now). It refuses a commit that isn't on `main` with a passing CI run, or whose run never made the app's build (`omark-dist`), because then staging never ran it. It deploys the build staging ran (or rebuilds it if that build expired after 30 days), checks the sign-in helper, tags it `omark-prod-YYYY-MM-DD-n`, and creates a release.
 
 **Rollback:** run Promote with an older `omark-prod-` tag. Cloudflare's dashboard rollback also works.
 
@@ -92,16 +92,17 @@ The demo is its own build (`VITE_STORAGE=demo`), deployed from inside `apps/omar
 
 ## Running it locally with sign-in
 
-`pnpm dev` and `pnpm demo` run the bridge Tasks build's demo, with no sign-in. Local sign-in still runs that build (`apps/tasks`) until roadmap 3.7:
+`pnpm demo` runs the one app with the demo world and `pnpm dev` with files in memory, both with no sign-in. To sign in for real:
 
-1. Put the helper's secrets in `.dev.vars` at the repository root (git-ignored), one `NAME=value` per line: `MSAL_CLIENT_ID`, `MSAL_CLIENT_SECRET`, `COOKIE_KEY`, and the Google ones if you use Google.
-2. Put `VITE_STORAGE=onedrive` in `apps/tasks/.env.development.local`.
-3. `pnpm dev:signin` builds the app and serves it with the helper on http://localhost:5173 (`wrangler pages dev`). The localhost redirect URIs from sections 1 and 2 must be registered.
+1. Put the helper's secrets in `apps/omark/.dev.vars` (git-ignored), one `NAME=value` per line: `MSAL_CLIENT_ID`, `MSAL_CLIENT_SECRET`, `COOKIE_KEY`, and the Google ones if you use Google.
+2. `pnpm dev:signin` builds the app and serves it with its helper on http://localhost:5173 (`wrangler pages dev`). The localhost redirect URIs from sections 1 and 2 must be registered.
+
+The real-OneDrive smoke test below still runs the standalone Tasks build with the root `functions/` helper, whose secrets go in `.dev.vars` at the repository root.
 
 ## Keeping it running
 
 - **Client secret expiry.** When the Entra secret expires, token refresh fails with `invalid_client`: the app reads "offline", and the Pages Functions log shows `invalid_client`. Make a new secret, set `MSAL_CLIENT_SECRET`, and redeploy (Promote the current `omark-prod-` tag again; for staging, re-run the last `main` CI run). Nobody needs to sign in again. Put a reminder in your calendar a month before it expires.
-- **Signing a device out:** `fetch('/api/auth/logout', { method: 'POST', headers: { 'X-TaskApp-Auth': '1' } })` in its console, or clear the site's cookies.
+- **Signing a device out:** `fetch('/api/auth/logout', { method: 'POST', headers: { 'X-Omark-Auth': '1' } })` in its console, or clear the site's cookies.
 - **Each device signs in once.** On the iPhone, open the home-screen app itself and sign in there: it has its own cookies, separate from Safari.
 - **Real-OneDrive smoke test**, by hand only, never in CI:
   1. `pnpm e2e:real:login` once: a browser opens, you sign in, and the state is saved to `TASKAPP_E2E_STATE` (default `C:\Users\<you>\.secrets\taskapp-e2e-state.json`, outside the repo, because it holds tokens). It lasts 90 days from its last use. The first run after a scope change needs it again.
@@ -119,14 +120,4 @@ The demo is its own build (`VITE_STORAGE=demo`), deployed from inside `apps/omar
 | `POST /api/auth/token` | `{ accessToken, expiresAt }`, rotating the session cookie; 401 `{ signin: true }` means sign in again, 503 that the provider could not be reached |
 | `POST /api/auth/logout` | Deletes the cookies |
 
-The POST endpoints need the header `X-TaskApp-Auth: 1` and an `Origin` of the app itself. [architecture.md](architecture.md) explains the design and [SECURITY.md](../SECURITY.md) what each cookie holds.
-
-## Until the cutover: the bridge deployment
-
-The pre-Omark deployment keeps running until the founder's cutover to the hosted app (roadmap 3.6). Its values stay in CI's variables until then, and this section is removed with them (roadmap 3.7).
-
-- Entra app "TaskApp" (client ID `1fa03c5b-4275-490e-8e71-2aa7a405e310`) in the founder's own tenant, personal accounts only. Its portal opens tenant-scoped at https://portal.azure.com/47bed4a7-e649-443a-b055-b54d901df272 (plain entra.microsoft.com opens the wrong tenant). Web redirect URIs: `https://tasks.alipka.com/api/auth/callback`, `https://tasks-staging.alipka.com/api/auth/callback` and `http://localhost:5173/api/auth/callback`. Its old SPA platform (`https://tasks.alipka.com/`, `http://localhost:5173/`) is kept so a rollback to an MSAL build can still sign in; remove it once that is no longer needed. Staging has its own client secret, `taskapp staging`.
-- Pages projects `taskapp` (production, https://tasks.alipka.com) and `taskapp-staging` (staging, https://tasks-staging.alipka.com), deployed by CI's `tasks-staging` job and Promote's `tasks` with the `TASKS_*` repository variables (`.env.example`). Its OneDrive scope comes from `TASKS_ONEDRIVE_SCOPE` and the Pages variable `ONEDRIVE_SCOPE`, its helper from the root `functions/`.
-- The old per-app hosts redirect to the one app (roadmap U.7): `demo-tasks.omark.app` and `demo-time.omark.app` to `demo.omark.app/tasks` and `/time`, `staging-time.omark.app` to `staging-app.omark.app/time`. Their Pages projects (`omark-tasks-demo`, `omark-time-demo`, `omark-time-staging`) serve only that redirect (`tools/ci/redirect-sites.mjs`) and are retired in roadmap 3.7.
-- Production reads OneDrive `ALAI/TaskApp` with the whole-drive scope (`ONEDRIVE_SCOPE=full`), staging `ALAI/TaskApp-staging`. **Refresh staging:** copy the files from `ALAI/TaskApp` over `ALAI/TaskApp-staging` on the PC.
-- Rollback to before the monorepo move: Promote an old `prod-` tag.
+The POST endpoints need the header `X-Omark-Auth: 1` and an `Origin` of the app itself. [architecture.md](architecture.md) explains the design and [SECURITY.md](../SECURITY.md) what each cookie holds.

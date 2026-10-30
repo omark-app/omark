@@ -25,6 +25,5 @@ Staging keeps its files in `Apps/Omark Staging` (OneDrive) or the staging Google
 
 9. **Demo**: `demo.omark.app/tasks`, `/time` and `/goals` show Maya's world with no sign-in.
 10. **Site**: `omark.app` shows the three cards, and each "Try the demo" opens its part.
-11. **Old hosts**: `demo-tasks.omark.app` lands on `demo.omark.app/tasks`.
 
 On production, 1 to 3 are enough unless the change touched sign-in, storage or sync.

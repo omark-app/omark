@@ -54,10 +54,10 @@ describe('workflows', () => {
       );
     const all = builds('ci.yml');
     expect(all.map((b) => b.name).sort()).toEqual([
-      'omark-demo', 'omark-preview', 'omark-staging', 'site-preview', 'site-production', 'tasks-staging',
+      'omark-demo', 'omark-preview', 'omark-staging', 'site-preview', 'site-production',
     ]);
     const ci = all.filter((b) => !b.name.startsWith('site-'));
-    // The job's name starts with its app's: omark-*, site-*, tasks-* (the bridge).
+    // The job's name starts with its app's: omark-*, site-*.
     for (const b of all) expect(b.run, b.name).toBe(`pnpm --filter ${b.name.split('-')[0]} build`);
     for (const b of ci) expect(b.env.BUILD_NUMBER, b.name).toBe('${{ github.run_number }}');
     const promote = builds('promote.yml');
@@ -75,7 +75,7 @@ describe('workflows', () => {
 
   it('lets CI be started by hand, deploying staging and the demo only from main', () => {
     expect('workflow_dispatch' in ((parse(text('ci.yml')) as { on: object }).on ?? {})).toBe(true);
-    for (const name of ['omark-staging', 'omark-demo', 'tasks-staging']) {
+    for (const name of ['omark-staging', 'omark-demo']) {
       const deploy = jobsOf('ci.yml').find(([n]) => n === name)![1];
       expect(deploy.if!.startsWith(MAIN_ONLY), name).toBe(true);
     }
@@ -106,7 +106,6 @@ describe('workflows', () => {
       ['ci.yml', 'omark-staging', ['CF_APP_STAGING_PROJECT', 'APP_STAGING_HOST', 'APP_STAGING_URL']],
       ['ci.yml', 'omark-preview', ['CF_APP_STAGING_PROJECT']],
       ['ci.yml', 'omark-demo', ['CF_DEMO_PROJECT', 'DEMO_URL']],
-      ['ci.yml', 'tasks-staging', ['CF_TASKS_STAGING_PROJECT', 'TASKS_STAGING_HOST', 'TASKS_STAGING_URL']],
       ['ci.yml', 'site-production', ['CF_SITE_PROJECT', 'SITE_URL']],
       ['ci.yml', 'site-preview', ['CF_SITE_PROJECT']],
     ];
@@ -118,52 +117,38 @@ describe('workflows', () => {
         expect(names(step), job).toContain(`\${{ vars.${v} }}`);
       }
     }
-    // Promote checks the chosen app's: one error line per app.
+    // Promote checks the one app's.
     const promote = first('promote.yml', 'promote');
     expect(promote.uses).toBeUndefined();
     const lines = [...(promote.run ?? '').matchAll(/::error::Set the repository variables (.*)$/gm)].map((m) => m[1]!);
-    expect(lines).toHaveLength(2);
-    for (const [line, vars] of [
-      [lines[0]!, ['CF_APP_PROJECT', 'APP_PROD_HOST', 'APP_PROD_URL']],
-      [lines[1]!, ['CF_TASKS_PROD_PROJECT', 'TASKS_PROD_HOST', 'TASKS_PROD_URL']],
-    ] as const) {
-      for (const v of vars) {
-        expect(line).toContain(v);
-        expect(names(promote)).toContain(`\${{ vars.${v} }}`);
-      }
+    expect(lines).toHaveLength(1);
+    for (const v of ['CF_APP_PROJECT', 'APP_PROD_HOST', 'APP_PROD_URL']) {
+      expect(lines[0]).toContain(v);
+      expect(names(promote)).toContain(`\${{ vars.${v} }}`);
     }
   });
 
-  it('reads only the one app’s, the bridge’s and the site’s repository variables (and DEPLOY_ENABLED)', () => {
+  it('reads only the one app’s and the site’s repository variables (and DEPLOY_ENABLED)', () => {
     const ONE_APP = [
       'CF_APP_PROJECT', 'CF_APP_STAGING_PROJECT', 'CF_DEMO_PROJECT',
       'APP_PROD_HOST', 'APP_STAGING_HOST', 'APP_PROD_URL', 'APP_STAGING_URL', 'DEMO_URL',
       'APP_PREVIEW_HOST_SUFFIXES', 'APP_MSAL_TENANT', 'REAL_USE_URL',
     ];
-    // The bridge (tasks.alipka.com) until roadmap 3.7.
-    const BRIDGE = [
-      'CF_TASKS_STAGING_PROJECT', 'CF_TASKS_PROD_PROJECT', 'CF_TASKS_ZONE_ID',
-      'TASKS_STAGING_DOMAIN', 'TASKS_STAGING_HOST', 'TASKS_STAGING_URL',
-      'TASKS_PROD_HOST', 'TASKS_PROD_URL',
-      'TASKS_PROD_FOLDER', 'TASKS_STAGING_FOLDER', 'TASKS_PREVIEW_HOST_SUFFIXES',
-      'TASKS_ONEDRIVE_SCOPE', 'TASKS_MSAL_TENANT',
-    ];
     const used = new Set(FILES.flatMap((f) => [...text(f).matchAll(/\bvars\.(\w+)/g)].map((m) => m[1]!)));
     expect(used.size).toBeGreaterThan(1);
-    for (const v of used) expect([...ONE_APP, ...BRIDGE, 'CF_SITE_PROJECT', 'SITE_URL', 'DEPLOY_ENABLED'], v).toContain(v);
+    for (const v of used) expect([...ONE_APP, 'CF_SITE_PROJECT', 'SITE_URL', 'DEPLOY_ENABLED'], v).toContain(v);
     for (const v of ONE_APP) expect(used, v).toContain(v);
   });
 
-  it('keeps each staging build for Promote: omark-dist and the bridge’s tasks-dist', () => {
+  it('keeps the staging build for Promote: omark-dist', () => {
     const upload = (job: string) =>
       jobsOf('ci.yml').find(([n]) => n === job)![1].steps!.filter((s) => s.uses?.startsWith('actions/upload-artifact@')).map((s) => s.with);
     expect(upload('omark-staging')).toEqual([{ name: 'omark-dist', path: 'apps/omark/dist', 'retention-days': 30 }]);
-    expect(upload('tasks-staging')).toEqual([{ name: 'tasks-dist', path: 'apps/tasks/dist', 'retention-days': 30 }]);
   });
 
   it('asks Promote which app, and takes the path, artifact and filter from the promoted commit', () => {
     const wf = parse(text('promote.yml')) as { on: { workflow_dispatch: { inputs: Record<string, object> } } };
-    expect(wf.on.workflow_dispatch.inputs.app).toMatchObject({ type: 'choice', options: ['omark', 'tasks'], default: 'omark', required: true });
+    expect(wf.on.workflow_dispatch.inputs.app).toMatchObject({ type: 'choice', options: ['omark'], default: 'omark', required: true });
     const steps = jobsOf('promote.yml').find(([n]) => n === 'promote')![1].steps!;
     const env = (s: Step) => (s.env ?? {}) as Record<string, string>;
     const check = steps.find((s) => s.run?.includes('promote-check.mjs'))!;
@@ -174,20 +159,14 @@ describe('workflows', () => {
     expect(env(notes).APP).toBe('${{ inputs.app }}');
     const download = steps.find((s) => s.uses?.startsWith('actions/download-artifact@'))!;
     expect(download.with).toMatchObject({ name: '${{ steps.check.outputs.artifact_name }}', path: '${{ steps.check.outputs.app_dir }}/dist' });
-    // The one app deploys from its folder, so its own functions/ (the sign-in helper) ships; the bridge from the
-    // repo root, whose functions/ is the bridge's helper. Each into its own project, then its own sign-in check.
+    // The one app deploys from its folder, so its own functions/ (the sign-in helper) ships, then the sign-in check.
     const deploys = steps.filter((s) => s.uses?.startsWith('cloudflare/wrangler-action@'));
-    expect(deploys.map((s) => s.if)).toEqual(["inputs.app == 'omark'", "inputs.app == 'tasks'"]);
-    const [omark, tasks] = deploys.map((s) => s.with as Record<string, string>);
-    expect(omark!.workingDirectory).toBe('${{ steps.check.outputs.app_dir }}');
-    expect(omark!.command).toMatch(/^pages deploy dist --project-name=\$\{\{ vars\.CF_APP_PROJECT \}\} --branch=main /);
-    expect(tasks!.workingDirectory).toBeUndefined();
-    expect(tasks!.command).toMatch(/^pages deploy \$\{\{ steps\.check\.outputs\.app_dir \}\}\/dist --project-name=\$\{\{ vars\.CF_TASKS_PROD_PROJECT \}\} /);
+    expect(deploys).toHaveLength(1);
+    const omark = deploys[0]!.with as Record<string, string>;
+    expect(omark.workingDirectory).toBe('${{ steps.check.outputs.app_dir }}');
+    expect(omark.command).toMatch(/^pages deploy dist --project-name=\$\{\{ vars\.CF_APP_PROJECT \}\} --branch=main /);
     const checks = steps.filter((s) => /check-(omark-)?signin\.mjs/.test(s.run ?? ''));
-    expect(checks.map((s) => [s.if, s.run])).toEqual([
-      ["inputs.app == 'omark'", 'node "$RUNNER_TEMP/ci/check-omark-signin.mjs"'],
-      ["inputs.app == 'tasks'", 'node "$RUNNER_TEMP/ci/check-signin.mjs"'],
-    ]);
+    expect(checks.map((s) => s.run)).toEqual(['node "$RUNNER_TEMP/ci/check-omark-signin.mjs"']);
     expect(env(checks[0]!)).toEqual({ SIGNIN_URL: '${{ vars.APP_PROD_URL }}', MSAL_TENANT: '${{ vars.APP_MSAL_TENANT }}' });
     // The rebuild's hosts and folders are the chosen app's, set by the first step.
     const first = steps[0]!.run ?? '';
@@ -269,12 +248,6 @@ describe('workflows', () => {
     expect(deploy.command).toBe('pages deploy dist --project-name=${{ vars.CF_APP_STAGING_PROJECT }} --branch=main');
     const check = steps.find((s) => s.run === 'node tools/ci/check-omark-signin.mjs')!;
     expect(check.env).toEqual({ SIGNIN_URL: '${{ vars.APP_STAGING_URL }}', MSAL_TENANT: '${{ vars.APP_MSAL_TENANT }}' });
-    // The bridge's staging, by contrast, deploys from the repo root so the root functions/ ships.
-    const bridge = wf.jobs['tasks-staging']!;
-    expect(bridge.concurrency).toEqual({ group: 'bridge-staging', 'cancel-in-progress': false });
-    const b = bridge.steps!.find((s) => s.uses?.startsWith('cloudflare/wrangler-action@'))!.with as Record<string, string>;
-    expect(b.workingDirectory).toBeUndefined();
-    expect(b.command).toMatch(/^pages deploy apps\/tasks\/dist /);
   });
 
   it('uses the same pinned wrangler action and version for every deploy', () => {
@@ -328,14 +301,14 @@ describe('workflows', () => {
   });
 
   it('deploys staging, the demo and the site only after check and every e2e job', () => {
-    for (const name of ['omark-staging', 'omark-demo', 'tasks-staging', 'site-production']) {
+    for (const name of ['omark-staging', 'omark-demo', 'site-production']) {
       expect(jobsOf('ci.yml').find(([n]) => n === name)![1].needs, name).toEqual(['check', 'e2e']);
     }
   });
 
   it('deploys from main only while its commit is still main’s tip (#81)', () => {
     // A run whose e2e finished later must not overwrite a newer commit's deploy; the newer run deploys itself.
-    for (const name of ['omark-staging', 'omark-demo', 'tasks-staging', 'site-production']) {
+    for (const name of ['omark-staging', 'omark-demo', 'site-production']) {
       const steps = jobsOf('ci.yml').find(([n]) => n === name)![1].steps!;
       const i = steps.findIndex((s) => s.id === 'tip');
       // Right after the variables check, before anything is built or deployed.
@@ -372,7 +345,7 @@ describe('workflows', () => {
 
   it('gives every job a time limit', () => {
     const limits = Object.fromEntries(FILES.flatMap((f) => jobsOf(f).map(([n, j]) => [n, j['timeout-minutes']])));
-    expect(limits).toEqual({ check: 10, 'stop-on-check-failure': 5, e2e: 20, 'omark-preview': 15, 'omark-staging': 15, 'omark-demo': 15, 'tasks-staging': 15, 'site-preview': 15, 'site-production': 15, promote: 15 });
+    expect(limits).toEqual({ check: 10, 'stop-on-check-failure': 5, e2e: 20, 'omark-preview': 15, 'omark-staging': 15, 'omark-demo': 15, 'site-preview': 15, 'site-production': 15, promote: 15 });
   });
 
   it('site jobs deploy only apps/site', () => {
@@ -434,11 +407,9 @@ describe('workflows', () => {
     }
   });
 
-  it('names no project, host or folder', () => {
-    for (const f of FILES) {
-      // From a repository variable: `${{ vars.X }}` in an action's input, `"$X"` (set from vars in env) in a script.
-      expect(text(f)).not.toMatch(/--project-name=(?!\$\{\{ vars\.|"\$[A-Z_]+")/);
-      expect(text(f)).not.toMatch(/alipka|ALAI/i);
-    }
+  it('names no project', () => {
+    // From a repository variable: `${{ vars.X }}` in an action's input, `"$X"` (set from vars in env) in a script.
+    // Hosts and folders: owner-values.test.ts.
+    for (const f of FILES) expect(text(f)).not.toMatch(/--project-name=(?!\$\{\{ vars\.|"\$[A-Z_]+")/);
   });
 });

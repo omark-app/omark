@@ -91,7 +91,7 @@ function withDefaults(overrides: Partial<UpdateDeps>): UpdateDeps {
 }
 
 /** sessionStorage: the build an update was last attempted for, and how far it got. */
-const GUARD_KEY = 'taskapp:update-attempt';
+const GUARD_KEY = 'omark-tasks:update-attempt';
 /** The steps of an attempt: a normal update, then one with the service worker removed. */
 const NORMAL = 1;
 const UNREGISTER = 2;

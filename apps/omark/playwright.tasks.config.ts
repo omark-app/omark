@@ -3,7 +3,7 @@ import { e2ePort } from './e2e/port';
 
 // apps/tasks' own e2e specs, run against this app's fake build: Tasks moves in unchanged (one app spec,
 // section 12). A Tasks seed opens the shell with Tasks alone. TASKS_IN_SHELL_SKIP lists the specs that test
-// what the shell now owns (storage choice, sign-in, demo, hosts); see doc/plans/U.3-omark-shell.md.
+// what the shell now owns (storage choice, sign-in, demo, hosts); see doc/history/U.3-omark-shell.md.
 const port = e2ePort(process.cwd(), process.env) + 1;
 
 export const TASKS_IN_SHELL_SKIP = [

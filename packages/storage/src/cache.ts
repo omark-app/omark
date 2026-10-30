@@ -138,16 +138,3 @@ export class IdbBlobs implements BlobKeep {
     await this.store.run((store) => clear(store));
   }
 }
-
-/**
- * Moves unsynced edits out of an older cache once: every file `legacy` holds dirty and `target` has no
- * entry for is copied to `target`; then `legacy` is cleared. Clean entries are dropped, since the next
- * pull brings their text back.
- */
-export async function migrateCache(legacy: LocalCache, target: LocalCache, names: readonly string[]): Promise<void> {
-  for (const name of names) {
-    const old = await legacy.get(name);
-    if (old?.dirty && (await target.get(name)) === null) await target.put(name, old);
-  }
-  await legacy.clear();
-}

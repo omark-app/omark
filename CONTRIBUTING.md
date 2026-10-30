@@ -13,7 +13,7 @@ pnpm i
 pnpm demo
 ```
 
-`pnpm demo` opens Omark Tasks on http://localhost:5173 with sample tasks and no sign-in. Edits stay in your browser; "Reset demo" in the footer starts over.
+`pnpm demo` opens Omark on http://localhost:5173 with a made-up person's tasks, hours and goals, and no sign-in. Edits stay in your browser; "Reset demo" in the footer starts over.
 
 The checks every change must pass:
 

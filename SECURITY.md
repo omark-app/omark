@@ -32,9 +32,9 @@ It keeps:
 
 It doesn't keep anything on the server: no database, no store of tokens, and no job that runs with users' tokens. Its secrets (the OAuth client secrets and the cookie encryption key) are Cloudflare Pages secrets.
 
-The POST endpoints need the header `X-TaskApp-Auth: 1` and an `Origin` of the app itself, which blocks cross-site requests.
+The POST endpoints need the header `X-Omark-Auth: 1` and an `Origin` of the app itself, which blocks cross-site requests.
 
-The scopes are as narrow as the apps allow: OneDrive's app folder (`Files.ReadWrite.AppFolder`) by default, Google Drive's `drive.file` (only files the app created), and for Omark Time read-only calendar access unless colouring is turned on. A self-hosted copy can ask for the whole OneDrive (`ONEDRIVE_SCOPE=full`, `Files.ReadWrite`).
+The scopes are as narrow as the apps allow: OneDrive's app folder (`Files.ReadWrite.AppFolder`), Google Drive's `drive.file` (only files the app created), and for Omark Time read-only calendar access unless colouring is turned on.
 
 ## Known gaps
 

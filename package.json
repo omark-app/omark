@@ -9,10 +9,10 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "pnpm -r --if-present typecheck",
-    "dev": "pnpm --filter tasks dev",
-    "demo": "pnpm --filter tasks dev",
+    "dev": "pnpm --filter omark dev",
+    "demo": "pnpm --filter omark demo",
     "e2e": "pnpm -r --if-present e2e && pnpm --filter omark e2e:tasks && pnpm --filter omark e2e:time",
-    "dev:signin": "pnpm --filter tasks build && wrangler pages dev apps/tasks/dist --port 5173",
+    "dev:signin": "pnpm --filter omark build && pnpm --filter omark exec wrangler pages dev dist --port 5173",
     "e2e:real:login": "pnpm --filter tasks e2e:real:login",
     "e2e:real": "pnpm --filter tasks e2e:real",
     "ship": "node tools/ci/local-deploy.mjs ship",

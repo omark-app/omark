@@ -37,8 +37,8 @@ const DEFAULT_TENANT = 'consumers';
 const TENANT = /^[a-z0-9][a-z0-9.-]*$/i;
 
 /**
- * A Microsoft account, for OneDrive. Reads `MSAL_CLIENT_ID`, `MSAL_CLIENT_SECRET`, `MSAL_TENANT` (default
- * `consumers`) and `ONEDRIVE_SCOPE` (`full` asks for the whole drive, anything else the app folder).
+ * A Microsoft account, for OneDrive's app folder only. Reads `MSAL_CLIENT_ID`, `MSAL_CLIENT_SECRET` and
+ * `MSAL_TENANT` (default `consumers`).
  */
 export const microsoft: Provider = {
   name: 'Microsoft',
@@ -47,7 +47,7 @@ export const microsoft: Provider = {
     const tenant = env.MSAL_TENANT || DEFAULT_TENANT;
     if (!TENANT.test(tenant)) return 'MSAL_TENANT is not a tenant name';
     const authority = `https://login.microsoftonline.com/${tenant}/oauth2/v2.0`;
-    const scope = `${env.ONEDRIVE_SCOPE === 'full' ? 'Files.ReadWrite' : 'Files.ReadWrite.AppFolder'} offline_access`;
+    const scope = 'Files.ReadWrite.AppFolder offline_access';
     return {
       clientId: env.MSAL_CLIENT_ID,
       clientSecret: env.MSAL_CLIENT_SECRET,

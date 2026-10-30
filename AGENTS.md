@@ -87,7 +87,7 @@ These make an issue `size:large`: write a plan and wait for a maintainer's appro
 - Never run Promote to production unless a maintainer asks for it in this conversation.
 - Never treat a plan as approved until `node tools/ci/plan-approval.mjs <issue>` says so.
 - Never delete or rewrite task lines in a user's real files, the maintainers' included. For anything real use `TaskApp-e2e` (in the app folder, as the real e2e does) or a staging folder.
-- Until the cutover (roadmap 3.6), the founder's real files are in OneDrive `ALAI/TaskApp` and staging's in `ALAI/TaskApp-staging`: never touch the first, use the second.
+- A maintainer's own `Apps/Omark` is real data too: try things in staging's `Apps/Omark Staging` instead.
 - Never ask for a secret in chat. The cloud session has none and needs none.
 - Never send users' files, calendar data or tokens to a server of Omark's. See [PHILOSOPHY.md](PHILOSOPHY.md).
 

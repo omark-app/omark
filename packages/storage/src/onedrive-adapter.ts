@@ -4,22 +4,15 @@ import { PreconditionFailedError, StorageFullError } from './errors.ts';
 import { createHttp, type Http, type Reply } from './http.ts';
 import { quickXorHash } from './quick-xor-hash.ts';
 
-const GRAPH = {
-  approot: 'https://graph.microsoft.com/v1.0/me/drive/special/approot:/',
-  drive: 'https://graph.microsoft.com/v1.0/me/drive/root:/',
-};
+/** The app's own folder in OneDrive (`Files.ReadWrite.AppFolder`). */
+const APP_FOLDER = 'https://graph.microsoft.com/v1.0/me/drive/special/approot:/';
 const DEFAULT_TIMEOUT_MS = 20_000;
 /** Reads (metadata plus download) tried before giving up on content that does not match its hash. */
 const MAX_READ_ATTEMPTS = 3;
 
-/** `approot`: the app's own folder (`Files.ReadWrite.AppFolder`). `drive`: a path from the drive root (`Files.ReadWrite`). */
-export type DriveRoot = 'approot' | 'drive';
-
 export interface OneDriveAdapterOptions {
-  /** Where the files live, below the root. Empty means the root itself, which a whole-drive adapter refuses. */
+  /** Where the files live, below the app folder. Empty means the app folder itself. */
   folder: string;
-  /** Default `approot`. */
-  root?: DriveRoot;
   /** `fresh`: Graph rejected the last token, so get a new one. */
   getToken: (opts?: { fresh?: boolean }) => Promise<string>;
   fetch?: typeof fetch;
@@ -38,13 +31,11 @@ export class OneDriveAdapter implements StorageAdapter, BinaryStore {
   private http: Http;
 
   constructor(opts: OneDriveAdapterOptions) {
-    const root = opts.root ?? 'approot';
     const parts = opts.folder.split('/').filter(Boolean);
     // `.` and `..` would climb out of the folder (or the app folder) in the Graph path.
     if (parts.some((p) => p === '.' || p === '..')) throw new Error('The OneDrive folder cannot contain . or .. segments');
     const folder = parts.map(encodeURIComponent).join('/');
-    if (root === 'drive' && folder === '') throw new Error('A whole-drive OneDrive adapter needs a folder');
-    this.base = GRAPH[root] + (folder === '' ? '' : folder + '/');
+    this.base = APP_FOLDER + (folder === '' ? '' : folder + '/');
     this.http = createHttp({ getToken: opts.getToken, fetch: opts.fetch, timeoutMs: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS });
   }
 

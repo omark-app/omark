@@ -6,11 +6,11 @@ import { FakeOneDrive } from '../src/fake-onedrive.ts';
 
 const APP_WORDS = /tasks\.md|done\.md|config\.yaml|taskapp|@omark\/tasks-core/i;
 
-/** The files in `src` that name an app's files, cookies, databases or packages. `X-TaskApp-Auth` is renamed in 3.7. */
+/** The files in `src` that name an app's files, cookies, databases or packages. */
 function offenders(src: string): string[] {
   const names = readdirSync(src);
   expect(names.length).toBeGreaterThan(0);
-  return names.filter((n) => APP_WORDS.test(readFileSync(join(src, n), 'utf8').replaceAll('X-TaskApp-Auth', '')));
+  return names.filter((n) => APP_WORDS.test(readFileSync(join(src, n), 'utf8')));
 }
 
 /** An app package as a dependency (tests may use one as a devDependency). */

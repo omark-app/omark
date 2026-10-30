@@ -26,7 +26,7 @@ pnpm i
 pnpm demo
 ```
 
-This opens Omark Tasks on http://localhost:5173 with sample tasks and no sign-in. [CONTRIBUTING.md](CONTRIBUTING.md) has the tests and how to send a change.
+This opens Omark on http://localhost:5173 with a made-up person's tasks, hours and goals, and no sign-in. [CONTRIBUTING.md](CONTRIBUTING.md) has the tests and how to send a change.
 
 ## Your files
 

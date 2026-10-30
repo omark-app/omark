@@ -75,9 +75,9 @@ The launch counts as a failure, even if everything else is done, if:
 | Suite | Two apps, **Omark Tasks** and **Omark Time**, launch together on the same day from one monorepo (6.12). If Google hasn't verified Omark Time by launch day, it launches unverified (Time spec 10.3). |
 | Brand | **Omark** (from "own + markdown"). The apps are **Omark Tasks** and **Omark Time** (`time.omark.app`, `staging-time.omark.app`, `demo-time.omark.app`). The GitHub org `omark` is a dormant personal account, so the org is one of `omarkhq`, `omark-app`, `getomark`. Domain: **`omark.app`**. Each app gets a subdomain: Omark Tasks is at `tasks.omark.app`, its staging at `staging-tasks.omark.app`, and its demo at `demo-tasks.omark.app` *(demo host is my call)*. `omark.app` itself is the landing page (6.3.1). A trademark check comes before announcing. |
 | Licence | MIT |
-| History | Keep it. A full scan of all 170 commits on every branch found no secret ever committed, so nothing needs rotating. Accepted: `alipka@gmail.com` on 117 commits, and the old personal notes in history. |
+| History | Keep it. A full scan of all 170 commits on every branch found no secret ever committed, so nothing needs rotating. Accepted: my personal email address on 117 commits, and the old personal notes in history. |
 | Hosting | Public demo (sample data, no sign-in) plus an open hosted app that anyone can sign into with a personal Microsoft account. Self-hosting is documented. |
-| My own instance | **I move to the hosted app** and use it like everyone else. The public repo deploys only Omark's own instances: previews, demo, staging, hosted app. `tasks.alipka.com` is retired after the move (6.5.1). My files move from `ALAI/TaskApp` to the app folder, outside my Obsidian vault; I open that folder as a vault of its own, or use local-folder mode on the PC. |
+| My own instance | **I move to the hosted app** and use it like everyone else. The public repo deploys only Omark's own instances: previews, demo, staging, hosted app. My old host is retired after the move (6.5.1). My files move from my old OneDrive folder to the app folder, outside my Obsidian vault; I open that folder as a vault of its own, or use local-folder mode on the PC. |
 | Governance | Anyone can 👍 an idea. The most-wanted ideas that fit the philosophy become `ready` issues. Ideas are weighed against PHILOSOPHY.md's principles; there is no fixed "won't add" list, because nobody knows what the future holds. Maintainers have the final say on simplicity. No majority vote of contributors. |
 | Storage | OneDrive, Google Drive and a local folder, as shared adapters both apps use. Google Drive joins the launch because Omark Time already needs a Google sign-in (6.4.1). |
 | Agent instructions | AGENTS.md holds them. CLAUDE.md is `@AGENTS.md` plus Claude-only notes. Claude Code reads AGENTS.md only when no CLAUDE.md exists, so the import matters. Use the import, not a symlink, because of Windows. |
@@ -87,7 +87,7 @@ The launch counts as a failure, even if everything else is done, if:
 ## 4. Constraints
 
 - **No new running costs** beyond the domain. A public repo gets free Actions minutes and branch protection. Cloudflare Pages Free, Entra, Microsoft publisher verification (through a free Microsoft AI Cloud Partner Program account), Google Cloud OAuth projects and Google's verification for sensitive scopes cost nothing.
-- **My own app keeps working until I move.** `tasks.alipka.com` and its staging stay on my folders (`ALAI/TaskApp`, `ALAI/TaskApp-staging`) and my sign-in until the cutover in 6.5.1, which I run myself.
+- **My own app keeps working until I move.** My old host and its staging stay on my folders and my sign-in until the cutover in 6.5.1, which I run myself.
   - Changes reach production only through staging and Promote, as today.
   - Until the cutover, code changes must keep my current deployment working. After it, that deployment is retired and its values leave the code.
 - **Nothing tied to my accounts stays in code.** Hosts, folders, project names, tenant and client IDs come from build variables, repository variables or secrets, with neutral defaults.
@@ -102,10 +102,10 @@ The launch counts as a failure, even if everything else is done, if:
   - About 700 tests overall.
   - Every direct dependency is MIT, ISC, Apache-2.0 or OFL (fonts), so no licence conflicts.
 - **Tied to my setup:**
-  - `apps/web/src/lib/environment.ts` (hosts and folders), `apps/web/src/env.ts` (default folder `ALAI/TaskApp`).
+  - `apps/web/src/lib/environment.ts` (hosts and folders), `apps/web/src/env.ts` (my default folder).
   - `packages/signin/src/handler.ts:17` (authority fixed to `/consumers`).
   - `apps/web/vite.config.ts` (`allowedHosts`).
-  - `.github/workflows/ci.yml` and `promote.yml` (project names, `alipka.com` health checks).
+  - `.github/workflows/ci.yml` and `promote.yml` (project names, my hosts' health checks).
   - `tools/ci/ensure-staging.mjs` (project, domain, zone ID), `apps/web/e2e-real/state.ts`.
   - Test fixtures that copy these values; the README, CLAUDE.md, every doc, both skills, the guard's messages.
   - `*.pages.dev` hosts are all treated as `preview`. A self-hoster on `x.pages.dev` would get the PREVIEW label.
@@ -149,14 +149,14 @@ Each subsection is a workstream with its acceptance criteria. Sizes follow the f
   - The sign-in helper's scope (`handler.ts:18`) and the app's Graph paths change together.
   - Full-drive access is no longer offered. A self-hoster who wants a folder outside the app folder changes the code.
 - **Staging and production use separate Entra registrations** ("Omark Tasks" and "Omark Tasks Staging"). Each therefore gets its own app folder, and staging can never touch a user's real files. This replaces today's per-host folder choice.
-- **Bridge to the cutover.** Until 6.5.1, my current deployment (`tasks.alipka.com`, `ALAI/TaskApp`, full-drive scope) must keep working. The builder may keep its values behind build variables set only by my deployment's CI for that period, and removes them, the old Pages projects and their tests after the cutover.
+- **Bridge to the cutover.** Until 6.5.1, my current deployment (my host, my folder, full-drive scope) must keep working. The builder may keep its values behind build variables set only by my deployment's CI for that period, and removes them, the old Pages projects and their tests after the cutover.
 - **The sign-in helper reads `MSAL_TENANT`**, default `consumers`. The CI health checks follow it.
 - **CI uses repository variables**: `CF_PROD_PROJECT`, `CF_STAGING_PROJECT`, `PROD_URL`, `STAGING_URL`. `ensure-staging.mjs` reads its project, domain and zone from the environment and skips the DNS and custom-domain steps when they are unset.
 - **Test fixtures use neutral values**: `tasks.example.test`, `Apps/Omark Tasks`, `owner/repo`.
 - **Clean-up:**
   - Remove the MSAL-era code and comments.
   - Fix `.gitignore`.
-  - After the cutover, `grep -ri "alipka\|ALAI\|alipkagit\|47bed4a7\|fabcb19d\|00596fbc"` over the tree finds nothing outside `doc/history/`.
+  - After the cutover, nothing outside `doc/history/` names my hosts, folders, GitHub login or Entra tenant and app ids (`tools/ci/test/owner-values.test.ts`).
 - **Brand and domain strings live in one module** (name, domain, hosts, contact addresses), so a late name change touches one file.
 
 ### 6.2 CI that works for forks (large: CI)
@@ -260,7 +260,7 @@ Omark Time needs a Google sign-in anyway, so Google Drive storage joins the laun
   - e2e covers the first run with Google Drive on fake storage.
   - Manual on staging: a test Google account's files appear in `My Drive/Omark Tasks`, and an edit made through Google Drive for desktop is merged.
 
-**Findings (2026-10-26).** Drive API v3 ignores `If-Match`; v2 honours it and answers 412 on a stale etag, so the adapter writes through v2. Reads take the v2 `etag` and `headRevisionId` and download that exact revision. The Drive box on Google's consent screen starts unticked, so the helper checks the granted scope and refuses a sign-in without it. The desktop-edit check stays the manual staging step. Details: `doc/plans/61-google-drive.md`, "Spike findings".
+**Findings (2026-10-26).** Drive API v3 ignores `If-Match`; v2 honours it and answers 412 on a stale etag, so the adapter writes through v2. Reads take the v2 `etag` and `headRevisionId` and download that exact revision. The Drive box on Google's consent screen starts unticked, so the helper checks the granted scope and refuses a sign-in without it. The desktop-edit check stays the manual staging step. Details: `doc/history/61-google-drive.md`, "Spike findings".
 
 ### 6.5 The open hosted app (large: sign-in and storage scope)
 
@@ -289,12 +289,12 @@ Omark Time needs a Google sign-in anyway, so Google Drive storage joins the laun
 
 I run this by hand once the hosted app is in production, before the repo goes public. The builder writes the steps as a checklist in `doc/history/` (it is mine, not a user feature). It covers:
 
-1. On every device, open `tasks.alipka.com` and wait for "saved", so no edit is left only in an offline copy.
+1. On every device, open my old host and wait for "saved", so no edit is left only in an offline copy.
 2. Sign in to `tasks.omark.app` once, so OneDrive creates `Apps/Omark Tasks` with fresh files. Close the app everywhere.
-3. On the PC, copy `tasks.md`, `done.md` and `config.yaml` from `ALAI/TaskApp` over the fresh ones, and wait for OneDrive to sync.
+3. On the PC, copy `tasks.md`, `done.md` and `config.yaml` from my old folder over the fresh ones, and wait for OneDrive to sync.
 4. Open the hosted app on each device; check counts and stats against the old app; re-add the iPhone home-screen app from the new address.
-5. Make `tasks.alipka.com` redirect to `tasks.omark.app`, then retire the old Pages projects, my old Entra registration's secret, and the bridge values (6.1).
-6. Keep `ALAI/TaskApp` untouched as a backup for a month, then archive it.
+5. Make my old host redirect to `tasks.omark.app`, then retire the old Pages projects, my old Entra registration's secret, and the bridge values (6.1).
+6. Keep my old folder untouched as a backup for a month, then archive it.
 7. In Obsidian, open `Apps/Omark Tasks` as its own vault (or skip it and use local-folder mode on the PC).
 
 ### 6.6 Rename to Omark Tasks (small to medium, not large)
@@ -587,7 +587,7 @@ Each large workstream gets a plan in `doc/plans/` and my approval, as the factor
 - Rename the repo to `omark` and rename the repository variables at the monorepo move (6.12).
 - Pick one of the icon directions (6.6).
 - GitHub: create the org, transfer the repo, give pilot developers Read or Triage, set repository variables and secrets, the Actions approval setting, Discussions; at the end, branch protection and flipping to public.
-- The cutover (6.5.1), then retiring `tasks.alipka.com`.
+- The cutover (6.5.1), then retiring my old host.
 - Approve the PHILOSOPHY principles and wording.
 - Write and post the LinkedIn posts; ask the developers I know.
 

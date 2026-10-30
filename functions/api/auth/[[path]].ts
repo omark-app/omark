@@ -2,8 +2,9 @@ import { google, handleAuth, microsoft } from '../../../packages/signin/src/inde
 import type { AuthOptions, Env } from '../../../packages/signin/src/index.ts';
 
 /**
- * Each app's sign-in settings; the first provider is the default. A Pages project names its app in `OMARK_APP`; unset means `tasks`. Tasks
- * keeps the `taskapp` cookie prefix: it is sealed into the cookie values, so changing it signs everyone out.
+ * The standalone apps' sign-in, for their local runs with real storage (`pnpm e2e:real`); the one Omark app has
+ * its own in `apps/omark/functions`. Each app's settings; the first provider is the default. `OMARK_APP` names the
+ * app; unset means `tasks`.
  */
 const DRIVE_FILE = 'https://www.googleapis.com/auth/drive.file';
 /** Omark Time's first sign-in only reads (Time spec 10.1); Drive and edit access are asked for later. */
@@ -12,7 +13,7 @@ const CALENDAR_READ = [
   'https://www.googleapis.com/auth/calendar.events.owned.readonly',
 ];
 const APPS: Record<string, AuthOptions> = {
-  tasks: { providers: { microsoft, google: google({ scopes: [DRIVE_FILE] }) }, cookiePrefix: 'taskapp' },
+  tasks: { providers: { microsoft, google: google({ scopes: [DRIVE_FILE] }) }, cookiePrefix: 'omarktasks' },
   time: {
     providers: {
       // Added with a second consent: Drive when the user picks it for the files, edit access to colour events.

@@ -7,9 +7,9 @@ const TODAY_TASKS = '# Tasks\n- [ ] On OneDrive 📅 2026-10-16\n';
 
 const signInWith = (page: Page) =>
   page.evaluate(() => (window as unknown as { __taskappAuth: { signInWith: (string | null)[] } }).__taskappAuth.signInWith);
-const savedChoice = (page: Page) => page.evaluate(() => localStorage.getItem('taskapp:storage'));
+const savedChoice = (page: Page) => page.evaluate(() => localStorage.getItem('omark-tasks:storage'));
 const rememberChoice = (page: Page, choice: string) =>
-  page.addInitScript((c) => localStorage.setItem('taskapp:storage', c), choice);
+  page.addInitScript((c) => localStorage.setItem('omark-tasks:storage', c), choice);
 
 test('a new device shows the choices this browser supports', async ({ page, isMobile }) => {
   await openApp(page, { auth: 'signed-out', providers: ['microsoft', 'google'] });

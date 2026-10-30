@@ -1,30 +1,25 @@
-#!/usr/bin/env node
-// Checks that a deployed site's sign-in helper is live and set up the way the build expects: /api/auth/login
-// must redirect to Microsoft for the right tenant, asking for the right OneDrive scope. A helper that grants
-// another scope than the app expects would make every read fail with 403, so this fails the deploy first.
-// Run by CI with SIGNIN_URL, MSAL_TENANT and ONEDRIVE_SCOPE (the bridge's workflows fill them from its repository
-// variables: TASKS_STAGING_URL (CI) or TASKS_PROD_URL (Promote), TASKS_MSAL_TENANT and TASKS_ONEDRIVE_SCOPE).
-// check-omark-signin.mjs uses it for the one app's Microsoft sign-in.
+// Checks that a deployed site's Microsoft sign-in is live and set up as the app expects: /api/auth/login must
+// redirect to Microsoft for the right tenant, asking for OneDrive's app folder and not the whole drive. A helper
+// that grants another scope would make every read fail with 403, so this fails the deploy first.
+// check-omark-signin.mjs runs it for the one app.
 
 const APP_FOLDER = 'Files.ReadWrite.AppFolder';
 const FULL = 'Files.ReadWrite';
 
 /**
- * @param {{ url: string, tenant?: string, scope?: 'appfolder' | 'full', fetch?: typeof fetch, attempts?: number,
- *   waitMs?: number, sleep?: (ms: number) => Promise<void> }} opts
+ * @param {{ url: string, tenant?: string, fetch?: typeof fetch, attempts?: number, waitMs?: number,
+ *   sleep?: (ms: number) => Promise<void> }} opts
  * @returns {Promise<{ ok: boolean, message: string }>}
  */
 export async function checkSignin({
   url,
   tenant = 'consumers',
-  scope = 'appfolder',
   fetch: f = fetch,
   attempts = 6,
   waitMs = 10_000,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 }) {
   const login = `${url.replace(/\/+$/, '')}/api/auth/login`;
-  const want = scope === 'full' ? 'full (Files.ReadWrite)' : `appfolder (${APP_FOLDER})`;
   let message = '';
   for (let i = 1; i <= attempts; i++) {
     message = await probe();
@@ -48,24 +43,8 @@ export async function checkSignin({
       return `${login} redirects to ${location.split('?')[0]}, not to the ${tenant} tenant; check MSAL_TENANT on the Pages project.`;
     }
     const words = (new URL(location).searchParams.get('scope') ?? '').split(/\s+/);
-    const grantsAppFolder = words.includes(APP_FOLDER);
-    const ok = scope === 'full' ? words.includes(FULL) && !grantsAppFolder : grantsAppFolder;
-    if (ok) return '';
-    const got = grantsAppFolder ? `appfolder (${APP_FOLDER})` : words.includes(FULL) ? `full (${FULL})` : 'neither';
-    return `The helper grants ${got} but the build expects ${want}; set ONEDRIVE_SCOPE on the Pages project to match.`;
+    if (words.includes(FULL)) return `The helper asks for the whole drive (${FULL}); it must ask only for ${APP_FOLDER}.`;
+    if (!words.includes(APP_FOLDER)) return `The helper does not ask for ${APP_FOLDER}.`;
+    return '';
   }
 }
-
-async function main() {
-  const url = process.env.SIGNIN_URL;
-  if (!url) {
-    console.log('::error::SIGNIN_URL must be set.');
-    return 1;
-  }
-  const scope = process.env.ONEDRIVE_SCOPE === 'full' ? 'full' : 'appfolder';
-  const { ok, message } = await checkSignin({ url, tenant: process.env.MSAL_TENANT || 'consumers', scope });
-  console.log(ok ? message : `::error::${message}`);
-  return ok ? 0 : 1;
-}
-
-if (import.meta.url === `file://${process.argv[1]}`) process.exitCode = await main();

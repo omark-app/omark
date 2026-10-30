@@ -4,10 +4,8 @@ import {
   syncedAtKey,
   envForHost,
   folderStorageName,
-  folderFor,
   googleFolderFor,
   hostConfig,
-  legacyCacheApplies,
   lookFor,
   STORAGE_NAMES,
 } from './environment.ts';
@@ -16,8 +14,6 @@ const CFG = hostConfig({
   VITE_PROD_HOST: 'tasks.example.test',
   VITE_STAGING_HOST: 'staging-tasks.example.test',
   VITE_PREVIEW_HOST_SUFFIXES: 'tasks-preview.pages.dev, other-preview.pages.dev',
-  VITE_PROD_FOLDER: 'Prod/Tasks',
-  VITE_STAGING_FOLDER: 'Prod/Tasks-staging',
 });
 const NONE = hostConfig({});
 
@@ -30,8 +26,8 @@ describe('hostConfig', () => {
     expect(hostConfig({ VITE_PROD_HOST: '  Tasks.Example.TEST ' }).prodHost).toBe('tasks.example.test');
   });
   it('treats missing and non-string values as unset', () => {
-    expect(NONE).toEqual({ prodHost: '', stagingHost: '', previewSuffixes: [], prodFolder: '', stagingFolder: '' });
-    expect(hostConfig({ VITE_PROD_HOST: true, VITE_PROD_FOLDER: 5 })).toEqual(NONE);
+    expect(NONE).toEqual({ prodHost: '', stagingHost: '', previewSuffixes: [] });
+    expect(hostConfig({ VITE_PROD_HOST: true, VITE_STAGING_HOST: 5 })).toEqual(NONE);
   });
 });
 
@@ -59,39 +55,6 @@ describe('envForHost', () => {
   });
 });
 
-describe('folderFor', () => {
-  it.each([
-    ['production', 'Other', 'Prod/Tasks'],
-    ['staging', 'Other', 'Prod/Tasks-staging'],
-    ['local', 'Dev/Tasks', 'Dev/Tasks'],
-    // a preview never gets the production folder (the staging build on its pages.dev hosts)
-    ['preview', 'Prod/Tasks', 'Prod/Tasks-staging'],
-  ] as const)('%s with build folder %j is %j', (env, build, folder) => {
-    expect(folderFor(env, build, CFG)).toBe(folder);
-  });
-  it('with nothing configured the folder is empty', () => {
-    expect(folderFor('production', '', NONE)).toBe('');
-    expect(folderFor('local', '', NONE)).toBe('');
-    expect(folderFor('preview', '', NONE)).toBe('');
-  });
-  it('a preview with no build folder gets the staging folder', () => {
-    expect(folderFor('preview', '', CFG)).toBe('Prod/Tasks-staging');
-  });
-  // The one place the owner's values may appear in a test: proof that his deployment keeps its folder.
-  // Roadmap item 3.7 deletes this test.
-  it('the owner deployment keeps its folder', () => {
-    const BRIDGE = hostConfig({
-      VITE_PROD_HOST: 'tasks.alipka.com',
-      VITE_STAGING_HOST: 'tasks-staging.alipka.com',
-      VITE_PREVIEW_HOST_SUFFIXES: 'taskapp-staging.pages.dev,taskapp-64g.pages.dev',
-      VITE_PROD_FOLDER: 'ALAI/TaskApp',
-      VITE_STAGING_FOLDER: 'ALAI/TaskApp-staging',
-    });
-    expect(folderFor(envForHost('tasks.alipka.com', BRIDGE), '', BRIDGE)).toBe('ALAI/TaskApp');
-    expect(folderFor(envForHost('taskapp-64g.pages.dev', BRIDGE), '', BRIDGE)).toBe('ALAI/TaskApp-staging');
-  });
-});
-
 describe('googleFolderFor', () => {
   it.each([
     ['production', 'Other', 'Omark Tasks'],
@@ -106,9 +69,9 @@ describe('googleFolderFor', () => {
 });
 
 describe('cacheName', () => {
-  it('keeps the OneDrive name of today and gives Google Drive its own', () => {
-    expect(cacheName('microsoft', 'Dev/Tasks')).toBe('taskapp:Dev/Tasks');
-    expect(cacheName('google', 'Dev/Tasks')).toBe('taskapp:google:Dev/Tasks');
+  it('gives OneDrive and Google Drive their own, under omark-tasks:', () => {
+    expect(cacheName('microsoft', 'Dev/Tasks')).toBe('omark-tasks:Dev/Tasks');
+    expect(cacheName('google', 'Dev/Tasks')).toBe('omark-tasks:google:Dev/Tasks');
   });
   it('never shares a cache between the two storages for the same folder', () => {
     expect(cacheName('google', 'Omark Tasks')).not.toBe(cacheName('microsoft', 'Omark Tasks'));
@@ -120,8 +83,8 @@ describe('cacheName', () => {
 
 describe('folder storage', () => {
   it('gives each picked folder its own cache and synced-at key', () => {
-    expect(cacheName('folder', '6f1c')).toBe('taskapp:folder:6f1c');
-    expect(syncedAtKey('folder', '6f1c')).toBe('taskapp:synced-at:folder:6f1c');
+    expect(cacheName('folder', '6f1c')).toBe('omark-tasks:folder:6f1c');
+    expect(syncedAtKey('folder', '6f1c')).toBe('omark-tasks:synced-at:folder:6f1c');
   });
   it('names the folder in the texts', () => {
     expect(folderStorageName('Tasks')).toBe('the folder Tasks');
@@ -129,17 +92,9 @@ describe('folder storage', () => {
 });
 
 describe('syncedAtKey', () => {
-  it('keeps the OneDrive key of today and gives Google Drive its own', () => {
-    expect(syncedAtKey('microsoft', 'Dev/Tasks')).toBe('taskapp:synced-at:Dev/Tasks');
-    expect(syncedAtKey('google', 'Dev/Tasks')).toBe('taskapp:synced-at:google:Dev/Tasks');
-  });
-});
-
-describe('legacyCacheApplies', () => {
-  it('only the production folder, and only when one is configured', () => {
-    expect(legacyCacheApplies('Prod/Tasks', CFG)).toBe(true);
-    expect(legacyCacheApplies('Prod/Tasks-staging', CFG)).toBe(false);
-    expect(legacyCacheApplies('', NONE)).toBe(false);
+  it('gives OneDrive and Google Drive their own, under omark-tasks:', () => {
+    expect(syncedAtKey('microsoft', 'Dev/Tasks')).toBe('omark-tasks:synced-at:Dev/Tasks');
+    expect(syncedAtKey('google', 'Dev/Tasks')).toBe('omark-tasks:synced-at:google:Dev/Tasks');
   });
 });
 

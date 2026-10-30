@@ -23,7 +23,7 @@ export interface Auth {
 /** The sign-in helper's endpoints (`packages/signin`), on the app's own origin. */
 const BASE = '/api/auth';
 /** Must match `CSRF_HEADER` in `packages/signin`. */
-const CSRF_HEADER = 'X-TaskApp-Auth';
+const CSRF_HEADER = 'X-Omark-Auth';
 /** An access token is renewed this long before it expires. */
 const RENEW_BEFORE_MS = 60_000;
 const DEFAULT_TIMEOUT_MS = 15_000;

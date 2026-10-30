@@ -4,7 +4,7 @@ import type { ISODate } from '@omark/tasks-core';
 import { sampleFiles } from './sample-files.ts';
 
 /**
- * The demo's databases. They are apart from the OneDrive cache's `taskapp:<folder>`, so a demo never
+ * The demo's databases. They are apart from the OneDrive cache's `omark-tasks:<folder>`, so a demo never
  * touches a real cache on the same origin (e.g. localhost).
  */
 export const DEMO_DRIVE_DB = 'omark-demo:drive';

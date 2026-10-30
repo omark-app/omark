@@ -74,6 +74,7 @@ changes, set colour) is the seam for others (Time spec 13). Added 2026-10-30.
 ## Testing
 
 - **Nightly real-OneDrive smoke in CI**: v1 runs it by hand; nightly needs a long-lived refresh token stored as a GitHub secret for the smoke, which uses the owner's own account and the `TaskApp-e2e` folder in the app folder.
+- **The real-OneDrive smoke on the one app**: `pnpm e2e:real` still builds the standalone Tasks app with the root `functions/` helper, the last thing either is kept for. Moving it to `apps/omark` (and `apps/omark/.dev.vars`) lets both go. Moved out of 3.7, 2026-10-30.
 - **tester.army e2e** agent-driven smoke tests once it reaches 1.0. Today it is pre-1.0, has no real mobile Safari or PWA support, and its natural-language assertions call a model on every run.
 
 ## Factory

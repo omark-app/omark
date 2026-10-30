@@ -33,7 +33,7 @@ export async function checkOmarkSignin({
   waitMs = 10_000,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 }) {
-  const ms = await checkSignin({ url, tenant, scope: 'appfolder', fetch: f, attempts, waitMs, sleep });
+  const ms = await checkSignin({ url, tenant, fetch: f, attempts, waitMs, sleep });
   if (!ms.ok) return ms;
   const base = url.replace(/\/+$/, '');
   const live = await personalAccounts(`${base}/api/auth/login`);

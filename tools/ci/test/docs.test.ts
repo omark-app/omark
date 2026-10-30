@@ -125,7 +125,7 @@ describe('docs set', () => {
   test('the taskapp-files skill points to the format and names no local folder', () => {
     const skill = read('.claude/skills/taskapp-files/SKILL.md');
     expect(skill).toContain('doc/format.md');
-    expect(skill).not.toMatch(/[A-Z]:\\|ALAI|OneDrive\\/);
+    expect(skill).not.toMatch(/[A-Z]:\\|OneDrive\\/);
   });
 
   // Code and config cite docs by path in comments; after the moves (#95, #96) they point to the current ones (#103).

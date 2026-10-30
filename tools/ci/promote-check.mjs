@@ -1,11 +1,9 @@
 #!/usr/bin/env node
 // Promote to production, step 1: resolve the commit to promote and refuse anything that isn't on main with
 // a passing CI run (doc/factory.md, Environments and CI). Usage: promote-check.mjs <sha | short sha | tag> <app>;
-// an empty commit means the one staging runs now. The tag is <app>-prod-…, or for tasks also a prod-… tag from
-// before the monorepo move. Needs GITHUB_TOKEN and GITHUB_REPOSITORY; writes sha, run_id, run_number,
-// built_at, artifact (true when that run's build can still be downloaded), artifact_name, app_dir and filter
-// to $GITHUB_OUTPUT. A commit from before the move has apps/web, the package `web` and the build `web-dist`,
-// so a rollback to it still deploys.
+// an empty commit means the one staging runs now. The tag is <app>-prod-…. Needs GITHUB_TOKEN and
+// GITHUB_REPOSITORY; writes sha, run_id, run_number, built_at, artifact (true when that run's build can still be
+// downloaded), artifact_name, app_dir and filter to $GITHUB_OUTPUT.
 import { appendFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { tagPatterns } from './release-notes.mjs';
@@ -35,9 +33,6 @@ export async function promoteCheck({ repo, token, input, app, fetch: f = fetch }
    */
   const ofMain = (res) =>
     (res.data.workflow_runs ?? []).filter((/** @type {any} */ r) => r.event === 'push' || r.event === 'workflow_dispatch');
-  // Only tasks existed before the move, so only it falls back to the old names.
-  const legacy = app === 'tasks';
-
   const ref = input.trim();
   /** @type {string} */
   let sha;
@@ -60,14 +55,11 @@ export async function promoteCheck({ repo, token, input, app, fetch: f = fetch }
     throw new Refused(`${short} is not on main; only commits merged to main can go to production.`);
   }
 
-  // Where the app lives in that commit: apps/<app>, or apps/web (package `web`) before the move.
+  // The app lives in apps/<app> in that commit.
   const contents = await get(`/contents/apps/${encodeURIComponent(app)}?ref=${sha}`);
-  /** @type {{ appDir: string, filter: string }} */
-  let layout;
-  if (contents.ok) layout = { appDir: `apps/${app}`, filter: app };
-  else if (contents.status === 404 && legacy) layout = { appDir: 'apps/web', filter: 'web' };
-  else if (contents.status === 404) throw new Refused(`${short} has no apps/${app}; promote a commit that has the app.`);
-  else throw new Refused(`Could not read apps/${app} in ${short} (status ${contents.status}); try again.`);
+  const layout = { appDir: `apps/${app}`, filter: app };
+  if (contents.status === 404) throw new Refused(`${short} has no apps/${app}; promote a commit that has the app.`);
+  if (!contents.ok) throw new Refused(`Could not read apps/${app} in ${short} (status ${contents.status}); try again.`);
 
   const runs = ofMain(await get(`${runsOnMain}&head_sha=${sha}`));
   const passed = runs.find((/** @type {any} */ r) => r.conclusion === 'success');
@@ -78,20 +70,18 @@ export async function promoteCheck({ repo, token, input, app, fetch: f = fetch }
     throw new Refused(`CI for ${short} did not pass (${latest.conclusion}).`);
   }
 
-  // The build staging ran: <app>-dist, or web-dist before the move.
+  // The build staging ran, <app>-dist. A run that never made it (its staging job skipped, or older than the
+  // app's deploy) never put this commit on staging, so it isn't promoted.
+  const artifactName = `${app}-dist`;
   const artifacts = (await get(`/actions/runs/${passed.id}/artifacts`)).data.artifacts ?? [];
-  const live = new Set(artifacts.filter((/** @type {any} */ a) => !a.expired).map((/** @type {any} */ a) => a.name));
-  const names = legacy ? [`${app}-dist`, 'web-dist'] : [`${app}-dist`];
-  // A run that never made the build (its staging job skipped, or older than the app's deploy) never put this
-  // commit on staging, so it isn't promoted. Tasks' oldest runs predate its artifacts, so it is exempt.
-  if (!legacy && !artifacts.some((/** @type {any} */ a) => a.name === `${app}-dist`)) {
-    throw new Refused(`CI for ${short} has no ${app}-dist build, so staging never ran it; promote a commit staging deployed.`);
+  const own = artifacts.filter((/** @type {any} */ a) => a.name === artifactName);
+  if (own.length === 0) {
+    throw new Refused(`CI for ${short} has no ${artifactName} build, so staging never ran it; promote a commit staging deployed.`);
   }
-  const found = names.find((n) => live.has(n));
-  const artifactName = found ?? (layout.appDir === 'apps/web' ? 'web-dist' : `${app}-dist`);
+  const live = own.some((/** @type {any} */ a) => !a.expired);
   // When the run started, in the footer's `YYYY-MM-DD HH:MM UTC` form: a rebuild keeps the original build's date.
   const builtAt = `${String(passed.run_started_at ?? passed.created_at).slice(0, 16).replace('T', ' ')} UTC`;
-  return { sha, runId: passed.id, runNumber: passed.run_number, builtAt, artifact: found !== undefined, artifactName, ...layout };
+  return { sha, runId: passed.id, runNumber: passed.run_number, builtAt, artifact: live, artifactName, ...layout };
 }
 
 async function main() {

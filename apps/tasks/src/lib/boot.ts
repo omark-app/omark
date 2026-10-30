@@ -8,7 +8,6 @@ import {
   IdbCache,
   LocalFolderAdapter,
   MemoryCache,
-  migrateCache,
   OneDriveAdapter,
   pickFolder,
   requestFolderAccess,
@@ -17,13 +16,13 @@ import {
 import type { Auth, FolderChoice, LocalCache, StorageAdapter } from '@omark/storage';
 import { toISODate } from '@omark/tasks-core';
 import { BRAND } from '../brand.ts';
-import { GOOGLE_FOLDER, HOSTS, ONEDRIVE_FOLDER, ONEDRIVE_ROOT, STORAGE_MODE } from '../env.ts';
+import { GOOGLE_FOLDER, ONEDRIVE_FOLDER, STORAGE_MODE } from '../env.ts';
 import { createAuthStub, tokenGated } from './auth-stub.ts';
 import { createWorkspace, TASK_FILES } from './workspace.ts';
 import type { TaskFile, Workspace } from './workspace.ts';
 import type { AuthStub, AuthStubState } from './auth-stub.ts';
 import { systemClock } from './clock.ts';
-import { cacheName, folderStorageName, legacyCacheApplies, SIGN_IN_NAMES, STORAGE_NAMES, syncedAtKey } from './environment.ts';
+import { cacheName, folderStorageName, SIGN_IN_NAMES, STORAGE_NAMES, syncedAtKey } from './environment.ts';
 import type { StorageKind, StorageProvider } from './environment.ts';
 import { decideStart, loadChoice, saveChoice } from './storage-choice.ts';
 import type { StorageChoice } from './storage-choice.ts';
@@ -187,7 +186,7 @@ const ONEDRIVE: Place = { provider: 'microsoft', folder: ONEDRIVE_FOLDER, storag
 const GOOGLE: Place = { provider: 'google', folder: GOOGLE_FOLDER, storageName: STORAGE_NAMES.google };
 
 /** The IndexedDB database that keeps the picked folder's handle. */
-const FOLDER_DB = 'taskapp:picked-folder';
+const FOLDER_DB = 'omark-tasks:picked-folder';
 /** Lets the browser open the picker where it was last time. */
 const PICKER_ID = 'omark-tasks';
 
@@ -239,7 +238,7 @@ interface Accounts {
 }
 
 function realAccounts(): Accounts {
-  const auth = createAuth({ cookiePrefix: 'taskapp', providers: SIGN_IN_NAMES, appName: BRAND.app });
+  const auth = createAuth({ cookiePrefix: 'omarktasks', providers: SIGN_IN_NAMES, appName: BRAND.app });
   const getToken = (o?: { fresh?: boolean }) => auth.getToken(o);
   return {
     auth,
@@ -247,7 +246,7 @@ function realAccounts(): Accounts {
     open: (provider) =>
       provider === 'google'
         ? openAccount(auth, GOOGLE, new GoogleDriveAdapter({ folder: GOOGLE_FOLDER, getToken }), openCache)
-        : openAccount(auth, ONEDRIVE, new OneDriveAdapter({ root: ONEDRIVE_ROOT, folder: ONEDRIVE_FOLDER, getToken }), openCache),
+        : openAccount(auth, ONEDRIVE, new OneDriveAdapter({ folder: ONEDRIVE_FOLDER, getToken }), openCache),
   };
 }
 
@@ -467,10 +466,6 @@ async function ready(workspace: Workspace, cache: CacheInfo, auth: Auth | null, 
   return { kind: 'ready', store, auth, folder: null, updates, provider: place.provider, storageName: place.storageName, storage: null };
 }
 
-/** The cache's IndexedDB database before it was keyed by folder (it only ever held the default folder's files on the deployed origin). */
-const LEGACY_DB = 'taskapp';
-const MIGRATED_KEY = 'taskapp:cache-migrated';
-
 /**
  * IndexedDB can throw on construction or first use (iOS private mode): then use memory. The database is
  * keyed by storage and folder (`cacheName`), so builds for different folders on one origin (`pnpm dev` and
@@ -484,24 +479,7 @@ async function openCache(place: Place): Promise<{ cache: LocalCache } & CacheInf
   } catch {
     return { cache: new MemoryCache(), cacheWarning: cacheWarning(place.storageName), durableCache: false };
   }
-  if (place.provider === 'microsoft' && place.cacheDb === undefined) await migrateLegacyCache(cache);
   // Ask the browser not to evict the cache under storage pressure (it may hold unsynced edits).
   void navigator.storage?.persist?.().catch(() => {});
   return { cache, cacheWarning: null, durableCache: true };
-}
-
-/**
- * Once per browser, moves unsynced edits from the old unkeyed database into the default OneDrive folder's
- * one, then empties it. Other folders never take them (on localhost the old database may hold another
- * folder's files). Failures are ignored: the old database is left as it was and tried again next time.
- */
-async function migrateLegacyCache(cache: LocalCache): Promise<void> {
-  if (!legacyCacheApplies(ONEDRIVE_FOLDER, HOSTS)) return;
-  try {
-    if (localStorage.getItem(MIGRATED_KEY)) return;
-    await migrateCache(new IdbCache(LEGACY_DB), cache, TASK_FILES);
-    localStorage.setItem(MIGRATED_KEY, '1');
-  } catch (e) {
-    console.warn(`${BRAND.app}: could not migrate the old offline cache`, e);
-  }
 }

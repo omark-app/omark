@@ -19,7 +19,7 @@ const TOKEN_URL = 'https://login.microsoftonline.com/consumers/oauth2/v2.0/token
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const DRIVE = 'https://www.googleapis.com/auth/drive.file';
 const NOW = 1_800_000_000_000;
-const TASKS: AuthOptions = { providers: { microsoft, google: google({ scopes: [DRIVE] }) }, cookiePrefix: 'taskapp' };
+const TASKS: AuthOptions = { providers: { microsoft, google: google({ scopes: [DRIVE] }) }, cookiePrefix: 'omarktasks' };
 
 /** A browser's cookies for one origin: Set-Cookie applied, and only path-matching ones sent back. */
 class Jar {
@@ -98,7 +98,7 @@ async function send(
   return res;
 }
 
-const post = (path: string, headers: Record<string, string> = { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' }) =>
+const post = (path: string, headers: Record<string, string> = { 'X-Omark-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' }) =>
   send(path, { method: 'POST', headers });
 
 /** Runs login and callback with the provider's answer to the code (Microsoft unless told). */
@@ -126,7 +126,7 @@ describe('GET /api/auth/login', () => {
     expect(q.get('code_challenge_method')).toBe('S256');
     expect(q.get('state')).toMatch(/^[\w-]{43}$/);
     expect(q.get('login_hint')).toBeNull();
-    const cookie = jar.cookies.get('taskapp_login')!;
+    const cookie = jar.cookies.get('omarktasks_login')!;
     expect(cookie.path).toBe('/api/auth/callback');
     expect(cookie.attrs).toBe('Path=/api/auth/callback; Max-Age=600; Secure; SameSite=Lax; HttpOnly');
     expect(cookie.value).not.toContain(q.get('state')!); // encrypted, not just signed
@@ -139,9 +139,9 @@ describe('GET /api/auth/login', () => {
     expect(to.searchParams.get('scope')).toBe('openid profile Files.ReadWrite.AppFolder offline_access');
   });
 
-  it('asks for whole-drive access when ONEDRIVE_SCOPE is full', async () => {
+  it('never asks for whole-drive access, even with a leftover ONEDRIVE_SCOPE=full', async () => {
     const res = await send('/api/auth/login', {}, { ...ENV, ONEDRIVE_SCOPE: 'full' });
-    expect(new URL(res.headers.get('Location')!).searchParams.get('scope')).toBe('openid profile Files.ReadWrite offline_access');
+    expect(new URL(res.headers.get('Location')!).searchParams.get('scope')).toBe('openid profile Files.ReadWrite.AppFolder offline_access');
   });
 
   it('uses MSAL_TENANT for the authority', async () => {
@@ -159,7 +159,7 @@ describe('GET /api/auth/login', () => {
   });
 
   it('treats a malformed MSAL_TENANT as missing configuration', async () => {
-    const headers = { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' };
+    const headers = { 'X-Omark-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' };
     await signIn();
     const calls = ms.calls.length;
     const res = await send('/api/auth/token', { method: 'POST', headers }, { ...ENV, MSAL_TENANT: 'a/b' });
@@ -201,12 +201,12 @@ describe('GET /api/auth/callback', () => {
     expect(grant.get('redirect_uri')).toBe(`${ORIGIN}/api/auth/callback`);
     expect(await pkceChallenge(grant.get('code_verifier')!)).toBe(q.get('code_challenge'));
 
-    expect(jar.cookies.has('taskapp_login')).toBe(false);
-    const session = jar.cookies.get('taskapp_session0')!;
+    expect(jar.cookies.has('omarktasks_login')).toBe(false);
+    const session = jar.cookies.get('omarktasks_session0')!;
     expect(session.attrs).toBe(`Path=/api/auth/token; Max-Age=${90 * 86400}; Secure; SameSite=Lax; HttpOnly`);
     expect(session.value).not.toContain('rt1');
-    expect(jar.cookies.get('taskapp_signed_in')).toMatchObject({ value: 'microsoft', path: '/' });
-    expect(jar.cookies.get('taskapp_signed_in')!.attrs).not.toContain('HttpOnly');
+    expect(jar.cookies.get('omarktasks_signed_in')).toMatchObject({ value: 'microsoft', path: '/' });
+    expect(jar.cookies.get('omarktasks_signed_in')!.attrs).not.toContain('HttpOnly');
     expect(await res.text()).toBe(''); // no token in the body
   });
 
@@ -219,7 +219,7 @@ describe('GET /api/auth/callback', () => {
     const res = await send(`/api/auth/callback?${query(state)}`);
     expect(res.headers.get('Location')).toBe('/?signin_error=expired');
     expect(ms.fetch).not.toHaveBeenCalled();
-    expect(jar.cookies.has('taskapp_session0')).toBe(false);
+    expect(jar.cookies.has('omarktasks_session0')).toBe(false);
   });
 
   it('rejects a return without the login cookie (another browser, or a forged link)', async () => {
@@ -287,27 +287,27 @@ describe('GET /api/auth/callback', () => {
   it('splits a long refresh token across several cookies, each under 4 KB', async () => {
     const rt = 'R'.repeat(5000);
     await signIn({ access_token: 'at0', expires_in: 3600, refresh_token: rt });
-    expect(jar.cookies.has('taskapp_session1')).toBe(true);
+    expect(jar.cookies.has('omarktasks_session1')).toBe(true);
     for (const [name, c] of jar.cookies) expect(`${name}=${c.value}; ${c.attrs}`.length).toBeLessThan(4000);
     ms.ok({ access_token: 'at1', expires_in: 3600, refresh_token: 'short' });
     expect((await post('/api/auth/token')).status).toBe(200);
     expect(ms.calls[1]!.get('refresh_token')).toBe(rt);
     // The shorter rotated token deletes the stale second chunk.
-    expect(jar.cookies.has('taskapp_session0')).toBe(true);
-    expect(jar.cookies.has('taskapp_session1')).toBe(false);
+    expect(jar.cookies.has('omarktasks_session0')).toBe(true);
+    expect(jar.cookies.has('omarktasks_session1')).toBe(false);
   });
 
   it('fails rather than set a cookie past the chunk limit', async () => {
     const res = await signIn({ access_token: 'at0', expires_in: 3600, refresh_token: 'R'.repeat(CHUNK_SIZE * MAX_CHUNKS) });
     expect(res.headers.get('Location')).toBe('/?signin_error=failed&provider=microsoft');
-    expect(jar.cookies.has('taskapp_session0')).toBe(false);
+    expect(jar.cookies.has('omarktasks_session0')).toBe(false);
   });
 });
 
 describe('POST /api/auth/token', () => {
   it('redeems the refresh token, rotates the cookie and returns only the access token', async () => {
     await signIn();
-    const before = jar.cookies.get('taskapp_session0')!.value;
+    const before = jar.cookies.get('omarktasks_session0')!.value;
     ms.ok({ access_token: 'at1', expires_in: 3600, refresh_token: 'rt2' });
     now += 1000;
     const res = await post('/api/auth/token');
@@ -317,7 +317,7 @@ describe('POST /api/auth/token', () => {
     expect(ms.calls[1]!.get('refresh_token')).toBe('rt1');
     expect(ms.calls[1]!.get('client_secret')).toBe('secret');
     expect(res.headers.get('Cache-Control')).toBe('no-store');
-    expect(jar.cookies.get('taskapp_session0')!.value).not.toBe(before);
+    expect(jar.cookies.get('omarktasks_session0')!.value).not.toBe(before);
 
     ms.ok({ access_token: 'at2', expires_in: 3600, refresh_token: 'rt3' });
     await post('/api/auth/token');
@@ -325,14 +325,14 @@ describe('POST /api/auth/token', () => {
   });
 
   it('refreshes with the configured scope', async () => {
-    const headers = { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' };
+    const headers = { 'X-Omark-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' };
     await signIn();
     ms.ok({ access_token: 'at1', expires_in: 3600, refresh_token: 'rt2' });
     await send('/api/auth/token', { method: 'POST', headers });
     expect(ms.calls[1]!.get('scope')).toBe('Files.ReadWrite.AppFolder offline_access');
     ms.ok({ access_token: 'at2', expires_in: 3600, refresh_token: 'rt3' });
     await send('/api/auth/token', { method: 'POST', headers }, { ...ENV, ONEDRIVE_SCOPE: 'full' });
-    expect(ms.calls[2]!.get('scope')).toBe('Files.ReadWrite offline_access');
+    expect(ms.calls[2]!.get('scope')).toBe('Files.ReadWrite.AppFolder offline_access');
   });
 
   it('keeps the old refresh token when Microsoft sends no new one', async () => {
@@ -359,24 +359,24 @@ describe('POST /api/auth/token', () => {
     expect(await res.json()).toEqual({ signin: true });
 
     await signIn();
-    const c = jar.cookies.get('taskapp_session0')!;
+    const c = jar.cookies.get('omarktasks_session0')!;
     const flipped = c.value.slice(0, 20) + (c.value[20] === 'A' ? 'B' : 'A') + c.value.slice(21);
-    jar.cookies.set('taskapp_session0', { ...c, value: flipped });
+    jar.cookies.set('omarktasks_session0', { ...c, value: flipped });
     res = await post('/api/auth/token');
     expect(res.status).toBe(401);
     expect(ms.calls).toHaveLength(1); // only the sign-in's exchange
-    expect(jar.cookies.has('taskapp_signed_in')).toBe(false);
+    expect(jar.cookies.has('omarktasks_signed_in')).toBe(false);
   });
 
   it('rejects a cookie sealed under another key, or for another purpose', async () => {
     const other = await importCookieKey(toBase64Url(new Uint8Array(32).fill(9)));
     const session = { rt: 'rt', exp: NOW + 1e9 };
-    jar.cookies.set('taskapp_session0', { value: await seal(other, 'taskapp_session', session), path: '/api/auth/token', attrs: '' });
+    jar.cookies.set('omarktasks_session0', { value: await seal(other, 'omarktasks_session', session), path: '/api/auth/token', attrs: '' });
     expect((await post('/api/auth/token')).status).toBe(401);
     const key = await importCookieKey(KEY);
-    jar.cookies.set('taskapp_session0', { value: await seal(key, 'taskapp_login', session), path: '/api/auth/token', attrs: '' });
+    jar.cookies.set('omarktasks_session0', { value: await seal(key, 'omarktasks_login', session), path: '/api/auth/token', attrs: '' });
     expect((await post('/api/auth/token')).status).toBe(401);
-    jar.cookies.set('taskapp_session0', { value: await seal(key, 'taskapp_session', session), path: '/api/auth/token', attrs: '' });
+    jar.cookies.set('omarktasks_session0', { value: await seal(key, 'omarktasks_session', session), path: '/api/auth/token', attrs: '' });
     ms.ok({ access_token: 'at', expires_in: 3600 });
     expect((await post('/api/auth/token')).status).toBe(200);
   });
@@ -394,8 +394,8 @@ describe('POST /api/auth/token', () => {
     const res = await post('/api/auth/token');
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ signin: true });
-    expect(jar.cookies.has('taskapp_session0')).toBe(false);
-    expect(jar.cookies.has('taskapp_signed_in')).toBe(false);
+    expect(jar.cookies.has('omarktasks_session0')).toBe(false);
+    expect(jar.cookies.has('omarktasks_signed_in')).toBe(false);
   });
 
   it.each([
@@ -407,22 +407,22 @@ describe('POST /api/auth/token', () => {
     await signIn();
     reply();
     expect((await post('/api/auth/token')).status).toBe(503);
-    expect(jar.cookies.has('taskapp_session0')).toBe(true);
+    expect(jar.cookies.has('omarktasks_session0')).toBe(true);
     ms.ok({ access_token: 'at1', expires_in: 3600 });
     expect((await post('/api/auth/token')).status).toBe(200);
   });
 
   it.each([
     ['no custom header', { Origin: ORIGIN }],
-    ['another origin', { 'X-TaskApp-Auth': '1', Origin: 'https://evil.example' }],
-    ['no origin', { 'X-TaskApp-Auth': '1' }],
-    ['a cross-site fetch', { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'cross-site' }],
+    ['another origin', { 'X-Omark-Auth': '1', Origin: 'https://evil.example' }],
+    ['no origin', { 'X-Omark-Auth': '1' }],
+    ['a cross-site fetch', { 'X-Omark-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'cross-site' }],
   ])('rejects a request with %s (CSRF) before touching the session', async (_, headers) => {
     await signIn();
     const res = await post('/api/auth/token', headers as Record<string, string>);
     expect(res.status).toBe(403);
     expect(ms.calls).toHaveLength(1);
-    expect(jar.cookies.has('taskapp_session0')).toBe(true);
+    expect(jar.cookies.has('omarktasks_session0')).toBe(true);
   });
 
   it('rejects GET', async () => {
@@ -452,27 +452,27 @@ describe('per-app cookies', () => {
     expect(jar.cookies.get('omark_time_signed_in')).toMatchObject({ value: 'microsoft', path: '/' });
 
     // Another app's prefix does not open these cookies.
-    const headers = { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' };
+    const headers = { 'X-Omark-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' };
     expect((await send('/api/auth/token', { method: 'POST', headers }, ENV, TASKS)).status).toBe(401);
   });
 
   it('reads a session sealed before the move', async () => {
-    // Sealed exactly as the handler did before it had options: purpose and cookie name 'taskapp_session'.
+    // Sealed as the handler did before it had options: the purpose is the cookie name.
     const key = await importCookieKey(KEY);
-    const value = await seal(key, 'taskapp_session', { rt: 'rt-old', exp: NOW + 86_400_000 });
-    jar.cookies.set('taskapp_session0', { value, path: '/api/auth/token', attrs: '' });
+    const value = await seal(key, 'omarktasks_session', { rt: 'rt-old', exp: NOW + 86_400_000 });
+    jar.cookies.set('omarktasks_session0', { value, path: '/api/auth/token', attrs: '' });
     ms.ok({ access_token: 'at1', expires_in: 3600, refresh_token: 'rt-new' });
     const res = await post('/api/auth/token');
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ accessToken: 'at1', expiresAt: NOW + 3_600_000 });
     expect(ms.calls[0]!.get('refresh_token')).toBe('rt-old');
-    expect(jar.cookies.has('taskapp_session0')).toBe(true);
-    expect(jar.cookies.get('taskapp_signed_in')).toMatchObject({ value: 'microsoft', path: '/' });
+    expect(jar.cookies.has('omarktasks_session0')).toBe(true);
+    expect(jar.cookies.get('omarktasks_signed_in')).toMatchObject({ value: 'microsoft', path: '/' });
   });
 });
 
 describe('several providers', () => {
-  const headers = { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' };
+  const headers = { 'X-Omark-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' };
   const GOOGLE_TOKENS = {
     access_token: 'gat0',
     expires_in: 3600,
@@ -517,33 +517,33 @@ describe('several providers', () => {
     expect(gg.calls).toHaveLength(1);
     expect(gg.calls[0]!.get('client_id')).toBe('gid');
     expect(gg.calls[0]!.get('client_secret')).toBe('gsecret');
-    expect(jar.cookies.get('taskapp_signed_in')).toMatchObject({ value: 'google', path: '/' });
-    expect(jar.cookies.get('taskapp_session0')!.attrs).toContain(`Max-Age=${180 * 86400}`);
+    expect(jar.cookies.get('omarktasks_signed_in')).toMatchObject({ value: 'google', path: '/' });
+    expect(jar.cookies.get('omarktasks_session0')!.attrs).toContain(`Max-Age=${180 * 86400}`);
 
     gg.ok({ access_token: 'gat1', expires_in: 3600 });
     expect((await post('/api/auth/token')).status).toBe(200);
     expect(gg.calls[1]!.get('refresh_token')).toBe('grt1');
     expect(gg.calls[1]!.get('scope')).toBe(DRIVE);
     expect(ms.fetch).not.toHaveBeenCalled();
-    expect(jar.cookies.get('taskapp_signed_in')).toMatchObject({ value: 'google' });
+    expect(jar.cookies.get('omarktasks_signed_in')).toMatchObject({ value: 'google' });
   });
 
   it('fails the sign-in when Google did not grant every required scope', async () => {
     const res = await signIn({ ...GOOGLE_TOKENS, scope: 'https://www.googleapis.com/auth/userinfo.email openid' }, 'google');
     expect(res.headers.get('Location')).toBe('/?signin_error=scope&provider=google');
-    expect(jar.cookies.has('taskapp_session0')).toBe(false);
-    expect(jar.cookies.has('taskapp_signed_in')).toBe(false);
-    expect(jar.cookies.has('taskapp_login')).toBe(false);
+    expect(jar.cookies.has('omarktasks_session0')).toBe(false);
+    expect(jar.cookies.has('omarktasks_signed_in')).toBe(false);
+    expect(jar.cookies.has('omarktasks_login')).toBe(false);
   });
 
   it('refreshes a session sealed without a provider against Microsoft and marks it microsoft', async () => {
     const key = await importCookieKey(KEY);
-    const value = await seal(key, 'taskapp_session', { rt: 'rt-old', exp: NOW + 86_400_000 });
-    jar.cookies.set('taskapp_session0', { value, path: '/api/auth/token', attrs: '' });
+    const value = await seal(key, 'omarktasks_session', { rt: 'rt-old', exp: NOW + 86_400_000 });
+    jar.cookies.set('omarktasks_session0', { value, path: '/api/auth/token', attrs: '' });
     ms.ok({ access_token: 'at1', expires_in: 3600, refresh_token: 'rt-new' });
     expect((await post('/api/auth/token')).status).toBe(200);
     expect(ms.calls).toHaveLength(1);
-    expect(jar.cookies.get('taskapp_signed_in')).toMatchObject({ value: 'microsoft' });
+    expect(jar.cookies.get('omarktasks_signed_in')).toMatchObject({ value: 'microsoft' });
   });
 
   it('does not send a login_hint sealed for another provider', async () => {
@@ -587,8 +587,8 @@ describe('POST /api/auth/logout', () => {
 
   it('is CSRF-protected', async () => {
     await signIn();
-    expect((await post('/api/auth/logout', { Origin: 'https://evil.example', 'X-TaskApp-Auth': '1' })).status).toBe(403);
-    expect(jar.cookies.has('taskapp_session0')).toBe(true);
+    expect((await post('/api/auth/logout', { Origin: 'https://evil.example', 'X-Omark-Auth': '1' })).status).toBe(403);
+    expect(jar.cookies.has('omarktasks_session0')).toBe(true);
   });
 });
 
@@ -598,7 +598,7 @@ describe('adding access later (Google, incremental consent)', () => {
   const TIME: AuthOptions = { providers: { google: google({ scopes: [READ], extra: { drive: [DRIVE], edit: [EDIT] } }) }, cookiePrefix: 'omarktime' };
   const sendTime = (path: string) => send(path, {}, ENV, TIME);
   const postTime = () =>
-    send('/api/auth/token', { method: 'POST', headers: { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' } }, ENV, TIME);
+    send('/api/auth/token', { method: 'POST', headers: { 'X-Omark-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' } }, ENV, TIME);
   let rts = 0;
   beforeEach(() => {
     rts = 0;
@@ -693,7 +693,7 @@ describe('one session per provider (the one Omark app, U.4)', () => {
     sessions: 'per-provider',
     returnPaths: ['/time'],
   };
-  const headers = { 'X-TaskApp-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' };
+  const headers = { 'X-Omark-Auth': '1', Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' };
   const sendO = (path: string, init: RequestInit & { headers?: Record<string, string> } = {}) => send(path, init, ENV, OMARK);
   const postO = (path: string) => sendO(path, { method: 'POST', headers });
   const scopes = (...s: string[]) => ['openid', 'https://www.googleapis.com/auth/userinfo.email', ...s].join(' ');

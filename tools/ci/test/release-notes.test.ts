@@ -8,25 +8,19 @@ import { nextTag, releaseNotes, tagPatterns } from '../release-notes.mjs';
 
 describe('nextTag', () => {
   it('starts at 1 each day', () => {
-    expect(nextTag(['tasks-prod-2026-10-17-1', 'tasks-prod-2026-10-17-2'], '2026-10-18', 'tasks')).toBe('tasks-prod-2026-10-18-1');
+    expect(nextTag(['omark-prod-2026-10-17-1', 'omark-prod-2026-10-17-2'], '2026-10-18', 'omark')).toBe('omark-prod-2026-10-18-1');
   });
   it('counts up within a day, past 9', () => {
-    expect(nextTag(['tasks-prod-2026-10-18-1', 'tasks-prod-2026-10-18-10', 'tasks-prod-2026-10-18-2'], '2026-10-18', 'tasks')).toBe('tasks-prod-2026-10-18-11');
+    expect(nextTag(['omark-prod-2026-10-18-1', 'omark-prod-2026-10-18-10', 'omark-prod-2026-10-18-2'], '2026-10-18', 'omark')).toBe('omark-prod-2026-10-18-11');
   });
-  it('ignores other tags', () => {
-    expect(nextTag(['v1', 'tasks-prod-2026-10-18-x', 'time-prod-2026-10-18-4'], '2026-10-18', 'tasks')).toBe('tasks-prod-2026-10-18-1');
-  });
-  it('names the app, starting at 1 after the legacy prod- tags', () => {
-    expect(nextTag(['prod-2026-10-22-1'], '2026-11-02', 'tasks')).toBe('tasks-prod-2026-11-02-1');
-    expect(nextTag(['prod-2026-11-02-1'], '2026-11-02', 'tasks')).toBe('tasks-prod-2026-11-02-1');
-    expect(nextTag(['tasks-prod-2026-11-02-1'], '2026-11-02', 'tasks')).toBe('tasks-prod-2026-11-02-2');
+  it('ignores other tags, the old Tasks ones too', () => {
+    expect(nextTag(['v1', 'omark-prod-2026-10-18-x', 'tasks-prod-2026-10-18-4', 'prod-2026-10-18-2'], '2026-10-18', 'omark')).toBe('omark-prod-2026-10-18-1');
   });
 });
 
 describe('tagPatterns', () => {
-  it('includes the legacy prod- tags for tasks only', () => {
-    expect(tagPatterns('tasks')).toEqual(['tasks-prod-*', 'prod-*']);
-    expect(tagPatterns('time')).toEqual(['time-prod-*']);
+  it('is the app’s own prod- tags', () => {
+    expect(tagPatterns('omark')).toEqual(['omark-prod-*']);
   });
 });
 
@@ -68,28 +62,21 @@ describe('release-notes.mjs in a repository', { timeout: 30_000 }, () => {
     git('commit', '-q', '--allow-empty', '-m', 'Start');
   };
 
-  it('lists the PRs since the last legacy prod- tag in the first tasks-prod- release', () => {
+  it('lists the PRs since the app’s last prod- tag', () => {
     repo();
-    git('tag', 'prod-2026-10-11-1', merge(1, 'Old work'));
-    const head = merge(2, 'New work');
-    const { notes, output } = run(head, 'tasks');
-    expect(notes).toBe('- #2 New work\n');
-    expect(output).toMatch(/^tag=tasks-prod-\d{4}-\d{2}-\d{2}-1\n$/);
+    git('tag', 'tasks-prod-2026-10-11-1', merge(1, 'Old Tasks work'));
+    git('tag', 'omark-prod-2026-10-12-1', merge(2, 'New work'));
+    const { notes, output } = run(merge(3, 'Newer work'), 'omark');
+    expect(notes).toBe('- #3 Newer work\n');
+    expect(output).toMatch(/^tag=omark-prod-\d{4}-\d{2}-\d{2}-1\n$/);
   });
 
-  it('takes a legacy prod- tag older than the last tasks-prod- tag as a rollback', () => {
+  it('takes a commit older than the last prod- tag as a rollback', () => {
     repo();
     const old = merge(1, 'Old work');
-    git('tag', 'prod-2026-10-11-1', old);
-    git('tag', 'tasks-prod-2026-10-12-1', merge(2, 'New work'));
-    expect(run(old, 'tasks').notes).toBe(`Rollback to ${old.slice(0, 7)}.\n`);
-  });
-
-  it('lists the PRs since the last tasks-prod- tag', () => {
-    repo();
-    git('tag', 'prod-2026-10-11-1', merge(1, 'Old work'));
-    git('tag', 'tasks-prod-2026-10-12-1', merge(2, 'New work'));
-    expect(run(merge(3, 'Newer work'), 'tasks').notes).toBe('- #3 Newer work\n');
+    git('tag', 'omark-prod-2026-10-11-1', old);
+    git('tag', 'omark-prod-2026-10-12-1', merge(2, 'New work'));
+    expect(run(old, 'omark').notes).toBe(`Rollback to ${old.slice(0, 7)}.\n`);
   });
 });
 

@@ -15,6 +15,7 @@ dist-time
 !.env.example
 !apps/tasks/.env.development
 !apps/omark/.env.development
+!apps/omark/.env.demo
 .secrets/
 .superpowers/
 *e2e-state*.json

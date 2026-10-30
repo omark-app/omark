@@ -6,8 +6,7 @@ name: CI
 # DEMO_URL and REAL_USE_URL. CI can also be started by hand (Actions → CI → Run workflow) for when GitHub misses
 # a push; on main that deploys staging and the demo too. The app reaches production only through promote.yml; the
 # demo has no Promote step. The site (omark.app) deploys from main via site-production, and PRs get a
-# site-preview. tasks-staging is the bridge (apps/tasks for the founder's old instance, TASKS_* variables) until
-# roadmap 3.7. (doc/factory.md, Environments and CI)
+# site-preview. (doc/factory.md, Environments and CI)
 on:
   pull_request:
     paths-ignore: ['doc/**', '**/*.md']
@@ -17,7 +16,7 @@ on:
     paths-ignore: ['doc/**', '**/*.md']
 concurrency:
   # PRs: a newer push replaces the older run. main: one group per commit, so no merge's checks are dropped.
-  # (Its deploy jobs still queue in their own `staging`, `demo`, `bridge-staging` and `site` groups, where only
+  # (Its deploy jobs still queue in their own `staging`, `demo` and `site` groups, where only
   # the newest waiting deploy runs.)
   group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -318,104 +317,6 @@ jobs:
         run: node tools/ci/check-demo.mjs
         env:
           DEMO_URL: ${{ vars.DEMO_URL }}
-  tasks-staging:
-    # The bridge: apps/tasks for the founder's old instance (its staging here, its production through Promote's
-    # `tasks`), until roadmap 3.7 removes it with its TASKS_* variables (doc/self-hosting.md, the bridge).
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
-    needs: [check, e2e]
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    concurrency:
-      group: bridge-staging
-      cancel-in-progress: false
-    steps:
-      - name: Check the repository variables
-        run: |
-          if [ -z "$CF_TASKS_STAGING_PROJECT" ] || [ -z "$TASKS_STAGING_HOST" ] || [ -z "$TASKS_STAGING_URL" ]; then
-            echo "::error::Set the repository variables CF_TASKS_STAGING_PROJECT, TASKS_STAGING_HOST and TASKS_STAGING_URL (README, Environment variables)."
-            exit 1
-          fi
-          if [ "$TASKS_STAGING_URL" != "https://$TASKS_STAGING_HOST" ]; then
-            echo "::error::TASKS_STAGING_URL must be https:// followed by TASKS_STAGING_HOST."
-            exit 1
-          fi
-        env:
-          CF_TASKS_STAGING_PROJECT: ${{ vars.CF_TASKS_STAGING_PROJECT }}
-          TASKS_STAGING_HOST: ${{ vars.TASKS_STAGING_HOST }}
-          TASKS_STAGING_URL: ${{ vars.TASKS_STAGING_URL }}
-      - name: Skip if main has moved on
-        # A run whose e2e finished later must not overwrite a newer commit's deploy; that commit's own run deploys
-        # it (#81). Commits that only touch docs get no CI run (paths-ignore above), so they don't count. This runs
-        # inside the job's concurrency group, so two deploys never pass it at once.
-        id: tip
-        run: |
-          newer=$(gh api "repos/$REPO/compare/$GITHUB_SHA...main" --jq '[(.files // [])[].filename | select(test("^doc/|[.]md$") | not)] | length')
-          if [ "$newer" = 0 ]; then
-            echo "latest=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::main has newer changes, so its own run deploys. Skipping $GITHUB_SHA."
-            echo "latest=false" >> "$GITHUB_OUTPUT"
-          fi
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-      - if: steps.tip.outputs.latest == 'true'
-        uses: actions/checkout@v4
-      - if: steps.tip.outputs.latest == 'true'
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-      - if: steps.tip.outputs.latest == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - if: steps.tip.outputs.latest == 'true'
-        run: pnpm install --frozen-lockfile
-      # One build for staging and production: the app picks its folder and look from the host name.
-      - if: steps.tip.outputs.latest == 'true'
-        run: pnpm --filter tasks build
-        env:
-          # The version shown in the footer; Promote ships this same build, so production shows it too.
-          # run_number counts per workflow file: renaming ci.yml would restart it at 1.
-          BUILD_NUMBER: ${{ github.run_number }}
-          VITE_PROD_HOST: ${{ vars.TASKS_PROD_HOST }}
-          VITE_STAGING_HOST: ${{ vars.TASKS_STAGING_HOST }}
-          VITE_PREVIEW_HOST_SUFFIXES: ${{ vars.TASKS_PREVIEW_HOST_SUFFIXES }}
-          VITE_PROD_FOLDER: ${{ vars.TASKS_PROD_FOLDER }}
-          VITE_STAGING_FOLDER: ${{ vars.TASKS_STAGING_FOLDER }}
-          VITE_ONEDRIVE_SCOPE: ${{ vars.TASKS_ONEDRIVE_SCOPE }}
-      - if: steps.tip.outputs.latest == 'true'
-        name: Keep the build for Promote
-        uses: actions/upload-artifact@v4
-        with:
-          name: tasks-dist
-          path: apps/tasks/dist
-          retention-days: 30
-      - if: steps.tip.outputs.latest == 'true'
-        name: Make sure the staging project exists
-        run: node tools/ci/ensure-pages-project.mjs
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CF_PROJECT: ${{ vars.CF_TASKS_STAGING_PROJECT }}
-          PAGES_DOMAIN: ${{ vars.TASKS_STAGING_DOMAIN }}
-          CF_ZONE_ID: ${{ vars.CF_TASKS_ZONE_ID }}
-      - if: steps.tip.outputs.latest == 'true'
-        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: '4.151.1'
-          # Run from the repo root, so wrangler also bundles functions/ (the sign-in helper at /api/auth/*).
-          command: pages deploy apps/tasks/dist --project-name=${{ vars.CF_TASKS_STAGING_PROJECT }} --branch=main
-      - if: steps.tip.outputs.latest == 'true'
-        name: Check the sign-in helper is live
-        # /api/auth/login must redirect to Microsoft for MSAL_TENANT, asking for the scope the build expects.
-        # That holds only when the functions shipped and the Pages secrets (README, Sign-in) are set.
-        run: node tools/ci/check-signin.mjs
-        env:
-          SIGNIN_URL: ${{ vars.TASKS_STAGING_URL }}
-          MSAL_TENANT: ${{ vars.TASKS_MSAL_TENANT }}
-          ONEDRIVE_SCOPE: ${{ vars.TASKS_ONEDRIVE_SCOPE }}
   site-preview:
     # The omark.app landing site (apps/site). Same-repo PRs only, like omark-preview, and only when the PR touches
     # the site or what it shares (the design tokens, the lockfile): other PRs skip every step after the check.

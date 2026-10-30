@@ -6,7 +6,7 @@ export type StorageChoice = StorageProvider | 'folder';
 const CHOICES: readonly string[] = ['microsoft', 'google', 'folder'] satisfies StorageChoice[];
 
 /** The localStorage key of this device's choice. */
-export const CHOICE_KEY = 'taskapp:storage';
+export const CHOICE_KEY = 'omark-tasks:storage';
 
 type ChoiceStore = () => Pick<Storage, 'getItem' | 'setItem'>;
 const local: ChoiceStore = () => localStorage;
