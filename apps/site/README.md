@@ -29,6 +29,4 @@ A PR that changes a sign-in scope or cookie must update `src/privacy/index.html`
 
 When these ship, turn the "Coming soon" label into a link:
 
-- 2.3: the PHILOSOPHY link
-- 4.3: the GitHub repo and CONTRIBUTING links
 - 3.5: `/.well-known/microsoft-identity-association.json`

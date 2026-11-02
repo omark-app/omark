@@ -22,6 +22,7 @@ for (const path of PAGES) {
     const footer = page.locator('footer.site-footer');
     await expect(footer.locator('a[href="/privacy/"]')).toHaveCount(1);
     await expect(footer.locator('a[href="/terms/"]')).toHaveCount(1);
+    await expect(footer.locator('a[href="https://github.com/omark-app/omark"]')).toHaveCount(1);
     await expect(footer.locator('a[href="mailto:hello@omark.app"]')).toHaveCount(1);
     await expect(footer.locator('a', { hasText: 'MIT' })).toHaveCount(1);
     await expectNoSideScroll(page);
@@ -120,7 +121,7 @@ test('privacy says no data on our servers and one sign-in cookie', async ({ page
 });
 
 test('privacy and terms show a date', async ({ page }) => {
-  for (const [path, date] of [['/privacy/', '2026-11-02'], ['/terms/', '2026-10-26']] as const) {
+  for (const [path, date] of [['/privacy/', '2026-11-02'], ['/terms/', '2026-11-02']] as const) {
     await page.goto(path);
     await expect(page.locator('time[datetime]'), path).toHaveCount(1);
     await expect(page.locator('time[datetime]')).toHaveAttribute('datetime', date);

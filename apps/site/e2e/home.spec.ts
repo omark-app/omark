@@ -53,3 +53,14 @@ test('says Omark itself has no AI', async ({ page }) => {
   await expect(page.locator('meta[name="description"]')).not.toHaveAttribute('content', /for people and their AI agents/);
   await expect(page.locator('#principles a[href="/privacy/#ai"]')).toHaveCount(1);
 });
+
+// The repository went public at 4.3 (#125): the site links it instead of promising it.
+const REPO = 'https://github.com/omark-app/omark';
+test('links the code, the contributor guide and the principles on GitHub', async ({ page }) => {
+  const open = page.locator('#open-source');
+  await expect(open.getByRole('link', { name: 'Code on GitHub' })).toHaveAttribute('href', REPO);
+  await expect(open.getByRole('link', { name: 'How to contribute' })).toHaveAttribute('href', `${REPO}/blob/main/CONTRIBUTING.md`);
+  await expect(page.locator('#principles').getByRole('link', { name: 'PHILOSOPHY.md' })).toHaveAttribute('href', `${REPO}/blob/main/PHILOSOPHY.md`);
+  await expect(page.getByRole('navigation', { name: 'Footer' }).getByRole('link', { name: 'GitHub' })).toHaveAttribute('href', REPO);
+  await expect(page.locator('main')).not.toContainText('at launch');
+});
