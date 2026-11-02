@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { OUTPUTS, sourceHash } from './outputs.ts';
+import { OUTPUTS, socialHtml, sourceHash } from './outputs.ts';
+import { iconSvg } from './family.ts';
 
 const root = new URL('../../', import.meta.url);
 const read = (p: string) => readFileSync(new URL(p, root));
@@ -47,6 +48,14 @@ describe('outputs', () => {
   it('the landing page logo and app icons are drawn here too', () => {
     const paths = svgs.map((o) => o.path);
     for (const app of ['omark', 'tasks', 'time']) expect(paths).toContain(`apps/site/public/img/icon-${app}.svg`);
+  });
+
+  it('the social preview shows the three apps, each with its icon (#126)', () => {
+    const html = socialHtml();
+    for (const [app, name] of [['tasks', 'Tasks'], ['time', 'Time'], ['goals', 'Goals']] as const) {
+      expect(html).toContain(`<b>Omark</b> ${name}`);
+      expect(html).toContain(Buffer.from(iconSvg(app, { shape: 'rounded' })).toString('base64'));
+    }
   });
 
   it.each(svgs.map((o) => [o.path, o] as const))('every SVG output on disk matches iconSvg: %s', (path, o) => {
