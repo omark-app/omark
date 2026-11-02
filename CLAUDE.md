@@ -4,12 +4,6 @@
 
 Everything above comes from `AGENTS.md`, which every agent reads. These notes are for Claude Code only.
 
-## Fast mode until launch (2026-10-28)
-
-Until the repo goes public (roadmap 4.3), the founder's working session overrides the factory flow in `AGENTS.md`: no issues, PRs or plan approvals; work serially in one session, test first, run `pnpm typecheck`, `pnpm test`, the build and the touched e2e specs, then commit and push straight to `main`. Fresh-eyes review stays: after each roadmap row (or a day's work, whichever comes first), one review subagent with no memory of writing the code checks its diff against the plan and spec, and its real findings are fixed before the next row. The founder tests on production. Force-push stays forbidden, and Promote runs only when the founder asks. While this section is here, the guard lets pushes to `main` through (it looks for this heading, so keep it as is); force pushes, merges and Promote stay blocked. Before 4.3, remove this section, which turns the block back on, and restore the deny rules `Bash(git push origin main:*)` and `Bash(git push origin HEAD:main:*)` in `.claude/settings.json`.
-
-GitHub Actions is off while the repo is private (its free minutes ran out on 2026-10-29), so deploys run from this computer ([doc/plans/local-deploys.md](doc/plans/local-deploys.md)): the full `pnpm e2e` that CI ran now runs here, before any push that changes app code; after each push that isn't docs only, run `pnpm ship` (main's tip: typecheck and tests, then staging, the demo and the site, each with its live check). `pnpm promote` takes Promote's place and, like it, runs only when the founder asks. Before 4.3, also turn the CI and Promote workflows back on (`gh workflow enable CI`, `gh workflow enable "Promote to production"`).
-
 ## Skills
 
 The repo's skills live in `.claude/skills/`:
@@ -19,7 +13,7 @@ The repo's skills live in `.claude/skills/`:
 - `omark-time`: how to add Omark Time events, answer questions about hours from its CSV files, and draft a client report.
 - `omark-goals`: how to read and edit Omark Goals' `goals.md`, review drift against tasks, habits and hours, and word new areas and goals.
 
-`.claude/settings.json` wires up the hooks: the guard (`tools/claude-guard/guard.mjs`) that blocks pushes to `main` (except in fast mode, above), merges and Promote in this repository, and the cloud session-start hook in `.claude/hooks/` ([doc/factory.md](doc/factory.md)).
+`.claude/settings.json` wires up the hooks: the guard (`tools/claude-guard/guard.mjs`) that blocks pushes to `main`, merges and Promote in this repository, and the cloud session-start hook in `.claude/hooks/` ([doc/factory.md](doc/factory.md)).
 
 ## GitHub in cloud sessions
 

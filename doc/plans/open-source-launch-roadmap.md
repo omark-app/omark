@@ -17,7 +17,7 @@ Updated 2026-10-28 (AL, in the Omark Goals brainstorm):
 
 ## Order from 2026-10-28
 
-Work is serial in the coordinating session (fast mode until launch). AL's steps run alongside.
+Work was serial in the coordinating session (fast mode, until the repository went public on 2026-11-02). AL's steps run alongside.
 
 1. U.1 Google check, then U.3 the shell (absorbs 3.2's first run) and G.1 `goals-core` (pure, no clash).
 2. U.4 Time inside the shell, U.5 one Settings page.
@@ -149,7 +149,7 @@ Builds [the Omark Goals spec](../goals/spec.md). Launches with Tasks and Time.
 |---|---|---|---|
 | 4.1 | *Done 2026-10-30 ([plan](../history/105-seeded-issues.md)): #107–#122, 16 `ready` issues (3 Goals ones added), and the `app:goals` label.* Write the seeded issues (Tasks and Time) with acceptance criteria and labels | 6.9 | 2.5 |
 | 4.2 | AL: ask 5–10 developers to take one each | 6.9 | 4.1 |
-| 4.3 | *Prep done 2026-11-02: no branches but `main`; topics, description, homepage and Discussions (Ideas, Q&A) set; issue texts free of real task titles. Fork approval, private vulnerability reporting and branch protection can only be set once public.* AL: delete stale branches, set repository settings (branch protection, fork approval, Discussions, vulnerability reporting, topics, social preview), skim Actions logs, flip to public | 6.10 | everything above, including milestone T |
+| 4.3 | *Done 2026-11-02: public, with topics, description, homepage, Discussions (Ideas, Q&A), social preview, private vulnerability reporting, fork approval for all outside contributors, branch protection on `main` (PR plus `check` and both `e2e` jobs), CI and Promote back on; fast mode ended. Issue texts and their edit history are free of real task titles.* AL: delete stale branches, set repository settings (branch protection, fork approval, Discussions, vulnerability reporting, topics, social preview), skim Actions logs, flip to public | 6.10 | everything above, including milestone T |
 
 ## Milestone 5: launch
 

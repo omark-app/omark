@@ -1,6 +1,6 @@
 # Local deploys while GitHub Actions is off
 
-Date: 2026-10-30. Fast mode (CLAUDE.md), no issue.
+Date: 2026-10-30. Fast mode (CLAUDE.md), no issue. **Ended 2026-11-02:** the repository went public, CI and Promote are back on GitHub, and `pnpm ship` / `pnpm promote` stay only as a fallback.
 
 ## Why
 
