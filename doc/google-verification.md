@@ -5,14 +5,15 @@ screen when they turn Time on, and the 100-user cap goes away. Time spec 10.3; o
 
 ## Status
 
-**Submitted 2026-10-30. Google came back on 2026-11-02 with three asks; answering them.**
+**Submitted 2026-10-30. Google came back on 2026-11-02 with three asks; answered the same day with a new video.**
 
 - `omark.app` is verified in Google Search Console, owned by `hello@omark.app` (2026-10-26).
 - Branding verified and published (2026-10-30): name "Omark", the Omark logo (120 px, from
   `brand/png/omark-avatar-500.png`), homepage, privacy and terms links, `omark.app` as the authorised domain.
 - The privacy policy (`omark.app/privacy/`) carries Google's Limited Use statement.
 - The project is published (In production). One OAuth client, "Omark web" (`141879606503-…`).
-- Video: <https://youtu.be/XjJhFhpdWnk> (Unlisted).
+- Video: <https://youtu.be/jckDH93hW98> (Unlisted, 2026-11-02; it replaced <https://youtu.be/XjJhFhpdWnk>).
+- The Data Access page lists exactly the six scopes below (checked 2026-11-02).
 - Google counts only `calendar.events.owned` and `calendar.events.owned.readonly` as sensitive; the calendar list,
   `drive.file`, `openid` and `email` are not. None is restricted, so no security assessment (CASA).
 
