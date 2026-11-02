@@ -3,11 +3,16 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 const GUARD = fileURLToPath(new URL('../guard.mjs', import.meta.url));
 const BRANCH = 'issue-14-fix-thing';
 let repo = '';
+
+// The tests spawn the hook synchronously, ~170 of them back to back. Awaiting a sync test lets no other task run,
+// so without a turn of the event loop between tests the worker can't answer Vitest for over a minute and the run
+// ends with "Timeout calling onTaskUpdate" on a busy machine.
+beforeEach(() => new Promise<void>((resolve) => setImmediate(resolve)));
 
 beforeAll(() => {
   repo = mkdtempSync(join(tmpdir(), 'guard-'));

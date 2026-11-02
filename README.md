@@ -2,18 +2,18 @@
 
 Small tools that keep your work in plain files you own.
 
-Omark is a set of open source apps for people and their AI agents. **Omark Tasks** keeps your tasks in three Markdown files in your own OneDrive or Google Drive: one calm page with today, this week and later, quick add, repeating tasks and habits. The files stay editable in Obsidian, any text editor, or by an AI agent such as Claude Code. **Omark Time** (in progress) turns calendar events titled `CODE; Category; description` into hours per project, in CSV files you own. No Omark server ever stores your data.
+Omark is a set of open source apps whose files you, your editor and your own AI agent can all work with. **Omark Tasks** keeps your tasks in three Markdown files in your own OneDrive, Google Drive or folder: one calm page with today, this week and later, quick add, repeating tasks and habits. The files stay editable in Obsidian, any text editor, or by an AI agent such as Claude Code. **Omark Time** turns calendar events titled `CODE; Category; description` into hours per project, in CSV files you own. **Omark Goals** keeps your life areas and goals in `goals.md` and shows how your tasks and hours move them. Omark itself has no AI, and no Omark server ever stores your data.
 
 ![Omark Tasks: today, this week and later on one page, with important tasks on the right](apps/site/src/img/tasks-light.webp)
 
 ## Use it
 
 - **Try the demo:** https://demo.omark.app. One made-up person's tasks, hours and goals, no sign-in; edits stay in your browser.
-- **Use the hosted app** (coming soon at `app.omark.app`): sign in with Microsoft or Google, and your files live in one Omark folder in your OneDrive or Google Drive. The sign-in helper keeps nothing on the server ([SECURITY.md](SECURITY.md)).
-- **Use a local folder** (coming soon): in desktop Chrome or Edge, pick a folder and skip the account entirely. Sync it with whatever you already use.
+- **Use the hosted app** at https://app.omark.app: sign in with Microsoft or Google, and your files live in one Omark folder in your OneDrive or Google Drive. The sign-in helper keeps nothing on the server ([SECURITY.md](SECURITY.md)).
+- **Use a local folder:** in desktop Chrome or Edge, pick a folder and skip the account entirely. Sync it with whatever you already use.
 - **Host your own copy:** [doc/self-hosting.md](doc/self-hosting.md) has the environment variables, sign-in setup, deploys and Promote that this README used to hold.
 
-Each app installs like any other: on the iPhone, Safari → Share → Add to Home Screen; in Chrome or Edge, the install icon in the address bar. Both work offline. On the iPhone, sign in inside the home-screen app itself: it has its own cookies, separate from Safari.
+Omark installs like any other app: on the iPhone, Safari → Share → Add to Home Screen; in Chrome or Edge, the install icon in the address bar. It works offline. On the iPhone, sign in inside the home-screen app itself: it has its own cookies, separate from Safari.
 
 ## Quick start
 
@@ -26,7 +26,7 @@ pnpm i
 pnpm demo
 ```
 
-This opens Omark on http://localhost:5173 with a made-up person's tasks, hours and goals, and no sign-in. [CONTRIBUTING.md](CONTRIBUTING.md) has the tests and how to send a change.
+This serves Omark on http://localhost:5173 with a made-up person's tasks, hours and goals, and no sign-in. [CONTRIBUTING.md](CONTRIBUTING.md) has the tests and how to send a change.
 
 ## Your files
 
@@ -48,7 +48,7 @@ This opens Omark on http://localhost:5173 with a made-up person's tasks, hours a
 
 ## Omark Time: query your hours
 
-Omark Time (in progress) writes one CSV row per calendar event per day, so you can query your hours with anything that reads CSV. With [DuckDB](https://duckdb.org), from the `Omark Time` folder:
+Omark Time writes one CSV row per calendar event per day, so you can query your hours with anything that reads CSV. With [DuckDB](https://duckdb.org), from the `time` folder in your Omark folder:
 
 ```sql
 -- Hours per project and category in October, done time only
@@ -111,7 +111,7 @@ Omark is built mostly by AI agents, through GitHub issues and pull requests, in 
 | [SECURITY.md](SECURITY.md) | Reporting a problem; what the sign-in helper keeps |
 | [doc/format.md](doc/format.md) | The file formats |
 | [doc/self-hosting.md](doc/self-hosting.md) | Run your own copy |
-| [The Tasks spec](doc/tasks/spec.md), [the Omark Time spec](doc/time/spec.md) | What each app does, in detail |
+| [The Tasks spec](doc/tasks/spec.md), [the Omark Time spec](doc/time/spec.md), [the Omark Goals spec](doc/goals/spec.md) | What each app does, in detail |
 
 ## Licence
 

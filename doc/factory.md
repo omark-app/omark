@@ -117,7 +117,7 @@ The guard is best-effort: it reads the command line and can't see what a script 
 
 ## Claude Code and the cloud environment
 
-`.claude/` is the Claude Code adapter: the skills (`omark-factory`, `taskapp-files`, `omark-time`), the guard's hook and a session-start hook. Adapters for other agents are welcome contributions; they follow the same [AGENTS.md](../AGENTS.md).
+`.claude/` is the Claude Code adapter: the skills (`omark-factory`, `taskapp-files`, `omark-time`, `omark-goals`), the guard's hook and a session-start hook. Adapters for other agents are welcome contributions; they follow the same [AGENTS.md](../AGENTS.md).
 
 ### What a contributor's agent needs
 

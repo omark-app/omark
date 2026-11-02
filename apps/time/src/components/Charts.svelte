@@ -2,6 +2,7 @@
   import { weeklyByCategory, weeklyByProject } from '@omark/time-core';
   import type { DateRange } from '@omark/time-core';
   import type { TimeStore } from '../lib/store.svelte.ts';
+  import { chartsRange } from '../lib/views.ts';
   import RangePicker from './RangePicker.svelte';
   import WeekChart from './WeekChart.svelte';
 
@@ -19,7 +20,10 @@
 
 <section class="card">
   <h2>Charts</h2>
-  <RangePicker today={store.todayDate} weekStart={weekStart} initial="thisMonth" onchange={(r) => (range = r)} />
+  <!-- Charts can mount before the first sync (a reload on Charts): pick the range again once rows arrive. -->
+  {#key store.allRows.length > 0}
+    <RangePicker today={store.todayDate} weekStart={weekStart} initial={chartsRange(store.allRows, store.todayDate, weekStart, store.nowMs())} onchange={(r) => (range = r)} />
+  {/key}
   <label class="planned"><input type="checkbox" bind:checked={planned} /> Include planned time</label>
 </section>
 

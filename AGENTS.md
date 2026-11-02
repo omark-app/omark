@@ -1,6 +1,6 @@
 # Omark: instructions for AI agents
 
-Omark is a small suite of open source apps that keep your data in plain files you own. **Omark Tasks** is a PWA that keeps tasks in three Markdown files in the user's OneDrive or Google Drive (a local folder is coming). **Omark Time** (in progress) turns Google Calendar events titled `CODE; Category; description` into hours in CSV files. Both are built from this one repository, mostly by AI agents working through GitHub issues and pull requests.
+Omark is a small suite of open source apps that keep your data in plain files you own, served as one PWA (`apps/omark`) with a tab per app. **Omark Tasks** keeps tasks in three Markdown files in the user's OneDrive, Google Drive or a folder on their device. **Omark Time** turns Google Calendar events titled `CODE; Category; description` into hours in CSV files. **Omark Goals** keeps life areas and goals in `goals.md`, next to the tasks and hours. All are built from this one repository, mostly by AI agents working through GitHub issues and pull requests.
 
 This file is for any coding agent (Claude Code, Codex, Cursor and others), working for a maintainer or for a contributor. Claude Code reads it through `CLAUDE.md`. Maintainers are the accounts with the Maintain or Admin role on the repository ([GOVERNANCE.md](GOVERNANCE.md)); everyone else is a contributor.
 
@@ -14,9 +14,9 @@ This file is for any coding agent (Claude Code, Codex, Cursor and others), worki
 | Time | Read or write event titles, `events-*.csv`, `projects.csv` | [doc/format.md](doc/format.md#omark-time), and the `omark-time` skill |
 | Goals | Anything in Omark Goals | [the Omark Goals spec](doc/goals/spec.md) |
 | Goals | Read or write `goals.md` | [doc/format.md](doc/format.md#omark-goals), and the `omark-goals` skill |
-| Both | Storage, sync, sign-in, packages | [doc/architecture.md](doc/architecture.md) |
-| Both | Deploys, secrets, Promote | [doc/self-hosting.md](doc/self-hosting.md) |
-| Both | Issues, plans, PRs, labels | [doc/factory.md](doc/factory.md) and the `omark-factory` skill |
+| All | Storage, sync, sign-in, packages | [doc/architecture.md](doc/architecture.md) |
+| All | Deploys, secrets, Promote | [doc/self-hosting.md](doc/self-hosting.md) |
+| All | Issues, plans, PRs, labels | [doc/factory.md](doc/factory.md) and the `omark-factory` skill |
 | Suite | The launch and its order of work | [the launch spec](doc/TaskApp%20open%20source%20launch%20spec.md), [the roadmap](doc/plans/open-source-launch-roadmap.md) |
 | Suite | Whether an idea fits | [PHILOSOPHY.md](PHILOSOPHY.md) |
 
@@ -27,11 +27,12 @@ Cut ideas go to [the backlog](doc/TaskApp%20backlog.md).
 - `packages/tasks-core`: parsing and logic, pure (no DOM, network or storage).
 - `packages/time-core`: Omark Time's logic, pure (no DOM, network or storage).
 - `packages/goals-core`: Omark Goals' logic, pure (no DOM, network or storage).
-- `packages/calendar`: calendar sources for Omark Time (the fake, later Google).
-- `packages/storage`: OneDrive, Google Drive, the offline cache, sync.
-- `packages/settings`: the schema-driven Settings page both apps share.
+- `packages/calendar`: calendar sources for Omark Time: Google Calendar and the fake.
+- `packages/storage`: OneDrive, Google Drive, a local folder, the offline cache, sync.
+- `packages/settings`: the schema-driven Settings page the apps share.
 - `packages/signin` + `functions/`: the sign-in helper (`/api/auth/*`, Cloudflare Pages Functions).
-- `apps/tasks`: the Svelte 5 app and its Playwright e2e (`desktop` = Chrome, `iphone` = WebKit).
+- `apps/omark`: the one app (Svelte 5): the shell, sign-in, Settings and the Goals tab; it builds what app.omark.app and the demo serve.
+- `apps/tasks`, `apps/time`: the Tasks and Time parts the one app shows, each also with its own standalone build and Playwright e2e (`desktop` = Chrome, `iphone` = WebKit).
 - `apps/site`: the omark.app landing page, privacy policy and terms; static, deploys from main (`apps/site/README.md`).
 - `brand/`: the Omark icon family and its sources.
 - `tools/`: Todoist import, the Claude guard hook, CI helper scripts.
@@ -43,14 +44,14 @@ Cut ideas go to [the backlog](doc/TaskApp%20backlog.md).
 |---|---|
 | `pnpm typecheck` | all packages |
 | `pnpm test` | all Vitest projects |
-| `pnpm e2e` | fake-drive build + Playwright, both projects |
-| `pnpm --filter tasks build` | the production build |
+| `pnpm e2e` | fake-drive builds + Playwright, every app, both projects |
+| `pnpm --filter omark build` | the production build |
 
-Run one app's e2e spec with `pnpm --filter tasks e2e <spec>`.
+Run one e2e spec with `pnpm --filter <app> e2e <spec>`, where `<app>` is `omark`, `tasks`, `time` or `site`.
 
 ## How work flows
 
-Follow the `omark-factory` skill: pick up, size (`size:small` / `size:large`), plan large work and wait for a maintainer's approval, implement test-first, open the PR, hand over. For the file formats use the `taskapp-files` and `omark-time` skills.
+Follow the `omark-factory` skill: pick up, size (`size:small` / `size:large`), plan large work and wait for a maintainer's approval, implement test-first, open the PR, hand over. For the file formats use the `taskapp-files`, `omark-time` and `omark-goals` skills.
 
 In brief:
 
@@ -98,7 +99,7 @@ These make an issue `size:large`: write a plan and wait for a maintainer's appro
 - [ ] The PR follows the template, closes the issue and, for a branch in this repository, has the preview link.
 - [ ] A fresh-eyes review subagent (no memory of writing it) checked the diff against the issue or plan, and its findings are fixed.
 - [ ] Large work: every acceptance criterion in the plan is met or explicitly moved out.
-- [ ] Docs for changed behaviour are updated (README, the app's spec in `doc/tasks/` or `doc/time/`, and `doc/format.md` and the skills when formats change).
+- [ ] Docs for changed behaviour are updated (README, the app's spec in `doc/tasks/`, `doc/time/` or `doc/goals/`, and `doc/format.md` and the skills when formats change).
 
 When main moves and the PR conflicts, merge main in (never rebase pushed work). For `pnpm-lock.yaml`, take main's copy and run `pnpm install`.
 

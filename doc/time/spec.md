@@ -265,7 +265,7 @@ The same design language as Omark Tasks: one calm page per view, the shared desi
   - hours per project with categories under each, done and planned shown apart;
   - totals;
   - a status line with the last sync, "Sync now" and the fix count.
-- **Charts**: hours per week per project, and per category for one project, over a chosen range. They are drawn in the app with no third-party requests. *(The chart library or hand-drawn SVG is the builder's call.)*
+- **Charts**: hours per week per project, and per category for one project, over a chosen range. They open on this month, or on last month while nothing this month has ended yet. They are drawn in the app with no third-party requests. *(The chart library or hand-drawn SVG is the builder's call.)*
 - **Fix list**: red events and overlapping days. Each line has the date, the title and actions: "Add CODE as a project" (opens the project form filled in) and "Open in Google Calendar".
 - **Projects**:
   - a list with add, edit, archive and delete;

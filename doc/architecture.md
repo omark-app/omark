@@ -11,12 +11,14 @@ TypeScript, pnpm workspaces, one repository for the whole suite.
 | `packages/tasks-core` | Omark Tasks' logic, pure: parse and write `tasks.md`, `done.md`, `config.yaml`; buckets, recurrence, habits, stats, search, quick add; the three-way merge |
 | `packages/time-core` | Omark Time's logic, pure: the title parser, events to rows, hours, colours, CSV files, projects, summaries, charts, reports; the `CalendarSource` interface |
 | `packages/goals-core` | Omark Goals' logic, pure: `goals.md` read, write and edits (byte for byte), area tags, links and last activity per area, goal status chips |
-| `packages/calendar` | Calendar sources for Omark Time: a fake calendar, its demo seed and the shared contract test (Google comes next) |
-| `packages/storage` | Shared by both apps: the `StorageAdapter` interface, the OneDrive and Google Drive adapters, in-memory and IndexedDB fakes, the offline cache, file sync and the sign-in client |
-| `packages/settings` | The schema-driven Settings page and the `config.yaml` reader and writer both apps use ([its README](../packages/settings/README.md)) |
+| `packages/calendar` | Calendar sources for Omark Time: Google Calendar, a fake calendar, its demo seed and the shared contract test |
+| `packages/storage` | Shared by the apps: the `StorageAdapter` interface, the OneDrive, Google Drive and local folder adapters, in-memory and IndexedDB fakes, the offline cache, file sync and the sign-in client |
+| `packages/settings` | The schema-driven Settings page and the `config.yaml` reader and writer the apps use ([its README](../packages/settings/README.md)) |
 | `packages/signin` | The sign-in helper, with a Microsoft and a Google provider |
 | `functions/` | The Cloudflare Pages Function that serves the sign-in helper at `/api/auth/*` |
-| `apps/tasks` | The Omark Tasks PWA: Svelte 5 and Vite, its service worker, and its Playwright e2e |
+| `apps/omark` | The one app: the shell, sign-in, Settings, the Goals tab, the demo world and the service worker; what app.omark.app and demo.omark.app serve |
+| `apps/tasks` | Omark Tasks: the part the one app shows, its standalone build, and its Playwright e2e (Svelte 5 and Vite) |
+| `apps/time` | Omark Time: the part the one app shows, its standalone build, and its Playwright e2e |
 | `apps/site` | The omark.app landing page, privacy policy and terms; static ([its README](../apps/site/README.md)) |
 | `brand/` | The icon family and its sources ([its README](../brand/README.md)) |
 | `tools/` | The Todoist import, the agent guard hook, CI helper scripts |

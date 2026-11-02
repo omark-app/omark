@@ -1,5 +1,5 @@
-import { isRealDate, keyOf, localDate, parseInstant } from '@omark/time-core';
-import type { CalendarEvent, DateRange, Project } from '@omark/time-core';
+import { isRealDate, keyOf, localDate, namedRange, parseInstant, weeklyByProject } from '@omark/time-core';
+import type { CalendarEvent, DateRange, EventRow, Project, WeekStart } from '@omark/time-core';
 
 export type View = 'hours' | 'charts' | 'fix' | 'projects' | 'report' | 'calendar' | 'settings';
 
@@ -30,6 +30,15 @@ export function eventOnDay(e: CalendarEvent, day: string, timeZone: string): boo
 export function viewOf(hash: string): View {
   const id = /^#\/?(\w+)$/.exec(hash)?.[1];
   return VIEWS.find((v) => v.id === id)?.id ?? 'hours';
+}
+
+/**
+ * The range Charts opens on: this month, unless nothing in it has ended yet (the first days of a month) and last
+ * month has hours, so the page doesn't open empty.
+ */
+export function chartsRange(rows: EventRow[], today: string, weekStart: WeekStart, nowMs: number): 'thisMonth' | 'lastMonth' {
+  const has = (name: 'thisMonth' | 'lastMonth') => weeklyByProject(rows, namedRange(name, today, weekStart), weekStart, nowMs).series.length > 0;
+  return !has('thisMonth') && has('lastMonth') ? 'lastMonth' : 'thisMonth';
 }
 
 /** A range the user typed: two real dates, the first not after the second; else what is wrong. */

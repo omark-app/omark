@@ -4,7 +4,9 @@ Thanks for wanting to help. Omark is built mostly by AI agents working through i
 
 ## Set up
 
-You need Node 22 or newer and pnpm 10.
+You need Node 22 or newer (`.nvmrc` has the version CI uses) and pnpm 10. `pnpm i` may say it ignored the build scripts of esbuild and workerd: that is expected.
+
+Fork the repository on GitHub, then:
 
 ```
 git clone https://github.com/<you>/omark.git
@@ -13,7 +15,7 @@ pnpm i
 pnpm demo
 ```
 
-`pnpm demo` opens Omark on http://localhost:5173 with a made-up person's tasks, hours and goals, and no sign-in. Edits stay in your browser; "Reset demo" in the footer starts over.
+`pnpm demo` serves Omark on http://localhost:5173 with a made-up person's tasks, hours and goals, and no sign-in. Edits stay in your browser; "Reset demo" in the footer starts over.
 
 The checks every change must pass:
 
@@ -21,8 +23,8 @@ The checks every change must pass:
 |---|---|
 | `pnpm typecheck` | type checks, all packages |
 | `pnpm test` | unit tests (Vitest) |
-| `pnpm e2e` | browser tests on a fake drive (Playwright: desktop Chrome and iPhone WebKit) |
-| `pnpm --filter tasks build` | the production build |
+| `pnpm e2e` | browser tests of every app on a fake drive (Playwright: desktop Chrome and iPhone WebKit) |
+| `pnpm --filter omark build` | the production build |
 
 Run `pnpm --filter tasks exec playwright install chromium webkit` once before the first `pnpm e2e`.
 

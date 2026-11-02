@@ -185,6 +185,16 @@ test("Time's charts colour each project, not black", async ({ page }) => {
   expect(fills.filter((f) => f === 'rgb(0, 0, 0)')).toEqual([]);
 });
 
+// Charts mounts before the first sync when it is reloaded; it still opens on a range with hours, early in a month too.
+test("Time's charts show hours after a reload on Charts", async ({ page }) => {
+  await open(page, '/time');
+  await synced(page);
+  await time(page).getByRole('navigation', { name: 'Views' }).getByRole('link', { name: 'Charts' }).click();
+  await page.reload();
+  await synced(page);
+  await expect(time(page).getByTestId('chart-projects').locator('svg rect').first()).toBeVisible();
+});
+
 test('only the demo build has the demo world and its pictures', async () => {
   test.skip(test.info().project.name !== 'desktop', 'a check of the build folders: once is enough');
   const files = (dir: string): string[] =>

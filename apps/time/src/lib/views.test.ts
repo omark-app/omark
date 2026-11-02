@@ -1,7 +1,8 @@
 import { expect, test } from 'vitest';
 import { keyOf } from '@omark/time-core';
 import type { CalendarEvent } from '@omark/calendar';
-import { customRange, eventLink, eventOnDay, newProject, reportFileName, TASKS_SETTINGS_URL, viewOf, VIEWS } from './views.ts';
+import type { EventRow } from '@omark/time-core';
+import { chartsRange, customRange, eventLink, eventOnDay, newProject, reportFileName, TASKS_SETTINGS_URL, viewOf, VIEWS } from './views.ts';
 
 test('the hash picks the view; anything else is hours', () => {
   expect(viewOf('#/charts')).toBe('charts');
@@ -56,4 +57,18 @@ test('a new project starts with the code given, upper case, and nothing else', (
 
 test('the standalone app links to the one Omark app’s Settings, which has Tasks’', () => {
   expect(TASKS_SETTINGS_URL).toBe('https://app.omark.app/settings');
+});
+
+test('Charts opens on this month, or on last month while nothing this month has ended yet', () => {
+  const row = (start: string, end: string): EventRow =>
+    ({ date: start.slice(0, 10), start, end, hours: 1, project: 'ACME', category: '', description: '', allDay: false, known: true, calendar: 'c', eventId: 'e', extra: {} });
+  const october = row('2026-10-30T09:00+00:00', '2026-10-30T10:00+00:00');
+  const later = row('2026-11-02T09:00+00:00', '2026-11-02T10:00+00:00');
+  // 2 November, 08:00: this month's only event hasn't ended, so the month would show no tracked time.
+  expect(chartsRange([october, later], '2026-11-02', 'monday', Date.parse('2026-11-02T08:00:00Z'))).toBe('lastMonth');
+  // Once it has ended, this month has something to show.
+  expect(chartsRange([october, later], '2026-11-02', 'monday', Date.parse('2026-11-02T11:00:00Z'))).toBe('thisMonth');
+  // Mid-month as usual, and a new user with no rows at all.
+  expect(chartsRange([row('2026-11-10T09:00+00:00', '2026-11-10T10:00+00:00')], '2026-11-16', 'monday', Date.parse('2026-11-16T08:00:00Z'))).toBe('thisMonth');
+  expect(chartsRange([], '2026-11-02', 'monday', Date.parse('2026-11-02T08:00:00Z'))).toBe('thisMonth');
 });
