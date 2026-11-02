@@ -120,7 +120,7 @@ test('privacy says no data on our servers and one sign-in cookie', async ({ page
 });
 
 test('privacy and terms show a date', async ({ page }) => {
-  for (const [path, date] of [['/privacy/', '2026-11-02'], ['/terms/', '2026-10-26']] as const) {
+  for (const [path, date] of [['/privacy/', '2026-11-02'], ['/terms/', '2026-11-02']] as const) {
     await page.goto(path);
     await expect(page.locator('time[datetime]'), path).toHaveCount(1);
     await expect(page.locator('time[datetime]')).toHaveAttribute('datetime', date);

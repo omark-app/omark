@@ -215,8 +215,7 @@ code {
 .principles li { padding-left: 18px; border-left: 2px solid var(--line); color: var(--muted); }
 .principles strong { display: block; color: var(--ink); font-weight: 600; }
 
-.later { list-style: none; margin: 20px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px 28px; }
-.later .coming { margin-left: 6px; font-size: .875rem; color: var(--muted); }
+.links { list-style: none; margin: 20px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px 28px; }
 
 /* Footer, the same on every page. */
 .site-footer { border-top: 1px solid var(--line); margin-top: 24px; }
