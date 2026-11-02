@@ -16,6 +16,8 @@
     "deny": [
       "Bash(git push --force:*)",
       "Bash(git push -f:*)",
+      "Bash(git push origin main:*)",
+      "Bash(git push origin HEAD:main:*)",
       "Bash(gh pr merge:*)",
       "Bash(gh workflow run promote:*)",
       "mcp__github__merge_pull_request",
