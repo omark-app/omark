@@ -42,6 +42,6 @@ describe('quickXorHash', () => {
 
   it('differs for a one-character date change, which keeps the size', () => {
     const enc = new TextEncoder();
-    expect(quickXorHash(enc.encode('- [ ] leki 📅 2026-10-18\n'))).not.toBe(quickXorHash(enc.encode('- [ ] leki 📅 2026-10-20\n')));
+    expect(quickXorHash(enc.encode('- [ ] back up laptop 📅 2026-10-18\n'))).not.toBe(quickXorHash(enc.encode('- [ ] back up laptop 📅 2026-10-20\n')));
   });
 });

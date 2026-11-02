@@ -20,7 +20,7 @@ Issue: [#79](https://github.com/omark-app/omark/issues/79). Size: large (the par
 - [ ] A guard test fails if a regex literal in `packages/tasks-core/src` holds an emoji.
 - [ ] Completing a task whose line has 🔁 text but no readable rule appends its done line and keeps the task, unchanged, with a toast that says so. One-off tasks without 🔁 text still leave tasks.md.
 - [ ] Existing parser, merge, store and e2e tests pass unchanged.
-- [ ] leki and b1 ksiazka are put back in AL's tasks.md after he promotes the fix.
+- [ ] The two repeating tasks the bug deleted are put back in the maintainer's tasks.md after the fix is promoted.
 
 ## Tests I'll write first
 

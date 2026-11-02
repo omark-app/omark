@@ -333,10 +333,10 @@ test('field spacing variants and an unparseable date', () => {
 });
 
 test('an emoji presentation selector after a field emoji, or NBSP in a rule, changes nothing', () => {
-  const text = '# Tasks\n- [ ] leki 🔁\uFE0F every\u00A02 days 📅\uFE0F 2026-10-18\n- [x] dep 🔁\uFE0F every week on Sunday ✅\uFE0F 2026-10-18\n';
+  const text = '# Tasks\n- [ ] back up laptop 🔁\uFE0F every\u00A02 days 📅\uFE0F 2026-10-18\n- [x] dep 🔁\uFE0F every week on Sunday ✅\uFE0F 2026-10-18\n';
   const doc = parseTasks(text);
-  const [leki] = tasksOf(doc);
-  expect(leki).toMatchObject({ title: 'leki', repeat: { type: 'every', n: 2, unit: 'days' }, date: '2026-10-18' });
+  const [backup] = tasksOf(doc);
+  expect(backup).toMatchObject({ title: 'back up laptop', repeat: { type: 'every', n: 2, unit: 'days' }, date: '2026-10-18' });
   expect(doc.items[1]).toMatchObject({ kind: 'done', entry: { title: 'dep', repeat: { type: 'weekly', days: [6] }, doneOn: '2026-10-18' } });
   expect(serializeTasks(doc)).toBe(text);
 });
@@ -527,17 +527,17 @@ test('rules and dates read the same where the engine misses emoji alternation wi
   };
   try {
     const doc = parseTasks(
-      '# Tasks\n- [ ] leki 🔁 every 2 days 📅 2026-10-29\n- [ ] dep 🔁 every week on Sunday 📅 2026-11-01\n' +
+      '# Tasks\n- [ ] back up laptop 🔁 every 2 days 📅 2026-10-29\n- [ ] dep 🔁 every week on Sunday 📅 2026-11-01\n' +
         '- [ ] call 🔁 every month on the 7th #home 📅 2026-11-07\n- [x] b1 🔁 every day ✅ 2026-10-24\n',
     );
-    const [leki, dep, call] = tasksOf(doc);
-    expect(leki).toMatchObject({ title: 'leki', repeat: { type: 'every', n: 2, unit: 'days' }, date: '2026-10-29' });
+    const [backup, dep, call] = tasksOf(doc);
+    expect(backup).toMatchObject({ title: 'back up laptop', repeat: { type: 'every', n: 2, unit: 'days' }, date: '2026-10-29' });
     expect(dep).toMatchObject({ title: 'dep', repeat: { type: 'weekly', days: [6] }, date: '2026-11-01' });
     expect(call).toMatchObject({ title: 'call #home', repeat: { type: 'monthly', day: 7 }, date: '2026-11-07' });
     expect(doc.items[3]).toMatchObject({ kind: 'done', entry: { title: 'b1', repeat: { type: 'daily' }, doneOn: '2026-10-24' } });
     // The add box's word highlighting stops the rule at the same place.
-    const typed = 'leki 🔁 every 2 days ✅ x';
-    expect(ruleSpans(typed)).toEqual([[5, typed.indexOf('✅')]]);
+    const typed = 'back up laptop 🔁 every 2 days ✅ x';
+    expect(ruleSpans(typed)).toEqual([[typed.indexOf('🔁'), typed.indexOf('✅')]]);
   } finally {
     RegExp.prototype.exec = exec;
   }

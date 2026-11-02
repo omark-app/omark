@@ -402,7 +402,7 @@ No code. This is the `needs-human` list for the PR. It is done **before** the me
 
 - [ ] **Step 3: Check the PR.** The preview link comment appears, and the preview shows sample tasks with the PREVIEW label.
 
-- [ ] **Step 4: Fork test** (Review Focus 5). Needs milestone 0's org with private forking allowed. From AL's second GitHub account (`alipka-selsey`), fork the repo and open a PR with a one-line README change. Expected: `check` and `e2e` green, `preview` skipped, no red step.
+- [ ] **Step 4: Fork test** (Review Focus 5). Needs milestone 0's org with private forking allowed. From AL's second GitHub account, fork the repo and open a PR with a one-line README change. Expected: `check` and `e2e` green, `preview` skipped, no red step.
 
 - [ ] **Step 5: AL merges.**
   - `deploy-staging` runs.

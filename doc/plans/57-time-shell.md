@@ -37,10 +37,10 @@ Done by Claude (2026-10-27): the Pages project `omark-time-staging` with the cus
 
 AL does (Claude's session may not change DNS or Pages secrets):
 - the DNS record: `CNAME staging-time` → `omark-time-staging.pages.dev`, proxied, in the omark.app zone;
-- the Pages secrets of `omark-time-staging`: `OMARK_APP=time`, `COOKIE_KEY` (32 random bytes, base64), and `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` from `C:\Users\alipk\.secrets\omark-time-staging-google-client.json`.
+- the Pages secrets of `omark-time-staging`: `OMARK_APP=time`, `COOKIE_KEY` (32 random bytes, base64), and `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` from `~\.secrets\omark-time-staging-google-client.json`.
 
 Only for Task 8 (OneDrive):
-- the Entra registration "Omark Time Staging": personal Microsoft accounts, Web redirect URI `https://staging-time.omark.app/api/auth/callback`, `Files.ReadWrite.AppFolder`, and a client secret saved to `C:\Users\alipk\.secrets\omark-time-staging-entra.txt`. Claude puts it into the Pages secrets.
+- the Entra registration "Omark Time Staging": personal Microsoft accounts, Web redirect URI `https://staging-time.omark.app/api/auth/callback`, `Files.ReadWrite.AppFolder`, and a client secret saved to `~\.secrets\omark-time-staging-entra.txt`. Claude puts it into the Pages secrets.
 
 ## Acceptance criteria
 

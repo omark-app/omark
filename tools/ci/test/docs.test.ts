@@ -143,7 +143,7 @@ describe('docs set', () => {
       return moved.filter((m) => text.includes(m)).map((m) => `${f}: ${m}`);
     });
     expect(stale).toEqual([]);
-  });
+  }, 60_000); // It reads every code file: seconds on a busy machine.
 
   test('the workflows name no person', () => {
     for (const f of codeFiles.filter((f) => f.startsWith('.github/workflows/'))) expect(read(f), f).not.toMatch(/\bAL\b/);

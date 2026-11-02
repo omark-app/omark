@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 // Launch spec 6.1: after the cutover nothing outside doc/history/ names the founder's own deployment: his
 // domain, folder, GitHub login or Entra tenant and app ids. The pattern is built from pieces so this file
 // doesn't match itself.
-const OWNER = new RegExp(['ali' + 'pka', 'A' + 'LAI', '47bed' + '4a7', 'fabcb' + '19d', '00596' + 'fbc'].join('|'), 'i');
+const OWNER = new RegExp(['ali' + 'pk', 'sel' + 'sey', 'A' + 'LAI', '47bed' + '4a7', 'fabcb' + '19d', '00596' + 'fbc'].join('|'), 'i');
 /** Kept on purpose: the maintainer's login decides who reviews (GOVERNANCE.md), until a team takes it over. */
 const ALLOWED = new Set(['.github/CODEOWNERS']);
 const BINARY = /\.(png|jpe?g|gif|ico|webp|woff2?|ttf|otf|pdf|mp4|zip)$/i;
@@ -27,5 +27,5 @@ describe('owner values', () => {
         .flatMap((line, i) => (OWNER.test(line) ? [`${f}:${i + 1}`] : [])),
     );
     expect(hits).toEqual([]);
-  });
+  }, 60_000); // It reads every tracked file: seconds on a busy machine.
 });

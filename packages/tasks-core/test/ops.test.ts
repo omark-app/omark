@@ -60,8 +60,8 @@ describe('addTask', () => {
     expect(findTask(r.state, r.id)?.date).toBeNull();
   });
   test('a 🔁 rule typed in the title becomes the repeat, as the file reads it (issue #8)', () => {
-    const r = pure((s) => addTask(s, 'leki 🔁 every 2 days', 'today', fri))!;
-    expect(findTask(r.state, r.id)).toMatchObject({ title: 'leki', date: TODAY, repeat: { type: 'every', n: 2, unit: 'days' } });
+    const r = pure((s) => addTask(s, 'back up laptop 🔁 every 2 days', 'today', fri))!;
+    expect(findTask(r.state, r.id)).toMatchObject({ title: 'back up laptop', date: TODAY, repeat: { type: 'every', n: 2, unit: 'days' } });
     readsBack(r.state);
   });
   test('a typed 📅 date wins over the bucket; text the file does not read as a field stays in the title', () => {
@@ -160,8 +160,8 @@ describe('completeTask', () => {
       doc: {
         preamble: [],
         items: [
-          { kind: 'task', task: drifted('a', 'leki 🔁 every 2 days') },
-          { kind: 'task', task: drifted('b', 'depresja 🔁 every week on Sunday') },
+          { kind: 'task', task: drifted('a', 'back up laptop 🔁 every 2 days') },
+          { kind: 'task', task: drifted('b', 'weekly review 🔁 every week on Sunday') },
         ],
       },
       done: parseDone(''),
@@ -172,11 +172,11 @@ describe('completeTask', () => {
     const r2 = completeTask(r1.state, 'b', sun);
     expect(r2.next).toBe('2026-10-25');
     expect(serializeTasks(r2.state.doc)).toBe(
-      '# Tasks\n- [ ] leki 🔁 every 2 days 📅 2026-10-20\n    - note\n' +
-        '- [ ] depresja 🔁 every week on Sunday 📅 2026-10-25\n    - note\n',
+      '# Tasks\n- [ ] back up laptop 🔁 every 2 days 📅 2026-10-20\n    - note\n' +
+        '- [ ] weekly review 🔁 every week on Sunday 📅 2026-10-25\n    - note\n',
     );
     expect(serializeDone(r2.state.done)).toBe(
-      '- [x] leki 🔁 every 2 days ✅ 2026-10-18\n    - note\n- [x] depresja 🔁 every week on Sunday ✅ 2026-10-18\n    - note\n',
+      '- [x] back up laptop 🔁 every 2 days ✅ 2026-10-18\n    - note\n- [x] weekly review 🔁 every week on Sunday ✅ 2026-10-18\n    - note\n',
     );
     readsBack(r2.state);
   });

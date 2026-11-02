@@ -349,12 +349,12 @@ test('a hunk where each side changed blocks in place keeps their order (#7)', ()
 test('a repeating task completed on two devices, one of them stale, comes out once (#7)', () => {
   const H = md(...ALWAYS, '- [ ] A 📅 2026-10-18');
   const T = md('- [ ] B 📅 2026-10-19');
-  const X = md('- [ ] leki 🔁 every 2 days 📅 2026-10-18');
+  const X = md('- [ ] back up laptop 🔁 every 2 days 📅 2026-10-18');
   const X2 = X.replace('10-18', '10-20');
   const Y = md('- [ ] dep 🔁 every week on Sunday 📅 2026-10-18');
   const Y2 = Y.replace('10-18', '10-25');
   const base = H + X + Y + T;
-  const ph1 = H + X2 + Y + T; // the phone completed leki and wrote it
+  const ph1 = H + X2 + Y + T; // the phone completed back up laptop and wrote it
   const pcMerged = mergeTasksText(base, H + X + Y2 + T, ph1); // the stale PC completed dep: its 412 retry
   expect(pcMerged).toBe(H + X2 + Y2 + T);
   const ph = H + X2 + Y2 + T; // the phone completed dep too, on top of ph1
@@ -365,13 +365,13 @@ test('a repeating task completed on two devices, one of them stale, comes out on
 
 test('mergeDoneText: the same completion added on both sides in different places is kept once (#7)', () => {
   const dep = '- [x] dep 🔁 every week on Sunday ✅ 2026-10-18';
-  const leki = '- [x] leki 🔁 every 2 days ✅ 2026-10-18';
-  const base = DONE_BASE + md(leki);
-  const local = DONE_BASE + md(leki, dep);
-  const remote = DONE_BASE + md(dep, leki);
+  const backup = '- [x] back up laptop 🔁 every 2 days ✅ 2026-10-18';
+  const base = DONE_BASE + md(backup);
+  const local = DONE_BASE + md(backup, dep);
+  const remote = DONE_BASE + md(dep, backup);
   for (const out of [mergeDoneText(base, local, remote), mergeDoneText(base, remote, local)]) {
     expect(out.match(/dep/g)).toHaveLength(1);
-    expect(out.match(/leki/g)).toHaveLength(1);
+    expect(out.match(/back up laptop/g)).toHaveLength(1);
   }
 });
 

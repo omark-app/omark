@@ -136,20 +136,20 @@ describe('app store', () => {
   it('a title typed or edited with 🔁 text repeats, and completing it reschedules instead of deleting (issue #8)', async () => {
     now = new Date(2026, 9, 18, 9, 0); // Sunday
     const { drive, store, synced } = await setup();
-    store.add('leki 🔁 every 2 days');
-    store.edit(idOf(store, 'Send the invoice'), { title: 'depresja 🔁 every week on Sunday', notes: [] });
+    store.add('back up laptop 🔁 every 2 days');
+    store.edit(idOf(store, 'Send the invoice'), { title: 'weekly review 🔁 every week on Sunday', notes: [] });
     await synced();
-    expect(drive.peek('tasks.md')).toContain('- [ ] leki 🔁 every 2 days 📅 2026-10-18\n');
-    expect(drive.peek('tasks.md')).toContain('- [ ] depresja 🔁 every week on Sunday 📅 2026-10-17\n');
-    store.complete(idOf(store, 'leki'));
+    expect(drive.peek('tasks.md')).toContain('- [ ] back up laptop 🔁 every 2 days 📅 2026-10-18\n');
+    expect(drive.peek('tasks.md')).toContain('- [ ] weekly review 🔁 every week on Sunday 📅 2026-10-17\n');
+    store.complete(idOf(store, 'back up laptop'));
     expect(store.toast?.message).toBe('Done · next Tue 20 Oct');
-    store.complete(idOf(store, 'depresja'));
+    store.complete(idOf(store, 'weekly review'));
     expect(store.toast?.message).toBe('Done · next Sun 25 Oct');
     await synced();
-    expect(drive.peek('tasks.md')).toContain('- [ ] leki 🔁 every 2 days 📅 2026-10-20\n');
-    expect(drive.peek('tasks.md')).toContain('- [ ] depresja 🔁 every week on Sunday 📅 2026-10-25\n');
+    expect(drive.peek('tasks.md')).toContain('- [ ] back up laptop 🔁 every 2 days 📅 2026-10-20\n');
+    expect(drive.peek('tasks.md')).toContain('- [ ] weekly review 🔁 every week on Sunday 📅 2026-10-25\n');
     expect(drive.peek('done.md')).toBe(
-      '- [x] leki 🔁 every 2 days ✅ 2026-10-18\n- [x] depresja 🔁 every week on Sunday ✅ 2026-10-18\n',
+      '- [x] back up laptop 🔁 every 2 days ✅ 2026-10-18\n- [x] weekly review 🔁 every week on Sunday ✅ 2026-10-18\n',
     );
   });
 
@@ -896,7 +896,7 @@ ${['A', 'B', 'C', 'D'].map((t) => `- [ ] Tom ${t} 📅 2026-10-17`).join('\n')}
   describe('two devices on one drive', () => {
     const TWO = `# Tasks
 - [ ] A 📅 2026-10-18
-- [ ] leki 🔁 every 2 days 📅 2026-10-18
+- [ ] back up laptop 🔁 every 2 days 📅 2026-10-18
 - [ ] dep 🔁 every week on Sunday 📅 2026-10-18
 - [ ] B 📅 2026-10-19
 `;
@@ -921,22 +921,22 @@ ${['A', 'B', 'C', 'D'].map((t) => `- [ ] Tom ${t} 📅 2026-10-17`).join('\n')}
 
     it("a save that merges another device's change shows it at once, with no refresh (#6)", async () => {
       const { drive, pc, phone } = await devices();
-      phone.store.complete(idOf(phone.store, 'leki'));
+      phone.store.complete(idOf(phone.store, 'back up laptop'));
       await upload(phone);
-      expect(drive.peek('tasks.md')).toContain('leki 🔁 every 2 days 📅 2026-10-20');
+      expect(drive.peek('tasks.md')).toContain('back up laptop 🔁 every 2 days 📅 2026-10-20');
 
       pc.store.complete(idOf(pc.store, 'A'));
       await upload(pc); // its write meets the phone's change (412), merges and writes again
-      expect(drive.peek('tasks.md')).toContain('leki 🔁 every 2 days 📅 2026-10-20');
-      await vi.waitFor(() => expect(titles(pc.store, 'next')).toContain('leki'));
-      expect(titles(pc.store, 'today')).not.toContain('leki');
+      expect(drive.peek('tasks.md')).toContain('back up laptop 🔁 every 2 days 📅 2026-10-20');
+      await vi.waitFor(() => expect(titles(pc.store, 'next')).toContain('back up laptop'));
+      expect(titles(pc.store, 'today')).not.toContain('back up laptop');
       expect(pc.store.stats.today).toBe(2);
       expect(pc.store.status).toBe('saved');
     });
 
     it('a repeating task completed on both devices, one of them stale, stays one task (#7)', async () => {
       const { drive, pc, phone } = await devices();
-      phone.store.complete(idOf(phone.store, 'leki'));
+      phone.store.complete(idOf(phone.store, 'back up laptop'));
       await phone.store.refresh();
       pc.store.complete(idOf(pc.store, 'dep')); // the PC has not seen the phone's change
       phone.store.complete(idOf(phone.store, 'dep'));
@@ -947,7 +947,7 @@ ${['A', 'B', 'C', 'D'].map((t) => `- [ ] Tom ${t} 📅 2026-10-17`).join('\n')}
       }
       const tasks = drive.peek('tasks.md')!;
       expect(tasks.match(/dep 🔁/g)).toHaveLength(1);
-      expect(tasks.match(/leki 🔁/g)).toHaveLength(1);
+      expect(tasks.match(/back up laptop 🔁/g)).toHaveLength(1);
       expect(tasks).toContain('dep 🔁 every week on Sunday 📅 2026-10-25');
       expect(drive.peek('done.md')!.match(/dep/g)).toHaveLength(1);
       for (const d of [pc, phone]) {
