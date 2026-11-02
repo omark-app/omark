@@ -489,7 +489,7 @@ I will also ask 5–10 developers I know to take one each before and right after
    - fork workflow approval;
    - Discussions on, with an Ideas category (voting) and a Q&A category;
    - private vulnerability reporting on;
-   - topics (`markdown`, `todo`, `obsidian`, `local-first`, `gtd`, `pwa`, `ai-agents`, `time-tracking`, `google-calendar`, `csv`);
+   - topics (`markdown`, `todo`, `obsidian`, `local-first`, `gtd`, `pwa`, `time-tracking`, `google-calendar`, `csv`; no `ai-agents`: Google's verification read "AI agents" as Omark sending data to AI);
    - a social preview image.
 6. Check that both demos and both hosted apps work. Skim the Actions logs that will become public.
 7. Flip the repo to public.
