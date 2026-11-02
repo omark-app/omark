@@ -76,6 +76,7 @@ describe('workflows', () => {
   it('runs the required checks on every PR, docs-only ones included (#124)', () => {
     // Branch protection requires check and both e2e jobs, so a PR they skip could never merge.
     const on = (parse(text('ci.yml')) as { on: Record<string, Record<string, unknown> | null> }).on;
+    expect(on).toHaveProperty('pull_request');
     expect(Object.keys(on.pull_request ?? {})).not.toContain('paths-ignore');
     expect(Object.keys(on.pull_request ?? {})).not.toContain('paths');
     // A docs-only push to main has nothing to deploy.
