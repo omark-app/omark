@@ -22,6 +22,7 @@ for (const path of PAGES) {
     const footer = page.locator('footer.site-footer');
     await expect(footer.locator('a[href="/privacy/"]')).toHaveCount(1);
     await expect(footer.locator('a[href="/terms/"]')).toHaveCount(1);
+    await expect(footer.locator('a[href="https://github.com/omark-app/omark"]')).toHaveCount(1);
     await expect(footer.locator('a[href="mailto:hello@omark.app"]')).toHaveCount(1);
     await expect(footer.locator('a', { hasText: 'MIT' })).toHaveCount(1);
     await expectNoSideScroll(page);
