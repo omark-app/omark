@@ -39,7 +39,8 @@ export function socialHtml(): string {
     .replaceAll('{{font400}}', font(400))
     .replaceAll('{{font700}}', font(700))
     .replaceAll('{{tasks}}', t('tasks'))
-    .replaceAll('{{time}}', t('time'));
+    .replaceAll('{{time}}', t('time'))
+    .replaceAll('{{goals}}', t('goals'));
 }
 
 export const OUTPUTS: Output[] = [
