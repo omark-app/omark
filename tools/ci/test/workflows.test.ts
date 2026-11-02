@@ -73,6 +73,16 @@ describe('workflows', () => {
     for (const f of FILES) expect(forkProblems(parse(text(f)) as Workflow), f).toEqual([]);
   });
 
+  it('runs the required checks on every PR, docs-only ones included (#124)', () => {
+    // Branch protection requires check and both e2e jobs, so a PR they skip could never merge.
+    const on = (parse(text('ci.yml')) as { on: Record<string, Record<string, unknown> | null> }).on;
+    expect(on).toHaveProperty('pull_request');
+    expect(Object.keys(on.pull_request ?? {})).not.toContain('paths-ignore');
+    expect(Object.keys(on.pull_request ?? {})).not.toContain('paths');
+    // A docs-only push to main has nothing to deploy.
+    expect(on.push?.['paths-ignore']).toEqual(['doc/**', '**/*.md']);
+  });
+
   it('lets CI be started by hand, deploying staging and the demo only from main', () => {
     expect('workflow_dispatch' in ((parse(text('ci.yml')) as { on: object }).on ?? {})).toBe(true);
     for (const name of ['omark-staging', 'omark-demo']) {

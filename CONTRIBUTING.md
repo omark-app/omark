@@ -69,7 +69,7 @@ PRs with no issue are closed with a pointer to this page. That keeps reviews abo
 
 - A fork's pull request runs the checks and both e2e projects. A maintainer may need to approve the first run.
 - Forks have no secrets, so they get no preview deploy. If a preview helps, a maintainer can push your branch to the main repository, where previews are made.
-- Docs-only changes (`doc/**` and `*.md`) skip CI.
+- Docs-only PRs (`doc/**` and `*.md`) still run CI: `main` requires its checks.
 
 ## Style
 

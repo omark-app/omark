@@ -8,8 +8,8 @@ name: CI
 # demo has no Promote step. The site (omark.app) deploys from main via site-production, and PRs get a
 # site-preview. (doc/factory.md, Environments and CI)
 on:
+  # Every PR, docs-only ones included: branch protection requires check and both e2e jobs (#124).
   pull_request:
-    paths-ignore: ['doc/**', '**/*.md']
   workflow_dispatch:
   push:
     branches: [main]

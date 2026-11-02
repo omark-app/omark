@@ -92,7 +92,7 @@ Staging and production run the same build; Promote ships the exact files staging
 | `ci.yml` | Push to `main` | The same checks, then the one app's staging deploy (keeping the build as an artifact), the demo deploy, and the omark.app site deploy |
 | `promote.yml` | By hand | Production deploy of a green `main` commit (`omark`), tag and release |
 
-- Docs-only changes (`doc/**`, `*.md`) skip CI.
+- Docs-only pushes to `main` (`doc/**`, `*.md`) skip CI. Docs-only PRs still run it, because branch protection requires `check` and both `e2e` jobs (#124).
 - A newer push to a PR cancels the older run.
 - Agents run the checks before pushing, so CI confirms rather than debugs. They run only the e2e specs they touch; CI runs all of them.
 - Fork PRs get the checks and e2e but no preview, because forks have no secrets. A maintainer can push a contributor's branch to the main repository to get one.
