@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Privacy policy · Omark</title>
-    <meta name="description" content="What Omark Tasks and Omark Time do with your data: no Omark server stores it, one sign-in cookie, no analytics, and exactly which Microsoft and Google permissions they ask for and why." />
+    <meta name="description" content="What Omark does with your data: no Omark server stores it, a few sign-in cookies, no analytics, no AI, and exactly which Microsoft and Google permissions it asks for and why." />
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#F2F4F7" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0D1015" media="(prefers-color-scheme: dark)" />
@@ -22,15 +22,16 @@
       <article class="doc">
         <header class="doc-head">
           <h1>Privacy policy</h1>
-          <p class="doc-date">Last updated <time datetime="2026-10-26">26 October 2026</time></p>
+          <p class="doc-date">Last updated <time datetime="2026-11-02">2 November 2026</time></p>
         </header>
 
         <section id="summary">
           <h2>In short</h2>
           <ul>
-            <li><strong>We don't store your data on our servers.</strong> Omark Tasks and Omark Time run in your browser and talk directly to the storage you pick: your OneDrive, your Google Drive, or a folder on your device. Omark Time also reads your own Google Calendar.</li>
+            <li><strong>We don't store your data on our servers.</strong> Omark (its apps Omark Tasks, Omark Time and Omark Goals) runs in your browser and talks directly to the storage you pick: your OneDrive, your Google Drive, or a folder on your device. Omark Time also reads your own Google Calendar, if you connect it.</li>
             <li>The apps set only a few sign-in cookies, so you stay signed in. This site sets no cookies.</li>
             <li>No analytics, no ads, no tracking, no third-party scripts.</li>
+            <li><strong>No AI.</strong> Omark has no AI features and never sends your data to an AI service.</li>
             <li>We ask Microsoft and Google only for the access the apps need, and ask for extra access only when you turn on the feature that needs it.</li>
           </ul>
         </section>
@@ -43,7 +44,7 @@
 
         <section id="data">
           <h2>Where your data lives</h2>
-          <p>Your tasks, notes, hours and settings are plain files in the storage you pick. The apps read and write them from your browser. No Omark server receives or keeps a copy.</p>
+          <p>Your tasks, notes, hours, goals and settings are plain files in one Omark folder in the storage you pick. The app reads and writes them from your browser. No Omark server receives or keeps a copy.</p>
         </section>
 
         <section id="sign-in">
@@ -83,6 +84,12 @@
           <p>The demo at <code>demo.omark.app</code> uses made-up data kept only in your browser. It has no sign-in and makes no requests outside its own site.</p>
         </section>
 
+        <section id="ai">
+          <h2>AI</h2>
+          <p>Omark has no AI or machine learning features. It doesn't use, call or include any AI service or model, whether from a third party, an aggregator or hosted by us. It never sends your data, including data from Google APIs, to an AI or machine learning service, and we don't use your data to train, improve or run AI or machine learning models.</p>
+          <p>Because your files are plain text (Markdown, CSV and YAML) in your own storage, you can open them in any tool you choose, including an AI assistant you run yourself. That is between you and that tool: Omark doesn't connect to it, send it anything or receive anything from it.</p>
+        </section>
+
         <section id="hosting">
           <h2>Hosting</h2>
           <p>Cloudflare (Cloudflare Pages) serves our sites and runs the sign-in helper. Like any host, Cloudflare processes IP addresses and request details to deliver pages and to protect the sites from abuse. See <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare's privacy policy</a>.</p>
@@ -90,16 +97,16 @@
 
         <section id="microsoft">
           <h2>Microsoft OneDrive</h2>
-          <p>Omark Tasks uses OneDrive when you pick it, and so does Omark Time. Both apps ask Microsoft for the same permissions, at sign-in. Each app sees only its own folder in your OneDrive.</p>
+          <p>Omark uses OneDrive when you pick it as your storage. It asks Microsoft for these permissions at sign-in, and sees only its own folder in your OneDrive.</p>
           <div class="table-wrap">
             <table>
-              <caption>Omark Tasks and Omark Time with OneDrive</caption>
+              <caption>Omark with OneDrive</caption>
               <thead>
                 <tr><th scope="col">Permission</th><th scope="col">Why</th><th scope="col">When asked</th></tr>
               </thead>
               <tbody>
                 <tr><td><code>openid</code>, <code>profile</code></td><td>Show who is signed in.</td><td>At sign-in</td></tr>
-                <tr><td><code>Files.ReadWrite.AppFolder</code></td><td>Read and write only the app's own folder: <code>OneDrive/Apps/Omark Tasks</code> or <code>OneDrive/Apps/Omark Time</code>. The app can't see your other files.</td><td>At sign-in</td></tr>
+                <tr><td><code>Files.ReadWrite.AppFolder</code></td><td>Read and write only the app's own folder, <code>OneDrive/Apps/Omark</code> (<code>Apps/Omark Staging</code> on the test sites). The app can't see your other files.</td><td>At sign-in</td></tr>
                 <tr><td><code>offline_access</code></td><td>Keep you signed in.</td><td>At sign-in</td></tr>
               </tbody>
             </table>
@@ -109,33 +116,20 @@
 
         <section id="google">
           <h2>Google</h2>
-          <p>Omark Tasks uses Google Drive when you pick it. Omark Time reads your Google Calendar, and uses Google Drive when you pick it. Each app asks only for what the feature you use needs. Google lists the Drive and Calendar permissions with the prefix <code>https://www.googleapis.com/auth/</code>.</p>
+          <p>Omark uses Google Drive when you pick it as your storage, and Omark Time reads your Google Calendar if you connect it, whichever storage you use. Omark asks for each permission only when you turn on the feature that needs it. Google lists the Drive and Calendar permissions with the prefix <code>https://www.googleapis.com/auth/</code>.</p>
 
           <div class="table-wrap">
             <table>
-              <caption>Omark Tasks with Google Drive</caption>
+              <caption>Omark with Google</caption>
               <thead>
                 <tr><th scope="col">Permission</th><th scope="col">Why</th><th scope="col">When asked</th></tr>
               </thead>
               <tbody>
-                <tr><td><code>drive.file</code></td><td>Read and write only the files the app created, in <code>My Drive/Omark Tasks</code>. The app can't see your other files.</td><td>When you pick Google Drive</td></tr>
-                <tr><td><code>openid</code>, <code>email</code></td><td>Show who is signed in.</td><td>When you pick Google Drive</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="table-wrap">
-            <table>
-              <caption>Omark Time with Google</caption>
-              <thead>
-                <tr><th scope="col">Permission</th><th scope="col">Why</th><th scope="col">When asked</th></tr>
-              </thead>
-              <tbody>
-                <tr><td><code>calendar.calendarlist.readonly</code></td><td>List your calendars so you can choose which to use, and read your primary calendar's time zone.</td><td>At sign-in</td></tr>
-                <tr><td><code>calendar.events.owned.readonly</code></td><td>Read the events on calendars you own, to turn them into hours.</td><td>At sign-in</td></tr>
+                <tr><td><code>openid</code>, <code>email</code></td><td>Show who is signed in.</td><td>When you pick Google Drive or connect Google Calendar</td></tr>
+                <tr><td><code>drive.file</code></td><td>Read and write only the files the app created, in <code>My Drive/Omark</code> (<code>Omark Staging</code> on the test sites). The app can't see your other files.</td><td>When you pick Google Drive</td></tr>
+                <tr><td><code>calendar.calendarlist.readonly</code></td><td>List your calendars so you can choose which to use, and read your primary calendar's time zone.</td><td>When you connect Google Calendar in Omark Time</td></tr>
+                <tr><td><code>calendar.events.owned.readonly</code></td><td>Read the events on calendars you own, to turn them into hours.</td><td>When you connect Google Calendar in Omark Time</td></tr>
                 <tr><td><code>calendar.events.owned</code></td><td>Set the colour of events on calendars you own.</td><td>Only when you turn on colouring</td></tr>
-                <tr><td><code>drive.file</code></td><td>Read and write only the files the app created, in <code>My Drive/Omark Time</code>. The app can't see your other files.</td><td>Only when you pick Google Drive</td></tr>
-                <tr><td><code>openid</code>, <code>email</code></td><td>Show who is signed in.</td><td>At sign-in</td></tr>
               </tbody>
             </table>
           </div>
@@ -147,12 +141,12 @@
             <li>We use it only to give you the features you see: working out your hours, writing your files, and colouring your events.</li>
             <li>We don't sell it.</li>
             <li>We don't use it or transfer it for ads, for credit checks, or to data brokers.</li>
-            <li>We don't use it to train AI or machine learning models.</li>
+            <li>We don't use it to train, improve or run AI or machine learning models, and we never send it to an AI service (see <a href="#ai">AI</a>).</li>
             <li>No person reads it, unless you explicitly agree, it is needed for security, or the law requires it.</li>
-            <li>We transfer it only to the storage you picked.</li>
+            <li>We transfer it only to the storage you picked (your Google Drive, OneDrive or a folder on your device), and nowhere else.</li>
           </ul>
           <p>You can remove Omark's access at any time at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</p>
-          <p>Omark Tasks' and Omark Time's use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+          <p>Omark's use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements. Its use of data from Google Workspace APIs (Drive and Calendar) also follows the <a href="https://developers.google.com/workspace/workspace-api-user-data-developer-policy">Google Workspace API User Data and Developer Policy</a>.</p>
         </section>
 
         <section id="gdpr">

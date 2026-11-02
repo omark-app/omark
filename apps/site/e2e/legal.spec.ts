@@ -80,10 +80,36 @@ test('privacy lists every scope', async ({ page }) => {
   }
   const google = page.locator('section#google');
   await expect(google).toContainText(
-    "Omark Tasks' and Omark Time's use and transfer to any other app of information received from Google APIs will adhere to the Google API Services User Data Policy, including the Limited Use requirements.",
+    "Omark's use and transfer to any other app of information received from Google APIs will adhere to the Google API Services User Data Policy, including the Limited Use requirements.",
   );
   await expect(google.locator('a[href="https://developers.google.com/terms/api-services-user-data-policy"]')).not.toHaveCount(0);
+  // The policy Google's reviewers cite for Drive and Calendar data.
+  await expect(google.locator('a[href="https://developers.google.com/workspace/workspace-api-user-data-developer-policy"]')).toHaveCount(1);
+  await expect(google).toContainText('the storage you picked (your Google Drive, OneDrive or a folder on your device), and nowhere else');
   await expectNoSideScroll(page);
+});
+
+test('privacy describes the one app and its folders', async ({ page }) => {
+  await page.goto('/privacy/');
+  const codes = (await page.locator('main code').allTextContents()).map((t) => t.trim());
+  for (const folder of ['OneDrive/Apps/Omark', 'My Drive/Omark']) expect(codes, folder).toContain(folder);
+  const main = page.locator('main');
+  for (const old of ['Omark Tasks', 'Omark Time']) {
+    await expect(main).not.toContainText(`My Drive/${old}`);
+    await expect(main).not.toContainText(`OneDrive/Apps/${old}`);
+  }
+  expect(codes).toContain('Omark Staging');
+});
+
+// Google's review asked whether Google user data reaches any AI service (2026-11). It doesn't, and the policy says so.
+test('privacy says Omark has no AI and sends nothing to AI services', async ({ page }) => {
+  await page.goto('/privacy/');
+  const ai = page.locator('section#ai');
+  await expect(ai.locator('h2')).toHaveText('AI');
+  await expect(ai).toContainText('Omark has no AI or machine learning features');
+  await expect(ai).toContainText('never sends your data, including data from Google APIs, to an AI or machine learning service');
+  await expect(ai).toContainText('to train, improve or run AI or machine learning models');
+  await expect(page.locator('section#summary')).toContainText('No AI');
 });
 
 test('privacy says no data on our servers and one sign-in cookie', async ({ page }) => {
@@ -94,10 +120,10 @@ test('privacy says no data on our servers and one sign-in cookie', async ({ page
 });
 
 test('privacy and terms show a date', async ({ page }) => {
-  for (const path of ['/privacy/', '/terms/']) {
+  for (const [path, date] of [['/privacy/', '2026-11-02'], ['/terms/', '2026-10-26']] as const) {
     await page.goto(path);
     await expect(page.locator('time[datetime]'), path).toHaveCount(1);
-    await expect(page.locator('time[datetime]')).toHaveAttribute('datetime', '2026-10-26');
+    await expect(page.locator('time[datetime]')).toHaveAttribute('datetime', date);
   }
 });
 

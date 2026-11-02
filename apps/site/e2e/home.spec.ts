@@ -43,3 +43,13 @@ test('serves the Tasks screenshot as a small WebP', async ({ page }) => {
   expect(src).toMatch(/\.webp$/);
   expect(natural).toBe(600);
 });
+
+// The page speaks of AI agents; Google's review read that as Omark sending data to AI (2026-11). Say it doesn't.
+test('says Omark itself has no AI', async ({ page }) => {
+  await page.goto('/');
+  const lead = page.locator('.lead');
+  await expect(lead).not.toContainText('for people and their AI agents');
+  await expect(lead).toContainText('Omark itself has no AI');
+  await expect(page.locator('meta[name="description"]')).not.toHaveAttribute('content', /for people and their AI agents/);
+  await expect(page.locator('#principles a[href="/privacy/#ai"]')).toHaveCount(1);
+});
