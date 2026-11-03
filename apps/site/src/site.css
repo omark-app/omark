@@ -62,9 +62,9 @@ code {
 .hero { display: grid; gap: 36px; }
 @media (min-width: 1000px) {
   .hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); align-items: center; gap: 48px; }
-  .hero h1 { font-size: clamp(2.125rem, 1rem + 2.6vw, 3.25rem); }
+  .hero h1 { font-size: clamp(2.125rem, 1.4rem + 3.4vw, 3.25rem); }
 }
-.film { margin: 0; }
+.film { margin: 0; max-width: 720px; }
 .film-frame { border: 1px solid var(--line); border-radius: 22px; overflow: hidden; box-shadow: var(--shadow); background: var(--surface); }
 .film video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; }
 .film figcaption { margin-top: 12px; font-size: .9375rem; color: var(--muted); text-align: center; }

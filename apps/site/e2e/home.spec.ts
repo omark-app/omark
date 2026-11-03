@@ -85,9 +85,14 @@ test('shows the walkthrough film in the hero, under the intro on phones', async 
   await expectNoSideScroll(page);
 });
 
-// WebKit opens a request for the film and cancels it at once, so the test counts the bytes, not the requests.
-test('downloads none of the film until play, and serves it and its still from the site', async ({ page, request }) => {
+// WebKit opens a request for the film and cancels it at once, so there the test counts bytes. Chromium reports
+// any film request as failed, never finished, so there it counts requests: the page must make none.
+test('downloads none of the film until play, and serves it and its still from the site', async ({ page, request, browserName }) => {
   let filmBytes = 0;
+  let filmRequests = 0;
+  page.on('request', (r) => {
+    if (r.url().endsWith('.mp4')) filmRequests += 1;
+  });
   page.on('requestfinished', async (r) => {
     if (r.url().endsWith('.mp4')) filmBytes += (await r.sizes()).responseBodySize;
   });
@@ -103,10 +108,26 @@ test('downloads none of the film until play, and serves it and its still from th
   expect(poster.origin).toBe(new URL(page.url()).origin);
   expect(source.origin).toBe(new URL(page.url()).origin);
   expect(filmBytes).toBe(0);
+  if (browserName === 'chromium') expect(filmRequests).toBe(0);
   const still = await request.get(poster.href);
   expect(still.ok()).toBe(true);
   expect(still.headers()['content-type']).toBe('image/webp');
   const mp4 = await request.get(source.href);
   expect(mp4.ok()).toBe(true);
   expect(mp4.headers()['content-type']).toBe('video/mp4');
+});
+
+test('names the film for screen readers', async ({ page }) => {
+  await expect(page.locator('.hero video')).toHaveAccessibleName('Omark walkthrough: Tasks, Time and Goals in the demo');
+});
+
+// Between phone and two columns the film would stretch to the page's full width; it stops at 720 px. At the
+// switch to two columns the headline shrinks only a little.
+test('keeps the film to 720 px on tablets, and the headline steady at the switch', async ({ page }) => {
+  await page.setViewportSize({ width: 999, height: 900 });
+  const size = () => page.locator('h1').evaluate((h) => parseFloat(getComputedStyle(h).fontSize));
+  expect((await page.locator('.film').boundingBox())!.width).toBeLessThanOrEqual(720);
+  const narrow = await size();
+  await page.setViewportSize({ width: 1000, height: 900 });
+  expect(Math.abs(narrow - (await size()))).toBeLessThan(6);
 });
