@@ -47,3 +47,16 @@ describe('src files', () => {
     expect(text).not.toMatch(/url\(\s*["']?https?:/i);
   });
 });
+
+// Cloudflare Pages serves no file over 25 MiB, so the walkthrough film (#130) and anything after it must stay under.
+describe('site files', () => {
+  it.each([...filesUnder(join(root, 'src')), ...filesUnder(join(root, 'public'))])('%s fits in a Pages file', (file) => {
+    expect(statSync(file).size).toBeLessThan(25 * 1024 * 1024);
+  });
+
+  it('include the walkthrough film and its still', () => {
+    const names = filesUnder(join(root, 'src')).map((f) => f.slice(root.length));
+    expect(names).toContain('src/media/omark-film.mp4');
+    expect(names).toContain('src/media/omark-film.webp');
+  });
+});
