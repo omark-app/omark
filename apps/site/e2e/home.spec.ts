@@ -64,3 +64,70 @@ test('links the code, the contributor guide and the principles on GitHub', async
   await expect(page.getByRole('navigation', { name: 'Footer' }).getByRole('link', { name: 'GitHub' })).toHaveAttribute('href', REPO);
   await expect(page.locator('main')).not.toContainText('at launch');
 });
+
+// The walkthrough film (#130): beside the headline on wide screens, under the intro on phones. It plays from
+// omark.app itself, and nothing but its still loads until the visitor presses play.
+test('shows the walkthrough film in the hero, under the intro on phones', async ({ page }, testInfo) => {
+  const film = page.locator('.hero figure.film');
+  await expect(film).toHaveCount(1);
+  await expect(film.locator('figcaption')).toHaveText('A 40-second tour of the demo: Tasks, Time and Goals.');
+  const h1 = (await page.locator('h1').boundingBox())!;
+  const lead = (await page.locator('.lead').boundingBox())!;
+  const box = (await film.boundingBox())!;
+  const card = (await page.locator('.card').first().boundingBox())!;
+  if (testInfo.project.name === 'desktop') {
+    expect(box.x).toBeGreaterThan(h1.x + h1.width - 1);
+    expect(box.y).toBeLessThan(lead.y + lead.height);
+  } else {
+    expect(box.y).toBeGreaterThan(lead.y + lead.height - 1);
+  }
+  expect(box.y + box.height).toBeLessThan(card.y);
+  await expectNoSideScroll(page);
+});
+
+// WebKit opens a request for the film and cancels it at once, so there the test counts bytes. Chromium reports
+// any film request as failed, never finished, so there it counts requests: the page must make none.
+test('downloads none of the film until play, and serves it and its still from the site', async ({ page, request, browserName }) => {
+  let filmBytes = 0;
+  let filmRequests = 0;
+  page.on('request', (r) => {
+    if (r.url().endsWith('.mp4')) filmRequests += 1;
+  });
+  page.on('requestfinished', async (r) => {
+    if (r.url().endsWith('.mp4')) filmBytes += (await r.sizes()).responseBodySize;
+  });
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+  const video = page.locator('.hero video');
+  await expect(video).toHaveAttribute('preload', 'none');
+  await expect(video).toHaveAttribute('controls', '');
+  await expect(video).toHaveAttribute('playsinline', '');
+  const poster = new URL((await video.getAttribute('poster'))!, page.url());
+  const source = new URL((await video.locator('source').getAttribute('src'))!, page.url());
+  await expect(video.locator('source')).toHaveAttribute('type', 'video/mp4');
+  expect(poster.origin).toBe(new URL(page.url()).origin);
+  expect(source.origin).toBe(new URL(page.url()).origin);
+  expect(filmBytes).toBe(0);
+  if (browserName === 'chromium') expect(filmRequests).toBe(0);
+  const still = await request.get(poster.href);
+  expect(still.ok()).toBe(true);
+  expect(still.headers()['content-type']).toBe('image/webp');
+  const mp4 = await request.get(source.href);
+  expect(mp4.ok()).toBe(true);
+  expect(mp4.headers()['content-type']).toBe('video/mp4');
+});
+
+test('names the film for screen readers', async ({ page }) => {
+  await expect(page.locator('.hero video')).toHaveAccessibleName('Omark walkthrough: Tasks, Time and Goals in the demo');
+});
+
+// Between phone and two columns the film would stretch to the page's full width; it stops at 720 px. At the
+// switch to two columns the headline shrinks only a little.
+test('keeps the film to 720 px on tablets, and the headline steady at the switch', async ({ page }) => {
+  await page.setViewportSize({ width: 999, height: 900 });
+  const size = () => page.locator('h1').evaluate((h) => parseFloat(getComputedStyle(h).fontSize));
+  expect((await page.locator('.film').boundingBox())!.width).toBeLessThanOrEqual(720);
+  const narrow = await size();
+  await page.setViewportSize({ width: 1000, height: 900 });
+  expect(Math.abs(narrow - (await size()))).toBeLessThan(6);
+});

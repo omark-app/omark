@@ -1,6 +1,6 @@
 # Site
 
-The omark.app landing page, privacy policy and terms. Plain static HTML and CSS built with Vite into `dist/`, plus one Pages Function (`functions/_middleware.ts`) that redirects `www.omark.app` to `omark.app`, and `public/_headers`.
+The omark.app landing page, privacy policy and terms. Plain static HTML and CSS built with Vite into `dist/`, with the 40-second walkthrough film in `src/media/` (served from the site itself, `preload="none"`, under Cloudflare's 25 MiB file limit), plus one Pages Function (`functions/_middleware.ts`) that redirects `www.omark.app` to `omark.app`, and `public/_headers`.
 
 ## Run
 
