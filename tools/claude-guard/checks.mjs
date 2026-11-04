@@ -65,7 +65,8 @@ export function commandsFor(files) {
   if (files === null) return ['pnpm typecheck', 'pnpm test'];
   if (onlyDocs(files)) return [];
   return [
-    'pnpm -r --filter "...[origin/main]" --if-present typecheck',
+    // Not the root package: its typecheck is every package's, and any doc change marks it changed.
+    'pnpm -r --filter "...[origin/main]" --filter "!omark-tasks" --if-present typecheck',
     'pnpm exec vitest run --changed origin/main',
     // tools/ci's tests read workflows and config files, which the import graph behind --changed doesn't reach.
     'pnpm exec vitest run --project ci-scripts',

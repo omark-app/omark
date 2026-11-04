@@ -65,7 +65,7 @@ describe('commandsFor', () => {
   it("runs the changed packages' typecheck, the tests their changes reach, and the repository's own checks", () => {
     // tools/ci's tests read workflows and config files, which no import graph reaches.
     expect(commandsFor(['packages/tasks-core/src/parse.ts'])).toEqual([
-      'pnpm -r --filter "...[origin/main]" --if-present typecheck',
+      'pnpm -r --filter "...[origin/main]" --filter "!omark-tasks" --if-present typecheck',
       'pnpm exec vitest run --changed origin/main',
       'pnpm exec vitest run --project ci-scripts',
     ]);
