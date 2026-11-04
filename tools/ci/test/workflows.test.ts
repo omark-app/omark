@@ -8,6 +8,7 @@ const text = (f: string) => readFileSync(path(f), 'utf8');
 
 interface Step { id?: string; name?: string; if?: string; uses?: string; with?: unknown; env?: unknown; run?: string; 'working-directory'?: string }
 interface Job {
+  name?: string;
   if?: string;
   needs?: string[];
   permissions?: Record<string, string>;
@@ -38,7 +39,9 @@ function forkProblems(wf: Workflow): string[] {
       (cond.startsWith("github.event_name == 'push' &&") && !cond.includes('||')) ||
       (cond.startsWith(MAIN_ONLY) && !cond.slice(MAIN_ONLY.length).includes('||'));
     if (usesSecrets && !cond.includes("vars.DEPLOY_ENABLED == 'true'")) problems.push(`${name}: secrets without DEPLOY_ENABLED`);
-    if (onPr && !pushOnly && (usesSecrets || cond !== '') && !cond.includes(FORK_GUARD)) {
+    // `always()` alone, with no secrets and no permissions, reaches nothing a fork could use (e2e-iphone).
+    const harmless = cond === 'always()' && !usesSecrets && JSON.stringify(job.permissions) === '{}';
+    if (onPr && !pushOnly && (usesSecrets || cond !== '') && !harmless && !cond.includes(FORK_GUARD)) {
       problems.push(`${name}: no fork guard`);
     }
   }
@@ -305,7 +308,8 @@ describe('workflows', () => {
     expect(projects).toHaveLength(block.match(/\bname:/g)!.length);
     expect(projects.length).toBeGreaterThan(1);
     const e2e = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1];
-    expect(e2e.strategy?.matrix?.project).toEqual(projects);
+    const include = (e2e.strategy?.matrix as { include?: { project: string; part: string }[] } | undefined)?.include ?? [];
+    expect([...new Set(include.map((i) => i.project))]).toEqual(projects);
     expect(e2e.strategy?.['fail-fast']).toBe(false);
     expect(e2e.steps!.map((s) => s.run)).toContain('pnpm --filter tasks e2e:standalone --project=${{ matrix.project }}');
   });
@@ -355,7 +359,7 @@ describe('workflows', () => {
 
   it('gives every job a time limit', () => {
     const limits = Object.fromEntries(FILES.flatMap((f) => jobsOf(f).map(([n, j]) => [n, j['timeout-minutes']])));
-    expect(limits).toEqual({ check: 10, 'stop-on-check-failure': 5, e2e: 20, 'omark-preview': 15, 'omark-staging': 15, 'omark-demo': 15, 'site-preview': 15, 'site-production': 15, promote: 15 });
+    expect(limits).toEqual({ check: 10, 'stop-on-check-failure': 5, e2e: 20, 'e2e-iphone': 5, 'omark-preview': 15, 'omark-staging': 15, 'omark-demo': 15, 'site-preview': 15, 'site-production': 15, promote: 15 });
   });
 
   it('site jobs deploy only apps/site', () => {
@@ -403,6 +407,41 @@ describe('workflows', () => {
       [...readFileSync(new URL(`../../../apps/${file}`, import.meta.url), 'utf8').matchAll(/\{ name: '(\w+)'/g)].map((m) => m[1]);
     expect(names('omark/playwright.config.ts')).toEqual(names('tasks/playwright.config.ts'));
     expect(names('omark/playwright.tasks.config.ts')).toEqual(names('tasks/playwright.config.ts'));
+  });
+
+  describe('splits the slow iPhone e2e in two halves that run side by side (#132)', () => {
+    const jobs = () => Object.fromEntries(jobsOf('ci.yml'));
+    const parts = { a: [] as string[], b: [] as string[] };
+
+    it('runs desktop whole and iPhone as two parts', () => {
+      expect((jobs().e2e!.strategy?.matrix as { include: unknown[] }).include).toEqual([
+        { project: 'desktop', part: 'all' },
+        { project: 'iphone', part: 'a' },
+        { project: 'iphone', part: 'b' },
+      ]);
+      expect(jobs().e2e!.name).toBe("e2e (${{ matrix.project }}${{ matrix.part != 'all' && format(', {0}', matrix.part) || '' }})");
+    });
+
+    it('runs every Playwright step in exactly one part, and all of them on desktop', () => {
+      for (const s of jobs().e2e!.steps!.filter((s) => /^pnpm --filter \w+ e2e/.test(s.run ?? ''))) {
+        expect(["matrix.part != 'b'", "matrix.part != 'a'"], s.run).toContain(s.if);
+        parts[s.if === "matrix.part != 'b'" ? 'a' : 'b'].push(s.run!);
+      }
+      expect(parts.a.length).toBeGreaterThan(0);
+      expect(parts.b.length).toBeGreaterThan(0);
+    });
+
+    it("keeps the required check named e2e (iphone): it passes only when every e2e job did", () => {
+      const all = jobs()['e2e-iphone']!;
+      expect(all.name).toBe('e2e (iphone)');
+      expect(all.needs).toEqual(['e2e']);
+      expect(all.if).toBe('always()');
+      expect(all.permissions).toEqual({});
+      expect(all['timeout-minutes']).toBe(5);
+      expect(all.steps).toHaveLength(1);
+      expect(all.steps![0]!.run).toBe('test "$RESULT" = success');
+      expect(all.steps![0]!.env).toEqual({ RESULT: '${{ needs.e2e.result }}' });
+    });
   });
 
   describe("runs Tasks' and Time's specs once, against the one app (#132)", () => {
