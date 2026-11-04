@@ -27,9 +27,16 @@ test("the staging host shows STAGING in Tasks' status line, and the page stays O
 
   await expect(page).toHaveTitle('Omark');
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#F2F4F7');
-  // `request` ignores the host-resolver rule, so the manifest is fetched from the local server.
-  const href = await page.locator('link[rel="manifest"]').getAttribute('href');
-  const manifest = await (await request.get(new URL(href!, baseURL).toString())).json();
+  await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute('content', 'Omark');
+  await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', '/icons/apple-touch-icon.png');
+  for (const href of await page.locator('link[rel="icon"]').evaluateAll((ls) => ls.map((l) => l.getAttribute('href')))) {
+    expect(href).not.toContain('/staging/');
+  }
+  // Tasks' staging look would point at /manifest-staging.webmanifest. `request` ignores the host-resolver
+  // rule, so the manifest is fetched from the local server.
+  const manifestLink = page.locator('link[rel="manifest"]');
+  await expect(manifestLink).toHaveAttribute('href', '/manifest.webmanifest');
+  const manifest = await (await request.get(new URL('/manifest.webmanifest', baseURL).toString())).json();
   expect(manifest.name).toBe('Omark');
 });
 
