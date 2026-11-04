@@ -48,17 +48,31 @@ function innerLine(name, rest) {
 }
 
 /**
- * The index of git's subcommand in its arguments, past the global options.
+ * Git's arguments read past the global options: the subcommand, what follows it, and the `-C` folders.
  * @param {string[]} rest
  */
-function subcommandAt(rest) {
+function readGit(rest) {
+  /** @type {string[]} */
+  const dirs = [];
   let i = 0;
   while (i < rest.length && /** @type {string} */ (rest[i]).startsWith('-')) {
     const w = /** @type {string} */ (rest[i]);
+    if (w === '-C') dirs.push(rest[i + 1] ?? '');
     if (w === '-C' || w === '-c' || w === '--git-dir' || w === '--work-tree' || w === '--namespace') i++;
     i++;
   }
-  return i;
+  return { sub: rest[i], args: rest.slice(i + 1), dirs };
+}
+
+/**
+ * Whether `git push` with these arguments sends something to check: not a dry run or a push that only deletes.
+ * @param {string[]} args
+ */
+function sendsCommits(args) {
+  const flag = (/** @type {string} */ a) => a === '--dry-run' || a === '--delete' || /^-[A-Za-z]*[nd][A-Za-z]*$/.test(a);
+  if (args.some(flag)) return false;
+  const refs = args.filter((a) => !a.startsWith('-')).slice(1);
+  return !(refs.length > 0 && refs.every((r) => r.startsWith(':')));
 }
 
 /**
@@ -84,52 +98,73 @@ export function pushDir(command, cwd) {
       continue;
     }
     if (name !== 'git') continue;
-    const i = subcommandAt(rest);
-    if (rest[i] !== 'push') continue;
-    let at = dir;
-    rest.slice(0, i).forEach((w, n) => {
-      if (w === '-C') at = resolve(at, nativePath(rest[n + 1] ?? ''));
-    });
-    const args = rest.slice(i + 1);
-    const flag = (/** @type {string} */ a) => a === '--dry-run' || a === '--delete' || /^-[A-Za-z]*[nd][A-Za-z]*$/.test(a);
-    if (args.some(flag)) continue;
-    const refs = args.filter((a) => !a.startsWith('-')).slice(1);
-    if (refs.length > 0 && refs.every((r) => r.startsWith(':'))) continue;
-    return at;
+    const { sub, args, dirs } = readGit(rest);
+    if (sub !== 'push' || !sendsCommits(args)) continue;
+    return dirs.reduce((at, d) => resolve(at, nativePath(d)), dir);
   }
   return null;
 }
 
-/**
- * Whether a command line runs `git commit` before its `git push`. The hook runs before the line does, so that
- * commit doesn't exist yet when the hook reads the branch (#146).
- * @param {string} command
- * @returns {boolean}
- */
-export function commitsFirst(command) {
-  return firstOf(command) === 'commit';
-}
+/** Programs that change no file, as long as nothing is redirected. */
+const HARMLESS = new Set(['cd', 'pwd', 'echo', 'printf', 'true', 'ls', 'cat', 'wc', 'head', 'tail', 'grep', 'sleep']);
+
+/** Git subcommands that neither commit nor change the files. `add` is here too, unless forced. */
+const GIT_HARMLESS = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'remote', 'fetch', 'ls-files', 'branch', 'push', 'add']);
 
 /**
- * Which comes first in a command line: a `git commit`, a `git push`, or neither.
+ * Every simple command of a line, with those inside `bash -c` and `eval` in their place.
  * @param {string} command
- * @returns {'commit' | 'push' | null}
+ * @returns {{ name: string, rest: string[], words: string[] }[]}
  */
-function firstOf(command) {
-  for (const { words } of parse(dropHeredocs(command))) {
+function steps(command) {
+  return parse(dropHeredocs(command)).flatMap(({ words }) => {
     const { name, rest } = unwrap(words);
     const inner = innerLine(name, rest);
-    if (inner !== undefined) {
-      const found = firstOf(inner);
-      if (found !== null) return found;
-      continue;
-    }
-    if (name !== 'git') continue;
-    const sub = rest[subcommandAt(rest)];
-    if (sub === 'commit' || sub === 'push') return sub;
-  }
-  return null;
+    return inner !== undefined ? steps(inner) : [{ name, rest, words }];
+  });
 }
+
+/**
+ * What a command line does before its last `git push` that sends commits. The hook runs before the line does, so
+ * neither that work nor a commit it makes exists yet when the hook reads the branch (#146).
+ * `commits`: it may add commits to what is pushed. `plain`: it changes no file itself, so the tree as it is now
+ * shows all that a commit can take. Anything the hook can't vouch for counts as not plain.
+ * @param {string} command
+ * @returns {{ commits: boolean, plain: boolean }}
+ */
+export function readLine(command) {
+  const all = steps(command);
+  const pushes = all.flatMap((s, i) => {
+    const git = s.name === 'git' ? readGit(s.rest) : null;
+    return git?.sub === 'push' && sendsCommits(git.args) ? [i] : [];
+  });
+  let commits = false;
+  let plain = true;
+  for (const { name, rest, words } of all.slice(0, pushes.at(-1) ?? 0)) {
+    if (name === 'git') {
+      const { sub, args } = readGit(rest);
+      if (sub === 'commit') {
+        commits = true;
+      } else if (sub === undefined || !GIT_HARMLESS.has(sub)) {
+        // cherry-pick, merge, pull, stash, mv, an alias…
+        commits = true;
+        plain = false;
+      } else if (sub === 'add' && args.some((a) => a === '--force' || /^-[A-Za-z]*f[A-Za-z]*$/.test(a))) {
+        plain = false; // takes files git ignores, which the tree doesn't show
+      }
+    } else if (!HARMLESS.has(name) || words.some((w) => /[<>]/.test(w))) {
+      plain = false;
+      if (words.includes('git')) commits = true; // `nice -n 5 git commit`: a wrapper with options of its own
+    }
+  }
+  return { commits, plain };
+}
+
+/**
+ * Whether a command line may add commits before its `git push`.
+ * @param {string} command
+ */
+export const commitsFirst = (command) => readLine(command).commits;
 
 /**
  * Whether every changed file is documentation, which no typecheck or unit test reads.
@@ -148,17 +183,19 @@ const untyped = (f) => f.startsWith('doc/') || f.endsWith('.md') || f.startsWith
  * they are unknown (null).
  * @param {string[] | null} files
  * @param {string | null} base
+ * @param {string[]} [untracked] those of `files` git doesn't track yet
  * @returns {string[]}
  */
-export function commandsFor(files, base) {
+export function commandsFor(files, base, untracked = []) {
   if (files === null || base === null) return ['pnpm typecheck', 'pnpm test'];
   if (onlyDocs(files)) return [];
   /** @type {string[]} */
   const commands = [];
   // A root file (tsconfig.base.json, package.json, the lockfile, functions/) can change how every package
   // typechecks. Otherwise the changed packages and those that depend on them, but not the root package: its
-  // typecheck is every package's, and any root file marks it changed.
-  if (files.some((f) => !inPackage(f) && !untyped(f))) commands.push('pnpm typecheck');
+  // typecheck is every package's, and any root file marks it changed. pnpm's filter doesn't see untracked files,
+  // so a new file in a package needs them all too.
+  if (files.some((f) => !inPackage(f) && !untyped(f)) || untracked.some(inPackage)) commands.push('pnpm typecheck');
   else if (files.some(inPackage)) commands.push(`pnpm -r --filter "...[${base}]" --filter "!omark-tasks" --if-present typecheck`);
   commands.push(`pnpm exec vitest run --changed ${base}`);
   // tools/ci's tests read workflows and config files, which the import graph behind --changed doesn't reach.
@@ -197,18 +234,20 @@ const git = (args, dir) => execFileSync('git', args, { cwd: dir, encoding: 'utf8
  * The files the branch at `dir` changes since it left origin/main, and that commit, or nulls when they can't be
  * read (no origin/main, a shallow clone). With `uncommitted`, also every changed tracked file and every new file
  * git doesn't ignore: all that a commit in the same line could take, and maybe more, so a check is never missed.
+ * A rename counts as both names: the old one may be code. Non-ASCII names come as they are, not quoted.
  * @param {string} dir
  * @param {boolean} [uncommitted]
- * @returns {{ files: string[] | null, base: string | null }}
+ * @returns {{ files: string[] | null, base: string | null, untracked?: string[] }}
  */
 function changed(dir, uncommitted = false) {
   /** @param {string[]} args */
-  const names = (args) => git(args, dir).split('\n').filter(Boolean);
+  const names = (args) => git(['-c', 'core.quotepath=off', ...args], dir).split('\n').filter(Boolean);
   try {
     const base = git(['merge-base', 'origin/main', 'HEAD'], dir);
-    const files = names(['diff', '--name-only', base, 'HEAD']);
-    if (uncommitted) files.push(...names(['diff', '--name-only', 'HEAD']), ...names(['ls-files', '--others', '--exclude-standard']));
-    return { files: [...new Set(files)], base };
+    const files = names(['diff', '--name-only', '--no-renames', base, 'HEAD']);
+    if (!uncommitted) return { files, base };
+    const untracked = names(['ls-files', '--others', '--exclude-standard']);
+    return { files: [...new Set([...files, ...names(['diff', '--name-only', '--no-renames', 'HEAD']), ...untracked])], base, untracked };
   } catch {
     return { files: null, base: null };
   }
@@ -240,8 +279,10 @@ export async function hook(input, deps = {}) {
   const top = topOf(dir) ?? topOf(cwd);
   if (top === null || !existsSync(join(top, 'tools/claude-guard/checks.mjs'))) return pass;
 
-  const { files, base } = (deps.changed ?? changed)(top, commitsFirst(command));
-  const commands = commandsFor(files, base);
+  const { commits, plain } = readLine(command);
+  // A line that changes files itself can't be read in advance: the full checks.
+  const { files, base, untracked } = commits && !plain ? { files: null, base: null, untracked: [] } : (deps.changed ?? changed)(top, commits);
+  const commands = commandsFor(files, base, untracked);
   if (commands.length === 0) return pass;
   // A new worktree has no node_modules: every check would fail with "not found", which says nothing useful.
   if (!(deps.installed ?? ((t) => existsSync(join(t, 'node_modules'))))(top)) {

@@ -10,6 +10,7 @@ Only agents in Claude Code notice. App users see nothing.
 ## Acceptance criteria
 
 - [ ] When the line runs `git commit` before the push, the changed files are the branch's diff since it left main, plus every tracked change and every untracked, not-ignored file. That is a superset of what the commit takes, so the hook may check more than needed but never less.
+- [ ] Added after review, to keep that promise: the hook reads the tree before the line runs, so a line with any other step before the push that could change files or make commits (`sed`, `git mv`, a redirect, `git add -f`, `git stash`, `git cherry-pick`, an alias) runs the full `pnpm typecheck` and `pnpm test`. A new file in a package runs the full `pnpm typecheck`, since pnpm's filter doesn't see untracked files. A rename counts as both names.
 - [ ] A push with no commit in the line is judged as today, by the branch's commits only.
 - [ ] When checks would run and the checkout has no `node_modules`, the push is blocked with the install message, and no check runs.
 - [ ] A docs-only push from a checkout with no install still passes: it runs no checks, so it needs none.
