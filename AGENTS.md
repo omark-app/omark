@@ -58,7 +58,7 @@ In brief:
 1. Work starts from an issue: the one you were given, or the oldest `ready` one (`bug`, then `enhancement`, then `task`). Comment that you are taking it. Contributors work in a fork; everyone works on a branch `issue-<n>-<slug>`.
 2. Size it. Small is a bug fix or small tweak with clear expected behaviour, and no change to the file formats, sync, merge, saving, sign-in, CI, deploy, `.claude/`, dependencies or screens. Everything else is large. A maintainer's label wins.
 3. Large work gets a plan in `doc/plans/<n>-<slug>.md`: what changes for users, acceptance criteria, the tests you'll write first, risks, out of scope. Post its summary on the issue in a comment whose first line starts `Plan for #<n>:`, then stop until `node tools/ci/plan-approval.mjs <n>` says a maintainer approved it (exit 0).
-4. Test first: write the test, see it fail, then write the code.
+4. Test first: write the test, see it fail, then write the code. In Claude Code, a hook runs the typecheck and unit tests your branch touches before every `git push`, and blocks it until they pass.
 5. Open the PR from the template. It closes the issue and says whether and how AI was used. A maintainer reviews and merges it.
 
 The skill and [doc/factory.md](doc/factory.md) have the details, labels and wording.
