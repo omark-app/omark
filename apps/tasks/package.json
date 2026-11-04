@@ -8,7 +8,7 @@
     "preview": "vite preview",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json",
     "e2e": "playwright test",
-    "e2e:storage": "playwright test google-drive.spec.ts local-folder.spec.ts",
+    "e2e:standalone": "playwright test google-drive.spec.ts lifecycle.spec.ts local-folder.spec.ts",
     "e2e:real:login": "playwright test -c playwright.real.config.ts --project=login",
     "e2e:real": "playwright test -c playwright.real.config.ts --project=smoke",
     "test": "vitest run --root ../.. --project tasks"

@@ -65,7 +65,7 @@ If anything about the expected behaviour is unclear, ask one clear question, add
 
 1. For each behaviour: write the test, run it, **see it fail**, save the failing line for the PR, then write the code.
 2. Small work turning out bigger: stop, relabel `size:large`, comment why, go to **Plan**.
-3. Before pushing, run `pnpm typecheck`, `pnpm test`, the build of the app you changed (`pnpm --filter <app> build`) and the e2e specs the change touches (`pnpm --filter <app> e2e <spec>`). All green, or don't push. The full `pnpm e2e` runs in CI; run it here only when the change reaches across the whole app (storage, sync, the app shell).
+3. Before pushing, run `pnpm typecheck`, `pnpm test`, the build of the app you changed (`pnpm --filter <app> build`) and the e2e specs the change touches (`pnpm --filter <app> e2e <spec>`; for a Tasks or Time spec, `pnpm --filter omark e2e:tasks <spec>` or `e2e:time`, which is how CI runs it). All green, or don't push. CI runs every spec users' builds need; run the full `pnpm e2e` here only when the change reaches across the whole app (storage, sync, the app shell).
 4. Commit in small steps with short imperative messages.
 
 ## Hand over

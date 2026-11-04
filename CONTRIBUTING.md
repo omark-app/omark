@@ -47,7 +47,7 @@ Run `pnpm --filter tasks exec playwright install chromium webkit` once before th
 A pull request is ready for review when:
 
 - a test written first failed before the change, and the PR quotes the failing line;
-- `pnpm typecheck`, `pnpm test`, the build and the e2e specs the change touches pass on your machine, and the full e2e passes in CI;
+- `pnpm typecheck`, `pnpm test`, the build and the e2e specs the change touches pass on your machine, and CI's e2e passes;
 - the PR follows the template and closes the issue;
 - you (or a fresh-eyes review by your agent) checked the diff against the issue or plan, and fixed what it found;
 - for large work, every acceptance criterion in the plan is met or explicitly moved out;

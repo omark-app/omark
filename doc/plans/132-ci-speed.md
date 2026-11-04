@@ -26,7 +26,9 @@ The standalone Tasks and Time builds reach no user: app.omark.app and the demo s
 ## Acceptance criteria
 
 - [ ] **No double runs.** The standalone Tasks and Time steps run only what the one app's run can't cover: `google-drive.spec.ts` and `local-folder.spec.ts`, which drive the real storage adapters in a browser. Everything else in `apps/tasks/e2e` and `apps/time/e2e` runs once, against the one app, as `omark e2e:tasks` / `e2e:time` already do.
-- [ ] **Coverage the one app was missing.** The one app gets e2e for its own icons, manifest and staging label (today only the standalone `icons.spec` and `environment.spec` check those, for a build nobody serves).
+- [ ] **Coverage the one app was missing.** The one app gets e2e for its own icons and manifest (today only the standalone `icons.spec` checks those, for a build nobody serves).
+  - *Moved out in the PR:* the staging label. The one app has no staging title, manifest or icons; only Tasks' `STAGING` label shows inside it, and its host logic is unit-tested (`environment.test.ts`). An e2e needs a staging-host build of the one app, so it gets its own issue.
+- [ ] **What the one app skips still runs.** Tests the one app's run skips but users still get (Tasks signing in again after a session expires, in `lifecycle.spec.ts`) run on the standalone build, and a test fails if a skipped test runs nowhere in CI.
 - [ ] **More workers.** Playwright uses 4 workers on CI.
 - [ ] **Faster polls.** The `expect.poll` calls that wait for a save poll every 100 ms through a shared helper, instead of Playwright's backoff to 1 s. `detail.spec.ts:138` already does this. The 1 s save delay itself stays.
 - [ ] **Measured.** CI time is measured on this PR. If `e2e (iphone)` is still over 3.5 min, it is split into two parallel jobs, with a small job named `e2e (iphone)` that passes only when both do, so branch protection doesn't change.

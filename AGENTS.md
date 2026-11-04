@@ -47,7 +47,7 @@ Cut ideas go to [the backlog](doc/TaskApp%20backlog.md).
 | `pnpm e2e` | fake-drive builds + Playwright, every app, both projects |
 | `pnpm --filter omark build` | the production build |
 
-Run one e2e spec with `pnpm --filter <app> e2e <spec>`, where `<app>` is `omark`, `tasks`, `time` or `site`. Tasks' and Time's specs run against the one app with `pnpm --filter omark e2e:tasks <spec>` (or `e2e:time`); that is how CI runs them, plus their storage specs on the standalone builds (`e2e:storage`).
+Run one e2e spec with `pnpm --filter <app> e2e <spec>`, where `<app>` is `omark`, `tasks`, `time` or `site`. Tasks' and Time's specs run against the one app with `pnpm --filter omark e2e:tasks <spec>` (or `e2e:time`); that is how CI runs them, plus, on the standalone builds, what that run skips (`e2e:standalone`).
 
 ## How work flows
 

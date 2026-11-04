@@ -307,7 +307,7 @@ describe('workflows', () => {
     const e2e = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1];
     expect(e2e.strategy?.matrix?.project).toEqual(projects);
     expect(e2e.strategy?.['fail-fast']).toBe(false);
-    expect(e2e.steps!.map((s) => s.run)).toContain('pnpm --filter tasks e2e:storage --project=${{ matrix.project }}');
+    expect(e2e.steps!.map((s) => s.run)).toContain('pnpm --filter tasks e2e:standalone --project=${{ matrix.project }}');
   });
 
   it('deploys staging, the demo and the site only after check and every e2e job', () => {
@@ -387,7 +387,7 @@ describe('workflows', () => {
 
   it('runs Omark Time’s e2e in the e2e job, with the same Playwright projects as Tasks', () => {
     const e2e = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1];
-    expect(e2e.steps!.map((s) => s.run)).toContain('pnpm --filter time e2e:storage --project=${{ matrix.project }}');
+    expect(e2e.steps!.map((s) => s.run)).toContain('pnpm --filter time e2e:standalone --project=${{ matrix.project }}');
     const names = (app: string) =>
       [...readFileSync(new URL(`../../../apps/${app}/playwright.config.ts`, import.meta.url), 'utf8').matchAll(/\{ name: '(\w+)'/g)].map((m) => m[1]);
     expect(names('time')).toEqual(names('tasks'));
@@ -413,19 +413,38 @@ describe('workflows', () => {
       readdirSync(new URL(`../../../apps/${app}/e2e`, import.meta.url)).filter((f) => f.endsWith('.spec.ts')).sort();
     const script = (app: string, name: string) => JSON.parse(read(`${app}/package.json`)).scripts[name];
 
-    // The standalone builds reach no user (app.omark.app and the demo serve apps/omark), so CI runs them only for
-    // the specs that drive the real storage adapters, which the one app's e2e can't reach.
-    const STORAGE = { tasks: ['google-drive.spec.ts', 'local-folder.spec.ts'], time: ['local-folder.spec.ts'] };
+    // The standalone builds reach no user (app.omark.app and the demo serve apps/omark), so CI runs on them only
+    // what the one app's run skips and users still get: the real storage adapters, and Tasks signing in again after
+    // a session expires, which the shell hands to Tasks (`e2e:standalone`).
+    const STANDALONE = {
+      tasks: ['google-drive.spec.ts', 'lifecycle.spec.ts', 'local-folder.spec.ts'],
+      time: ['local-folder.spec.ts'],
+    };
     // Specs of the standalone builds' own screens, which the one app replaced: run by `pnpm e2e`, not in CI.
     const STANDALONE_ONLY = {
       tasks: ['demo.spec.ts', 'environment.spec.ts', 'first-run.spec.ts', 'icons.spec.ts'],
       time: [] as string[],
     };
+    // Tests the one app's run skips, by their skip pattern, that a spec of its own covers, or that test a screen
+    // the shell replaced.
+    const COVERED_IN_ONE_APP = {
+      tasks: {
+        'the footer gear opens Settings with every setting': 'apps/omark/e2e/settings.spec.ts',
+        'invalid input is refused with a reason': 'apps/omark/e2e/settings.spec.ts',
+        'page title is Omark Tasks': 'apps/omark/e2e/icons.spec.ts',
+        'manifest is served with name and standalone display': 'apps/omark/e2e/icons.spec.ts',
+      },
+      time: {
+        'signed out, the app offers Google sign-in': "Time's own first run, replaced by the shell's",
+        'the first run asks for Drive access, then the calendars, and writes the files': "Time's own first run, replaced by the shell's",
+      },
+    } as Record<'tasks' | 'time', Record<string, string>>;
 
-    it('runs the standalone builds for their storage specs only', () => {
+    it('runs the standalone builds only for what the one app skips', () => {
       const runs = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1].steps!.map((s) => s.run);
       for (const app of ['tasks', 'time'] as const) {
-        expect(script(app, 'e2e:storage'), app).toBe(`playwright test ${STORAGE[app].join(' ')}`);
+        expect(script(app, 'e2e:standalone'), app).toBe(`playwright test ${STANDALONE[app].join(' ')}`);
+        expect(runs, app).toContain(`pnpm --filter ${app} e2e:standalone --project=\${{ matrix.project }}`);
         expect(runs, app).not.toContain(`pnpm --filter ${app} e2e --project=\${{ matrix.project }}`);
       }
     });
@@ -437,7 +456,29 @@ describe('workflows', () => {
       };
       for (const app of ['tasks', 'time'] as const) {
         const skipped = specs(app).filter((f) => inShell[app].includes(f));
-        expect(skipped, app).toEqual([...STORAGE[app], ...STANDALONE_ONLY[app]].sort());
+        expect(skipped, app).toEqual([...STANDALONE[app].filter((f) => inShell[app].includes(f)), ...STANDALONE_ONLY[app]].sort());
+      }
+    });
+
+    it('runs every test the one app skips somewhere in CI, or names where it is covered', () => {
+      const patterns = (config: string, name: string) =>
+        [...read(config).match(new RegExp(`${name} = \\[([\\s\\S]*?)\\n\\];`))![1]!.matchAll(/^\s+\/(.+)\/,$/gm)].map((m) => m[1]!);
+      const skips = {
+        tasks: patterns('omark/playwright.tasks.config.ts', 'TASKS_IN_SHELL_SKIP_TESTS'),
+        time: patterns('omark/playwright.time.config.ts', 'TIME_IN_SHELL_SKIP_TESTS'),
+      };
+      for (const app of ['tasks', 'time'] as const) {
+        expect(skips[app].length, app).toBeGreaterThan(0);
+        for (const pattern of skips[app]) {
+          const files = specs(app).filter((f) =>
+            [...read(`${app}/e2e/${f}`).matchAll(/\btest\(\s*(['"`])(.*?)\1/g)].some((m) => new RegExp(pattern).test(m[2]!)),
+          );
+          expect(files.length, `${app}: /${pattern}/ matches no test`).toBeGreaterThan(0);
+          for (const f of files) {
+            const runs = STANDALONE[app].includes(f) || STANDALONE_ONLY[app].includes(f) || pattern in COVERED_IN_ONE_APP[app];
+            expect(runs, `${app}: /${pattern}/ in ${f} runs nowhere in CI`).toBe(true);
+          }
+        }
       }
     });
 
