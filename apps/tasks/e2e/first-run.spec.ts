@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { folderFile, folderWrite, installFolderPicker, openApp } from './helpers';
+import { poll } from './poll';
 
 const row = (page: Page, title: string) => page.getByTestId('task-row').filter({ hasText: title });
 const TODAY_TASKS = '# Tasks\n- [ ] On OneDrive 📅 2026-10-16\n';
@@ -36,7 +37,7 @@ test('Google Drive is offered only where the helper has it', async ({ page }) =>
 test('picking an account signs in with it, and that choice is offered first next time', async ({ page }) => {
   await openApp(page, { auth: 'signed-out', providers: ['microsoft', 'google'] });
   await page.getByRole('button', { name: 'Use my Google Drive' }).click();
-  await expect.poll(() => signInWith(page)).toEqual(['google']);
+  await poll(() => signInWith(page)).toEqual(['google']);
   expect(await savedChoice(page)).toBe('google');
 
   // The sign-in did not happen (the stub stays signed out): the screen offers Google Drive first.
@@ -44,7 +45,7 @@ test('picking an account signs in with it, and that choice is offered first next
   await expect(page.getByText('Sign in to open your tasks in Google Drive, or choose another place.')).toBeVisible();
   await expect(page.getByTestId('first-run-choices').getByRole('button').first()).toHaveText('Use my Google Drive');
   await page.getByRole('button', { name: 'Use my OneDrive' }).click();
-  await expect.poll(() => signInWith(page)).toEqual(['microsoft']);
+  await poll(() => signInWith(page)).toEqual(['microsoft']);
   expect(await savedChoice(page)).toBe('microsoft');
 });
 
@@ -157,6 +158,6 @@ test('Settings offers the storages this browser supports', async ({ page, isMobi
   await expect(card.getByRole('button', { name: 'Use Google Drive' })).toBeVisible();
   await expect(card.getByRole('button', { name: 'Use a folder on this computer' })).toHaveCount(isMobile ? 0 : 1);
   await card.getByRole('button', { name: 'Use Google Drive' }).click();
-  await expect.poll(() => signInWith(page)).toEqual(['google']);
+  await poll(() => signInWith(page)).toEqual(['google']);
   expect(await savedChoice(page)).toBe('google');
 });

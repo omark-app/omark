@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import { driveFile, openApp, SPEC_TASKS } from './helpers';
+import { poll } from './poll';
 
 // Issue #19: the Tomorrow choice, shortcut words in a new task's title, and the Important flag.
 // The clock is Friday 2026-10-16: tomorrow is Sat 17 Oct, `fri` is Fri 23 Oct (Next week).
@@ -18,8 +19,7 @@ async function start(page: Page, tasks = SPEC_TASKS) {
 
 /** The copy with the bold words (just before the input) is scrolled exactly as the input is. */
 async function expectAligned(input: Locator) {
-  await expect
-    .poll(() => input.evaluate((el: HTMLInputElement) => {
+  await poll(() => input.evaluate((el: HTMLInputElement) => {
       const m = el.previousElementSibling as HTMLElement;
       return m.scrollLeft - el.scrollLeft;
     }))
@@ -59,7 +59,7 @@ test.describe('iPhone', () => {
     await option(page, 'Add').tap();
     await expect(rowsOf(page, 'tomorrow').first()).toHaveText(/^\s*Call the bank/);
     await expect(row(page, 'Call the bank')).toHaveAttribute('data-important', 'true');
-    await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Call the bank ⏫ 📅 2026-10-17\n');
+    await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Call the bank ⏫ 📅 2026-10-17\n');
   });
 
   test('with newTaskBucket: week on a Saturday the add sheet starts on Tomorrow, where This week lands (#26)', async ({ page }) => {
@@ -106,7 +106,7 @@ test.describe('iPhone', () => {
     await sheet(page).getByLabel('New task').pressSequentially('Plan trip tom');
     await option(page, 'Someday').tap();
     await option(page, 'Add').tap();
-    await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Plan trip\n');
+    await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Plan trip\n');
   });
 
   test('a picked chip gives way to a typed word and does not come back when the word goes', async ({ page }) => {
@@ -139,7 +139,7 @@ test.describe('iPhone', () => {
     await expect(words(sheet(page))).toHaveText(['imp']);
     await option(page, 'Save').tap();
     await expect(row(page, 'Call Tom back')).toHaveAttribute('data-important', 'true');
-    await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Call Tom back ⏫ 📅 2026-10-16\n');
+    await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Call Tom back ⏫ 📅 2026-10-16\n');
   });
 
   test('the move sheet has Tomorrow and Mark important', async ({ page }) => {
@@ -151,7 +151,7 @@ test.describe('iPhone', () => {
     await swipeLeft(row(page, 'Call the dentist'));
     await sheet(page).getByRole('button', { name: /^Mark important/ }).tap();
     await expect(row(page, 'Call the dentist')).toHaveAttribute('data-important', 'true');
-    await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Call the dentist about the crown ⏫ 📅 2026-10-17\n');
+    await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Call the dentist about the crown ⏫ 📅 2026-10-17\n');
   });
 });
 
@@ -168,7 +168,7 @@ test.describe('desktop', () => {
     await expect(input).toHaveValue('');
     await expect(words(page.getByTestId('add'))).toHaveCount(0);
     await expect(rowsOf(page, 'next').first()).toHaveText(/^\s*Send deck to Piotr/);
-    await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Send deck to Piotr ⏫ 📅 2026-10-23\n');
+    await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Send deck to Piotr ⏫ 📅 2026-10-23\n');
   });
 
   test('Backspace after a bold word in the add input keeps it as text', async ({ page }) => {
@@ -196,7 +196,7 @@ test.describe('desktop', () => {
     await expectAligned(input);
     await page.keyboard.press('Home');
     await expectAligned(input);
-    await expect.poll(() => input.evaluate((el: HTMLInputElement) => el.scrollLeft)).toBe(0);
+    await poll(() => input.evaluate((el: HTMLInputElement) => el.scrollLeft)).toBe(0);
   });
 
   test('m moves the selected task to tomorrow and i flags it', async ({ page }) => {

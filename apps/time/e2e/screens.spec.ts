@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { colours, driveFile, event, EVENTS, firstRun, openTime, openView, PROJECTS } from './helpers';
+import { poll } from './poll';
 
 // The seed (helpers): ACME on 1 and 20 October, an unknown ACMEE on 10 October, an untracked Lunch; today is 27 October.
 
@@ -37,7 +38,7 @@ test.describe('projects', () => {
     await openTime(page, { edit: true });
     await firstRun(page);
     await page.getByRole('checkbox', { name: 'Colour my events' }).check();
-    await expect.poll(() => colours(page)).toContain('typo:red');
+    await poll(() => colours(page)).toContain('typo:red');
     await openView(page, 'Fix list');
     await page.getByRole('button', { name: 'Add ACMEE as a project' }).click();
     await expect(page.getByLabel('Code')).toHaveValue('ACMEE');
@@ -45,7 +46,7 @@ test.describe('projects', () => {
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByTestId('project').and(page.locator('[data-code="ACMEE"]'))).toContainText('The typo client');
     await expect(page.getByTestId('status')).toContainText('0 to fix');
-    await expect.poll(() => colours(page)).toContain('typo:green');
+    await poll(() => colours(page)).toContain('typo:green');
     expect(await driveFile(page, 'projects.csv')).toContain('ACMEE,The typo client');
   });
 
@@ -59,7 +60,7 @@ test.describe('projects', () => {
     await page.getByLabel('Currency').fill('eur');
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByTestId('project')).toContainText('120 EUR/h');
-    await expect.poll(() => driveFile(page, 'projects.csv')).toContain('ACME,Acme,,120,EUR,,keep me');
+    await poll(() => driveFile(page, 'projects.csv')).toContain('ACME,Acme,,120,EUR,,keep me');
   });
 
   test('archive and unarchive; delete warns and offers to archive instead', async ({ page }) => {
@@ -137,7 +138,7 @@ test.describe('charts and report', () => {
     await openTime(page, { files: { 'projects.csv': PROJECTS, 'config.yaml': config } });
     await firstRun(page);
     await page.getByLabel('Week starts on').selectOption('sunday');
-    await expect.poll(() => driveFile(page, 'config.yaml')).toContain('week_start: sunday');
+    await poll(() => driveFile(page, 'config.yaml')).toContain('week_start: sunday');
     expect(await driveFile(page, 'config.yaml')).toContain('my_note: keep me # mine');
   });
 });

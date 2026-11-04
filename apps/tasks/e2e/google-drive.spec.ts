@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { driveFile, externalWrite, openApp, SPEC_TASKS } from './helpers';
+import { poll } from './poll';
 
 const row = (page: Page, title: string) => page.getByTestId('task-row').filter({ hasText: title });
 
@@ -32,9 +33,9 @@ test('with Google set up, the sign-in screen offers both, and the Google button 
   await expect(page.getByText('Your tasks live in three plain Markdown files. Choose where to keep them.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Use my OneDrive' })).toBeVisible();
   await page.getByRole('button', { name: 'Use my Google Drive' }).click();
-  await expect.poll(() => signInWith(page)).toEqual(['google']);
+  await poll(() => signInWith(page)).toEqual(['google']);
   await page.getByRole('button', { name: 'Use my OneDrive' }).click();
-  await expect.poll(() => signInWith(page)).toEqual(['google', 'microsoft']);
+  await poll(() => signInWith(page)).toEqual(['google', 'microsoft']);
 });
 
 test('without Google set up, the sign-in screen has only Microsoft', async ({ page }) => {
@@ -44,14 +45,14 @@ test('without Google set up, the sign-in screen has only Microsoft', async ({ pa
   await expect(page.getByRole('button', { name: 'Use my Google Drive' })).toHaveCount(0);
   // the button names its provider; auth.signIn keeps the plain `/api/auth/login` for the default
   await page.getByRole('button', { name: 'Use my OneDrive' }).click();
-  await expect.poll(() => signInWith(page)).toEqual(['microsoft']);
+  await poll(() => signInWith(page)).toEqual(['microsoft']);
 });
 
 test('with only Google set up, its button signs in with Google', async ({ page }) => {
   await openApp(page, { auth: 'signed-out', providers: ['google'] });
   await expect(page.getByText('Your tasks live in three plain Markdown files. Choose where to keep them.')).toBeVisible();
   await page.getByRole('button', { name: 'Use my Google Drive' }).click();
-  await expect.poll(() => signInWith(page)).toEqual(['google']);
+  await poll(() => signInWith(page)).toEqual(['google']);
 });
 
 test('a Google session that needs signing in again signs in with Google, not the default', async ({ page }) => {
@@ -59,7 +60,7 @@ test('a Google session that needs signing in again signs in with Google, not the
   await openApp(page, { auth: 'google-expired', files: { 'tasks.md': SPEC_TASKS } });
   await expect(page.getByTestId('sync-banner')).toContainText('Sign in again to reach Google Drive — showing your last saved copy');
   await page.getByTestId('sync-banner').getByRole('button', { name: 'Sign in' }).click();
-  await expect.poll(() => signInWith(page)).toEqual(['google']);
+  await poll(() => signInWith(page)).toEqual(['google']);
 });
 
 test('signed in with Google on an empty drive, the first task creates the folder and tasks.md', async ({ page, isMobile }) => {
@@ -67,7 +68,7 @@ test('signed in with Google on an empty drive, the first task creates the folder
   await expect(page.getByTestId('bucket-important')).toBeVisible();
   await expect(page.getByTestId('bucket-today')).toBeVisible();
   await addTask(page, 'Buy milk', isMobile);
-  await expect.poll(() => driveFile(page, 'tasks.md')).toMatch(/^# Tasks\n- \[ \] Buy milk\b/);
+  await poll(() => driveFile(page, 'tasks.md')).toMatch(/^# Tasks\n- \[ \] Buy milk\b/);
   expect(await folders(page)).toEqual(['Omark Tasks Dev']);
 });
 
@@ -77,7 +78,7 @@ test('signed in with Google, a save that meets an outside edit merges it in', as
   await externalWrite(page, 'tasks.md', `${SPEC_TASKS}- [ ] Added on the phone 📅 2026-10-16\n`);
   await addTask(page, 'Added here', isMobile); // its write gets a 412, merges the phone's task in and writes
   await expect(row(page, 'Added on the phone')).toHaveCount(1);
-  await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Added here');
+  await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Added here');
   expect(await driveFile(page, 'tasks.md')).toContain('- [ ] Added on the phone 📅 2026-10-16');
   await expect(page.getByTestId('status')).toHaveText('saved');
 });
@@ -93,7 +94,7 @@ test('a full Google Drive says so; once there is room, the next refresh saves an
   expect(await driveFile(page, 'tasks.md')).not.toContain('Written on a full drive');
   await setFull(page, false);
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-  await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Written on a full drive');
+  await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Written on a full drive');
   await expect(page.getByTestId('sync-banner')).toHaveCount(0);
   await expect(page.getByTestId('status')).toHaveText('saved');
 });

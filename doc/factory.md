@@ -88,13 +88,13 @@ Staging and production run the same build; Promote ships the exact files staging
 
 | Workflow | When | Does |
 |---|---|---|
-| `ci.yml` | PR opened or updated | `check` (typecheck and unit tests), e2e on desktop Chrome and iPhone WebKit in parallel, and once `check` passes a preview deploy with a comment linking it |
+| `ci.yml` | PR opened or updated | `check` (typecheck and unit tests), e2e on desktop Chrome and iPhone WebKit in parallel (iPhone in three parts, reported as one `e2e (iphone)` check), and once `check` passes a preview deploy with a comment linking it |
 | `ci.yml` | Push to `main` | The same checks, then the one app's staging deploy (keeping the build as an artifact), the demo deploy, and the omark.app site deploy |
 | `promote.yml` | By hand | Production deploy of a green `main` commit (`omark`), tag and release |
 
 - Docs-only pushes to `main` (`doc/**`, `*.md`) skip CI. Docs-only PRs still run it, because branch protection requires `check` and both `e2e` jobs (#124).
 - A newer push to a PR cancels the older run.
-- Agents run the checks before pushing, so CI confirms rather than debugs. They run only the e2e specs they touch; CI runs all of them.
+- Agents run the checks before pushing, so CI confirms rather than debugs. They run only the e2e specs they touch; CI runs the rest. CI runs Tasks' and Time's specs once, against the one app, and on their standalone builds (which no host serves) only what that run skips: the storage specs and signing in again. `pnpm e2e` still runs everything (#132).
 - Fork PRs get the checks and e2e but no preview, because forks have no secrets. A maintainer can push a contributor's branch to the main repository to get one.
 
 ## The guard

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { poll } from './poll';
 
 // Omark Goals inside the one app (roadmap G.2, Goals spec 8 and 13), on the fake storage: goals.md in goals/,
 // projects.csv at the top, Tasks' files read for links and activity.
@@ -48,7 +49,7 @@ test('the first run shows placeholders, writes nothing, and the first area repla
   expect(await peek(page, 'goals', 'goals.md')).toBeNull();
   await addArea(page, 'Health', 'Strong at 60.');
   await expect(page.getByTestId('placeholders')).toHaveCount(0);
-  await expect.poll(() => peek(page, 'goals', 'goals.md')).toBe('## Health #health\n\nStrong at 60.\n');
+  await poll(() => peek(page, 'goals', 'goals.md')).toBe('## Health #health\n\nStrong at 60.\n');
 });
 
 test('add, edit and delete an area and a goal; tick a goal and find it under Achieved', async ({ page }) => {
@@ -56,28 +57,28 @@ test('add, edit and delete an area and a goal; tick a goal and find it under Ach
   await addArea(page, 'Health');
   await addGoal(page, 'Health', 'Run a half marathon', '2027-05-01');
   await expect(card(page, 'Health').getByTestId('goal-row')).toContainText('by May 2027');
-  await expect.poll(() => peek(page, 'goals', 'goals.md')).toContain('- [ ] Run a half marathon 📅 2027-05-01 ➕ 2026-10-29');
+  await poll(() => peek(page, 'goals', 'goals.md')).toContain('- [ ] Run a half marathon 📅 2027-05-01 ➕ 2026-10-29');
 
   await card(page, 'Health').getByTestId('goal-row').click();
   await sheet(page).getByLabel('Achieved').check();
   await sheet(page).getByRole('button', { name: 'Save' }).click();
   await expect(card(page, 'Health').getByTestId('achieved')).toContainText('Achieved (1)');
-  await expect.poll(() => peek(page, 'goals', 'goals.md')).toContain('- [x] Run a half marathon 📅 2027-05-01 ➕ 2026-10-29 ✅ 2026-10-29');
+  await poll(() => peek(page, 'goals', 'goals.md')).toContain('- [x] Run a half marathon 📅 2027-05-01 ➕ 2026-10-29 ✅ 2026-10-29');
 
   await card(page, 'Health').getByRole('button', { name: 'Edit Health' }).click();
   await sheet(page).getByLabel('Name').fill('Body');
   await sheet(page).getByRole('button', { name: 'Save' }).click();
-  await expect.poll(() => peek(page, 'goals', 'goals.md')).toContain('## Body #health');
+  await poll(() => peek(page, 'goals', 'goals.md')).toContain('## Body #health');
 
   page.on('dialog', (d) => void d.accept());
   await card(page, 'Body').getByTestId('achieved').locator('summary').click();
   await card(page, 'Body').getByTestId('goal-row').click();
   await sheet(page).getByRole('button', { name: 'Delete' }).click();
-  await expect.poll(() => peek(page, 'goals', 'goals.md')).toBe('## Body #health\n');
+  await poll(() => peek(page, 'goals', 'goals.md')).toBe('## Body #health\n');
   await card(page, 'Body').getByRole('button', { name: 'Edit Body' }).click();
   await sheet(page).getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByTestId('area-card')).toHaveCount(0);
-  await expect.poll(() => peek(page, 'goals', 'goals.md')).toBe('');
+  await poll(() => peek(page, 'goals', 'goals.md')).toBe('');
 });
 
 test('a project created from the goal form goes to projects.csv, and the goal carries its code', async ({ page }) => {
@@ -93,8 +94,8 @@ test('a project created from the goal form goes to projects.csv, and the goal ca
   await sheet(page).getByLabel('Code').fill('COURSE');
   await sheet(page).getByLabel('Description').fill('My design course');
   await sheet(page).getByRole('button', { name: 'Save' }).click();
-  await expect.poll(() => peek(page, 'root', 'projects.csv')).toBe(`${PROJECTS}COURSE,My design course,,,,\n`);
-  await expect.poll(() => peek(page, 'goals', 'goals.md')).toContain('- [ ] Launch my course #COURSE ➕ 2026-10-29');
+  await poll(() => peek(page, 'root', 'projects.csv')).toBe(`${PROJECTS}COURSE,My design course,,,,\n`);
+  await poll(() => peek(page, 'goals', 'goals.md')).toContain('- [ ] Launch my course #COURSE ➕ 2026-10-29');
   await expect(card(page, 'Work').getByTestId('goal-facts')).toContainText('0 open tasks');
 });
 
@@ -107,7 +108,7 @@ test('a stale area shows Needs update; ticking a habit tagged with it in Tasks c
   await expect(card(page, 'Home').getByTestId('area-habits')).toContainText('Water the garden #home');
   await page.getByRole('navigation', { name: 'Parts' }).getByRole('link', { name: 'Tasks' }).click();
   await page.getByTestId('task-row').filter({ hasText: 'Water the garden' }).getByTestId('task-check').click();
-  await expect.poll(() => peek(page, 'tasks', 'done.md')).toContain('✅ 2026-10-29');
+  await poll(() => peek(page, 'tasks', 'done.md')).toContain('✅ 2026-10-29');
   await page.getByRole('navigation', { name: 'Parts' }).getByRole('link', { name: 'Goals' }).click();
   await expect(card(page, 'Home').getByTestId('needs-update')).toHaveCount(0);
 });
@@ -116,11 +117,11 @@ test('Move up and Move down move the whole area block, and the form stays on the
   await open(page, { goals: { 'goals.md': '## Home #home\n- [ ] Roof\n\n## Work #work\n- [ ] Course\n' } });
   await card(page, 'Work').getByRole('button', { name: 'Edit Work' }).click();
   await sheet(page).getByRole('button', { name: 'Move up' }).click();
-  await expect.poll(() => peek(page, 'goals', 'goals.md')).toBe('## Work #work\n- [ ] Course\n\n## Home #home\n- [ ] Roof\n');
+  await poll(() => peek(page, 'goals', 'goals.md')).toBe('## Work #work\n- [ ] Course\n\n## Home #home\n- [ ] Roof\n');
   await expect(sheet(page).getByRole('button', { name: 'Move up' })).toBeDisabled();
   await expect(sheet(page).getByLabel('Name')).toHaveValue('Work');
   await sheet(page).getByRole('button', { name: 'Move down' }).click();
-  await expect.poll(() => peek(page, 'goals', 'goals.md')).toBe('## Home #home\n- [ ] Roof\n\n## Work #work\n- [ ] Course\n');
+  await poll(() => peek(page, 'goals', 'goals.md')).toBe('## Home #home\n- [ ] Roof\n\n## Work #work\n- [ ] Course\n');
   await expect(page.getByTestId('area-card').first()).toContainText('Home');
 });
 
@@ -135,13 +136,13 @@ test('Not now: add, edit and delete', async ({ page }) => {
   const notNow = page.getByTestId('not-now');
   await notNow.getByLabel('Add to Not now').fill('A boat');
   await notNow.getByRole('button', { name: 'Add' }).click();
-  await expect.poll(() => peek(page, 'goals', 'goals.md')).toBe('## Home #home\n\n## Not now\n\n- A boat\n');
+  await poll(() => peek(page, 'goals', 'goals.md')).toBe('## Home #home\n\n## Not now\n\n- A boat\n');
   await notNow.getByRole('button', { name: 'A boat', exact: true }).click();
   await notNow.getByLabel('Not now item').fill('A small boat');
   await notNow.getByLabel('Not now item').press('Enter');
-  await expect.poll(() => peek(page, 'goals', 'goals.md')).toContain('- A small boat');
+  await poll(() => peek(page, 'goals', 'goals.md')).toContain('- A small boat');
   await notNow.getByRole('button', { name: 'Delete A small boat' }).click();
-  await expect.poll(() => peek(page, 'goals', 'goals.md')).not.toContain('boat');
+  await poll(() => peek(page, 'goals', 'goals.md')).not.toContain('boat');
 });
 
 test('the vision line is edited in place', async ({ page }) => {
@@ -150,7 +151,7 @@ test('the vision line is edited in place', async ({ page }) => {
   await page.getByLabel('Vision line').fill('Calm and strong.');
   await page.getByLabel('Vision line').press('Enter');
   await expect(page.getByTestId('vision-line')).toHaveText('Calm and strong.');
-  await expect.poll(() => peek(page, 'goals', 'goals.md')).toBe('# Vision\n\nCalm and strong.\n\n## Home #home\n');
+  await poll(() => peek(page, 'goals', 'goals.md')).toBe('# Vision\n\nCalm and strong.\n\n## Home #home\n');
 });
 
 test('Needs update after is set on the one Settings page, in goals/config.yaml', async ({ page }) => {
@@ -161,7 +162,7 @@ test('Needs update after is set on the one Settings page, in goals/config.yaml',
   const section = page.getByTestId('settings-section-goals');
   await section.getByRole('spinbutton').fill('12');
   await section.getByRole('spinbutton').blur();
-  await expect.poll(() => peek(page, 'goals', 'config.yaml')).toBe('stale_after: 12\n');
+  await poll(() => peek(page, 'goals', 'config.yaml')).toBe('stale_after: 12\n');
   await page.getByTestId('settings-back').click();
   await expect(card(page, 'Home').getByTestId('needs-update')).toHaveCount(0);
 });

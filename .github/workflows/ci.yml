@@ -56,9 +56,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.run_id }}
   e2e:
-    # One job per Playwright project, in parallel. Playwright's image has the browsers and their Linux packages,
-    # so nothing is installed. Its version must match @playwright/test (workflows.test.ts checks it).
-    name: e2e (${{ matrix.project }})
+    # One job per Playwright project, in parallel, and iPhone (WebKit, the slowest) in three parts side by side,
+    # each two to three minutes (#132); e2e-iphone reports them as one check. Playwright's image has the browsers and
+    # their Linux packages, so nothing is installed. Its version must match @playwright/test (workflows.test.ts checks it).
+    name: e2e (${{ matrix.project }}${{ matrix.part != 'all' && format(', {0}', matrix.part) || '' }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
     container:
@@ -68,7 +69,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        project: [desktop, iphone]
+        include:
+          - { project: desktop, part: all }
+          - { project: iphone, part: a }
+          - { project: iphone, part: b }
+          - { project: iphone, part: c }
     permissions:
       contents: read
     steps:
@@ -79,12 +84,35 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter tasks e2e --project=${{ matrix.project }}
-      - run: pnpm --filter site e2e --project=${{ matrix.project }}
-      - run: pnpm --filter time e2e --project=${{ matrix.project }}
-      - run: pnpm --filter omark e2e --project=${{ matrix.project }}
+      # The standalone Tasks and Time builds reach no user: their specs run against the one app (e2e:tasks,
+      # e2e:time), and here only what that run skips and users still get: the real storage adapters, and Tasks
+      # signing in again after a session expires (#132).
+      # Part a: Tasks. Part b: the one app and the site. Part c: Time.
+      - run: pnpm --filter tasks e2e:standalone --project=${{ matrix.project }}
+        if: matrix.part == 'all' || matrix.part == 'a'
       - run: pnpm --filter omark e2e:tasks --project=${{ matrix.project }}
+        if: matrix.part == 'all' || matrix.part == 'a'
+      - run: pnpm --filter omark e2e --project=${{ matrix.project }}
+        if: matrix.part == 'all' || matrix.part == 'b'
+      - run: pnpm --filter site e2e --project=${{ matrix.project }}
+        if: matrix.part == 'all' || matrix.part == 'b'
       - run: pnpm --filter omark e2e:time --project=${{ matrix.project }}
+        if: matrix.part == 'all' || matrix.part == 'c'
+      - run: pnpm --filter time e2e:standalone --project=${{ matrix.project }}
+        if: matrix.part == 'all' || matrix.part == 'c'
+  e2e-iphone:
+    # Branch protection requires a check named e2e (iphone); this is it, for all three iPhone parts. It needs the whole
+    # e2e matrix, so it also fails when desktop does, which blocks the merge either way.
+    name: e2e (iphone)
+    needs: [e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - run: test "$RESULT" = success
+        env:
+          RESULT: ${{ needs.e2e.result }}
   omark-preview:
     # Same-repo PRs only: a fork's PR has no secrets, and its code must never meet ours. It waits for check
     # but not e2e, so a maintainer can look while e2e runs; the PR is ready only once e2e is green too.

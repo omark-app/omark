@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { authCalls, colours, editEvent, event, EVENTS, firstRun, openTime, PROJECTS, reload } from './helpers';
+import { poll } from './poll';
 
 const patchCount = (page: import('@playwright/test').Page) => page.evaluate(() => window.__omarkTime!.calendar.patches.length);
 
@@ -22,7 +23,7 @@ test('turning colouring on asks for edit access and colours newest first', async
   await openTime(page);
   const own = await firstRun(page);
   await page.getByRole('checkbox', { name: 'Colour my events' }).check();
-  await expect.poll(() => colours(page)).toEqual(['new:green', 'old:green', 'typo:red']);
+  await poll(() => colours(page)).toEqual(['new:green', 'old:green', 'typo:red']);
   expect(await authCalls(page)).toEqual([...(own ? ['addAccess:drive'] : []), 'addAccess:edit']);
   expect(await page.evaluate(() => window.__omarkTime!.calendar.patches.map((p) => p.eventId))).toEqual(['new', 'typo', 'old']);
 });
@@ -39,9 +40,9 @@ test('colouring carries on after a reload', async ({ page }) => {
     calendar.setColour = (...args) => (++n > 2 ? new Promise(() => {}) : setColour(...args));
   });
   await page.getByRole('checkbox', { name: 'Colour my events' }).check();
-  await expect.poll(() => colours(page)).toHaveLength(2);
+  await poll(() => colours(page)).toHaveLength(2);
   await reload(page);
-  await expect.poll(() => colours(page)).toHaveLength(12);
+  await poll(() => colours(page)).toHaveLength(12);
   // Only what was left: the two sent before the reload are not sent again.
   expect(await patchCount(page)).toBe(10);
 });
@@ -54,7 +55,7 @@ test('a device without edit access says so and colours nothing until given it', 
   await expect(page.getByRole('heading', { name: 'Colouring needs edit access' })).toBeVisible();
   expect(await colours(page)).toEqual([]);
   await page.getByRole('button', { name: 'Give edit access' }).click();
-  await expect.poll(() => colours(page)).toEqual(['new:green', 'old:green', 'typo:red']);
+  await poll(() => colours(page)).toEqual(['new:green', 'old:green', 'typo:red']);
   await expect(page.getByRole('heading', { name: 'Colouring needs edit access' })).toHaveCount(0);
 });
 
@@ -62,9 +63,9 @@ test('turning colouring off offers to clear the colours it set, and leaves the u
   await openTime(page, { edit: true, events: [...EVENTS, event('gym', '2026-10-05', 'Gym', { colorId: '5' })] });
   await firstRun(page);
   await page.getByRole('checkbox', { name: 'Colour my events' }).check();
-  await expect.poll(() => colours(page)).toEqual(['gym:null', 'new:green', 'old:green', 'typo:red']);
+  await poll(() => colours(page)).toEqual(['gym:null', 'new:green', 'old:green', 'typo:red']);
   await page.getByRole('checkbox', { name: 'Colour my events' }).uncheck();
   await expect(page.getByRole('heading', { name: 'Clear the colours Omark Time set?' })).toBeVisible();
   await page.getByRole('button', { name: 'Clear them' }).click();
-  await expect.poll(() => colours(page)).toEqual(['gym:null']);
+  await poll(() => colours(page)).toEqual(['gym:null']);
 });

@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { demoPort } from './port';
+import { poll } from './poll';
 
 // The demo build (VITE_STORAGE=demo), served by playwright.config.ts's second web server. Each test has a
 // fresh browser context, so it starts on a new IndexedDB with the sample files.
@@ -82,10 +83,10 @@ test('an added task, a completion and a note survive a reload', async ({ page, i
   await row(page, 'Send the invoice').getByTestId('task-check').click();
   await expect(row(page, 'Send the invoice')).toHaveCount(0);
   await addNote(page, isMobile, 'Pick up the dry cleaning', 'the blue coat');
-  await expect.poll(() => demoFile(page, 'tasks.md')).toContain('    - the blue coat\n');
+  await poll(() => demoFile(page, 'tasks.md')).toContain('    - the blue coat\n');
   expect(await demoFile(page, 'tasks.md')).toContain('- [ ] Buy stamps');
   expect(await demoFile(page, 'tasks.md')).not.toContain('Send the invoice');
-  await expect.poll(() => demoFile(page, 'done.md')).toContain('- [x] Send the invoice');
+  await poll(() => demoFile(page, 'done.md')).toContain('- [x] Send the invoice');
 
   await page.reload();
   await expect(row(page, 'Buy stamps')).toHaveCount(1);
@@ -117,8 +118,8 @@ test('Reset demo asks first; dismissed it changes nothing, accepted it brings ba
   expect(samples.tasks).toContain('Call the dentist about the crown');
   await addTask(page, isMobile, 'Buy stamps');
   await row(page, 'Send the invoice').getByTestId('task-check').click();
-  await expect.poll(() => demoFile(page, 'done.md')).toContain('- [x] Send the invoice');
-  await expect.poll(() => demoFile(page, 'tasks.md')).toContain('- [ ] Buy stamps');
+  await poll(() => demoFile(page, 'done.md')).toContain('- [x] Send the invoice');
+  await poll(() => demoFile(page, 'tasks.md')).toContain('- [ ] Buy stamps');
 
   const messages: string[] = [];
   page.once('dialog', (d) => {
@@ -127,7 +128,7 @@ test('Reset demo asks first; dismissed it changes nothing, accepted it brings ba
   });
   await page.evaluate(() => ((window as unknown as { __notReloaded: boolean }).__notReloaded = true));
   await page.getByTestId('reset-demo').click();
-  await expect.poll(() => messages).toEqual(['Reset the demo? Your demo edits are lost.']);
+  await poll(() => messages).toEqual(['Reset the demo? Your demo edits are lost.']);
   await expect(row(page, 'Buy stamps')).toHaveCount(1);
   expect(await page.evaluate(() => (window as unknown as { __notReloaded?: boolean }).__notReloaded)).toBe(true);
   expect(await demoFile(page, 'tasks.md')).toContain('- [ ] Buy stamps');
@@ -149,7 +150,7 @@ test('every request goes to the demo origin, and none to /api/', async ({ page, 
   });
   await open(page);
   await addTask(page, isMobile, 'Buy stamps');
-  await expect.poll(() => demoFile(page, 'tasks.md')).toContain('- [ ] Buy stamps');
+  await poll(() => demoFile(page, 'tasks.md')).toContain('- [ ] Buy stamps');
   await page.reload();
   await expect(row(page, 'Buy stamps')).toHaveCount(1);
   await expect(page.getByTestId('status')).toHaveText('saved');

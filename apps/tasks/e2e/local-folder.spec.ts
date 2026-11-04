@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { folderFile, folderWrite, installFolderPicker, openApp } from './helpers';
+import { poll } from './poll';
 
 const row = (page: Page, title: string) => page.getByTestId('task-row').filter({ hasText: title });
 const FOLDER_BUTTON = 'Use a folder on this computer';
@@ -19,17 +20,17 @@ test.describe('a folder on this computer', () => {
 
     await expect(row(page, 'Call the dentist')).toHaveCount(1);
     // Missing files are created in the folder.
-    for (const name of ['done.md', 'config.yaml'] as const) await expect.poll(() => folderFile(page, name)).not.toBeNull();
+    for (const name of ['done.md', 'config.yaml'] as const) await poll(() => folderFile(page, name)).not.toBeNull();
 
     await page.getByTestId('add-input').fill('Water the plants');
     await page.getByTestId('add-input').press('Enter');
-    await expect.poll(() => folderFile(page, 'tasks.md')).toContain('Water the plants');
+    await poll(() => folderFile(page, 'tasks.md')).toContain('Water the plants');
 
     await row(page, 'Call the dentist').click();
     await page.keyboard.press('x');
     await expect(page.getByTestId('toast')).toContainText('Done · Call the dentist');
-    await expect.poll(() => folderFile(page, 'done.md')).toContain('Call the dentist');
-    await expect.poll(() => folderFile(page, 'tasks.md')).not.toContain('Call the dentist');
+    await poll(() => folderFile(page, 'done.md')).toContain('Call the dentist');
+    await poll(() => folderFile(page, 'tasks.md')).not.toContain('Call the dentist');
   });
 
   test('an edit made outside while the app is open is merged', async ({ page }) => {
@@ -46,8 +47,8 @@ test.describe('a folder on this computer', () => {
 
     await expect(row(page, 'From Obsidian')).toHaveCount(1);
     await expect(row(page, 'From the app')).toHaveCount(1);
-    await expect.poll(() => folderFile(page, 'tasks.md')).toContain('From Obsidian');
-    await expect.poll(() => folderFile(page, 'tasks.md')).toContain('From the app');
+    await poll(() => folderFile(page, 'tasks.md')).toContain('From Obsidian');
+    await poll(() => folderFile(page, 'tasks.md')).toContain('From the app');
   });
 
   test('a later visit that needs permission shows the saved copy, and Allow access reaches the folder', async ({ page }) => {
@@ -56,7 +57,7 @@ test.describe('a folder on this computer', () => {
     await folderWrite(page, 'tasks.md', '# Tasks\n- [ ] One 📅 2026-10-16\n');
     await page.getByRole('button', { name: FOLDER_BUTTON }).click();
     await expect(row(page, 'One')).toHaveCount(1);
-    await expect.poll(() => folderFile(page, 'done.md')).toBe('');
+    await poll(() => folderFile(page, 'done.md')).toBe('');
 
     await folderWrite(page, 'tasks.md', '# Tasks\n- [ ] One 📅 2026-10-16\n- [ ] Written while closed 📅 2026-10-16\n');
     await page.evaluate(() => localStorage.setItem('e2e-folder-permission', 'prompt'));
@@ -72,8 +73,8 @@ test.describe('a folder on this computer', () => {
     await banner.getByRole('button', { name: 'Allow access' }).click();
     await expect(row(page, 'Written while closed')).toHaveCount(1);
     await expect(banner).toHaveCount(0);
-    await expect.poll(() => folderFile(page, 'tasks.md')).toContain('While waiting');
-    await expect.poll(() => folderFile(page, 'tasks.md')).toContain('Written while closed');
+    await poll(() => folderFile(page, 'tasks.md')).toContain('While waiting');
+    await poll(() => folderFile(page, 'tasks.md')).toContain('Written while closed');
   });
 
   test('a folder that has gone away is picked again, and its tasks are written there', async ({ page }) => {
@@ -82,7 +83,7 @@ test.describe('a folder on this computer', () => {
     await folderWrite(page, 'tasks.md', '# Tasks\n- [ ] One 📅 2026-10-16\n');
     await page.getByRole('button', { name: FOLDER_BUTTON }).click();
     await expect(row(page, 'One')).toHaveCount(1);
-    await expect.poll(() => folderFile(page, 'done.md')).toBe('');
+    await poll(() => folderFile(page, 'done.md')).toBe('');
 
     // The folder is moved away: the open handle now finds nothing.
     await page.evaluate(async () => (await navigator.storage.getDirectory()).removeEntry('Tasks', { recursive: true }));
@@ -91,9 +92,12 @@ test.describe('a folder on this computer', () => {
     await expect(row(page, 'One')).toHaveCount(1);
 
     // Picking it again (here an empty folder of the same name) writes the offline copy there.
+    // Picking reloads the page, and the row is already there before it, so wait for the reload itself.
+    const reloaded = page.waitForEvent('load');
     await page.getByTestId('folder-again').getByRole('button', { name: 'Pick the folder again' }).click();
+    await reloaded;
     await expect(row(page, 'One')).toHaveCount(1);
-    await expect.poll(() => folderFile(page, 'tasks.md')).toContain('One');
+    await poll(() => folderFile(page, 'tasks.md')).toContain('One');
     await expect(page.getByTestId('sync-banner')).toHaveCount(0);
   });
 

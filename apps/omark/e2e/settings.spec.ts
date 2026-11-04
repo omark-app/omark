@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { poll } from './poll';
 
 // The one Settings page (roadmap U.5, one app spec section 8): the Omark card (storage, parts, sign-ins, sign-out)
 // and a section per part that is on, each writing its own config.yaml.
@@ -54,10 +55,10 @@ test('turning Time on and off from Settings shows and hides its tab, and writes 
   await omark(page).getByRole('checkbox', { name: /Time/ }).check();
   await expect(tabs(page).getByRole('link')).toHaveText(['Tasks', 'Time']);
   await expect(page).toHaveURL(/\/settings$/);
-  await expect.poll(() => peek(page, 'root', 'config.yaml')).toBe('parts: [tasks, time]\n');
+  await poll(() => peek(page, 'root', 'config.yaml')).toBe('parts: [tasks, time]\n');
   await omark(page).getByRole('checkbox', { name: /Time/ }).uncheck();
   await expect(tabs(page)).toHaveCount(0);
-  await expect.poll(() => peek(page, 'root', 'config.yaml')).toBe('parts: [tasks]\n');
+  await poll(() => peek(page, 'root', 'config.yaml')).toBe('parts: [tasks]\n');
 });
 
 test("a Tasks setting and a Time setting changed on the page land in their own files", async ({ page }) => {
@@ -69,11 +70,11 @@ test("a Tasks setting and a Time setting changed on the page land in their own f
   await expect(page).toHaveURL(/\/settings$/);
 
   await page.getByTestId('settings-section-general').getByRole('group', { name: 'Theme' }).getByRole('button', { name: 'Dark' }).click();
-  await expect.poll(() => peek(page, 'tasks', 'config.yaml')).toContain('theme: dark');
+  await poll(() => peek(page, 'tasks', 'config.yaml')).toContain('theme: dark');
   const time = page.getByTestId('settings-section-time');
   await time.getByLabel('Hours an all-day event counts for').fill('6');
   await time.getByLabel('Hours an all-day event counts for').blur();
-  await expect.poll(() => peek(page, 'time', 'config.yaml')).toContain('all_day_hours: 6');
+  await poll(() => peek(page, 'time', 'config.yaml')).toContain('all_day_hours: 6');
   expect(await peek(page, 'tasks', 'config.yaml')).not.toContain('all_day');
   // Back goes back to Time, where Settings was opened from.
   await page.getByTestId('settings-back').click();
@@ -84,9 +85,9 @@ test("a Tasks setting and a Time setting changed on the page land in their own f
 test('Google Calendar connects and disconnects from the Omark card next to OneDrive', async ({ page }) => {
   await open(page, { seed: { root: { 'config.yaml': 'parts: [tasks, time]\n' } }, path: '/settings' });
   await omark(page).getByRole('button', { name: 'Connect Google Calendar' }).click();
-  await expect.poll(() => sessions(page)).toEqual({ microsoft: [], googlecal: [] });
+  await poll(() => sessions(page)).toEqual({ microsoft: [], googlecal: [] });
   await omark(page).getByRole('button', { name: 'Disconnect' }).click();
-  await expect.poll(() => sessions(page)).toEqual({ microsoft: [] });
+  await poll(() => sessions(page)).toEqual({ microsoft: [] });
   await expect(omark(page).getByRole('button', { name: 'Connect Google Calendar' })).toBeVisible();
 });
 
@@ -109,6 +110,6 @@ test('a part turned on offline shows at once and reaches the folder when it is b
   expect(await peek(page, 'root', 'config.yaml')).toBe('parts: [tasks]\n');
   await root(false);
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
-  await expect.poll(() => peek(page, 'root', 'config.yaml')).toBe('parts: [tasks, goals]\n');
+  await poll(() => peek(page, 'root', 'config.yaml')).toBe('parts: [tasks, goals]\n');
   await expect(omark(page).getByRole('status')).toHaveCount(0);
 });

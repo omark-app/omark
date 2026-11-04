@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { poll } from './poll';
 
 // Goals' area pictures (roadmap G.2b, Goals spec 7.1 and 8) on the fake storage: JPEGs in goals/images/.
 
@@ -65,7 +66,7 @@ test('a picture is saved as a 1600 px JPEG named from the tag; Replace adds -2 a
   await expect(sheet(page)).toHaveCount(0);
   await expect(card(page, 'Climbing').getByTestId('area-picture')).toHaveJSProperty('complete', true);
   expect(await card(page, 'Climbing').getByTestId('area-picture').evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(1600);
-  await expect.poll(() => goalsMd(page)).toBe('## Climbing #climbing\n\n![Climbing](images/climbing.jpg)\n');
+  await poll(() => goalsMd(page)).toBe('## Climbing #climbing\n\n![Climbing](images/climbing.jpg)\n');
   expect(await pictureInfo(page, 'climbing.jpg')).toEqual({ type: 'image/jpeg', start: [0xff, 0xd8], width: 1600, height: 800 });
 
   // Replace: a new name, the old file left.
@@ -73,7 +74,7 @@ test('a picture is saved as a 1600 px JPEG named from the tag; Replace adds -2 a
   await expect(sheet(page).getByTestId('picture-thumb')).toBeVisible();
   await fileInput(page).setInputFiles(await png(page, 800, 1200));
   await sheet(page).getByRole('button', { name: 'Save' }).click();
-  await expect.poll(() => goalsMd(page)).toBe('## Climbing #climbing\n\n![Climbing](images/climbing-2.jpg)\n');
+  await poll(() => goalsMd(page)).toBe('## Climbing #climbing\n\n![Climbing](images/climbing-2.jpg)\n');
   expect(await pictureNames(page)).toEqual(['climbing-2.jpg', 'climbing.jpg']);
   expect(await pictureInfo(page, 'climbing-2.jpg')).toMatchObject({ width: 800, height: 1200 });
 
@@ -82,7 +83,7 @@ test('a picture is saved as a 1600 px JPEG named from the tag; Replace adds -2 a
   await sheet(page).getByRole('button', { name: 'Remove picture' }).click();
   await expect(sheet(page).getByTestId('picture-thumb')).toHaveCount(0);
   await sheet(page).getByRole('button', { name: 'Save' }).click();
-  await expect.poll(() => goalsMd(page)).toBe('## Climbing #climbing\n');
+  await poll(() => goalsMd(page)).toBe('## Climbing #climbing\n');
   await expect(card(page, 'Climbing').getByTestId('area-picture')).toHaveCount(0);
   expect(await pictureNames(page)).toEqual(['climbing-2.jpg', 'climbing.jpg']);
 });
@@ -95,12 +96,12 @@ test('offline, the picture is not saved and the form says why; the rest of the e
   await fileInput(page).setInputFiles(await png(page, 400, 300));
   await sheet(page).getByRole('button', { name: 'Save' }).click();
   await expect(sheet(page).getByRole('alert')).toContainText("Can't reach the Omark folder");
-  await expect.poll(() => goalsMd(page)).toBe('## Climbing #climbing\n\nLead 7a.\n');
+  await poll(() => goalsMd(page)).toBe('## Climbing #climbing\n\nLead 7a.\n');
   // Back online, Save again adds it.
   await setOffline(page, false);
   await sheet(page).getByRole('button', { name: 'Save' }).click();
   await expect(sheet(page)).toHaveCount(0);
-  await expect.poll(() => goalsMd(page)).toBe('## Climbing #climbing\n\n![Climbing](images/climbing.jpg)\n\nLead 7a.\n');
+  await poll(() => goalsMd(page)).toBe('## Climbing #climbing\n\n![Climbing](images/climbing.jpg)\n\nLead 7a.\n');
   await expect(card(page, 'Climbing').getByTestId('area-picture')).toBeVisible();
 });
 
