@@ -409,26 +409,26 @@ describe('workflows', () => {
     expect(names('omark/playwright.tasks.config.ts')).toEqual(names('tasks/playwright.config.ts'));
   });
 
-  describe('splits the slow iPhone e2e in two halves that run side by side (#132)', () => {
+  describe('splits the slow iPhone e2e in three parts that run side by side (#132)', () => {
     const jobs = () => Object.fromEntries(jobsOf('ci.yml'));
-    const parts = { a: [] as string[], b: [] as string[] };
+    const PARTS = ['a', 'b', 'c'];
 
-    it('runs desktop whole and iPhone as two parts', () => {
+    it('runs desktop whole and iPhone as three parts', () => {
       expect((jobs().e2e!.strategy?.matrix as { include: unknown[] }).include).toEqual([
         { project: 'desktop', part: 'all' },
-        { project: 'iphone', part: 'a' },
-        { project: 'iphone', part: 'b' },
+        ...PARTS.map((part) => ({ project: 'iphone', part })),
       ]);
       expect(jobs().e2e!.name).toBe("e2e (${{ matrix.project }}${{ matrix.part != 'all' && format(', {0}', matrix.part) || '' }})");
     });
 
     it('runs every Playwright step in exactly one part, and all of them on desktop', () => {
+      const used = new Set<string>();
       for (const s of jobs().e2e!.steps!.filter((s) => /^pnpm --filter \w+ e2e/.test(s.run ?? ''))) {
-        expect(["matrix.part != 'b'", "matrix.part != 'a'"], s.run).toContain(s.if);
-        parts[s.if === "matrix.part != 'b'" ? 'a' : 'b'].push(s.run!);
+        const part = s.if?.match(/^matrix\.part == 'all' \|\| matrix\.part == '([a-z])'$/)?.[1];
+        expect(PARTS, `${s.run}: ${s.if}`).toContain(part);
+        used.add(part!);
       }
-      expect(parts.a.length).toBeGreaterThan(0);
-      expect(parts.b.length).toBeGreaterThan(0);
+      expect([...used].sort()).toEqual(PARTS);
     });
 
     it("keeps the required check named e2e (iphone): it passes only when every e2e job did", () => {

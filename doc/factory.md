@@ -88,7 +88,7 @@ Staging and production run the same build; Promote ships the exact files staging
 
 | Workflow | When | Does |
 |---|---|---|
-| `ci.yml` | PR opened or updated | `check` (typecheck and unit tests), e2e on desktop Chrome and iPhone WebKit in parallel (iPhone in two parts, reported as one `e2e (iphone)` check), and once `check` passes a preview deploy with a comment linking it |
+| `ci.yml` | PR opened or updated | `check` (typecheck and unit tests), e2e on desktop Chrome and iPhone WebKit in parallel (iPhone in three parts, reported as one `e2e (iphone)` check), and once `check` passes a preview deploy with a comment linking it |
 | `ci.yml` | Push to `main` | The same checks, then the one app's staging deploy (keeping the build as an artifact), the demo deploy, and the omark.app site deploy |
 | `promote.yml` | By hand | Production deploy of a green `main` commit (`omark`), tag and release |
 
