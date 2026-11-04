@@ -24,6 +24,44 @@ export function nativePath(path, platform = process.platform) {
 }
 
 /**
+ * One parsed command without its leading variables and wrappers (`env`, `nohup`, …): the program and its arguments.
+ * @param {string[]} words
+ */
+function unwrap(words) {
+  let k = 0;
+  while (k < words.length) {
+    const w = /** @type {string} */ (words[k]);
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(w) || WRAPPERS.has(w.split('/').pop() ?? '')) k++;
+    else break;
+  }
+  return { name: (words[k] ?? '').split('/').pop() ?? '', rest: words.slice(k + 1) };
+}
+
+/**
+ * The command line inside `bash -c` or `eval`, or undefined for any other program.
+ * @param {string} name
+ * @param {string[]} rest
+ */
+function innerLine(name, rest) {
+  if (name === 'eval') return rest.join(' ');
+  return SHELLS.has(name) && rest.includes('-c') ? rest[rest.indexOf('-c') + 1] : undefined;
+}
+
+/**
+ * The index of git's subcommand in its arguments, past the global options.
+ * @param {string[]} rest
+ */
+function subcommandAt(rest) {
+  let i = 0;
+  while (i < rest.length && /** @type {string} */ (rest[i]).startsWith('-')) {
+    const w = /** @type {string} */ (rest[i]);
+    if (w === '-C' || w === '-c' || w === '--git-dir' || w === '--work-tree' || w === '--namespace') i++;
+    i++;
+  }
+  return i;
+}
+
+/**
  * The folder a command line pushes from, or null when it pushes nothing that needs checks: no `git push`, a dry
  * run, or a push that only deletes branches. Follows `git -C <dir>`, a `cd <dir>` earlier in the line, wrappers
  * (`env`, `nohup`, …) and `bash -c` / `eval`, as the guard does.
@@ -34,40 +72,61 @@ export function nativePath(path, platform = process.platform) {
 export function pushDir(command, cwd) {
   let dir = cwd;
   for (const { words } of parse(dropHeredocs(command))) {
-    let k = 0;
-    while (k < words.length) {
-      const w = /** @type {string} */ (words[k]);
-      if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(w) || WRAPPERS.has(w.split('/').pop() ?? '')) k++;
-      else break;
-    }
-    const name = (words[k] ?? '').split('/').pop() ?? '';
-    const rest = words.slice(k + 1);
+    const { name, rest } = unwrap(words);
     if (name === 'cd') {
       dir = resolve(dir, nativePath((rest[0] ?? '~').replace(/^~(?=\/|$)/, homedir())));
       continue;
     }
-    const inner = SHELLS.has(name) ? rest[rest.indexOf('-c') + 1] : name === 'eval' ? rest.join(' ') : undefined;
-    if (inner !== undefined && (!SHELLS.has(name) || rest.includes('-c'))) {
+    const inner = innerLine(name, rest);
+    if (inner !== undefined) {
       const found = pushDir(inner, dir);
       if (found !== null) return found;
       continue;
     }
     if (name !== 'git') continue;
-    let at = dir;
-    let i = 0;
-    while (i < rest.length && /** @type {string} */ (rest[i]).startsWith('-')) {
-      const w = /** @type {string} */ (rest[i]);
-      if (w === '-C') at = resolve(at, nativePath(rest[i + 1] ?? ''));
-      if (w === '-C' || w === '-c' || w === '--git-dir' || w === '--work-tree' || w === '--namespace') i++;
-      i++;
-    }
+    const i = subcommandAt(rest);
     if (rest[i] !== 'push') continue;
+    let at = dir;
+    rest.slice(0, i).forEach((w, n) => {
+      if (w === '-C') at = resolve(at, nativePath(rest[n + 1] ?? ''));
+    });
     const args = rest.slice(i + 1);
     const flag = (/** @type {string} */ a) => a === '--dry-run' || a === '--delete' || /^-[A-Za-z]*[nd][A-Za-z]*$/.test(a);
     if (args.some(flag)) continue;
     const refs = args.filter((a) => !a.startsWith('-')).slice(1);
     if (refs.length > 0 && refs.every((r) => r.startsWith(':'))) continue;
     return at;
+  }
+  return null;
+}
+
+/**
+ * Whether a command line runs `git commit` before its `git push`. The hook runs before the line does, so that
+ * commit doesn't exist yet when the hook reads the branch (#146).
+ * @param {string} command
+ * @returns {boolean}
+ */
+export function commitsFirst(command) {
+  return firstOf(command) === 'commit';
+}
+
+/**
+ * Which comes first in a command line: a `git commit`, a `git push`, or neither.
+ * @param {string} command
+ * @returns {'commit' | 'push' | null}
+ */
+function firstOf(command) {
+  for (const { words } of parse(dropHeredocs(command))) {
+    const { name, rest } = unwrap(words);
+    const inner = innerLine(name, rest);
+    if (inner !== undefined) {
+      const found = firstOf(inner);
+      if (found !== null) return found;
+      continue;
+    }
+    if (name !== 'git') continue;
+    const sub = rest[subcommandAt(rest)];
+    if (sub === 'commit' || sub === 'push') return sub;
   }
   return null;
 }
@@ -136,14 +195,20 @@ const git = (args, dir) => execFileSync('git', args, { cwd: dir, encoding: 'utf8
 
 /**
  * The files the branch at `dir` changes since it left origin/main, and that commit, or nulls when they can't be
- * read (no origin/main, a shallow clone).
+ * read (no origin/main, a shallow clone). With `uncommitted`, also every changed tracked file and every new file
+ * git doesn't ignore: all that a commit in the same line could take, and maybe more, so a check is never missed.
  * @param {string} dir
+ * @param {boolean} [uncommitted]
  * @returns {{ files: string[] | null, base: string | null }}
  */
-function changed(dir) {
+function changed(dir, uncommitted = false) {
+  /** @param {string[]} args */
+  const names = (args) => git(args, dir).split('\n').filter(Boolean);
   try {
     const base = git(['merge-base', 'origin/main', 'HEAD'], dir);
-    return { files: git(['diff', '--name-only', base, 'HEAD'], dir).split('\n').filter(Boolean), base };
+    const files = names(['diff', '--name-only', base, 'HEAD']);
+    if (uncommitted) files.push(...names(['diff', '--name-only', 'HEAD']), ...names(['ls-files', '--others', '--exclude-standard']));
+    return { files: [...new Set(files)], base };
   } catch {
     return { files: null, base: null };
   }
@@ -161,7 +226,7 @@ function topOf(dir) {
 /**
  * The hook's decision for one tool call: exit code 2 with a report blocks it.
  * @param {{ tool_name?: string, tool_input?: Record<string, unknown>, cwd?: string }} input
- * @param {{ changed?: typeof changed, run?: typeof runChecks }} [deps] stand-ins for tests
+ * @param {{ changed?: typeof changed, run?: typeof runChecks, installed?: (top: string) => boolean }} [deps] stand-ins for tests
  * @returns {Promise<{ code: number, stderr: string }>}
  */
 export async function hook(input, deps = {}) {
@@ -175,9 +240,13 @@ export async function hook(input, deps = {}) {
   const top = topOf(dir) ?? topOf(cwd);
   if (top === null || !existsSync(join(top, 'tools/claude-guard/checks.mjs'))) return pass;
 
-  const { files, base } = (deps.changed ?? changed)(top);
+  const { files, base } = (deps.changed ?? changed)(top, commitsFirst(command));
   const commands = commandsFor(files, base);
   if (commands.length === 0) return pass;
+  // A new worktree has no node_modules: every check would fail with "not found", which says nothing useful.
+  if (!(deps.installed ?? ((t) => existsSync(join(t, 'node_modules'))))(top)) {
+    return { code: 2, stderr: `Push blocked by the Omark pre-push checks: dependencies aren't installed in ${top}. Run \`pnpm install\` there and push again.\n` };
+  }
   const failed = await (deps.run ?? runChecks)(commands, top);
   if (failed.length === 0) return pass;
   const report = failed.map((f) => `$ ${f.command}\n${f.tail}`).join('\n\n');

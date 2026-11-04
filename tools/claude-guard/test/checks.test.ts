@@ -1,10 +1,10 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { commandsFor, hook, nativePath, onlyDocs, pushDir, runChecks } from '../checks.mjs';
+import { commandsFor, commitsFirst, hook, nativePath, onlyDocs, pushDir, runChecks } from '../checks.mjs';
 
 const HOOK = fileURLToPath(new URL('../checks.mjs', import.meta.url));
 const node = (code: string) => `"${process.execPath}" -e "${code}"`;
@@ -52,6 +52,30 @@ describe('pushDir', () => {
     "cat <<EOF\ngit push\nEOF",
   ])('%s is not a push that needs checks', (command) => {
     expect(pushDir(command, cwd)).toBeNull();
+  });
+});
+
+describe('commitsFirst (#146)', () => {
+  it.each([
+    'git add x && git commit -m y && git push',
+    'git commit -am y; git push',
+    'git -C sub commit -m y && git -C sub push',
+    'cd sub && git commit -m y && git push -u origin x',
+    'bash -c "git commit -m y && git push"',
+    'env git commit -m y && git push',
+  ])('%s commits before it pushes', (command) => {
+    expect(commitsFirst(command)).toBe(true);
+  });
+
+  it.each([
+    'git push',
+    'git status && git push',
+    'echo git commit && git push',
+    'git push && git commit -m y',
+    'git log --grep commit && git push',
+    "cat <<EOF\ngit commit\nEOF\ngit push",
+  ])('%s does not', (command) => {
+    expect(commitsFirst(command)).toBe(false);
   });
 });
 
@@ -170,6 +194,7 @@ describe('the hook', () => {
     const ran: string[][] = [];
     const deps = {
       changed: () => ({ files, base: files === null ? null : 'abc123' }),
+      installed: () => true,
       run: async (commands: string[]) => {
         ran.push(commands);
         return [{ command: commands[0]!, tail: 'src/a.ts(1,1): error TS2322' }];
@@ -205,5 +230,90 @@ describe('the hook', () => {
     const r = await hook({ tool_name: 'Bash', tool_input: { command: 'cd /no/such/folder && git push' }, cwd: repo }, deps);
     expect(r.code).toBe(2);
     expect(ran).toHaveLength(1);
+  });
+
+  describe('a line that commits and pushes (#146)', () => {
+    /** A branch with nothing committed yet, at origin/main, and `file` new in the working tree. */
+    const freshBranch = (file: string) => {
+      const dir = mkdtempSync(join(tmpdir(), 'checks-fresh-'));
+      const g = (...args: string[]) => execFileSync('git', args, { cwd: dir, stdio: 'ignore' });
+      g('init', '-q', '-b', 'main');
+      mkdirSync(join(dir, 'tools/claude-guard'), { recursive: true });
+      writeFileSync(join(dir, 'tools/claude-guard/checks.mjs'), '');
+      g('add', '.');
+      g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'init');
+      g('update-ref', 'refs/remotes/origin/main', 'HEAD');
+      g('checkout', '-qb', 'issue-1-x');
+      mkdirSync(join(dir, dirname(file)), { recursive: true });
+      writeFileSync(join(dir, file), 'new\n');
+      return dir;
+    };
+    const line = (file: string) => `git add ${file} && git commit -m x && git push -u origin issue-1-x`;
+    const stubs = () => {
+      const ran: string[][] = [];
+      return {
+        ran,
+        deps: {
+          installed: () => true,
+          run: async (commands: string[]) => {
+            ran.push(commands);
+            return [];
+          },
+        },
+      };
+    };
+
+    it('lets a docs-only commit push without checks', () => {
+      const r = run({ tool_name: 'Bash', tool_input: { command: line('doc/b.md') }, cwd: freshBranch('doc/b.md') });
+      expect(r.stderr).toBe('');
+      expect(r.code).toBe(0);
+    });
+
+    it('runs the checks for a commit with code in it', async () => {
+      const { deps, ran } = stubs();
+      const file = 'apps/x/a.ts';
+      await hook({ tool_name: 'Bash', tool_input: { command: line(file) }, cwd: freshBranch(file) }, deps);
+      expect(ran).toHaveLength(1);
+      expect(ran[0]!.join(' ')).toContain('vitest');
+    });
+
+    it('counts a changed tracked file too', async () => {
+      const { deps, ran } = stubs();
+      const dir = freshBranch('doc/b.md');
+      writeFileSync(join(dir, 'tools/claude-guard/checks.mjs'), '// changed\n');
+      await hook({ tool_name: 'Bash', tool_input: { command: 'git commit -am x && git push' }, cwd: dir }, deps);
+      expect(ran).toHaveLength(1);
+    });
+
+    it('judges a push with no commit in the line by the branch alone', async () => {
+      const { deps, ran } = stubs();
+      const dir = freshBranch('apps/x/a.ts');
+      const g = (...args: string[]) => execFileSync('git', args, { cwd: dir, stdio: 'ignore' });
+      mkdirSync(join(dir, 'doc'));
+      writeFileSync(join(dir, 'doc/c.md'), 'docs\n');
+      g('add', 'doc/c.md');
+      g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'docs');
+      const r = await hook(push(dir), deps);
+      expect(r.code).toBe(0);
+      expect(ran).toEqual([]);
+    });
+  });
+
+  describe('a checkout with nothing installed (#146)', () => {
+    it('blocks with the install message and runs no check', async () => {
+      const { deps, ran } = code(['apps/tasks/src/a.ts']);
+      const r = await hook(push(repo), { ...deps, installed: () => false });
+      expect(r.code).toBe(2);
+      expect(r.stderr).toContain("dependencies aren't installed");
+      expect(r.stderr).toContain('pnpm install');
+      expect(ran).toEqual([]);
+    });
+
+    it('still lets a docs-only push through', async () => {
+      const { deps, ran } = code(['doc/a.md']);
+      const r = await hook(push(repo), { ...deps, installed: () => false });
+      expect(r.code).toBe(0);
+      expect(ran).toEqual([]);
+    });
   });
 });
