@@ -119,10 +119,12 @@ The guard is best-effort: it reads the command line and can't see what a script 
 
 A second `PreToolUse` hook (`tools/claude-guard/checks.mjs`, #133) runs before an agent's `git push` in an Omark checkout and blocks it, showing the last lines of output, until these pass:
 
-- the typecheck of the packages the branch changes since `origin/main`, and of the packages that depend on them;
+- the typecheck of the packages the branch changes since it left `origin/main`, and of the packages that depend on them; every package's, when a root file such as `tsconfig.base.json`, `package.json` or the lockfile changes;
 - the unit tests those changes reach (`vitest run --changed`), and the `tools/ci` tests, which read workflows and docs.
 
-A branch that changes only `doc/**` and `*.md` pushes at once, as do dry runs and branch deletes. With no `origin/main` it runs the full `pnpm typecheck` and `pnpm test`. A change to a core package takes about 40 s on a Windows laptop. There is no bypass for agents; a person pushing from a terminal is not affected.
+A branch that changes only `doc/**` and `*.md` pushes at once, as do dry runs and branch deletes. With no `origin/main` it runs the full `pnpm typecheck` and `pnpm test`. A change to a core package takes about 40 s on a Windows laptop.
+
+It reads command lines as the guard does (`cd`, `git -C`, Git Bash paths, `env` and other wrappers, `bash -c`, `eval`), and like the guard it is best-effort. The checks run on the working tree, so uncommitted edits count: commit or stash them first. A push from an Omark checkout to another remote or branch is checked the same way. A person pushing from a terminal is not affected.
 
 ## Claude Code and the cloud environment
 

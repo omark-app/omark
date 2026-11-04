@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
-import { dropHeredocs, parse } from './command.mjs';
+import { dropHeredocs, parse, SHELLS, WRAPPERS } from './command.mjs';
 
 const MAIN = 'main';
 
@@ -207,9 +207,6 @@ function checkGh(words) {
   }
   return null;
 }
-
-const WRAPPERS = new Set(['env', 'command', 'sudo', 'time', 'nohup', 'exec', 'xargs', 'nice']);
-const SHELLS = new Set(['bash', 'sh', 'zsh', 'dash']);
 
 /**
  * Why a GitHub MCP tool call is blocked, or null.

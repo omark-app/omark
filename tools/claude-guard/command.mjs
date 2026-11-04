@@ -1,5 +1,11 @@
 // Reading shell command lines, shared by the guard and the pre-push checks (#133).
 
+/** Commands that run the command after them: `env git push` is a push. */
+export const WRAPPERS = new Set(['env', 'command', 'sudo', 'time', 'nohup', 'exec', 'xargs', 'nice']);
+
+/** Shells, whose `-c` argument is a command line of its own. */
+export const SHELLS = new Set(['bash', 'sh', 'zsh', 'dash']);
+
 /**
  * Drops the bodies of here-documents (`<<EOF` … `EOF`), which are text for a program, not commands; a
  * here-document fed to a shell (`bash <<EOF`) is kept, since the shell runs it.

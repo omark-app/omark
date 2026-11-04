@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { commandsFor, onlyDocs, pushDir, runChecks } from '../checks.mjs';
+import { commandsFor, hook, nativePath, onlyDocs, pushDir, runChecks } from '../checks.mjs';
 
 const HOOK = fileURLToPath(new URL('../checks.mjs', import.meta.url));
 const node = (code: string) => `"${process.execPath}" -e "${code}"`;
@@ -18,6 +18,11 @@ describe('pushDir', () => {
     'git push origin HEAD',
     'git status && git push',
     'FOO=1 git push',
+    'env git push',
+    'nohup git push origin x',
+    'bash -c "git push"',
+    'sh -c "git status; git push -u origin x"',
+    'eval git push',
   ])('%s is a push from cwd', (command) => {
     expect(pushDir(command, cwd)).toBe(cwd);
   });
@@ -27,10 +32,18 @@ describe('pushDir', () => {
     expect(pushDir('cd sub && git push', cwd)).toBe(join(cwd, 'sub'));
   });
 
+  it('reads Git Bash paths on Windows (#133 review)', () => {
+    expect(nativePath('/c/Projects/TaskApp', 'win32')).toBe('C:/Projects/TaskApp');
+    expect(nativePath('/d', 'win32')).toBe('D:/');
+    expect(nativePath('/c/Projects/TaskApp', 'linux')).toBe('/c/Projects/TaskApp');
+    expect(nativePath('sub/dir', 'win32')).toBe('sub/dir');
+  });
+
   it.each([
     'git status',
     'git push --dry-run',
     'git push -n origin x',
+    'git push -nu origin x',
     'git push origin --delete issue-1-x',
     'git push -d origin issue-1-x',
     'git push origin :issue-1-x',
@@ -59,20 +72,35 @@ describe('onlyDocs', () => {
 
 describe('commandsFor', () => {
   it('runs nothing for docs only', () => {
-    expect(commandsFor(['doc/a.md'])).toEqual([]);
+    expect(commandsFor(['doc/a.md'], 'abc123')).toEqual([]);
   });
 
   it("runs the changed packages' typecheck, the tests their changes reach, and the repository's own checks", () => {
+    // Compared with where the branch left main, so commits main got since then don't count.
     // tools/ci's tests read workflows and config files, which no import graph reaches.
-    expect(commandsFor(['packages/tasks-core/src/parse.ts'])).toEqual([
-      'pnpm -r --filter "...[origin/main]" --filter "!omark-tasks" --if-present typecheck',
-      'pnpm exec vitest run --changed origin/main',
+    expect(commandsFor(['packages/tasks-core/src/parse.ts'], 'abc123')).toEqual([
+      'pnpm -r --filter "...[abc123]" --filter "!omark-tasks" --if-present typecheck',
+      'pnpm exec vitest run --changed abc123',
+      'pnpm exec vitest run --project ci-scripts',
+    ]);
+  });
+
+  it.each(['tsconfig.base.json', 'package.json', 'pnpm-lock.yaml', 'functions/api/auth/[[path]].ts'])(
+    'typechecks everything when %s, outside every package, changes (#133 review)',
+    (file) => {
+      expect(commandsFor(['apps/tasks/src/a.ts', file], 'abc123')[0]).toBe('pnpm typecheck');
+    },
+  );
+
+  it('needs no typecheck for workflows and Claude settings, only the repository checks', () => {
+    expect(commandsFor(['.github/workflows/ci.yml', '.claude/settings.json'], 'abc123')).toEqual([
+      'pnpm exec vitest run --changed abc123',
       'pnpm exec vitest run --project ci-scripts',
     ]);
   });
 
   it('runs everything when the changed files are unknown', () => {
-    expect(commandsFor(null)).toEqual(['pnpm typecheck', 'pnpm test']);
+    expect(commandsFor(null, null)).toEqual(['pnpm typecheck', 'pnpm test']);
   });
 });
 
@@ -134,5 +162,48 @@ describe('the hook', () => {
   it('lets unreadable input through', () => {
     const r = spawnSync(process.execPath, [HOOK], { input: 'not json', encoding: 'utf8' });
     expect(r.status).toBe(0);
+  });
+
+  // The rest calls the hook's logic with the checks themselves stubbed out: the real ones are pnpm commands.
+  const push = (cwd: string) => ({ tool_name: 'Bash', tool_input: { command: 'git push' }, cwd });
+  const code = (files: string[] | null) => {
+    const ran: string[][] = [];
+    const deps = {
+      changed: () => ({ files, base: files === null ? null : 'abc123' }),
+      run: async (commands: string[]) => {
+        ran.push(commands);
+        return [{ command: commands[0]!, tail: 'src/a.ts(1,1): error TS2322' }];
+      },
+    };
+    return { deps, ran };
+  };
+
+  it('blocks a push whose checks fail, with each failing command and the end of its output', async () => {
+    const { deps } = code(['apps/tasks/src/a.ts']);
+    const r = await hook(push(repo), deps);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain('Push blocked by the Omark pre-push checks');
+    expect(r.stderr).toContain('$ pnpm -r --filter "...[abc123]"');
+    expect(r.stderr).toContain('error TS2322');
+  });
+
+  it('runs the full checks when the changed files cannot be read', async () => {
+    const { deps, ran } = code(null);
+    await hook(push(repo), deps);
+    expect(ran).toEqual([['pnpm typecheck', 'pnpm test']]);
+  });
+
+  it('works from a folder inside the checkout', async () => {
+    mkdirSync(join(repo, 'apps/x'), { recursive: true });
+    const { deps, ran } = code(['apps/tasks/src/a.ts']);
+    expect((await hook(push(join(repo, 'apps/x')), deps)).code).toBe(2);
+    expect(ran).toHaveLength(1);
+  });
+
+  it('checks from where the session is when the pushed folder cannot be found', async () => {
+    const { deps, ran } = code(['apps/tasks/src/a.ts']);
+    const r = await hook({ tool_name: 'Bash', tool_input: { command: 'cd /no/such/folder && git push' }, cwd: repo }, deps);
+    expect(r.code).toBe(2);
+    expect(ran).toHaveLength(1);
   });
 });
