@@ -133,6 +133,7 @@ It reads command lines as the guard does (`cd`, `git -C`, Git Bash paths, `env` 
 ### What a contributor's agent needs
 
 - Node 22 or newer, pnpm 10, and the four commands in [AGENTS.md](../AGENTS.md#commands). Playwright's Chromium and WebKit for the e2e (`pnpm --filter tasks exec playwright install chromium webkit`).
+- On Windows, Playwright's WebKit runs specs about 3 to 4 times slower than Chromium. Every IndexedDB answer and `setTimeout` waits for a Windows timer tick, about 15 ms. Safari on Mac and iPhone most likely doesn't wait like this, so WebKit timings on Windows say nothing about how fast the app is for users (#139).
 - `gh` 2.48 or newer, signed in as the contributor, for issues, comments and pull requests from their fork.
 - No secrets: everything runs on fake storage and a fake calendar.
 - In a Claude cloud session, the contributor's own cloud environment pointed at their fork, with the settings below.

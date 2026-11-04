@@ -1,5 +1,7 @@
 # Plan for #139: read Time's files in parallel
 
+**Not built.** The maintainer judged the gain too small to change sync. #139 was closed with a retitle and a note in [doc/factory.md](../factory.md). The findings below stay as the record, in case a slow drive ever makes the serial reads matter.
+
 ## What we found
 
 The 12x gap is mostly the test browser. Playwright's WebKit on Windows wakes up once per Windows timer tick (about 15 ms) for every callback that comes from another thread: `setTimeout(0)` takes 15 ms there against 3.7 ms in Chromium, and an IndexedDB get takes 15 ms against 0.12 ms. A plain page with no app code shows the same, so it is the engine build, not Omark.
