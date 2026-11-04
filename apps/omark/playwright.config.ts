@@ -19,7 +19,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      env: { VITE_STORAGE: 'fake', BUILD_NUMBER: '7' },
+      env: { VITE_STORAGE: 'fake', BUILD_NUMBER: '7', VITE_STAGING_HOST: 'staging-omark.example.test' },
       command: `vite build && vite preview --port ${port} --strictPort`,
       url: `http://localhost:${port}`,
       reuseExistingServer: !process.env.CI,

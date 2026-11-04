@@ -67,6 +67,8 @@ export default defineConfig(({ mode }) => ({
     __BUILD_TIME__: JSON.stringify(process.env.BUILD_TIME || `${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`),
   },
   build: { target: 'es2022' },
+  // e2e/environment.spec.ts reaches the preview server under the staging host name (#142).
+  preview: { allowedHosts: ['staging-omark.example.test'] },
   plugins: [
     svelte(),
     versionFile(BUILD_ID, BUILD_NUMBER),
