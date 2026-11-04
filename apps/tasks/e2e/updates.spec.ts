@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { openApp, SPEC_TASKS } from './helpers';
+import { poll } from './poll';
 
 // Service workers are blocked here (playwright.config.ts), so these cover the path without one: save and
 // reload. The worker paths (update, take over, unregister) are covered in src/lib/updates.test.ts.
@@ -81,7 +82,7 @@ test('a long-open page waits while a text field is focused, then loads the newer
   // Done with the field: the page is idle and nothing is open.
   if (isMobile) await page.keyboard.press('Escape');
   else await page.getByTestId('add-input').blur();
-  await expect.poll(() => loads(page)).toBe(2);
+  await poll(() => loads(page)).toBe(2);
   await expect(page.getByTestId('bucket-today')).toBeVisible();
 });
 
@@ -98,7 +99,7 @@ test('tapping "New version · tap to update" loads the newer build at once', asy
   expect(await loads(page)).toBe(1);
   if (isMobile) await button.tap();
   else await button.click();
-  await expect.poll(() => loads(page)).toBe(2);
+  await poll(() => loads(page)).toBe(2);
   await expect(page.getByTestId('bucket-today')).toBeVisible();
 });
 
@@ -129,5 +130,5 @@ test('a long-open desktop page with a task selected loads the newer build when i
   await page.locator('body').click({ position: { x: 5, y: 5 } }); // no field focused
   deployed = 'newer00';
   await focusWindow(page);
-  await expect.poll(() => loads(page)).toBe(2);
+  await poll(() => loads(page)).toBe(2);
 });

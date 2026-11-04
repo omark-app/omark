@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { driveFile, fitsNotes, LONG_NOTE, openApp } from './helpers';
+import { poll } from './poll';
 
 const TASKS = `# Tasks
 - [ ] Walk before the first coffee ⏫
@@ -118,7 +119,7 @@ test.describe('desktop board', () => {
     expect(await columns(page)).toEqual(packed);
 
     // A reload opens on the saved files and packs again: Tomorrow is empty, the default layout.
-    await expect.poll(() => driveFile(page, 'tasks.md')).not.toContain('Call 4');
+    await poll(() => driveFile(page, 'tasks.md')).not.toContain('Call 4');
     const saved = await driveFile(page, 'tasks.md');
     await page.evaluate((t) => sessionStorage.setItem('e2e-tasks', t), saved);
     await page.addInitScript(() => {
@@ -136,7 +137,7 @@ test.describe('desktop board', () => {
     await row(page, 'Plan the trip').dragTo(page.getByTestId('bucket-head-tomorrow'));
     await expect(page.getByTestId('bucket-tomorrow').getByTestId('task-row').filter({ hasText: 'Plan the trip' })).toHaveCount(1);
     await expect(page.getByTestId('bucket-count-tomorrow')).toHaveText('5');
-    await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Plan the trip 📅 2026-10-19');
+    await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Plan the trip 📅 2026-10-19');
   });
 
   test('selecting a task replaces Important, not urgent with the detail; Esc brings it back (#38)', async ({ page }) => {

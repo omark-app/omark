@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { driveFile, openApp, SPEC_TASKS } from './helpers';
+import { poll } from './poll';
 
 test.skip(({ isMobile }) => isMobile, 'keyboard commands are a desktop feature');
 
@@ -86,7 +87,7 @@ test('move, complete, delete and undo with single letters', async ({ page }) => 
 
   await page.keyboard.press('x');
   await expect(page.getByTestId('toast')).toContainText('Done · Call the dentist');
-  await expect.poll(() => driveFile(page, 'done.md')).toContain('Call the dentist');
+  await poll(() => driveFile(page, 'done.md')).toContain('Call the dentist');
 
   await row(page, 'Old thing').click();
   await page.keyboard.press('Delete');

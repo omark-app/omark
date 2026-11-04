@@ -79,9 +79,11 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter tasks e2e --project=${{ matrix.project }}
+      # The standalone Tasks and Time builds reach no user: their specs run against the one app (e2e:tasks,
+      # e2e:time), and here only the storage specs, which drive the real adapters the one app's e2e can't reach (#132).
+      - run: pnpm --filter tasks e2e:storage --project=${{ matrix.project }}
       - run: pnpm --filter site e2e --project=${{ matrix.project }}
-      - run: pnpm --filter time e2e --project=${{ matrix.project }}
+      - run: pnpm --filter time e2e:storage --project=${{ matrix.project }}
       - run: pnpm --filter omark e2e --project=${{ matrix.project }}
       - run: pnpm --filter omark e2e:tasks --project=${{ matrix.project }}
       - run: pnpm --filter omark e2e:time --project=${{ matrix.project }}

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { poll } from './poll';
 
 // Omark Time inside the one app (roadmap U.4): its calendar sign-in, asked only once Time is on, and its files
 // in `time/` with projects.csv at the top. The fake storage has a folder per part; Time reads its fake calendar.
@@ -82,7 +83,7 @@ test('turning Time on next to OneDrive: a calendar-only Google sign-in beside Mi
   expect(await signIns(page)).toEqual([{ provider: 'googlecal', returnTo: '/time' }]);
   expect(await sessions(page)).toEqual({ microsoft: [], googlecal: [] });
 
-  await expect.poll(() => files(page, 'time')).toEqual(expect.arrayContaining(['config.yaml', 'events-2026.csv']));
+  await poll(() => files(page, 'time')).toEqual(expect.arrayContaining(['config.yaml', 'events-2026.csv']));
   expect(await files(page, 'time')).not.toContain('projects.csv');
   expect(await peek(page, 'time', 'config.yaml')).toContain('calendars: [primary]');
   expect(await peek(page, 'time', 'events-2026.csv')).toContain('ACME');
@@ -105,7 +106,7 @@ test('on Google Drive the calendar is added to the same Google sign-in', async (
     { provider: 'google', add: 'calendar', returnTo: '/time' },
   ]);
   expect(await sessions(page)).toEqual({ google: ['calendar'] });
-  await expect.poll(() => files(page, 'time')).toContain('events-2026.csv');
+  await poll(() => files(page, 'time')).toContain('events-2026.csv');
 });
 
 test("on a phone, Time's own view bar sits just above the shell's tabs", async ({ page, isMobile }) => {

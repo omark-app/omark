@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { poll } from './poll';
 
 // The one Omark app's shell (one app spec, sections 4–7 and 12), on the fake storage: one fake folder per
 // part, `root` for the suite config.yaml.
@@ -44,9 +45,9 @@ test('first run with Tasks only: no tabs, no calendar question, only config.yaml
   await expect(page).toHaveURL(/:\d+\/$/);
   await expect(tabs(page)).toHaveCount(0);
   await expect(page.getByRole('button', { name: /calendar/i })).toHaveCount(0);
-  await expect.poll(() => files(page, 'root')).toEqual(['config.yaml']);
+  await poll(() => files(page, 'root')).toEqual(['config.yaml']);
   expect(await peek(page, 'root', 'config.yaml')).toBe('parts: [tasks]\n');
-  await expect.poll(() => files(page, 'tasks')).toContain('tasks.md');
+  await poll(() => files(page, 'tasks')).toContain('tasks.md');
   expect(await files(page, 'time')).toEqual([]);
   expect(await files(page, 'goals')).toEqual([]);
 });
@@ -73,7 +74,7 @@ test('a part that is off is offered at its address, and turning it on adds a tab
   await page.getByRole('button', { name: 'Turn on Omark Goals' }).click();
   await expect(tabs(page).getByRole('link')).toHaveText(['Tasks', 'Goals']);
   await expect(page).toHaveURL(/\/goals$/);
-  await expect.poll(() => peek(page, 'root', 'config.yaml')).toBe('# mine\nparts: [tasks, goals]\n');
+  await poll(() => peek(page, 'root', 'config.yaml')).toBe('# mine\nparts: [tasks, goals]\n');
   expect(await files(page, 'goals')).toEqual([]);
 });
 
@@ -111,11 +112,11 @@ test.describe('desktop', () => {
     await open(page, { seed: { root: { 'config.yaml': 'parts: [tasks, time]\n' }, tasks: { 'tasks.md': `# Tasks\n${many}\n` } } });
     await expect(tasksList(page)).toBeVisible();
     await page.mouse.wheel(0, 1500);
-    await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(500);
+    await poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(500);
     const scrolled = await page.evaluate(() => scrollY);
     await page.keyboard.press('Alt+2');
     await tabs(page).getByRole('link', { name: 'Tasks' }).click();
-    await expect.poll(() => page.evaluate(() => scrollY)).toBe(scrolled);
+    await poll(() => page.evaluate(() => scrollY)).toBe(scrolled);
 
     await page.keyboard.press('f');
     await expect(page.getByTestId('search')).toBeVisible();
@@ -134,7 +135,7 @@ test.describe('desktop', () => {
     await expect(page.getByTestId('settings')).toBeVisible();
     await tabs(page).getByRole('link', { name: 'Tasks' }).click();
     await expect(tasksList(page)).toBeVisible();
-    await expect.poll(() => page.evaluate(() => scrollY)).toBe(scrolled);
+    await poll(() => page.evaluate(() => scrollY)).toBe(scrolled);
   });
 
   test('the tab bar sits at the top on desktop', async ({ page }) => {

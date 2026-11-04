@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { driveFile, editEvent, firstRun, openTime, reload, rowIds } from './helpers';
+import { poll } from './poll';
 
 test('a calendar change shows up in the files after Sync now', async ({ page }) => {
   await openTime(page);
@@ -7,7 +8,7 @@ test('a calendar change shows up in the files after Sync now', async ({ page }) 
   await editEvent(page, 'lunch', { title: 'ACME; Meetings; lunch with the client' });
   await editEvent(page, 'old', { title: 'Dentist' });
   await page.getByRole('button', { name: 'Sync now' }).click();
-  await expect.poll(() => rowIds(page)).toEqual(['typo', 'lunch', 'new']);
+  await poll(() => rowIds(page)).toEqual(['typo', 'lunch', 'new']);
   expect(await driveFile(page, 'events-2026.csv')).toContain('Meetings,lunch with the client');
 });
 
@@ -16,7 +17,7 @@ test('a change made while the app was closed shows up on the next open', async (
   await firstRun(page);
   await editEvent(page, 'old', { title: 'ACME; Coding; renamed' });
   await reload(page);
-  await expect.poll(async () => driveFile(page, 'events-2026.csv')).toContain('renamed');
+  await poll(async () => driveFile(page, 'events-2026.csv')).toContain('renamed');
 });
 
 test('rebuild gives the same files', async ({ page }) => {

@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { driveFile, openApp } from './helpers';
+import { poll } from './poll';
 
 /** Habit rows (#44): violet rows with a count, the tags, and one tick per period. Today is Fri 2026-10-16. */
 
@@ -30,7 +31,7 @@ test('add a habit, tick it, see 1/66', async ({ page, isMobile }) => {
   const next = rowsOf(page, 'tomorrow').filter({ hasText: 'Meditate 10 min' });
   await expect(next.getByTestId('habit-count')).toHaveText('1/66');
   await expect(next).toContainText('Sat');
-  await expect.poll(() => driveFile(page, 'done.md')).toBe('- [x] Meditate 10 min 🌱 🔁 every day ✅ 2026-10-16\n');
+  await poll(() => driveFile(page, 'done.md')).toBe('- [x] Meditate 10 min 🌱 🔁 every day ✅ 2026-10-16\n');
 });
 
 test('a seeded history with a miss shows last chance', async ({ page }) => {
@@ -54,7 +55,7 @@ test('ticking twice says Already done today and writes once', async ({ page }) =
   await expect(rowsOf(page, 'tomorrow').filter({ hasText: 'Meditate' })).toHaveCount(1);
   await rowsOf(page, 'tomorrow').filter({ hasText: 'Meditate' }).getByTestId('task-check').click();
   await expect(page.getByTestId('toast')).toContainText('Already done today');
-  await expect.poll(() => driveFile(page, 'done.md')).toBe(ticks('Meditate', '16'));
+  await poll(() => driveFile(page, 'done.md')).toBe(ticks('Meditate', '16'));
 });
 
 /** The Habits group and History (#44). */
@@ -220,8 +221,8 @@ test('Drop habit writes the dropped line and History lists it', async ({ page, i
   await block(page).getByRole('button', { name: 'Drop habit' }).click();
   await expect(page.getByTestId('toast')).toContainText('Dropped habit · Meditate');
   await expect(row(page, 'Meditate')).toHaveCount(0);
-  await expect.poll(() => driveFile(page, 'tasks.md')).toBe('# Tasks\n');
-  await expect.poll(() => driveFile(page, 'done.md')).toBe(`${ticks('Meditate', '14', '15')}- [-] Meditate 🌱 ❌ 2026-10-16\n`);
+  await poll(() => driveFile(page, 'tasks.md')).toBe('# Tasks\n');
+  await poll(() => driveFile(page, 'done.md')).toBe(`${ticks('Meditate', '14', '15')}- [-] Meditate 🌱 ❌ 2026-10-16\n`);
   await group(page).getByTestId('habits-history').click();
   await expect(history(page)).toContainText('Dropped 1');
   await expect(history(page)).toContainText('best 2 · 1 attempt · dropped 16 Oct');
@@ -232,7 +233,7 @@ test('Not a habit removes only 🌱', async ({ page, isMobile }) => {
   await openTask(page, isMobile, 'Meditate');
   await block(page).getByRole('button', { name: /^Not a habit/ }).click();
   await expect(page.getByTestId('toast')).toContainText('No longer a habit');
-  await expect.poll(() => driveFile(page, 'tasks.md')).toBe('# Tasks\n- [ ] Meditate 🔁 every day 📅 2026-10-16\n');
+  await poll(() => driveFile(page, 'tasks.md')).toBe('# Tasks\n- [ ] Meditate 🔁 every day 📅 2026-10-16\n');
   await expect(block(page)).toHaveCount(0);
   await expect(row(page, 'Meditate')).toHaveAttribute('data-habit', 'false');
 });
@@ -245,14 +246,14 @@ test('Goal 30 writes 🌱 30', async ({ page, isMobile }) => {
   await expect(field).toBeFocused();
   await field.fill('30');
   await field.press('Enter');
-  await expect.poll(() => driveFile(page, 'tasks.md')).toBe('# Tasks\n- [ ] Meditate 🌱 30 🔁 every day 📅 2026-10-16\n');
+  await poll(() => driveFile(page, 'tasks.md')).toBe('# Tasks\n- [ ] Meditate 🌱 30 🔁 every day 📅 2026-10-16\n');
   await expect(block(page).getByTestId('habit-goal')).toHaveText('30');
   await expect(block(page)).toContainText('0 of 30');
   // Empty goes back to the configured goal.
   await block(page).getByTestId('habit-goal').click();
   await block(page).getByLabel('Goal').fill('');
   await block(page).getByLabel('Goal').press('Enter');
-  await expect.poll(() => driveFile(page, 'tasks.md')).toBe(line('Meditate', '2026-10-16'));
+  await poll(() => driveFile(page, 'tasks.md')).toBe(line('Meditate', '2026-10-16'));
   await expect(block(page).getByTestId('habit-goal')).toHaveText('66 (default)');
 });
 
@@ -263,11 +264,11 @@ test('goal 3 forms on the third tick, Keep as task puts it back', async ({ page 
   await row(page, 'Meditate').getByTestId('task-check').click();
   await expect(page.getByTestId('toast')).toContainText('Habit formed: Meditate · 3 in 3 days · moved to History');
   await expect(row(page, 'Meditate')).toHaveCount(0);
-  await expect.poll(() => driveFile(page, 'done.md')).toBe(`${ticks('Meditate', '14', '15', '16')}- [x] Meditate 🌱 🏆 2026-10-16\n`);
+  await poll(() => driveFile(page, 'done.md')).toBe(`${ticks('Meditate', '14', '15', '16')}- [x] Meditate 🌱 🏆 2026-10-16\n`);
   await page.getByTestId('toast-action').click();
   await expect(row(page, 'Meditate')).toHaveAttribute('data-habit', 'false');
-  await expect.poll(() => driveFile(page, 'tasks.md')).toBe('# Tasks\n- [ ] Meditate 🔁 every day 📅 2026-10-17\n');
-  await expect.poll(() => driveFile(page, 'done.md')).toContain('- [x] Meditate 🌱 🏆 2026-10-16\n');
+  await poll(() => driveFile(page, 'tasks.md')).toBe('# Tasks\n- [ ] Meditate 🔁 every day 📅 2026-10-17\n');
+  await poll(() => driveFile(page, 'done.md')).toContain('- [x] Meditate 🌱 🏆 2026-10-16\n');
 });
 
 test('renaming asks first', async ({ page, isMobile }) => {
@@ -284,7 +285,7 @@ test('renaming asks first', async ({ page, isMobile }) => {
   expect(asked).toEqual([]);
   page.once('dialog', (d) => void d.dismiss());
   await save();
-  await expect.poll(() => asked).toEqual(['Renaming restarts Meditate at 0. Rename?']);
+  await poll(() => asked).toEqual(['Renaming restarts Meditate at 0. Rename?']);
   if (!isMobile) await expect(title).toHaveValue('Meditate');
   expect(await driveFile(page, 'tasks.md')).toBe(line('Meditate', '2026-10-16'));
 
@@ -292,7 +293,7 @@ test('renaming asks first', async ({ page, isMobile }) => {
   await title.fill('Meditate 15 min');
   page.once('dialog', (d) => void d.accept());
   await save();
-  await expect.poll(() => driveFile(page, 'tasks.md')).toBe(line('Meditate 15 min', '2026-10-16'));
+  await poll(() => driveFile(page, 'tasks.md')).toBe(line('Meditate 15 min', '2026-10-16'));
   await expect(row(page, 'Meditate 15 min')).toHaveCount(1);
 });
 
@@ -337,11 +338,11 @@ test.describe('keys', () => {
     await page.keyboard.press('h');
     await expect(page.getByTestId('toast')).toContainText('Now a habit');
     await expect(row(page, 'Meditate').first()).toHaveAttribute('data-habit', 'true');
-    await expect.poll(() => driveFile(page, 'tasks.md')).toBe(`# Tasks\n${habit('Meditate', '2026-10-16')}`);
+    await poll(() => driveFile(page, 'tasks.md')).toBe(`# Tasks\n${habit('Meditate', '2026-10-16')}`);
     await page.keyboard.press('h');
     await expect(page.getByTestId('toast')).toContainText('No longer a habit');
     await expect(row(page, 'Meditate').first()).toHaveAttribute('data-habit', 'false');
-    await expect.poll(() => driveFile(page, 'tasks.md')).toBe(`# Tasks\n${REPEATING('Meditate')}`);
+    await poll(() => driveFile(page, 'tasks.md')).toBe(`# Tasks\n${REPEATING('Meditate')}`);
   });
 
   test('h on a task with no rule opens the repeat picker without when done, and saving makes a habit', async ({ page }) => {
@@ -356,7 +357,7 @@ test.describe('keys', () => {
     await sheet(page).getByRole('button', { name: 'Save' }).click();
     await expect(page.getByTestId('toast')).toContainText('Now a habit');
     await expect(row(page, 'Stretch').first()).toHaveAttribute('data-habit', 'true');
-    await expect.poll(() => driveFile(page, 'tasks.md')).toBe('# Tasks\n- [ ] Stretch 🌱 🔁 every weekday 📅 2026-10-16\n');
+    await poll(() => driveFile(page, 'tasks.md')).toBe('# Tasks\n- [ ] Stretch 🌱 🔁 every weekday 📅 2026-10-16\n');
   });
 
   test('h on a fourth habit is refused with the message', async ({ page }) => {
@@ -375,7 +376,7 @@ test.describe('keys', () => {
     await page.keyboard.press('Enter');
     await expect(page.getByTestId('toast')).toContainText('Stretch added as a repeating task');
     await expect(row(page, 'Stretch').first()).toHaveAttribute('data-habit', 'false');
-    await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Stretch 🔁 every day 📅 2026-10-16\n');
+    await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Stretch 🔁 every day 📅 2026-10-16\n');
   });
 
   test('hab with no date word lands in Today and shows violet', async ({ page }) => {
@@ -417,7 +418,7 @@ test.describe('phone', () => {
     await expect(toggle).toHaveAttribute('aria-pressed', 'true');
     await sheet(page).getByRole('button', { name: 'Add', exact: true }).tap();
     await expect(row(page, 'Read').first()).toHaveAttribute('data-habit', 'true');
-    await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Read 🌱 🔁 every day 📅 2026-10-16\n');
+    await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Read 🌱 🔁 every day 📅 2026-10-16\n');
 
     // The move sheet: a plain task has no rule, so the entry opens the habit repeat picker.
     await swipe(row(page, 'Stretch'), -120);
@@ -533,7 +534,7 @@ test('hab typed while editing the title makes a habit (desktop detail, phone edi
   else await title.press('Enter');
   await expect(page.getByTestId('toast')).toContainText('Now a habit');
   await expect(row(page, 'Stretch').first()).toHaveAttribute('data-habit', 'true');
-  await expect.poll(() => driveFile(page, 'tasks.md')).toBe('# Tasks\n- [ ] Stretch 🌱 🔁 every day 📅 2026-10-16\n');
+  await poll(() => driveFile(page, 'tasks.md')).toBe('# Tasks\n- [ ] Stretch 🌱 🔁 every day 📅 2026-10-16\n');
   if (!isMobile) await expect(title).toHaveValue('Stretch');
 });
 

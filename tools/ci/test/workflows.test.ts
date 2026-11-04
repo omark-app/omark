@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
@@ -307,7 +307,7 @@ describe('workflows', () => {
     const e2e = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1];
     expect(e2e.strategy?.matrix?.project).toEqual(projects);
     expect(e2e.strategy?.['fail-fast']).toBe(false);
-    expect(e2e.steps!.map((s) => s.run)).toContain('pnpm --filter tasks e2e --project=${{ matrix.project }}');
+    expect(e2e.steps!.map((s) => s.run)).toContain('pnpm --filter tasks e2e:storage --project=${{ matrix.project }}');
   });
 
   it('deploys staging, the demo and the site only after check and every e2e job', () => {
@@ -387,7 +387,7 @@ describe('workflows', () => {
 
   it('runs Omark Time’s e2e in the e2e job, with the same Playwright projects as Tasks', () => {
     const e2e = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1];
-    expect(e2e.steps!.map((s) => s.run)).toContain('pnpm --filter time e2e --project=${{ matrix.project }}');
+    expect(e2e.steps!.map((s) => s.run)).toContain('pnpm --filter time e2e:storage --project=${{ matrix.project }}');
     const names = (app: string) =>
       [...readFileSync(new URL(`../../../apps/${app}/playwright.config.ts`, import.meta.url), 'utf8').matchAll(/\{ name: '(\w+)'/g)].map((m) => m[1]);
     expect(names('time')).toEqual(names('tasks'));
@@ -398,10 +398,60 @@ describe('workflows', () => {
     const runs = e2e.steps!.map((s) => s.run);
     expect(runs).toContain('pnpm --filter omark e2e --project=${{ matrix.project }}');
     expect(runs).toContain('pnpm --filter omark e2e:tasks --project=${{ matrix.project }}');
+    expect(runs).toContain('pnpm --filter omark e2e:time --project=${{ matrix.project }}');
     const names = (file: string) =>
       [...readFileSync(new URL(`../../../apps/${file}`, import.meta.url), 'utf8').matchAll(/\{ name: '(\w+)'/g)].map((m) => m[1]);
     expect(names('omark/playwright.config.ts')).toEqual(names('tasks/playwright.config.ts'));
     expect(names('omark/playwright.tasks.config.ts')).toEqual(names('tasks/playwright.config.ts'));
+  });
+
+  describe("runs Tasks' and Time's specs once, against the one app (#132)", () => {
+    const read = (p: string) => readFileSync(new URL(`../../../apps/${p}`, import.meta.url), 'utf8');
+    const listed = (config: string, name: string) =>
+      [...read(config).match(new RegExp(`${name} = \\[([^\\]]*)\\]`))![1]!.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+    const specs = (app: string) =>
+      readdirSync(new URL(`../../../apps/${app}/e2e`, import.meta.url)).filter((f) => f.endsWith('.spec.ts')).sort();
+    const script = (app: string, name: string) => JSON.parse(read(`${app}/package.json`)).scripts[name];
+
+    // The standalone builds reach no user (app.omark.app and the demo serve apps/omark), so CI runs them only for
+    // the specs that drive the real storage adapters, which the one app's e2e can't reach.
+    const STORAGE = { tasks: ['google-drive.spec.ts', 'local-folder.spec.ts'], time: ['local-folder.spec.ts'] };
+    // Specs of the standalone builds' own screens, which the one app replaced: run by `pnpm e2e`, not in CI.
+    const STANDALONE_ONLY = {
+      tasks: ['demo.spec.ts', 'environment.spec.ts', 'first-run.spec.ts', 'icons.spec.ts'],
+      time: [] as string[],
+    };
+
+    it('runs the standalone builds for their storage specs only', () => {
+      const runs = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1].steps!.map((s) => s.run);
+      for (const app of ['tasks', 'time'] as const) {
+        expect(script(app, 'e2e:storage'), app).toBe(`playwright test ${STORAGE[app].join(' ')}`);
+        expect(runs, app).not.toContain(`pnpm --filter ${app} e2e --project=\${{ matrix.project }}`);
+      }
+    });
+
+    it('runs every spec somewhere in CI, or names it as standalone-only', () => {
+      const inShell = {
+        tasks: listed('omark/playwright.tasks.config.ts', 'TASKS_IN_SHELL_SKIP'),
+        time: listed('omark/playwright.time.config.ts', 'TIME_IN_SHELL_SKIP'),
+      };
+      for (const app of ['tasks', 'time'] as const) {
+        const skipped = specs(app).filter((f) => inShell[app].includes(f));
+        expect(skipped, app).toEqual([...STORAGE[app], ...STANDALONE_ONLY[app]].sort());
+      }
+    });
+
+    it('runs Playwright with 4 workers on CI, one per vCPU', () => {
+      for (const config of ['tasks/playwright.config.ts', 'time/playwright.config.ts', 'site/playwright.config.ts', 'omark/playwright.config.ts', 'omark/playwright.tasks.config.ts', 'omark/playwright.time.config.ts']) {
+        expect(read(config), config).toContain('workers: process.env.CI ? 4 : undefined,');
+      }
+    });
+
+    it('still runs every spec of every app with pnpm e2e', () => {
+      expect(JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')).scripts.e2e).toBe(
+        'pnpm -r --if-present e2e && pnpm --filter omark e2e:tasks && pnpm --filter omark e2e:time',
+      );
+    });
   });
 
   it('never uses pull_request_target', () => {
