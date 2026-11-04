@@ -55,7 +55,8 @@ describe('site files', () => {
   });
 
   it('include the walkthrough film and its still', () => {
-    const names = filesUnder(join(root, 'src')).map((f) => f.slice(root.length));
+    // Forward slashes on every OS: Windows paths use backslashes (#137).
+    const names = filesUnder(join(root, 'src')).map((f) => f.slice(root.length).replaceAll('\\', '/'));
     expect(names).toContain('src/media/omark-film.mp4');
     expect(names).toContain('src/media/omark-film.webp');
   });
