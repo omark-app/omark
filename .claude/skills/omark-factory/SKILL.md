@@ -70,7 +70,7 @@ If anything about the expected behaviour is unclear, ask one clear question, add
 
 ## Hand over
 
-1. Push and open the PR from `.github/pull_request_template.md`: `Closes #<n>`, size, what changes for users, the tests written first with their failing line, how to try it, and the AI-use line.
+1. Push and open the PR from `.github/pull_request_template.md`: `Closes #<n>`, size, what changes for users, the tests written first with their failing line, how to try it, how to undo it, and the AI-use line.
 2. Run a review subagent with no memory of the work: give it the issue (or plan) and `git diff main...HEAD` and ask for bugs, missed acceptance criteria and untested paths. Fix what holds up, re-run the checks in Implement step 3, push.
 3. Previews exist only for branches in this repository: the preview comment appears once `check` passes, and the PR body links it. A fork's PR has no preview; a maintainer can push its branch here to get one. The PR is ready only when every CI job, e2e included, is green.
 4. Remove `in-progress`. Tell the person you work for in one or two lines: what changed, the preview link, what to try.

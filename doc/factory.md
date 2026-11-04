@@ -70,7 +70,7 @@ Anything else is **large**. When in doubt, large. File formats, sync and merge, 
   - **Task**, for work users don't see: what and why, done when.
 - Blank issues are off. The chooser links "Report a security problem" (private vulnerability reporting) and "Ask a question" (Discussions, Q&A).
 - Forms bind only people using GitHub's site and app; issues created through the API skip them. So when sizing, the agent checks the form's required fields, and if one is missing it adds `needs-info`, asks, and stops.
-- **Pull requests** follow `.github/pull_request_template.md`: `Closes #`, size, what changes for users, tests written first, how to try it, the preview, and whether and how AI was used.
+- **Pull requests** follow `.github/pull_request_template.md`: `Closes #`, size, what changes for users, tests written first, how to try it, how to undo it, the preview, and whether and how AI was used.
 
 ### Definition of done
 
