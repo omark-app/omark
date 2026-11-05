@@ -1,10 +1,10 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { commandsFor, hook, nativePath, onlyDocs, pushDir, runChecks } from '../checks.mjs';
+import { commandsFor, commitsFirst, hook, nativePath, onlyDocs, pushDir, runChecks } from '../checks.mjs';
 
 const HOOK = fileURLToPath(new URL('../checks.mjs', import.meta.url));
 const node = (code: string) => `"${process.execPath}" -e "${code}"`;
@@ -25,6 +25,10 @@ describe('pushDir', () => {
     'eval git push',
   ])('%s is a push from cwd', (command) => {
     expect(pushDir(command, cwd)).toBe(cwd);
+  });
+
+  it("isn't thrown by an apostrophe in a comment line (#146, second review)", () => {
+    expect(pushDir("# Don't forget\ngit push", cwd)).toBe(cwd);
   });
 
   it('follows -C and a cd before it', () => {
@@ -52,6 +56,46 @@ describe('pushDir', () => {
     "cat <<EOF\ngit push\nEOF",
   ])('%s is not a push that needs checks', (command) => {
     expect(pushDir(command, cwd)).toBeNull();
+  });
+});
+
+describe('commitsFirst (#146)', () => {
+  it.each([
+    'git add x && git commit -m y && git push',
+    'git commit -am y; git push',
+    'git -C sub commit -m y && git -C sub push',
+    'cd sub && git commit -m y && git push -u origin x',
+    'bash -c "git commit -m y && git push"',
+    'env git commit -m y && git push',
+    // A push that sends nothing, or an earlier one, doesn't end the search (#146 review).
+    'git push --dry-run && git add . && git commit -m x && git push',
+    'git push origin :old && git add . && git commit -m x && git push',
+    'git push && git add . && git commit -m x && git push',
+    // Other ways to make a commit, an alias included, and a wrapper with options.
+    'git cherry-pick abc && git push',
+    'git merge other && git push',
+    'git ci -am x && git push',
+    'nice -n 5 git commit -am x && git push',
+    // A commit the line hides from a plain reading (#146, second review).
+    'OUT="$(git commit -am x 2>&1)" && git push',
+    'echo "$(git commit -am x)" && git push',
+    '`git commit -am x` && git push',
+    'git.exe commit -am x && git push',
+    'bash -lc "git commit -am x" && git push',
+    "# Don't forget the rest\ngit add -A && git commit -m x && git push",
+  ])('%s commits before it pushes', (command) => {
+    expect(commitsFirst(command)).toBe(true);
+  });
+
+  it.each([
+    'git push',
+    'git status && git push',
+    'echo git commit && git push',
+    'git push && git commit -m y',
+    'git log --grep commit && git push',
+    "cat <<EOF\ngit commit\nEOF\ngit push",
+  ])('%s does not', (command) => {
+    expect(commitsFirst(command)).toBe(false);
   });
 });
 
@@ -97,6 +141,11 @@ describe('commandsFor', () => {
       'pnpm exec vitest run --changed abc123',
       'pnpm exec vitest run --project ci-scripts',
     ]);
+  });
+
+  it("typechecks everything for a new file in a package: pnpm's filter doesn't see untracked files (#146 review)", () => {
+    expect(commandsFor(['packages/p/new.ts'], 'abc123', ['packages/p/new.ts'])[0]).toBe('pnpm typecheck');
+    expect(commandsFor(['packages/p/a.ts', 'doc/new.md'], 'abc123', ['doc/new.md'])[0]).toContain('--filter');
   });
 
   it('runs everything when the changed files are unknown', () => {
@@ -170,6 +219,7 @@ describe('the hook', () => {
     const ran: string[][] = [];
     const deps = {
       changed: () => ({ files, base: files === null ? null : 'abc123' }),
+      installed: () => true,
       run: async (commands: string[]) => {
         ran.push(commands);
         return [{ command: commands[0]!, tail: 'src/a.ts(1,1): error TS2322' }];
@@ -205,5 +255,191 @@ describe('the hook', () => {
     const r = await hook({ tool_name: 'Bash', tool_input: { command: 'cd /no/such/folder && git push' }, cwd: repo }, deps);
     expect(r.code).toBe(2);
     expect(ran).toHaveLength(1);
+  });
+
+  describe('a line that commits and pushes (#146)', () => {
+    /** A branch with nothing committed yet, at origin/main, and `file` new in the working tree. */
+    const freshBranch = (file: string) => {
+      const dir = mkdtempSync(join(tmpdir(), 'checks-fresh-'));
+      const g = (...args: string[]) => execFileSync('git', args, { cwd: dir, stdio: 'ignore' });
+      g('init', '-q', '-b', 'main');
+      mkdirSync(join(dir, 'tools/claude-guard'), { recursive: true });
+      writeFileSync(join(dir, 'tools/claude-guard/checks.mjs'), '');
+      mkdirSync(join(dir, 'packages/p'), { recursive: true });
+      writeFileSync(join(dir, 'packages/p/a.ts'), 'export {};\n');
+      g('add', '.');
+      g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'init');
+      g('update-ref', 'refs/remotes/origin/main', 'HEAD');
+      g('checkout', '-qb', 'issue-1-x');
+      mkdirSync(join(dir, dirname(file)), { recursive: true });
+      writeFileSync(join(dir, file), 'new\n');
+      return dir;
+    };
+    const line = (file: string) => `git add ${file} && git commit -m x && git push -u origin issue-1-x`;
+    const stubs = () => {
+      const ran: string[][] = [];
+      return {
+        ran,
+        deps: {
+          installed: () => true,
+          run: async (commands: string[]) => {
+            ran.push(commands);
+            return [];
+          },
+        },
+      };
+    };
+
+    it('lets a docs-only commit push without checks', () => {
+      const r = run({ tool_name: 'Bash', tool_input: { command: line('doc/b.md') }, cwd: freshBranch('doc/b.md') });
+      expect(r.stderr).toBe('');
+      expect(r.code).toBe(0);
+    });
+
+    it('runs the checks for a commit with code in it', async () => {
+      const { deps, ran } = stubs();
+      const file = 'apps/x/a.ts';
+      await hook({ tool_name: 'Bash', tool_input: { command: line(file) }, cwd: freshBranch(file) }, deps);
+      expect(ran).toHaveLength(1);
+      expect(ran[0]!.join(' ')).toContain('vitest');
+    });
+
+    it('counts a changed tracked file too', async () => {
+      const { deps, ran } = stubs();
+      const dir = freshBranch('doc/b.md');
+      writeFileSync(join(dir, 'tools/claude-guard/checks.mjs'), '// changed\n');
+      await hook({ tool_name: 'Bash', tool_input: { command: 'git commit -am x && git push' }, cwd: dir }, deps);
+      expect(ran).toHaveLength(1);
+    });
+
+    it('judges a push with no commit in the line by the branch alone', async () => {
+      const { deps, ran } = stubs();
+      const dir = freshBranch('apps/x/a.ts');
+      const g = (...args: string[]) => execFileSync('git', args, { cwd: dir, stdio: 'ignore' });
+      mkdirSync(join(dir, 'doc'));
+      writeFileSync(join(dir, 'doc/c.md'), 'docs\n');
+      g('add', 'doc/c.md');
+      g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'docs');
+      const r = await hook(push(dir), deps);
+      expect(r.code).toBe(0);
+      expect(ran).toEqual([]);
+    });
+
+    // The hook reads the tree before the line runs, so a line that changes files itself can't be read in advance.
+    it.each([
+      'git mv packages/p/a.ts packages/p/b.ts && git add . && git commit -m x && git push',
+      'sed -i s/a/b/ packages/p/a.ts && git commit -am x && git push',
+      'echo x > packages/p/a.ts && git add . && git commit -m x && git push',
+      'git stash pop && git add . && git commit -m x && git push',
+      'git add -f ignored/a.ts doc/b.md && git commit -m x && git push',
+      'git push && echo x >> packages/p/a.ts && git commit -am x && git push',
+      'git show origin/main:packages/p/a.ts > packages/p/new.ts && git add . && git commit -m x && git push',
+      'git diff > packages/p/x.ts && git add packages/p/x.ts && git commit -m x && git push',
+      'git log -1 --output=packages/p/x.ts && git add . && git commit -m x && git push',
+      'git add --forc ignored/a.ts && git commit -m x && git push',
+      'echo `sed -i s/a/b/ packages/p/a.ts` && git commit -am x && git push',
+    ])('runs the full checks for %s, whatever the tree shows now (#146 review)', async (command) => {
+      const { deps, ran } = stubs();
+      await hook({ tool_name: 'Bash', tool_input: { command }, cwd: freshBranch('doc/b.md') }, deps);
+      expect(ran).toEqual([['pnpm typecheck', 'pnpm test']]);
+    });
+
+    it('still reads a line of plain steps from the tree', async () => {
+      const { deps, ran } = stubs();
+      const command = 'git status && git add doc/b.md && echo done && git commit -m x && git push';
+      const r = await hook({ tool_name: 'Bash', tool_input: { command }, cwd: freshBranch('doc/b.md') }, deps);
+      expect(r.code).toBe(0);
+      expect(ran).toEqual([]);
+    });
+
+    it.each([
+      'git add doc/b.md && git commit -m x 2>&1 | tail -3 && git push',
+      'ls doc 2>/dev/null && git add doc/b.md && git commit -m x && git push',
+      '# Commit the plan\ngit add doc/b.md && git commit -m x && git push',
+      'mkdir -p doc/plans && git add doc/b.md && git commit -m x && git push',
+      'git add doc/b.md && git commit -m "a > b" && git push',
+    ])('runs nothing for the docs-only line %s (#146, second review)', async (command) => {
+      const { deps, ran } = stubs();
+      const r = await hook({ tool_name: 'Bash', tool_input: { command }, cwd: freshBranch('doc/b.md') }, deps);
+      expect(r.code).toBe(0);
+      expect(ran).toEqual([]);
+    });
+
+    it('sees code that is staged and then put back in the working copy', async () => {
+      const { deps, ran } = stubs();
+      const dir = freshBranch('doc/b.md');
+      writeFileSync(join(dir, 'packages/p/a.ts'), 'export const a = 1;\n');
+      execFileSync('git', ['add', 'packages/p/a.ts'], { cwd: dir, stdio: 'ignore' });
+      writeFileSync(join(dir, 'packages/p/a.ts'), 'export {};\n');
+      await hook({ tool_name: 'Bash', tool_input: { command: 'git add doc/b.md && git commit -m x && git push' }, cwd: dir }, deps);
+      expect(ran).toHaveLength(1);
+    });
+
+    it('typechecks everything for a new code file', async () => {
+      const { deps, ran } = stubs();
+      const file = 'packages/p/new.ts';
+      await hook({ tool_name: 'Bash', tool_input: { command: line(file) }, cwd: freshBranch(file) }, deps);
+      expect(ran[0]![0]).toBe('pnpm typecheck');
+    });
+
+    it('sees the code file a staged rename came from', async () => {
+      const { deps, ran } = stubs();
+      const dir = freshBranch('doc/b.md');
+      execFileSync('git', ['mv', 'packages/p/a.ts', 'doc/a.md'], { cwd: dir, stdio: 'ignore' });
+      await hook({ tool_name: 'Bash', tool_input: { command: 'git add doc/b.md && git commit -m x && git push' }, cwd: dir }, deps);
+      expect(ran).toHaveLength(1);
+    });
+
+    it('sees the code file a committed rename came from', async () => {
+      const { deps, ran } = stubs();
+      const dir = freshBranch('doc/b.md');
+      const g = (...args: string[]) => execFileSync('git', args, { cwd: dir, stdio: 'ignore' });
+      g('mv', 'packages/p/a.ts', 'doc/a.md');
+      g('add', 'doc/b.md');
+      g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'moved');
+      await hook(push(dir), deps);
+      expect(ran).toHaveLength(1);
+    });
+
+    it('reads a docs file with a non-ASCII name as docs', () => {
+      const file = 'doc/zażółć.md';
+      const r = run({ tool_name: 'Bash', tool_input: { command: line(file) }, cwd: freshBranch(file) });
+      expect(r.stderr).toBe('');
+      expect(r.code).toBe(0);
+    });
+
+    it('follows git -C from another folder', async () => {
+      const { deps, ran } = stubs();
+      const dir = freshBranch('doc/b.md').replaceAll('\\', '/');
+      const command = `git -C "${dir}" add doc/b.md && git -C "${dir}" commit -m x && git -C "${dir}" push`;
+      const r = await hook({ tool_name: 'Bash', tool_input: { command }, cwd: tmpdir() }, deps);
+      expect(r.code).toBe(0);
+      expect(ran).toEqual([]);
+    });
+
+    it('asks for an install when a real checkout has no node_modules', () => {
+      const file = 'apps/x/a.ts';
+      const r = run({ tool_name: 'Bash', tool_input: { command: line(file) }, cwd: freshBranch(file) });
+      expect(r.code).toBe(2);
+      expect(r.stderr).toContain("dependencies aren't installed");
+    });
+  });
+
+  describe('a checkout with nothing installed (#146)', () => {
+    it('blocks with the install message and runs no check', async () => {
+      const { deps, ran } = code(['apps/tasks/src/a.ts']);
+      const r = await hook(push(repo), { ...deps, installed: () => false });
+      expect(r.code).toBe(2);
+      expect(r.stderr).toContain("dependencies aren't installed");
+      expect(r.stderr).toContain('pnpm install');
+      expect(ran).toEqual([]);
+    });
+
+    it('still lets a docs-only push through', async () => {
+      const { deps, ran } = code(['doc/a.md']);
+      const r = await hook(push(repo), { ...deps, installed: () => false });
+      expect(r.code).toBe(0);
+      expect(ran).toEqual([]);
+    });
   });
 });
