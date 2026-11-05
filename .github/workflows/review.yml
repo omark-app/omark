@@ -68,6 +68,10 @@ jobs:
             First read what's already on the PR: `gh pr view --comments`, and for inline comments exactly `gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments --paginate`. Your own comments are the ones by `github-actions[bot]`. Don't repeat a finding you already posted.
 
             Finish with one summary comment: `gh pr comment ${{ github.event.pull_request.number }} --body "..."`. Start it with `AI review:` and the number of findings, and say plainly when there is nothing to fix. Post only GitHub comments.
+      # The action hides Claude Code's output, because these logs are public. A reported error is safe to show.
+      - name: Say why the review failed
+        if: failure()
+        run: jq -r '.[]? | select(.type == "result" and .is_error == true) | .result' "$RUNNER_TEMP/claude-execution-output.json"
   review-on-request:
     if: github.event_name == 'issue_comment' && github.event.issue.pull_request && startsWith(github.event.comment.body, '@claude review') && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
@@ -121,3 +125,7 @@ jobs:
             First read what's already on the PR: `gh pr view --comments`, and for inline comments exactly `gh api repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}/comments --paginate`. Your own comments are the ones by `github-actions[bot]`. Don't repeat a finding you already posted.
 
             Finish with one summary comment: `gh pr comment ${{ github.event.issue.number }} --body "..."`. Start it with `AI review:` and the number of findings, and say plainly when there is nothing to fix. Post only GitHub comments.
+      # The action hides Claude Code's output, because these logs are public. A reported error is safe to show.
+      - name: Say why the review failed
+        if: failure()
+        run: jq -r '.[]? | select(.type == "result" and .is_error == true) | .result' "$RUNNER_TEMP/claude-execution-output.json"
