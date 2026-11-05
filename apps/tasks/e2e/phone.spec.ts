@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import { driveFile, fitsNotes, LONG_NOTE, openApp, SPEC_TASKS } from './helpers';
+import { poll } from './poll';
 
 test.skip(({ isMobile }) => !isMobile, 'the phone layout and touch gestures run on the iphone project');
 
@@ -63,7 +64,7 @@ test('the + button opens the add sheet; Someday puts the new task in Someday', a
   await expect(sheet(page)).toHaveCount(0);
   await expect(page.getByTestId('toast')).toContainText('Added to Someday');
   await expect(page.getByTestId('bucket-count-someday')).toHaveText('2');
-  await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Buy stamps\n');
+  await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Buy stamps\n');
 });
 
 test('a dismissed add sheet keeps its draft until a task is added', async ({ page }) => {
@@ -109,10 +110,10 @@ test('a task added with 🔁 text in its title repeats, and the round check resc
   const backup = row(page, 'back up laptop');
   await expect(backup.locator('.title')).toHaveText('back up laptop');
   await expect(backup.getByTestId('task-meta')).toContainText('↻');
-  await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] back up laptop 🔁 every 2 days 📅 2026-10-18\n');
+  await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] back up laptop 🔁 every 2 days 📅 2026-10-18\n');
   await backup.getByTestId('task-check').tap();
   await expect(page.getByTestId('toast')).toContainText('Done · next Tue 20 Oct');
-  await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] back up laptop 🔁 every 2 days 📅 2026-10-20\n');
+  await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] back up laptop 🔁 every 2 days 📅 2026-10-20\n');
   expect(await driveFile(page, 'done.md')).toBe('- [x] back up laptop 🔁 every 2 days ✅ 2026-10-18\n');
 });
 
@@ -122,12 +123,12 @@ test('a title edited to hold 🔁 text repeats, and the round check reschedules 
   await sheet(page).getByLabel('Task title').fill('weekly review 🔁 every week on Sunday');
   await page.keyboard.press('Enter');
   await expect(sheet(page)).toHaveCount(0);
-  await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] weekly review 🔁 every week on Sunday 📅 2026-10-19\n');
+  await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] weekly review 🔁 every week on Sunday 📅 2026-10-19\n');
   const task = row(page, 'weekly review');
   await expect(task.locator('.title')).toHaveText('weekly review');
   await task.getByTestId('task-check').tap();
   await expect(page.getByTestId('toast')).toContainText('Done · next Sun 25 Oct');
-  await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] weekly review 🔁 every week on Sunday 📅 2026-10-25\n');
+  await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] weekly review 🔁 every week on Sunday 📅 2026-10-25\n');
 });
 
 test('repeating tasks written by the Todoist import reschedule when completed on the phone', async ({ page }) => {
@@ -139,7 +140,7 @@ test('repeating tasks written by the Todoist import reschedule when completed on
   await expect(page.getByTestId('toast')).toContainText('Done · next Tue 20 Oct');
   await swipe(row(page, 'weekly review'), 120);
   await expect(page.getByTestId('toast')).toContainText('Done · next Sun 25 Oct');
-  await expect.poll(() => driveFile(page, 'tasks.md')).toBe(
+  await poll(() => driveFile(page, 'tasks.md')).toBe(
     '# Tasks\n- [ ] back up laptop 🔁 every 2 days 📅 2026-10-20\n' +
       '- [ ] weekly review – check in 🔁 every week on Sunday 📅 2026-10-25\n    - one line a day\n',
   );
@@ -150,11 +151,11 @@ test('the move and edit sheets open with no option picked and no field focused',
   const focused = () => page.evaluate(() => document.activeElement?.getAttribute('role') ?? document.activeElement?.tagName);
   await swipe(row(page, 'Send the invoice'), -120);
   await expect(sheet(page)).toBeVisible();
-  await expect.poll(focused).toBe('dialog');
+  await poll(focused).toBe('dialog');
   await page.keyboard.press('Escape');
   await row(page, 'Send the invoice').tap();
   await expect(sheet(page).getByLabel('Task title')).toBeVisible();
-  await expect.poll(focused).toBe('dialog');
+  await poll(focused).toBe('dialog');
 });
 
 test('tapping a row opens the edit sheet; Save keeps the new notes and shows ≡', async ({ page }) => {
@@ -172,7 +173,7 @@ test('tapping a row opens the edit sheet; Save keeps the new notes and shows ≡
   await expect(sheet(page)).toHaveCount(0);
   await expect(invoice).toContainText('≡');
   await expect(page.getByTestId('toast')).toContainText('Saved');
-  await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Send the invoice 📅 2026-10-19\n    - net 30\n');
+  await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Send the invoice 📅 2026-10-19\n    - net 30\n');
   await expect(page.locator('.task.sel')).toHaveCount(0);
 });
 
@@ -189,7 +190,7 @@ test('text typed in the edit sheet is saved when the page is hidden', async ({ p
   await row(page, 'Send the invoice').tap();
   await sheet(page).getByLabel('Task title').fill('Send the final invoice');
   await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')));
-  await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Send the final invoice 📅 2026-10-19');
+  await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Send the final invoice 📅 2026-10-19');
   await expect(sheet(page)).toBeVisible();
 });
 
@@ -229,7 +230,7 @@ test('tapping task-meta opens the date picker directly, with the date field not 
   await expect(sheet(page).getByLabel('Due date')).toBeVisible();
   // A focused date field would open the iOS date wheel over the chips.
   const focused = () => page.evaluate(() => document.activeElement?.getAttribute('role') ?? document.activeElement?.tagName);
-  await expect.poll(focused).toBe('dialog');
+  await poll(focused).toBe('dialog');
   await expect(sheet(page).getByLabel('Task title')).toHaveCount(0);
   await expect(page.getByTestId('sheet')).toHaveCount(1);
 });
@@ -239,7 +240,7 @@ test('swiping a row right completes it', async ({ page }) => {
   await swipe(row(page, 'Send the invoice'), 120);
   await expect(page.getByTestId('toast')).toContainText('Done · Send the invoice');
   await expect(row(page, 'Send the invoice')).toHaveCount(0);
-  await expect.poll(() => driveFile(page, 'done.md')).toContain('Send the invoice');
+  await poll(() => driveFile(page, 'done.md')).toContain('Send the invoice');
 });
 
 test('a short swipe springs back and changes nothing, and its click is not a tap', async ({ page }) => {

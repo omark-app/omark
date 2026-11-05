@@ -85,7 +85,7 @@ describe('docs set', () => {
   // so it changes here too.
   const rules = [
     "- [ ] A test written first that failed before the change; the PR quotes the failing line.",
-    "- [ ] `pnpm typecheck`, `pnpm test`, the build and the e2e specs the change touches pass here; the full `pnpm e2e` passes in CI.",
+    "- [ ] `pnpm typecheck`, `pnpm test`, the build and the e2e specs the change touches pass here; CI's e2e jobs pass.",
     "- [ ] The PR follows the template, closes the issue and, for a branch in this repository, has the preview link.",
     "- [ ] A fresh-eyes review subagent (no memory of writing it) checked the diff against the issue or plan, and its findings are fixed.",
     "- [ ] Large work: every acceptance criterion in the plan is met or explicitly moved out.",

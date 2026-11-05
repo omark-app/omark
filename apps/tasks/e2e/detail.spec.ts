@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { driveFile, fitsNotes, LONG_NOTE, openApp, SPEC_TASKS } from './helpers';
+import { poll } from './poll';
 
 test.skip(({ isMobile }) => isMobile, 'the detail pane is a desktop feature');
 
@@ -135,7 +136,7 @@ test('notes save one second after typing stops', async ({ page }) => {
   await row(page, 'Send the invoice').click();
   await page.getByTestId('detail-notes').click();
   await page.keyboard.type('pay by Friday');
-  await expect.poll(() => driveFile(page, 'tasks.md'), { timeout: 1500, intervals: [100] }).toContain('    - pay by Friday');
+  await poll(() => driveFile(page, 'tasks.md'), { timeout: 1500, intervals: [100] }).toContain('    - pay by Friday');
 });
 
 test('Shift+Enter from the title on a task with notes keeps the notes and adds the new line', async ({ page }) => {
@@ -146,7 +147,7 @@ test('Shift+Enter from the title on a task with notes keeps the notes and adds t
   await page.keyboard.type('third');
   await page.keyboard.press('Control+Enter');
   await expect(page.getByTestId('detail-notes')).toHaveValue('ask about zirconia\nbring the old x-ray\nthird');
-  await expect.poll(() => driveFile(page, 'tasks.md'), { timeout: 3000 }).toContain('    - bring the old x-ray\n    - third');
+  await poll(() => driveFile(page, 'tasks.md'), { timeout: 3000 }).toContain('    - bring the old x-ray\n    - third');
 });
 
 test('typed notes are saved when the app is hidden before the debounce fires', async ({ page }) => {
@@ -158,7 +159,7 @@ test('typed notes are saved when the app is hidden before the debounce fires', a
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
     document.dispatchEvent(new Event('visibilitychange'));
   });
-  await expect.poll(() => driveFile(page, 'tasks.md'), { timeout: 700, intervals: [50] }).toContain('    - hidden save');
+  await poll(() => driveFile(page, 'tasks.md'), { timeout: 700, intervals: [50] }).toContain('    - hidden save');
 });
 
 test('typed title is saved when the selection changes', async ({ page }) => {
@@ -226,7 +227,7 @@ test('a line break pasted into the title becomes a space, so the title stays one
   await expect(page.getByTestId('detail-title')).toHaveValue('Send the invoice to Ana by email');
   await page.keyboard.press('Enter');
   await expect(row(page, 'Send the invoice to Ana by email')).toHaveCount(1);
-  await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Send the invoice to Ana by email 📅 2026-10-19');
+  await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Send the invoice to Ana by email 📅 2026-10-19');
 });
 
 test('pasting lines into the title keeps the caret after them, and Ctrl+Z takes the paste back', async ({ page, context }) => {

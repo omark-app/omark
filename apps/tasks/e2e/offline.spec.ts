@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { driveFile, openApp } from './helpers';
+import { poll } from './poll';
 
 test.use({ serviceWorkers: 'allow' });
 test.skip(({ isMobile }) => isMobile, 'the offline shell is checked on the desktop project (Chromium service worker)');
@@ -20,7 +21,7 @@ test('reloads offline from the precached shell with the cached task, fonts from 
   await page.getByTestId('add-input').press('Enter');
   const row = page.getByTestId('task-row').filter({ hasText: 'Written before the train' });
   await expect(row).toHaveCount(1);
-  await expect.poll(() => driveFile(page, 'tasks.md')).toContain('Written before the train');
+  await poll(() => driveFile(page, 'tasks.md')).toContain('Written before the train');
   await expect(page.getByTestId('status')).toHaveText('saved');
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;

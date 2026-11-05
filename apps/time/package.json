@@ -8,6 +8,7 @@
     "preview": "vite preview",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json",
     "e2e": "playwright test",
+    "e2e:standalone": "playwright test local-folder.spec.ts",
     "test": "vitest run --root ../.. --project time"
   },
   "devDependencies": {

@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { driveFile, externalWrite, openApp, SPEC_TASKS } from './helpers';
+import { poll } from './poll';
 
 type AuthStub = 'signed-out' | 'expired' | 'redirect-error' | 'stalled-start';
 
@@ -64,7 +65,7 @@ test('a bad config.yaml shows a banner naming the line, and the app keeps workin
   await regainFocus(page);
   await expect(page.getByTestId('config-banner')).toContainText('line 1');
   await addTask(page, 'Still works', isMobile);
-  await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Still works');
+  await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Still works');
 
   await externalWrite(page, 'config.yaml', 'theme: system\n');
   await regainFocus(page);
@@ -106,7 +107,7 @@ test("a save that meets another device's change shows that change without a focu
   await externalWrite(page, 'tasks.md', `${SPEC_TASKS}- [ ] Added on the phone 📅 2026-10-16\n`);
   await addTask(page, 'Added here', isMobile); // its write gets a 412, merges the phone's task in and writes
   await expect(row(page, 'Added on the phone')).toHaveCount(1);
-  await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Added here');
+  await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Added here');
   await expect(page.getByTestId('status')).toHaveText('saved');
 });
 
@@ -135,7 +136,7 @@ test('with no signed-in account the sign-in screen shows, and its button starts 
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('omark tasks');
   await expect(page.getByTestId('bucket-today')).toHaveCount(0);
   await button.click();
-  await expect.poll(() => signIns(page)).toBe(1);
+  await poll(() => signIns(page)).toBe(1);
 });
 
 test('a failed token refresh shows a sign-in banner, and its button starts sign-in', async ({ page }) => {
@@ -148,7 +149,7 @@ test('a failed token refresh shows a sign-in banner, and its button starts sign-
   await expect(page.getByTestId('sync-banner')).toContainText('Sign in again to reach OneDrive — showing your last saved copy');
   const status = page.getByTestId('sync-banner').getByRole('button', { name: 'Sign in' });
   await status.click();
-  await expect.poll(() => signIns(page)).toBe(1);
+  await poll(() => signIns(page)).toBe(1);
   expect(dialogs).toEqual([]); // nothing to lose, nothing to ask
 });
 
@@ -164,14 +165,14 @@ test('signing in again with edits only in memory asks first', async ({ page, isM
     void d.dismiss();
   });
   await status.click();
-  await expect.poll(() => dialogs.length).toBe(1);
+  await poll(() => dialogs.length).toBe(1);
   expect(dialogs[0]).toContain("aren't saved to OneDrive yet");
   expect(await signIns(page)).toBe(0);
   await expect(row(page, 'Not on OneDrive yet')).toHaveCount(1);
 
   page.once('dialog', (d) => void d.accept());
   await status.click();
-  await expect.poll(() => signIns(page)).toBe(1);
+  await poll(() => signIns(page)).toBe(1);
 });
 
 test('a sign-in library that never finishes starting still opens the list, asking to sign in', async ({ page }) => {

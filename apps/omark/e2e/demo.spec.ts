@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { demoPort } from './port';
+import { poll } from './poll';
 
 // The demo world (roadmap U.6, one app spec section 9): the demo build (VITE_STORAGE=demo), served by
 // playwright.config.ts's second web server. Each test has a fresh browser context, so it starts on an empty
@@ -99,7 +100,7 @@ test('Goals shows the four areas, the two pictures and Home needing an update', 
   await expect(card(page, 'Work').getByTestId('needs-update')).toHaveCount(0);
   for (const name of ['Health', 'Home']) {
     const picture = card(page, name).getByTestId('area-picture');
-    await expect.poll(() => picture.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+    await poll(() => picture.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
   }
   await expect(page.getByTestId('demo-line')).toContainText('DEMO');
   await expect(page.getByTestId('real-use')).toHaveAttribute('href', 'https://example.test/real');
@@ -121,16 +122,16 @@ test('an edit survives a reload, the pictures too; Reset demo asks, then brings 
   await open(page);
   await expect(row(page, 'Send Nova the payments flow')).toBeVisible();
   await addTask(page, isMobile, 'Water the plants');
-  await expect.poll(() => demoFile(page, 'tasks', 'tasks.md')).toContain('- [ ] Water the plants');
+  await poll(() => demoFile(page, 'tasks', 'tasks.md')).toContain('- [ ] Water the plants');
   await toTab(page, 'Goals');
   await page.getByRole('button', { name: 'Add area' }).click();
   await page.locator('form.sheet').getByLabel('Name').fill('Garden');
   await page.locator('form.sheet').getByRole('button', { name: 'Save' }).click();
-  await expect.poll(() => demoFile(page, 'goals', 'goals.md')).toContain('## Garden #garden');
+  await poll(() => demoFile(page, 'goals', 'goals.md')).toContain('## Garden #garden');
   await page.reload();
   await expect(page.getByTestId('area-card')).toHaveCount(5);
   // The pictures are still there after the reload (WebKit keeps Blobs in IndexedDB).
-  await expect.poll(() => card(page, 'Health').getByTestId('area-picture').evaluate((img: HTMLImageElement) => img.naturalWidth > 0)).toBe(true);
+  await poll(() => card(page, 'Health').getByTestId('area-picture').evaluate((img: HTMLImageElement) => img.naturalWidth > 0)).toBe(true);
   await toTab(page, 'Tasks');
   await expect(row(page, 'Water the plants')).toBeVisible();
   await toTab(page, 'Goals');

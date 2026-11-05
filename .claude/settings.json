@@ -9,6 +9,10 @@
       {
         "matcher": "Bash|mcp__github__.*",
         "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR\"/tools/claude-guard/guard.mjs" }]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR\"/tools/claude-guard/checks.mjs", "timeout": 600 }]
       }
     ]
   },

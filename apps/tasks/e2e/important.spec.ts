@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import { driveFile, openApp, SPEC_TASKS } from './helpers';
+import { poll } from './poll';
 
 /** Important, not urgent (#38): open tasks with ⏫ and no date, where ALWAYS used to be. */
 
@@ -26,7 +27,7 @@ test('old Always lines show as Important, not urgent and are saved as ⏫ tasks'
   await start(page, LEGACY);
   await expect(page.getByTestId('bucket-head-important')).toContainText('Important, not urgent');
   await expect(groupRows(page)).toHaveText([/Walk before the first coffee/, /One tab at a time/]);
-  await expect.poll(() => driveFile(page, 'tasks.md')).toBe(
+  await poll(() => driveFile(page, 'tasks.md')).toBe(
     '# Tasks\n- [ ] Walk before the first coffee ⏫\n- [ ] One tab at a time ⏫\n' +
       '- [ ] Call the dentist 📅 2026-10-16\n- [ ] Learn Polish sign language\n',
   );
@@ -37,7 +38,7 @@ test('the check completes a group task into done.md', async ({ page }) => {
   await row(page, 'One tab at a time').getByTestId('task-check').click();
   await expect(page.getByTestId('toast')).toContainText('Done · One tab at a time');
   await expect(groupRows(page)).toHaveCount(1);
-  await expect.poll(() => driveFile(page, 'done.md')).toBe('- [x] One tab at a time ⏫ ✅ 2026-10-16\n');
+  await poll(() => driveFile(page, 'done.md')).toBe('- [x] One tab at a time ⏫ ✅ 2026-10-16\n');
 });
 
 test('an empty group stays open with a short note', async ({ page }) => {
@@ -53,7 +54,7 @@ test.describe('desktop drag', () => {
     await start(page);
     await row(page, 'One tab at a time').dragTo(row(page, 'Walk before the first coffee'));
     await expect(groupRows(page)).toHaveText([/One tab at a time/, /Walk before the first coffee/]);
-    await expect.poll(() => driveFile(page, 'tasks.md')).toMatch(/^# Tasks\n- \[ \] One tab at a time ⏫\n- \[ \] Walk before the first coffee ⏫\n/);
+    await poll(() => driveFile(page, 'tasks.md')).toMatch(/^# Tasks\n- \[ \] One tab at a time ⏫\n- \[ \] Walk before the first coffee ⏫\n/);
   });
 
   test('a Today task dropped on the group loses its date and gets ⏫', async ({ page }) => {
@@ -61,7 +62,7 @@ test.describe('desktop drag', () => {
     await row(page, 'Call the dentist').dragTo(page.getByTestId('bucket-head-important'));
     await expect(page.getByTestId('toast')).toContainText('Moved to Important, not urgent');
     await expect(groupRows(page)).toHaveCount(3);
-    await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Call the dentist about the crown ⏫\n');
+    await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Call the dentist about the crown ⏫\n');
   });
 
   test('a group task dropped on Someday loses ⏫', async ({ page }) => {
@@ -69,7 +70,7 @@ test.describe('desktop drag', () => {
     await row(page, 'One tab at a time').dragTo(page.getByTestId('bucket-head-someday'));
     await expect(page.getByTestId('toast')).toContainText('Moved to Someday');
     await expect(groupRows(page)).toHaveCount(1);
-    await expect.poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] One tab at a time\n');
+    await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] One tab at a time\n');
   });
 });
 

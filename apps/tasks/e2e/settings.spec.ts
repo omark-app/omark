@@ -4,6 +4,7 @@ import { allFields, fieldId } from '@omark/settings';
 import type { KeysField } from '@omark/settings';
 import { DEFAULT_CONFIG_YAML, TASKS_SCHEMA } from '@omark/tasks-core';
 import { driveFile, externalWrite, openApp, SPEC_TASKS } from './helpers';
+import { poll } from './poll';
 
 const row = (page: Page, title: string) => page.getByTestId('task-row').filter({ hasText: title });
 const settings = (page: Page) => page.getByTestId('settings');
@@ -123,7 +124,7 @@ test('the theme applies at once and only that key is written', async ({ page }) 
   await openSettings(page);
   await themeButton(page, 'Dark').click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await expect.poll(() => driveFile(page, 'config.yaml')).toBe(DEFAULT_CONFIG_YAML.replace('\ntheme: system\n', '\ntheme: dark\n'));
+  await poll(() => driveFile(page, 'config.yaml')).toBe(DEFAULT_CONFIG_YAML.replace('\ntheme: system\n', '\ntheme: dark\n'));
 });
 
 test('a theme set on an empty file writes just that line', async ({ page }) => {
@@ -131,7 +132,7 @@ test('a theme set on an empty file writes just that line', async ({ page }) => {
   await openSettings(page);
   await themeButton(page, 'Dark').click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await expect.poll(() => driveFile(page, 'config.yaml')).toBe('theme: dark\n');
+  await poll(() => driveFile(page, 'config.yaml')).toBe('theme: dark\n');
 });
 
 test('back to the default removes the key', async ({ page }) => {
@@ -139,7 +140,7 @@ test('back to the default removes the key', async ({ page }) => {
   await openSettings(page);
   await themeButton(page, 'System').click();
   await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'dark');
-  await expect.poll(() => driveFile(page, 'config.yaml')).toBe('');
+  await poll(() => driveFile(page, 'config.yaml')).toBe('');
 });
 
 test('the Habits section edits the habits keys', async ({ page }) => {
@@ -151,9 +152,9 @@ test('the Habits section edits the habits keys', async ({ page }) => {
   await expect(misses).toHaveValue('10%');
 
   await goal.fill('30');
-  await expect.poll(() => driveFile(page, 'config.yaml')).toBe('habits:\n  goal: 30\n');
+  await poll(() => driveFile(page, 'config.yaml')).toBe('habits:\n  goal: 30\n');
   await misses.fill('25%');
-  await expect.poll(() => driveFile(page, 'config.yaml')).toBe('habits:\n  goal: 30\n  missesPerAttempt: 25%\n');
+  await poll(() => driveFile(page, 'config.yaml')).toBe('habits:\n  goal: 30\n  missesPerAttempt: 25%\n');
 
   // A share over 100% is refused with the reader's reason, and the file stays.
   await misses.fill('120%');
@@ -165,7 +166,7 @@ test('the Habits section edits the habits keys', async ({ page }) => {
   await misses.blur();
   await goal.fill('66');
   await goal.blur();
-  await expect.poll(() => driveFile(page, 'config.yaml')).toBe('');
+  await poll(() => driveFile(page, 'config.yaml')).toBe('');
 });
 
 test('invalid input is refused with a reason', async ({ page }) => {
@@ -194,7 +195,7 @@ test('typing through the default keeps the line and its comment', async ({ page 
   await expect(page.getByTestId('config-text')).toHaveText('saveDelaySeconds: 15  # slow phone');
   // The new delay applies at once, so the save waits 15 seconds.
   await page.clock.fastForward(16_000);
-  await expect.poll(() => driveFile(page, 'config.yaml')).toBe('saveDelaySeconds: 15  # slow phone\n');
+  await poll(() => driveFile(page, 'config.yaml')).toBe('saveDelaySeconds: 15  # slow phone\n');
 });
 
 test('a broken file opens the editor at the problem line', async ({ page }) => {
@@ -209,14 +210,14 @@ test('a broken file opens the editor at the problem line', async ({ page }) => {
   await expect(page.getByTestId('text-done')).toBeEnabled();
   await page.getByTestId('text-done').click();
   await expect(page.getByTestId('field-theme')).toBeVisible();
-  await expect.poll(() => driveFile(page, 'config.yaml')).toBe('theme: dark\n');
+  await poll(() => driveFile(page, 'config.yaml')).toBe('theme: dark\n');
 });
 
 test('a change from another device is merged on focus', async ({ page }) => {
   await start(page, '');
   await openSettings(page);
   await themeButton(page, 'Dark').click();
-  await expect.poll(() => driveFile(page, 'config.yaml')).toBe('theme: dark\n');
+  await poll(() => driveFile(page, 'config.yaml')).toBe('theme: dark\n');
   await expect(settings(page).getByTestId('status')).toHaveText('saved');
 
   const text = await driveFile(page, 'config.yaml');
@@ -233,7 +234,7 @@ test('theme and a shortcut survive a reload, and the file holds only those keys'
   await captureKey(page, 'complete', 'c');
   await expect(page.getByTestId('key-complete-0')).toHaveText('c');
   const saved = 'theme: dark\nshortcuts:\n  complete: c\n';
-  await expect.poll(() => driveFile(page, 'config.yaml')).toBe(saved);
+  await poll(() => driveFile(page, 'config.yaml')).toBe(saved);
 
   // The fake drive lives in memory, so the reload is seeded with what was saved (a later init script wins).
   await page.addInitScript((files) => {
@@ -250,6 +251,6 @@ test('theme and a shortcut survive a reload, and the file holds only those keys'
     await row(page, 'Call the dentist').click();
     await page.keyboard.press('c');
     await expect(row(page, 'Call the dentist')).toHaveCount(0);
-    await expect.poll(() => driveFile(page, 'done.md')).toContain('Call the dentist about the crown');
+    await poll(() => driveFile(page, 'done.md')).toContain('Call the dentist about the crown');
   }
 });

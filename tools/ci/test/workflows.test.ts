@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
@@ -8,6 +8,7 @@ const text = (f: string) => readFileSync(path(f), 'utf8');
 
 interface Step { id?: string; name?: string; if?: string; uses?: string; with?: unknown; env?: unknown; run?: string; 'working-directory'?: string }
 interface Job {
+  name?: string;
   if?: string;
   needs?: string[];
   permissions?: Record<string, string>;
@@ -38,7 +39,9 @@ function forkProblems(wf: Workflow): string[] {
       (cond.startsWith("github.event_name == 'push' &&") && !cond.includes('||')) ||
       (cond.startsWith(MAIN_ONLY) && !cond.slice(MAIN_ONLY.length).includes('||'));
     if (usesSecrets && !cond.includes("vars.DEPLOY_ENABLED == 'true'")) problems.push(`${name}: secrets without DEPLOY_ENABLED`);
-    if (onPr && !pushOnly && (usesSecrets || cond !== '') && !cond.includes(FORK_GUARD)) {
+    // `always()` alone, with no secrets and no permissions, reaches nothing a fork could use (e2e-iphone).
+    const harmless = cond === 'always()' && !usesSecrets && JSON.stringify(job.permissions) === '{}';
+    if (onPr && !pushOnly && (usesSecrets || cond !== '') && !harmless && !cond.includes(FORK_GUARD)) {
       problems.push(`${name}: no fork guard`);
     }
   }
@@ -305,9 +308,10 @@ describe('workflows', () => {
     expect(projects).toHaveLength(block.match(/\bname:/g)!.length);
     expect(projects.length).toBeGreaterThan(1);
     const e2e = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1];
-    expect(e2e.strategy?.matrix?.project).toEqual(projects);
+    const include = (e2e.strategy?.matrix as { include?: { project: string; part: string }[] } | undefined)?.include ?? [];
+    expect([...new Set(include.map((i) => i.project))]).toEqual(projects);
     expect(e2e.strategy?.['fail-fast']).toBe(false);
-    expect(e2e.steps!.map((s) => s.run)).toContain('pnpm --filter tasks e2e --project=${{ matrix.project }}');
+    expect(e2e.steps!.map((s) => s.run)).toContain('pnpm --filter tasks e2e:standalone --project=${{ matrix.project }}');
   });
 
   it('deploys staging, the demo and the site only after check and every e2e job', () => {
@@ -355,7 +359,7 @@ describe('workflows', () => {
 
   it('gives every job a time limit', () => {
     const limits = Object.fromEntries(FILES.flatMap((f) => jobsOf(f).map(([n, j]) => [n, j['timeout-minutes']])));
-    expect(limits).toEqual({ check: 10, 'stop-on-check-failure': 5, e2e: 20, 'omark-preview': 15, 'omark-staging': 15, 'omark-demo': 15, 'site-preview': 15, 'site-production': 15, promote: 15 });
+    expect(limits).toEqual({ check: 10, 'stop-on-check-failure': 5, e2e: 20, 'e2e-iphone': 5, 'omark-preview': 15, 'omark-staging': 15, 'omark-demo': 15, 'site-preview': 15, 'site-production': 15, promote: 15 });
   });
 
   it('site jobs deploy only apps/site', () => {
@@ -387,7 +391,7 @@ describe('workflows', () => {
 
   it('runs Omark Time’s e2e in the e2e job, with the same Playwright projects as Tasks', () => {
     const e2e = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1];
-    expect(e2e.steps!.map((s) => s.run)).toContain('pnpm --filter time e2e --project=${{ matrix.project }}');
+    expect(e2e.steps!.map((s) => s.run)).toContain('pnpm --filter time e2e:standalone --project=${{ matrix.project }}');
     const names = (app: string) =>
       [...readFileSync(new URL(`../../../apps/${app}/playwright.config.ts`, import.meta.url), 'utf8').matchAll(/\{ name: '(\w+)'/g)].map((m) => m[1]);
     expect(names('time')).toEqual(names('tasks'));
@@ -398,10 +402,136 @@ describe('workflows', () => {
     const runs = e2e.steps!.map((s) => s.run);
     expect(runs).toContain('pnpm --filter omark e2e --project=${{ matrix.project }}');
     expect(runs).toContain('pnpm --filter omark e2e:tasks --project=${{ matrix.project }}');
+    expect(runs).toContain('pnpm --filter omark e2e:time --project=${{ matrix.project }}');
     const names = (file: string) =>
       [...readFileSync(new URL(`../../../apps/${file}`, import.meta.url), 'utf8').matchAll(/\{ name: '(\w+)'/g)].map((m) => m[1]);
     expect(names('omark/playwright.config.ts')).toEqual(names('tasks/playwright.config.ts'));
     expect(names('omark/playwright.tasks.config.ts')).toEqual(names('tasks/playwright.config.ts'));
+  });
+
+  describe('splits the slow iPhone e2e in three parts that run side by side (#132)', () => {
+    const jobs = () => Object.fromEntries(jobsOf('ci.yml'));
+    const PARTS = ['a', 'b', 'c'];
+
+    it('runs desktop whole and iPhone as three parts', () => {
+      expect((jobs().e2e!.strategy?.matrix as { include: unknown[] }).include).toEqual([
+        { project: 'desktop', part: 'all' },
+        ...PARTS.map((part) => ({ project: 'iphone', part })),
+      ]);
+      expect(jobs().e2e!.name).toBe("e2e (${{ matrix.project }}${{ matrix.part != 'all' && format(', {0}', matrix.part) || '' }})");
+    });
+
+    it('runs every Playwright step in exactly one part, and all of them on desktop', () => {
+      const used = new Set<string>();
+      for (const s of jobs().e2e!.steps!.filter((s) => /^pnpm --filter \w+ e2e/.test(s.run ?? ''))) {
+        const part = s.if?.match(/^matrix\.part == 'all' \|\| matrix\.part == '([a-z])'$/)?.[1];
+        expect(PARTS, `${s.run}: ${s.if}`).toContain(part);
+        used.add(part!);
+      }
+      expect([...used].sort()).toEqual(PARTS);
+    });
+
+    it("keeps the required check named e2e (iphone): it passes only when every e2e job did", () => {
+      const all = jobs()['e2e-iphone']!;
+      expect(all.name).toBe('e2e (iphone)');
+      expect(all.needs).toEqual(['e2e']);
+      expect(all.if).toBe('always()');
+      expect(all.permissions).toEqual({});
+      expect(all['timeout-minutes']).toBe(5);
+      expect(all.steps).toHaveLength(1);
+      expect(all.steps![0]!.run).toBe('test "$RESULT" = success');
+      expect(all.steps![0]!.env).toEqual({ RESULT: '${{ needs.e2e.result }}' });
+    });
+  });
+
+  describe("runs Tasks' and Time's specs once, against the one app (#132)", () => {
+    const read = (p: string) => readFileSync(new URL(`../../../apps/${p}`, import.meta.url), 'utf8');
+    const listed = (config: string, name: string) =>
+      [...read(config).match(new RegExp(`${name} = \\[([^\\]]*)\\]`))![1]!.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+    const specs = (app: string) =>
+      readdirSync(new URL(`../../../apps/${app}/e2e`, import.meta.url)).filter((f) => f.endsWith('.spec.ts')).sort();
+    const script = (app: string, name: string) => JSON.parse(read(`${app}/package.json`)).scripts[name];
+
+    // The standalone builds reach no user (app.omark.app and the demo serve apps/omark), so CI runs on them only
+    // what the one app's run skips and users still get: the real storage adapters, and Tasks signing in again after
+    // a session expires, which the shell hands to Tasks (`e2e:standalone`).
+    const STANDALONE = {
+      tasks: ['google-drive.spec.ts', 'lifecycle.spec.ts', 'local-folder.spec.ts'],
+      time: ['local-folder.spec.ts'],
+    };
+    // Specs of the standalone builds' own screens, which the one app replaced: run by `pnpm e2e`, not in CI.
+    const STANDALONE_ONLY = {
+      tasks: ['demo.spec.ts', 'environment.spec.ts', 'first-run.spec.ts', 'icons.spec.ts'],
+      time: [] as string[],
+    };
+    // Tests the one app's run skips, by their skip pattern, that a spec of its own covers, or that test a screen
+    // the shell replaced.
+    const COVERED_IN_ONE_APP = {
+      tasks: {
+        'the footer gear opens Settings with every setting': 'apps/omark/e2e/settings.spec.ts',
+        'invalid input is refused with a reason': 'apps/omark/e2e/settings.spec.ts',
+        'page title is Omark Tasks': 'apps/omark/e2e/icons.spec.ts',
+        'manifest is served with name and standalone display': 'apps/omark/e2e/icons.spec.ts',
+      },
+      time: {
+        'signed out, the app offers Google sign-in': "Time's own first run, replaced by the shell's",
+        'the first run asks for Drive access, then the calendars, and writes the files': "Time's own first run, replaced by the shell's",
+      },
+    } as Record<'tasks' | 'time', Record<string, string>>;
+
+    it('runs the standalone builds only for what the one app skips', () => {
+      const runs = jobsOf('ci.yml').find(([n]) => n === 'e2e')![1].steps!.map((s) => s.run);
+      for (const app of ['tasks', 'time'] as const) {
+        expect(script(app, 'e2e:standalone'), app).toBe(`playwright test ${STANDALONE[app].join(' ')}`);
+        expect(runs, app).toContain(`pnpm --filter ${app} e2e:standalone --project=\${{ matrix.project }}`);
+        expect(runs, app).not.toContain(`pnpm --filter ${app} e2e --project=\${{ matrix.project }}`);
+      }
+    });
+
+    it('runs every spec somewhere in CI, or names it as standalone-only', () => {
+      const inShell = {
+        tasks: listed('omark/playwright.tasks.config.ts', 'TASKS_IN_SHELL_SKIP'),
+        time: listed('omark/playwright.time.config.ts', 'TIME_IN_SHELL_SKIP'),
+      };
+      for (const app of ['tasks', 'time'] as const) {
+        const skipped = specs(app).filter((f) => inShell[app].includes(f));
+        expect(skipped, app).toEqual([...STANDALONE[app].filter((f) => inShell[app].includes(f)), ...STANDALONE_ONLY[app]].sort());
+      }
+    });
+
+    it('runs every test the one app skips somewhere in CI, or names where it is covered', () => {
+      const patterns = (config: string, name: string) =>
+        [...read(config).match(new RegExp(`${name} = \\[([\\s\\S]*?)\\n\\];`))![1]!.matchAll(/^\s+\/(.+)\/,$/gm)].map((m) => m[1]!);
+      const skips = {
+        tasks: patterns('omark/playwright.tasks.config.ts', 'TASKS_IN_SHELL_SKIP_TESTS'),
+        time: patterns('omark/playwright.time.config.ts', 'TIME_IN_SHELL_SKIP_TESTS'),
+      };
+      for (const app of ['tasks', 'time'] as const) {
+        expect(skips[app].length, app).toBeGreaterThan(0);
+        for (const pattern of skips[app]) {
+          const files = specs(app).filter((f) =>
+            [...read(`${app}/e2e/${f}`).matchAll(/\btest\(\s*(['"`])(.*?)\1/g)].some((m) => new RegExp(pattern).test(m[2]!)),
+          );
+          expect(files.length, `${app}: /${pattern}/ matches no test`).toBeGreaterThan(0);
+          for (const f of files) {
+            const runs = STANDALONE[app].includes(f) || STANDALONE_ONLY[app].includes(f) || pattern in COVERED_IN_ONE_APP[app];
+            expect(runs, `${app}: /${pattern}/ in ${f} runs nowhere in CI`).toBe(true);
+          }
+        }
+      }
+    });
+
+    it('runs Playwright with 4 workers on CI, one per vCPU', () => {
+      for (const config of ['tasks/playwright.config.ts', 'time/playwright.config.ts', 'site/playwright.config.ts', 'omark/playwright.config.ts', 'omark/playwright.tasks.config.ts', 'omark/playwright.time.config.ts']) {
+        expect(read(config), config).toContain('workers: process.env.CI ? 4 : undefined,');
+      }
+    });
+
+    it('still runs every spec of every app with pnpm e2e', () => {
+      expect(JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')).scripts.e2e).toBe(
+        'pnpm -r --if-present e2e && pnpm --filter omark e2e:tasks && pnpm --filter omark e2e:time',
+      );
+    });
   });
 
   it('never uses pull_request_target', () => {

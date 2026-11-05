@@ -70,7 +70,7 @@ Anything else is **large**. When in doubt, large. File formats, sync and merge, 
   - **Task**, for work users don't see: what and why, done when.
 - Blank issues are off. The chooser links "Report a security problem" (private vulnerability reporting) and "Ask a question" (Discussions, Q&A).
 - Forms bind only people using GitHub's site and app; issues created through the API skip them. So when sizing, the agent checks the form's required fields, and if one is missing it adds `needs-info`, asks, and stops.
-- **Pull requests** follow `.github/pull_request_template.md`: `Closes #`, size, what changes for users, tests written first, how to try it, the preview, and whether and how AI was used.
+- **Pull requests** follow `.github/pull_request_template.md`: `Closes #`, size, what changes for users, tests written first, how to try it, how to undo it, the preview, and whether and how AI was used.
 
 ### Definition of done
 
@@ -88,13 +88,13 @@ Staging and production run the same build; Promote ships the exact files staging
 
 | Workflow | When | Does |
 |---|---|---|
-| `ci.yml` | PR opened or updated | `check` (typecheck and unit tests), e2e on desktop Chrome and iPhone WebKit in parallel, and once `check` passes a preview deploy with a comment linking it |
+| `ci.yml` | PR opened or updated | `check` (typecheck and unit tests), e2e on desktop Chrome and iPhone WebKit in parallel (iPhone in three parts, reported as one `e2e (iphone)` check), and once `check` passes a preview deploy with a comment linking it |
 | `ci.yml` | Push to `main` | The same checks, then the one app's staging deploy (keeping the build as an artifact), the demo deploy, and the omark.app site deploy |
 | `promote.yml` | By hand | Production deploy of a green `main` commit (`omark`), tag and release |
 
 - Docs-only pushes to `main` (`doc/**`, `*.md`) skip CI. Docs-only PRs still run it, because branch protection requires `check` and both `e2e` jobs (#124).
 - A newer push to a PR cancels the older run.
-- Agents run the checks before pushing, so CI confirms rather than debugs. They run only the e2e specs they touch; CI runs all of them.
+- Agents run the checks before pushing, so CI confirms rather than debugs. They run only the e2e specs they touch; CI runs the rest. CI runs Tasks' and Time's specs once, against the one app, and on their standalone builds (which no host serves) only what that run skips: the storage specs and signing in again. `pnpm e2e` still runs everything (#132).
 - Fork PRs get the checks and e2e but no preview, because forks have no secrets. A maintainer can push a contributor's branch to the main repository to get one.
 
 ## The guard
@@ -115,6 +115,19 @@ It blocks every agent the same way, a maintainer's included: merging and Promote
 
 The guard is best-effort: it reads the command line and can't see what a script or alias does. Its tests run in CI's `check` job.
 
+### Checks before a push
+
+A second `PreToolUse` hook (`tools/claude-guard/checks.mjs`, #133) runs before an agent's `git push` in an Omark checkout and blocks it, showing the last lines of output, until these pass:
+
+- the typecheck of the packages the branch changes since it left `origin/main`, and of the packages that depend on them; every package's, when a root file such as `tsconfig.base.json`, `package.json` or the lockfile changes;
+- the unit tests those changes reach (`vitest run --changed`), and the `tools/ci` tests, which read workflows and docs.
+
+A branch that changes only `doc/**` and `*.md` pushes at once, as do dry runs and branch deletes. With no `origin/main` it runs the full `pnpm typecheck` and `pnpm test`. A change to a core package takes about 40 s on a Windows laptop.
+
+The hook runs before the command does. So when one line commits and then pushes, it also counts every uncommitted change and new file, since that commit could take any of them. If the line does anything else first that could change files or make commits (`sed`, `git mv`, a redirect, `git add -f`, `git stash`, `git cherry-pick`, an alias), it can't know what will be pushed, so it runs the full `pnpm typecheck` and `pnpm test`. In a checkout with stray files, or with such a line, this can run checks a commit didn't need; committing and pushing as two commands avoids that. It reads the command line only: a script or program that commits (`npm version`), or `if git commit …; then git push; fi`, isn't seen. When checks would run and the checkout has no `node_modules` (a new worktree), it blocks the push and asks for `pnpm install` (#146).
+
+It reads command lines as the guard does (`cd`, `git -C`, Git Bash paths, `env` and other wrappers, `bash -c`, `eval`), and like the guard it is best-effort. The checks run on the working tree, so uncommitted edits count: commit or stash them first. A push from an Omark checkout to another remote or branch is checked the same way. A person pushing from a terminal is not affected.
+
 ## Claude Code and the cloud environment
 
 `.claude/` is the Claude Code adapter: the skills (`omark-factory`, `taskapp-files`, `omark-time`, `omark-goals`), the guard's hook and a session-start hook. Adapters for other agents are welcome contributions; they follow the same [AGENTS.md](../AGENTS.md).
@@ -122,6 +135,7 @@ The guard is best-effort: it reads the command line and can't see what a script 
 ### What a contributor's agent needs
 
 - Node 22 or newer, pnpm 10, and the four commands in [AGENTS.md](../AGENTS.md#commands). Playwright's Chromium and WebKit for the e2e (`pnpm --filter tasks exec playwright install chromium webkit`).
+- On Windows, Playwright's WebKit runs specs about 3 to 4 times slower than Chromium. Every IndexedDB answer and `setTimeout` waits for a Windows timer tick, about 15 ms. Safari on Mac and iPhone most likely doesn't wait like this, so WebKit timings on Windows say nothing about how fast the app is for users (#139).
 - `gh` 2.48 or newer, signed in as the contributor, for issues, comments and pull requests from their fork.
 - No secrets: everything runs on fake storage and a fake calendar.
 - In a Claude cloud session, the contributor's own cloud environment pointed at their fork, with the settings below.
