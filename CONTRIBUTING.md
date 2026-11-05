@@ -41,6 +41,7 @@ Run `pnpm --filter tasks exec playwright install chromium webkit` once before th
 3. **Check the size.** `size:small` issues go straight to code. `size:large` ones (file formats, sync, sign-in, CI, dependencies, a new screen) need a plan first: write `doc/plans/<n>-<slug>.md` with what changes for users, acceptance criteria, the tests you'll write first, risks and what's out of scope. Post its summary on the issue in a comment starting `Plan for #<n>:` (you may also open a draft PR with the plan), and **wait for a maintainer's approval** before writing code. `node tools/ci/plan-approval.mjs <n>` tells you (and your agent) when a maintainer has approved it; your own label or comment doesn't count.
 4. **Test first.** Write the test, run it, see it fail, then make it pass. The PR quotes the failing line.
 5. **Open the pull request** from the template. It closes the issue, says what changes for users, how to try it and how to undo it, and fills in the AI-use section.
+6. **Answer the review.** A maintainer starts an AI review of your PR with `@claude review`. [REVIEW.md](REVIEW.md) says what it looks for. Each finding is fixed or answered with a reason before the PR merges.
 
 ## Definition of done
 
@@ -69,6 +70,7 @@ PRs with no issue are closed with a pointer to this page. That keeps reviews abo
 
 - A fork's pull request runs the checks and both e2e projects. A maintainer may need to approve the first run.
 - Forks have no secrets, so they get no preview deploy. If a preview helps, a maintainer can push your branch to the main repository, where previews are made.
+- For the same reason a fork's PR gets its AI review when a maintainer asks for it, not by itself.
 - Docs-only PRs (`doc/**` and `*.md`) still run CI: `main` requires its checks.
 
 ## Style

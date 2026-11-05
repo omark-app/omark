@@ -15,6 +15,7 @@ interface Job {
   container?: { image?: string };
   strategy?: { matrix?: Record<string, unknown>; 'fail-fast'?: boolean };
   'timeout-minutes'?: number;
+  concurrency?: { group: string };
   steps?: Step[];
 }
 const runsOnPr = (f: string) => 'pull_request' in ((parse(text(f)) as { on: object }).on ?? {});
@@ -551,5 +552,148 @@ describe('workflows', () => {
     // From a repository variable: `${{ vars.X }}` in an action's input, `"$X"` (set from vars in env) in a script.
     // Hosts and folders: owner-values.test.ts.
     for (const f of FILES) expect(text(f)).not.toMatch(/--project-name=(?!\$\{\{ vars\.|"\$[A-Z_]+")/);
+  });
+
+  // The AI review spends the maintainer's subscription, so nobody outside may be able to start it (#134).
+  describe('review.yml', () => {
+    const REVIEW = 'review.yml';
+    const wf = () => parse(text(REVIEW)) as { on: Record<string, { types: string[] }>; permissions?: object; jobs: Record<string, Job> };
+    const action = (job: Job) => job.steps!.find((s) => s.uses?.startsWith('anthropics/claude-code-action@'))!;
+    const inputs = (job: Job) => action(job).with as Record<string, string>;
+
+    it('reviews when a PR opens or is marked ready, never on a push, and on a comment', () => {
+      const { on } = wf();
+      expect(Object.keys(on).sort()).toEqual(['issue_comment', 'pull_request']);
+      expect(on.pull_request!.types.sort()).toEqual(['opened', 'ready_for_review']);
+      expect(on.issue_comment!.types).toEqual(['created']);
+    });
+
+    it('gives a PR job the secret only for branches in this repository, and skips drafts', () => {
+      const cond = wf().jobs.review!.if!;
+      expect(cond).toContain("github.event_name == 'pull_request'");
+      expect(cond).toContain(FORK_GUARD);
+      expect(cond).toContain('!github.event.pull_request.draft');
+      // Dependabot's PRs don't get the repository's secrets, and the action refuses bots.
+      expect(cond).toContain("github.event.pull_request.user.type != 'Bot'");
+      expect(cond).not.toContain('||');
+    });
+
+    it('starts a comment job only for a PR comment that starts with @claude review, from someone with access', () => {
+      const cond = wf().jobs['review-on-request']!.if!;
+      expect(cond).toContain("github.event_name == 'issue_comment'");
+      expect(cond).toContain('github.event.issue.pull_request');
+      expect(cond).toContain("startsWith(github.event.comment.body, '@claude review')");
+      expect(cond).toContain("contains(fromJSON('[\"OWNER\",\"MEMBER\",\"COLLABORATOR\"]'), github.event.comment.author_association)");
+      expect(cond).not.toContain('||');
+    });
+
+    it('lets the action check write access itself, with no way around it', () => {
+      for (const job of Object.values(wf().jobs)) {
+        expect(inputs(job)).not.toHaveProperty('allowed_non_write_users');
+        expect(inputs(job)).not.toHaveProperty('allowed_bots');
+      }
+    });
+
+    it('can read the code and comment, nothing more, and stops after 10 minutes', () => {
+      expect(wf().permissions).toEqual({});
+      for (const [name, job] of Object.entries(wf().jobs)) {
+        expect(job.permissions, name).toEqual({ contents: 'read', 'pull-requests': 'write', issues: 'write' });
+        expect(job['timeout-minutes'], name).toBe(10);
+      }
+    });
+
+    it('allows the reviewer only reading tools and comments', () => {
+      const numbers = { review: 'github.event.pull_request.number', 'review-on-request': 'github.event.issue.number' };
+      for (const [name, job] of Object.entries(wf().jobs)) {
+        const args = inputs(job).claude_args!;
+        const number = '${{ ' + numbers[name as keyof typeof numbers] + ' }}';
+        const tools = args.match(/--allowedTools "([^"]+)"/)![1]!.split(',');
+        // `--body` only: gh refuses it together with --body-file, so a comment can't carry a file's contents.
+        expect(tools.sort()).toEqual([
+          `Bash(gh api repos/\${{ github.repository }}/pulls/${number}/comments --paginate)`,
+          `Bash(gh pr comment ${number} --body:*)`, 'Bash(gh pr diff:*)', 'Bash(gh pr view:*)', 'Read(./**)',
+          'mcp__github_inline_comment__create_inline_comment',
+        ]);
+        // The action keeps the job's token in .git/config, and a process's secrets show under /proc.
+        const denied = args.match(/--disallowedTools "([^"]+)"/)![1]!.split(',');
+        expect(denied).toEqual(['Read(./.git/**)', 'Read(//proc/**)', 'Bash(gh pr comment * --body-file*)', 'Bash(gh pr comment * -F*)']);
+        expect(inputs(job).claude_code_oauth_token).toBe('${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}');
+        expect(inputs(job).github_token).toBe('${{ github.token }}');
+        // Bash commands don't get the Claude token in their environment; gh keeps the GitHub one.
+        expect((action(job).env as Record<string, string>).CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).toBe('1');
+      }
+    });
+
+    it('lets nobody’s comment replace a queued review: concurrency sits on the jobs, behind their conditions', () => {
+      expect(wf()).not.toHaveProperty('concurrency');
+      expect(wf().jobs.review!.concurrency!.group).toBe('review-${{ github.event.pull_request.number }}');
+      expect(wf().jobs['review-on-request']!.concurrency!.group).toBe('review-${{ github.event.issue.number }}');
+    });
+
+    it('never checks out the PR, so its code, hooks and REVIEW.md don’t steer the review', () => {
+      const checkout = (name: string) => wf().jobs[name]!.steps!.find((s) => s.uses?.startsWith('actions/checkout@'))!.with as Record<string, unknown>;
+      expect(checkout('review').ref).toBe('${{ github.event.pull_request.base.sha }}');
+      // An issue_comment run checks out the default branch when no ref is named.
+      expect(checkout('review-on-request')).not.toHaveProperty('ref');
+      for (const name of ['review', 'review-on-request']) expect(checkout(name)['persist-credentials']).toBe(false);
+    });
+
+    it('keeps a commenter’s and a PR’s text out of the prompt', () => {
+      expect(text(REVIEW)).not.toMatch(/\$\{\{[^}]*comment\.body[^}]*\}\}/);
+      expect(text(REVIEW)).not.toMatch(/\$\{\{[^}]*(pull_request|issue)\.(title|body)[^}]*\}\}/);
+      expect(text(REVIEW)).not.toContain('pull_request_target');
+    });
+
+    it('pins the action to a commit', () => {
+      for (const job of Object.values(wf().jobs)) expect(action(job).uses).toMatch(/@[0-9a-f]{40}$/);
+    });
+
+    it('tells the reviewer in each job to follow REVIEW.md, read earlier findings, and stop after three rounds', () => {
+      for (const [name, job] of Object.entries(wf().jobs)) {
+        const prompt = inputs(job).prompt!;
+        expect(prompt, name).toContain('Read REVIEW.md and AGENTS.md');
+        // Inline comments don't show in `gh pr view`, so the prompt must name the call that reads them.
+        expect(prompt, name).toMatch(/gh api repos\/\$\{\{ github\.repository \}\}\/pulls\/\$\{\{ [a-z_.]+ \}\}\/comments --paginate/);
+        expect(prompt, name).toMatch(/Don't repeat a finding you already posted/);
+        expect(prompt, name).toContain('Earlier reviews of this PR: ${{ steps.rounds.outputs.count }}.');
+        expect(prompt, name).toContain('If that is 3 or more, post no more findings');
+        expect(prompt, name).toContain('Start it with `AI review:`');
+      }
+    });
+
+    it('installs what the credential scrub needs, since the action does so only for outside users', () => {
+      for (const [name, job] of Object.entries(wf().jobs)) {
+        const steps = job.steps!;
+        const review = action(job);
+        expect((review.env as Record<string, string>).CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, name).toBe('1');
+        const install = steps.find((s) => s.run?.includes('bubblewrap'))!;
+        expect(steps.indexOf(install), name).toBeLessThan(steps.indexOf(review));
+        // Ubuntu 24.04 restricts the user namespaces bubblewrap needs.
+        expect(install.run, name).toContain('kernel.apparmor_restrict_unprivileged_userns=0');
+      }
+    });
+
+    it('shows why a review failed, and only an error Claude Code itself reports', () => {
+      for (const [name, job] of Object.entries(wf().jobs)) {
+        const steps = job.steps!;
+        const why = steps.find((s) => s.name === 'Say why the review failed')!;
+        expect(steps.indexOf(why), name).toBeGreaterThan(steps.indexOf(action(job)));
+        expect(why.if, name).toBe('failure()');
+        // The action hides everything else, since these logs are public and a review reads files and comments.
+        expect(why.run, name).toContain('select(.type == "result" and .is_error == true) | .result');
+      }
+    });
+
+    it('counts earlier reviews in a step, so nobody’s comment can fake the number', () => {
+      for (const [name, job] of Object.entries(wf().jobs)) {
+        const steps = job.steps!;
+        const rounds = steps.find((s) => s.id === 'rounds')!;
+        expect(steps.indexOf(rounds), name).toBeLessThan(steps.indexOf(action(job)));
+        // Only the job's own account, and only its summaries: the preview comment comes from the same account.
+        expect(rounds.run, name).toContain('select(.user.login == "github-actions[bot]" and (.body | startswith("AI review:")))');
+        expect(rounds.run, name).toContain('>> "$GITHUB_OUTPUT"');
+        expect(rounds.run, name).not.toContain('${{');
+      }
+    });
   });
 });

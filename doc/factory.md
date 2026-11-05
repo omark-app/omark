@@ -90,12 +90,22 @@ Staging and production run the same build; Promote ships the exact files staging
 |---|---|---|
 | `ci.yml` | PR opened or updated | `check` (typecheck and unit tests), e2e on desktop Chrome and iPhone WebKit in parallel (iPhone in three parts, reported as one `e2e (iphone)` check), and once `check` passes a preview deploy with a comment linking it |
 | `ci.yml` | Push to `main` | The same checks, then the one app's staging deploy (keeping the build as an artifact), the demo deploy, and the omark.app site deploy |
+| `review.yml` | A PR from the repository opened or marked ready; a comment starting `@claude review` from someone with write access | An AI review, steered by [REVIEW.md](../REVIEW.md) |
 | `promote.yml` | By hand | Production deploy of a green `main` commit (`omark`), tag and release |
 
 - Docs-only pushes to `main` (`doc/**`, `*.md`) skip CI. Docs-only PRs still run it, because branch protection requires `check` and both `e2e` jobs (#124).
 - A newer push to a PR cancels the older run.
 - Agents run the checks before pushing, so CI confirms rather than debugs. They run only the e2e specs they touch; CI runs the rest. CI runs Tasks' and Time's specs once, against the one app, and on their standalone builds (which no host serves) only what that run skips: the storage specs and signing in again. `pnpm e2e` still runs everything (#132).
 - Fork PRs get the checks and e2e but no preview, because forks have no secrets. A maintainer can push a contributor's branch to the main repository to get one.
+
+### The AI review
+
+A PR gets an AI review, so a maintainer reads it with the findings in hand (#134). It runs the Claude Code GitHub Action on a maintainer's Claude subscription, through the `CLAUDE_CODE_OAUTH_TOKEN` secret. [REVIEW.md](../REVIEW.md) tells it what matters here.
+
+- **When:** a PR from a branch in this repository is reviewed when it opens or is marked ready, not on every push. A fork's PR is reviewed when a maintainer comments `@claude review`, which also asks for another look at any PR.
+- **Who can spend the subscription:** only people with write access. A fork's PR never gets the secret. A comment starts a review only if its author has write access: the workflow checks, and the action checks again. Each review stops after 10 minutes. Reviews share the plan's limits with the maintainer's own use.
+- **What it can do:** read the code, read the PR and post comments. It can't run the PR's code, push or approve. Every review checks out the PR's base or `main`, never the PR, so a PR's own hooks and `REVIEW.md` can't steer its review. It reads only inside the checkout, and it's denied `.git`, where the action keeps the job's token. A comment goes out with `--body` only, so it can't carry a file's contents.
+- **Findings:** tagged Important, Nit or Pre-existing, with at most three nits. Each one is fixed or answered with a reason: `main` requires resolved conversations. After three reviews of a PR, counted by the workflow from its own summary comments, it asks the author to rethink the approach instead of posting more.
 
 ## The guard
 
