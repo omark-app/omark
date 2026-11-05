@@ -11,18 +11,20 @@ Nothing in the apps. For people opening PRs and for the maintainer:
 
 How Anthropic does it, and why: https://claude.dev/blog/solving-code-review-at-anthropic/
 
-## Which reviewer (the maintainer picks)
+## Which reviewer
 
-1. **Anthropic's Code Review GitHub app** (Claude Team or Enterprise plan): an admin turns it on for the repository and picks Quick, Standard or Deep. It needs no workflow and no secret, and handles forks. It costs a Team or Enterprise seat.
-2. **The Claude Code GitHub Action** (`anthropics/claude-code-action`), in a workflow here. It runs on the maintainer's Claude subscription through a `CLAUDE_CODE_OAUTH_TOKEN` repository secret (made with `claude setup-token`), or on an API key. Only the maintainer can add the secret (`needs-human`).
+The maintainer chose the Claude Code GitHub Action (`anthropics/claude-code-action`), in a workflow here, on the maintainer's Claude subscription through a `CLAUDE_CODE_OAUTH_TOKEN` repository secret made with `claude setup-token`. The secret is in place.
 
-The rest of this plan is written for option 2. With option 1, the workflow and its tests drop out, and `REVIEW.md`, the branch-protection change and the docs stay.
+## Who can use up the subscription
+
+Nobody outside. A fork's PR never gets the secret, and a comment only starts a review if its author has write access: the workflow checks that, and the action checks it again. A flood of PRs or comments from outside spends nothing. A review stops after 10 minutes, so a huge PR can't take much of the allowance either. Reviews share the plan's limits with the maintainer's own use; at a limit they stop until it resets.
 
 ## Acceptance criteria
 
 - [ ] `.github/workflows/review.yml` reviews PRs from this repository on `opened` and `ready_for_review`, not on every push, so an agent pushing fixes doesn't start round after round.
 - [ ] A comment starting `@claude review` from someone with write access reviews the PR, forks included. Anyone else's comment does nothing.
-- [ ] The job can read the code and comment, nothing more: `contents: read`, `pull-requests: write`, `issues: write`, no `id-token`. The reviewer's tools are reading files, `gh pr diff` / `gh pr view`, and posting inline comments. It can't run the PR's code, push or approve.
+- [ ] The job can read the code and comment, nothing more: `contents: read`, `pull-requests: write`, `issues: write`, no `id-token`. The reviewer's tools are reading files, `gh pr diff` / `gh pr view`, and posting comments (`gh pr comment` and inline ones). It can't run the PR's code, push or approve.
+- [ ] Each review job has `timeout-minutes: 10`. A review started by a comment checks out `main`, never the PR's code.
 - [ ] The reviewer reads `REVIEW.md` and `AGENTS.md`, reviews only the PR's diff, doesn't repeat a finding it already posted, and after the third review of the same PR asks the author to rethink the approach instead of posting more.
 - [ ] `REVIEW.md` says what failure looks like here: task lines lost or rewritten, a user's file changed where the change doesn't touch it, users' data or tokens sent to a server, a sync or merge that drops an edit, a `*-core` package that touches the DOM, network or storage, a test that doesn't test the change. It caps nits at three, skips `pnpm-lock.yaml`, `brand/png/`, `doc/history/` and generated files, and asks for a file and line for every finding.
 - [ ] Branch protection on `main` has `required_conversation_resolution` on (I set it through the API once this merges).
@@ -35,7 +37,8 @@ In `tools/ci/test/workflows.test.ts`:
 - `review.yml` triggers on `pull_request` `opened` and `ready_for_review` only, and on `issue_comment`.
 - The PR job runs only for branches in this repository (`head.repo.full_name == github.repository`), so fork code never gets the secret.
 - The comment job runs only on a PR comment that starts `@claude review` from an `OWNER`, `MEMBER` or `COLLABORATOR`.
-- Permissions are exactly the four above, and the action's allowed tools contain no `Bash` beyond `gh pr diff` and `gh pr view`, and no `Write` or `Edit`.
+- Permissions are exactly the three above, and the action's allowed tools contain no `Bash` beyond `gh pr diff`, `gh pr view` and `gh pr comment`, and no `Write` or `Edit`.
+- Each job's timeout is 10 minutes, the action is pinned to a commit, the comment job's checkout names no `ref`, and no part of a comment's text reaches the prompt.
 
 In `tools/ci/test/docs.test.ts`: `REVIEW.md` exists, names the failure cases above, the skip list, and the nit cap.
 
@@ -43,7 +46,8 @@ In `tools/ci/test/docs.test.ts`: `REVIEW.md` exists, names the failure cases abo
 
 - **Prompt injection from a fork's code** when a maintainer triggers a review: the reviewer reads text the contributor wrote. Mitigation: read-only permissions and tools, so the worst case is a misleading comment, which the maintainer reads anyway.
 - **Noise**: a reviewer that nags gets ignored. Mitigation: `REVIEW.md`'s nit cap and skip list; I'll tune it on the first PRs and look at which findings were real.
-- **Cost**: each review uses the maintainer's subscription or API credit. Reviewing on open and on request only, never on every push, keeps it to about one or two reviews per PR.
+- **Cost**: each review uses the maintainer's subscription. Reviewing on open and on request only, never on every push, keeps it to about one or two reviews per PR, each at most 10 minutes.
+- **Fork PRs wait for a maintainer's comment.** That is what keeps outsiders from spending the subscription. Reviewing them without a comment is a separate job with its own capped API key and a daily limit, outside this issue.
 - **Resolved conversations block merging** a PR where a bot comment was left open. That is the point: answer it and resolve it.
 
 ## Out of scope
