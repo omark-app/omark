@@ -89,6 +89,8 @@ describe('docs set', () => {
     "- [ ] The PR follows the template, closes the issue and, for a branch in this repository, has the preview link.",
     "- [ ] A fresh-eyes review subagent (no memory of writing it) checked the diff against the issue or plan, and its findings are fixed.",
     "- [ ] Large work: every acceptance criterion in the plan is met or explicitly moved out.",
+    "- [ ] The PR shows the change working in a demo: the preview link for a branch in this repository, a short screen recording of `pnpm demo` from a fork, or \"nothing to show\" for docs and CI.",
+    "- [ ] Each AI review finding is fixed or answered with a reason.",
     "- [ ] Docs for changed behaviour are updated (README, the app's spec in `doc/tasks/`, `doc/time/` or `doc/goals/`, and `doc/format.md` and the skills when formats change).",
     "When main moves and the PR conflicts, merge main in (never rebase pushed work). For `pnpm-lock.yaml`, take main's copy and run `pnpm install`.",
     "Existing tests change only when the behaviour they cover is meant to change; the PR says which and why. When sync or storage changed, list `pnpm e2e:real` (manual) under \"How to try it\".",
@@ -134,6 +136,46 @@ describe('docs set', () => {
       expect(read(path), path).toMatch(/AI review/);
       expect(read(path), path).toMatch(/fixed or answered/);
     }
+  });
+
+  const steps = ['Idea', 'Agreed', 'Plan', 'Plan approved', 'Built and shown', 'Approved and reviewed', 'Merged'];
+  test.each(['CONTRIBUTING.md', 'GOVERNANCE.md', 'doc/factory.md'])('%s lists an idea\'s steps in order (#152)', (path) => {
+    const text = read(path);
+    const at = steps.map((step) => text.indexOf(`**${step}.**`));
+    expect(at, path).not.toContain(-1);
+    expect(at, path).toEqual([...at].sort((a, b) => a - b));
+  });
+
+  test.each(['AGENTS.md', '.claude/skills/omark-factory/SKILL.md'])('%s names an idea\'s steps (#152)', (path) => {
+    expect(read(path)).toContain('idea, agreed, plan, plan approved, built and shown in a demo, approved and reviewed, merged');
+  });
+
+  test('the PR template asks for a demo (#152)', () => {
+    const template = read('.github/pull_request_template.md');
+    expect(template).toMatch(/^## Demo$/m);
+    expect(template).toContain('`pnpm demo`');
+    expect(template.indexOf('## Demo')).toBeLessThan(template.indexOf('## AI use'));
+  });
+
+  test.each(['CONTRIBUTING.md', 'GOVERNANCE.md'])('%s holds a fork\'s PR until its AI review is answered (#152)', (path) => {
+    expect(read(path)).toContain("A fork's PR isn't merged until a maintainer has run `@claude review` on it and its findings are answered.");
+  });
+
+  test('REVIEW.md always flags the risky areas, even when the issue asks for them (#152)', () => {
+    const text = read('REVIEW.md');
+    expect(text).toContain('even when the linked issue asks for it');
+    for (const area of ['new dependency', 'new network call', 'sign-in', 'sync', 'file formats', 'CI', 'deploy', '`.claude/`']) {
+      expect(text, area).toContain(area);
+    }
+  });
+
+  test.each(['CONTRIBUTING.md', 'GOVERNANCE.md', 'PHILOSOPHY.md'])('%s no longer says Discussions are about to open (#152)', (path) => {
+    expect(read(path)).not.toMatch(/when the repository goes public/);
+  });
+
+  // That branch's code would run in CI with the repository's secrets.
+  test.each(['CONTRIBUTING.md', 'doc/factory.md', '.claude/skills/omark-factory/SKILL.md'])('%s offers no push of a fork\'s branch for a preview (#152)', (path) => {
+    expect(read(path)).not.toMatch(/push (your|its|a contributor's) branch/);
   });
 
   test('the factory skill is omark-factory', () => {

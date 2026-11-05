@@ -18,9 +18,9 @@ Closes #
 
 <!-- Usually "Revert this PR". An app change: also "Promote the previous omark-prod- tag". A change to users' files: what it leaves behind. -->
 
-## Preview
+## Demo
 
-<!-- The preview link from the CI comment (pull requests from this repository only). -->
+<!-- Show it working on made-up data: the preview link from the CI comment (a branch in this repository), a short screen recording of `pnpm demo` (a fork), or "nothing to show" for docs and CI. -->
 
 ## AI use
 

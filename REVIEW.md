@@ -12,7 +12,7 @@ Mark these **Important**:
 - A sync or merge that drops an edit, or that can overwrite a newer copy.
 - A `*-core` package that touches the DOM, the network or storage.
 - A test that doesn't test the change, such as one that would pass without it.
-- A new network call, a new dependency, or a change to sign-in, CI, deploy or `.claude/` that the linked issue didn't ask for.
+- Any new dependency, new network call, or change to sign-in, sync, file formats, CI, deploy or `.claude/`, even when the linked issue asks for it. Say what it reaches and why it needs to, so the maintainer always sees it.
 
 Also Important: a bug a user would hit, and a change that does something other than what the linked issue or plan says.
 
