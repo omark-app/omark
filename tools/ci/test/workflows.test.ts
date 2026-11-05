@@ -665,11 +665,22 @@ describe('workflows', () => {
       for (const [name, job] of Object.entries(wf().jobs)) {
         const steps = job.steps!;
         const review = action(job);
-        expect(review.env?.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, name).toBe('1');
+        expect((review.env as Record<string, string>).CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, name).toBe('1');
         const install = steps.find((s) => s.run?.includes('bubblewrap'))!;
         expect(steps.indexOf(install), name).toBeLessThan(steps.indexOf(review));
         // Ubuntu 24.04 restricts the user namespaces bubblewrap needs.
         expect(install.run, name).toContain('kernel.apparmor_restrict_unprivileged_userns=0');
+      }
+    });
+
+    it('shows why a review failed, and only an error Claude Code itself reports', () => {
+      for (const [name, job] of Object.entries(wf().jobs)) {
+        const steps = job.steps!;
+        const why = steps.find((s) => s.name === 'Say why the review failed')!;
+        expect(steps.indexOf(why), name).toBeGreaterThan(steps.indexOf(action(job)));
+        expect(why.if, name).toBe('failure()');
+        // The action hides everything else, since these logs are public and a review reads files and comments.
+        expect(why.run, name).toContain('select(.type == "result" and .is_error == true) | .result');
       }
     });
 
