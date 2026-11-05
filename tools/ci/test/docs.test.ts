@@ -18,7 +18,7 @@ import {
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8').replace(/\r\n/g, '\n');
 
-const rootDocs = ['README.md', 'PHILOSOPHY.md', 'AGENTS.md', 'CLAUDE.md', 'CONTRIBUTING.md', 'GOVERNANCE.md', 'SECURITY.md', 'CODE_OF_CONDUCT.md'];
+const rootDocs = ['README.md', 'PHILOSOPHY.md', 'AGENTS.md', 'CLAUDE.md', 'CONTRIBUTING.md', 'GOVERNANCE.md', 'SECURITY.md', 'CODE_OF_CONDUCT.md', 'REVIEW.md'];
 const docDocs = [
   'doc/format.md', 'doc/architecture.md', 'doc/self-hosting.md', 'doc/factory.md', 'doc/tasks/spec.md', 'doc/tasks/habits-spec.md',
   'doc/time/spec.md',
@@ -115,6 +115,25 @@ describe('docs set', () => {
   ];
   test.each(agentFacing)('%s names no person', (path) => {
     expect(read(path)).not.toMatch(/\bAL\b/);
+  });
+
+  test('REVIEW.md says what failure looks like, what to skip and how many nits (#134)', () => {
+    const text = read('REVIEW.md');
+    for (const failure of [
+      'Task lines lost or rewritten', "A user's file changed", 'data or tokens sent to a server', 'sync or merge that drops an edit',
+      '`*-core` package', "test that doesn't test the change",
+    ]) expect(text, failure).toContain(failure);
+    for (const skip of ['`pnpm-lock.yaml`', '`brand/png/`', '`doc/history/`']) expect(text, skip).toContain(skip);
+    expect(text).toMatch(/at most three nits/i);
+    expect(text).toMatch(/file and line/);
+    expect(text).not.toMatch(/\bAL\b/);
+  });
+
+  test('the factory docs say a PR gets an AI review and each finding is answered (#134)', () => {
+    for (const path of ['doc/factory.md', 'CONTRIBUTING.md', '.claude/skills/omark-factory/SKILL.md']) {
+      expect(read(path), path).toMatch(/AI review/);
+      expect(read(path), path).toMatch(/fixed or answered/);
+    }
   });
 
   test('the factory skill is omark-factory', () => {

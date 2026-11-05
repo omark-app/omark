@@ -552,4 +552,88 @@ describe('workflows', () => {
     // Hosts and folders: owner-values.test.ts.
     for (const f of FILES) expect(text(f)).not.toMatch(/--project-name=(?!\$\{\{ vars\.|"\$[A-Z_]+")/);
   });
+
+  // The AI review spends the maintainer's subscription, so nobody outside may be able to start it (#134).
+  describe('review.yml', () => {
+    const REVIEW = 'review.yml';
+    const wf = () => parse(text(REVIEW)) as { on: Record<string, { types: string[] }>; permissions?: object; jobs: Record<string, Job> };
+    const action = (job: Job) => job.steps!.find((s) => s.uses?.startsWith('anthropics/claude-code-action@'))!;
+    const inputs = (job: Job) => action(job).with as Record<string, string>;
+
+    it('reviews when a PR opens or is marked ready, never on a push, and on a comment', () => {
+      const { on } = wf();
+      expect(Object.keys(on).sort()).toEqual(['issue_comment', 'pull_request']);
+      expect(on.pull_request!.types.sort()).toEqual(['opened', 'ready_for_review']);
+      expect(on.issue_comment!.types).toEqual(['created']);
+    });
+
+    it('gives a PR job the secret only for branches in this repository, and skips drafts', () => {
+      const cond = wf().jobs.review!.if!;
+      expect(cond).toContain("github.event_name == 'pull_request'");
+      expect(cond).toContain(FORK_GUARD);
+      expect(cond).toContain('!github.event.pull_request.draft');
+      // Dependabot's PRs don't get the repository's secrets, and the action refuses bots.
+      expect(cond).toContain("github.event.pull_request.user.type != 'Bot'");
+      expect(cond).not.toContain('||');
+    });
+
+    it('starts a comment job only for a PR comment that starts with @claude review, from someone with access', () => {
+      const cond = wf().jobs['review-on-request']!.if!;
+      expect(cond).toContain("github.event_name == 'issue_comment'");
+      expect(cond).toContain('github.event.issue.pull_request');
+      expect(cond).toContain("startsWith(github.event.comment.body, '@claude review')");
+      expect(cond).toContain("contains(fromJSON('[\"OWNER\",\"MEMBER\",\"COLLABORATOR\"]'), github.event.comment.author_association)");
+      expect(cond).not.toContain('||');
+    });
+
+    it('lets the action check write access itself, with no way around it', () => {
+      for (const job of Object.values(wf().jobs)) {
+        expect(inputs(job)).not.toHaveProperty('allowed_non_write_users');
+        expect(inputs(job)).not.toHaveProperty('allowed_bots');
+      }
+    });
+
+    it('can read the code and comment, nothing more, and stops after 10 minutes', () => {
+      expect(wf().permissions).toEqual({});
+      for (const [name, job] of Object.entries(wf().jobs)) {
+        expect(job.permissions, name).toEqual({ contents: 'read', 'pull-requests': 'write', issues: 'write' });
+        expect(job['timeout-minutes'], name).toBe(10);
+      }
+    });
+
+    it('allows the reviewer only reading tools and comments', () => {
+      for (const job of Object.values(wf().jobs)) {
+        const args = inputs(job).claude_args!;
+        const tools = args.match(/--allowedTools "([^"]+)"/)![1]!.split(',');
+        expect(tools.sort()).toEqual([
+          'Bash(gh pr comment:*)', 'Bash(gh pr diff:*)', 'Bash(gh pr view:*)', 'Glob', 'Grep', 'Read',
+          'mcp__github_inline_comment__create_inline_comment',
+        ]);
+        expect(inputs(job).claude_code_oauth_token).toBe('${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}');
+        expect(inputs(job).github_token).toBe('${{ github.token }}');
+        // Bash commands don't see the Claude token, so a prompt injection can't read it; gh keeps the GitHub one.
+        expect((action(job).env as Record<string, string>).CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).toBe('1');
+      }
+    });
+
+    it('checks out main for a comment, never the PR, and never a commenter’s text in the prompt', () => {
+      const checkout = wf().jobs['review-on-request']!.steps!.find((s) => s.uses?.startsWith('actions/checkout@'))!;
+      expect(JSON.stringify(checkout.with ?? {})).not.toContain('ref');
+      expect(text(REVIEW)).not.toMatch(/\$\{\{[^}]*comment\.body[^}]*\}\}/);
+      expect(text(REVIEW)).not.toMatch(/\$\{\{[^}]*(pull_request|issue)\.(title|body)[^}]*\}\}/);
+      expect(text(REVIEW)).not.toContain('pull_request_target');
+    });
+
+    it('pins the action to a commit', () => {
+      for (const job of Object.values(wf().jobs)) expect(action(job).uses).toMatch(/@[0-9a-f]{40}$/);
+    });
+
+    it('tells the reviewer to follow REVIEW.md, not repeat itself, and stop after three rounds', () => {
+      const prompt = text(REVIEW);
+      expect(prompt).toContain('REVIEW.md');
+      expect(prompt).toContain('AGENTS.md');
+      expect(prompt).toMatch(/already posted/);
+      expect(prompt).toMatch(/third review/);
+    });
+  });
 });

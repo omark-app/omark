@@ -74,7 +74,7 @@ If anything about the expected behaviour is unclear, ask one clear question, add
 2. Run a review subagent with no memory of the work: give it the issue (or plan) and `git diff main...HEAD` and ask for bugs, missed acceptance criteria and untested paths. Fix what holds up, re-run the checks in Implement step 3, push.
 3. Previews exist only for branches in this repository: the preview comment appears once `check` passes, and the PR body links it. A fork's PR has no preview; a maintainer can push its branch here to get one. The PR is ready only when every CI job, e2e included, is green.
 4. Remove `in-progress`. Tell the person you work for in one or two lines: what changed, the preview link, what to try.
-5. Fix CI failures and answer review comments until the PR is green. Never merge.
+5. Fix CI failures and answer review comments until the PR is green. The AI review posts its findings on the PR, steered by `REVIEW.md`: each one is fixed or answered with a reason, because `main` requires resolved conversations. Never merge.
 6. Keep it mergeable: when main moves and the PR conflicts, merge main in (never rebase pushed work), re-run the checks and push. For `pnpm-lock.yaml`, take main's copy and run `pnpm install`.
 
 ## Blocked

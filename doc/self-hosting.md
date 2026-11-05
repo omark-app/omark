@@ -54,7 +54,7 @@ Only a Pages project that has both secrets lists Google at `/api/auth/providers`
 
 In your fork, Settings → Secrets and variables → Actions.
 
-**Secrets:** `CLOUDFLARE_API_TOKEN` (a token that can edit Pages) and `CLOUDFLARE_ACCOUNT_ID`.
+**Secrets:** `CLOUDFLARE_API_TOKEN` (a token that can edit Pages) and `CLOUDFLARE_ACCOUNT_ID`. Optional: `CLAUDE_CODE_OAUTH_TOKEN` for the AI review of pull requests ([factory.md](factory.md#the-ai-review)). Without it the review job fails and nothing else does; delete `.github/workflows/review.yml` if you don't want it.
 
 **Variables:** `DEPLOY_ENABLED` = `true` turns on every deploy job. Without it, CI only checks and tests. Then:
 
