@@ -21,8 +21,8 @@ Nothing in the apps. For people taking part:
 - [ ] The "Ask first" list in `AGENTS.md` (file formats, sync, sign-in, task lines, dependencies, CI, `.claude/`, new screens) becomes a list the PR must call out. It stops being a gate and stays a warning.
 - [ ] The PR template drops size and adds **Demo**: a short screen recording of `pnpm demo`, or the preview link for a branch in this repository, or "nothing to show" for docs and CI. It keeps the tests written first, by name, without quoting the failing line.
 - [ ] Test-first, the required checks, the fresh-eyes review and the guard all stay.
-- [ ] `REVIEW.md` marks as **Important** any new dependency, new network call, or change to sign-in, sync, file formats, CI, deploy or `.claude/`, even when the issue asks for it, so the maintainer always sees them. It's also the maintainer's cue for a second look.
-- [ ] `CONTRIBUTING.md` and `GOVERNANCE.md` say a fork's PR isn't merged until a maintainer has run `@claude review` on it and its findings are answered.
+- [ ] `REVIEW.md` marks as **Important** any new dependency, new network call, or change to sign-in, sync, file formats, CI, deploy or `.claude/`, even when the issue asks for it, so the maintainer always sees them.- [ ] `CONTRIBUTING.md` and `GOVERNANCE.md` say a fork's PR isn't merged until a maintainer has run `@claude review` on it and its findings are answered.
+- [ ] `GOVERNANCE.md` says an outside PR with a flagged change (a new dependency or network call, or a change to sign-in, sync, file formats, CI, deploy or `.claude/`) also needs a second, independent review from a maintainer's own agent before it merges. A demo alone isn't enough for these.
 - [ ] The stale "Discussions open when the repository goes public" lines are gone, in `CONTRIBUTING.md`, `GOVERNANCE.md` and `PHILOSOPHY.md`.
 - [ ] Once this merges, I delete the four labels from the repository through the API. `tools/ci/labels.mjs` never deletes one. Issues #107–#122 stay `ready`.
 
@@ -34,14 +34,14 @@ In `tools/ci/test/docs.test.ts`:
 - None of the docs above contains `plan-approval`, `plan-review`, `plan-approved` or `size:`.
 - The PR template has a Demo section and no Size line.
 - `REVIEW.md` names each flagged area.
-- `CONTRIBUTING.md` and `GOVERNANCE.md` say a fork's PR needs the AI review before merging.
+- `CONTRIBUTING.md` and `GOVERNANCE.md` say a fork's PR needs the AI review before merging, and `GOVERNANCE.md` says a flagged outside change also needs the second review.
 - `PHILOSOPHY.md`, `CONTRIBUTING.md` and `GOVERNANCE.md` no longer say Discussions are about to open.
 
 In `tools/ci/test/labels.test.ts`: the label list loses the four labels. In a test beside it: `tools/ci/plan-approval.mjs` doesn't exist.
 
 ## Risks
 
-- **Nobody reads the code before merging.** A demo can look perfect and still send tokens or files somewhere else, and the app handles sign-in to people's drives. Mitigation: the AI review on every PR, loud flags for the risky areas, test-first and the required checks, and a second look from a maintainer's own agent for anything flagged. The AI review can still miss a deliberately hidden change. That risk is accepted knowingly, and it's the main one here.
+- **Nobody reads the code before merging.** A demo can look perfect and still send tokens or files somewhere else, and the app handles sign-in to people's drives. Mitigation: the AI review on every PR, loud flags for the risky areas, test-first and the required checks, and a required second review from a maintainer's own agent for any flagged outside change. Both reviews can still miss a deliberately hidden change. That risk is accepted knowingly, and it's the main one here.
 - **Data loss without a plan.** Plans made people think about sync and merge first. Mitigation: those changes are always flagged, and `pnpm e2e:real` stays on the list for them.
 - **The merge rule for forks is a habit, not a check.** A fork's PR gets its review when a maintainer asks, and nothing stops a merge without one. Making it a required check would need reviews on fork PRs without a comment, which is a separate job with its own capped key.
 - **Screen recordings are thin evidence**, and easy to fake. For now they're enough to see that the feature is what was agreed. The maintainer still checks on staging before Promote.
