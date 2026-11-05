@@ -62,7 +62,7 @@ describe('the PR template', () => {
 
   it('has the sections a reviewer needs', () => {
     const headings = [...pr.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
-    expect(headings).toEqual(['What changes for users', 'Tests written first', 'How to try it', 'How to undo', 'Preview', 'AI use']);
+    expect(headings).toEqual(['What changes for users', 'Tests written first', 'How to try it', 'How to undo', 'Demo', 'AI use']);
     expect(pr).toMatch(/^Closes #/);
     expect(pr).toMatch(/^\*\*Size:\*\*/m);
   });

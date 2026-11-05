@@ -61,7 +61,7 @@ In brief:
 4. Test first: write the test, see it fail, then write the code. In Claude Code, a hook runs the typecheck and unit tests your branch touches before every `git push`, and blocks it until they pass.
 5. Open the PR from the template. It closes the issue and says whether and how AI was used. A maintainer reviews and merges it.
 
-The skill and [doc/factory.md](doc/factory.md) have the details, labels and wording.
+Ideas are what Omark needs most; code is welcome and optional. A new idea goes: idea, agreed, plan, plan approved, built and shown in a demo, approved and reviewed, merged. The skill and [doc/factory.md](doc/factory.md) have the details, labels and wording.
 
 ## Hard rules
 
@@ -96,9 +96,11 @@ These make an issue `size:large`: write a plan and wait for a maintainer's appro
 
 - [ ] A test written first that failed before the change; the PR quotes the failing line.
 - [ ] `pnpm typecheck`, `pnpm test`, the build and the e2e specs the change touches pass here; CI's e2e jobs pass.
-- [ ] The PR follows the template, closes the issue and, for a branch in this repository, has the preview link.
+- [ ] The PR follows the template and closes the issue.
 - [ ] A fresh-eyes review subagent (no memory of writing it) checked the diff against the issue or plan, and its findings are fixed.
 - [ ] Large work: every acceptance criterion in the plan is met or explicitly moved out.
+- [ ] The PR shows the change working in a demo: the preview link for a branch in this repository, a short screen recording of `pnpm demo` from a fork, or "nothing to show" and why, for what a demo can't show, such as docs, CI, sign-in or real storage.
+- [ ] Each AI review finding is fixed or answered with a reason.
 - [ ] Docs for changed behaviour are updated (README, the app's spec in `doc/tasks/`, `doc/time/` or `doc/goals/`, and `doc/format.md` and the skills when formats change).
 
 When main moves and the PR conflicts, merge main in (never rebase pushed work). For `pnpm-lock.yaml`, take main's copy and run `pnpm install`.
