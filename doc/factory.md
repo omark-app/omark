@@ -104,7 +104,7 @@ A PR gets an AI review, so a maintainer reads it with the findings in hand (#134
 
 - **When:** a PR from a branch in this repository is reviewed when it opens or is marked ready, not on every push. A fork's PR is reviewed when a maintainer comments `@claude review`, which also asks for another look at any PR.
 - **Who can spend the subscription:** only people with write access. A fork's PR never gets the secret. A comment starts a review only if its author has write access: the workflow checks, and the action checks again. Each review stops after 10 minutes. Reviews share the plan's limits with the maintainer's own use.
-- **What it can do:** read the code, read the PR and post comments. It can't run the PR's code, push or approve. A review started by a comment checks out `main`.
+- **What it can do:** read the code, read the PR and post comments. It can't run the PR's code, push or approve. Every review checks out the PR's base or `main`, never the PR, so a PR's own hooks and `REVIEW.md` can't steer its review. It's denied `.git`, where the action keeps the job's token.
 - **Findings:** tagged Important, Nit or Pre-existing, with at most three nits. Each one is fixed or answered with a reason: `main` requires resolved conversations. After three reviews of a PR it asks the author to rethink the approach instead of posting more.
 
 ## The guard

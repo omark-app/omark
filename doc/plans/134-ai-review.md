@@ -23,9 +23,10 @@ Nobody outside. A fork's PR never gets the secret, and a comment only starts a r
 
 - [ ] `.github/workflows/review.yml` reviews PRs from this repository on `opened` and `ready_for_review`, not on every push, so an agent pushing fixes doesn't start round after round.
 - [ ] A comment starting `@claude review` from someone with write access reviews the PR, forks included. Anyone else's comment does nothing.
-- [ ] The job can read the code and comment, nothing more: `contents: read`, `pull-requests: write`, `issues: write`, no `id-token`. The reviewer's tools are reading files, `gh pr diff` / `gh pr view`, and posting comments (`gh pr comment` and inline ones). It can't run the PR's code, push or approve.
-- [ ] Each review job has `timeout-minutes: 10`. A review started by a comment checks out `main`, never the PR's code.
-- [ ] The reviewer reads `REVIEW.md` and `AGENTS.md`, reviews only the PR's diff, doesn't repeat a finding it already posted, and after the third review of the same PR asks the author to rethink the approach instead of posting more.
+- [ ] The job can read the code and comment, nothing more: `contents: read`, `pull-requests: write`, `issues: write`, no `id-token`. The reviewer's tools are reading files outside `.git`, `gh pr diff` / `gh pr view`, one read of the PR's inline comments, and posting comments (`gh pr comment` and inline ones). It can't run the PR's code, push or approve.
+- [ ] Each review job has `timeout-minutes: 10`. Both jobs check out the base, never the PR, so the PR's code, hooks and `REVIEW.md` can't steer its own review. (Changed while building: only the comment job did this at first. A review reads a new file through the diff.)
+- [ ] Concurrency sits on the jobs, so someone else's comment can't replace a queued review.
+- [ ] The reviewer reads `REVIEW.md` and `AGENTS.md`, reviews only the PR's diff, doesn't repeat a finding it already posted, and once a PR has three of its summary comments asks the author to rethink the approach instead of posting more.
 - [ ] `REVIEW.md` says what failure looks like here: task lines lost or rewritten, a user's file changed where the change doesn't touch it, users' data or tokens sent to a server, a sync or merge that drops an edit, a `*-core` package that touches the DOM, network or storage, a test that doesn't test the change. It caps nits at three, skips `pnpm-lock.yaml`, `brand/png/`, `doc/history/` and generated files, and asks for a file and line for every finding.
 - [ ] Branch protection on `main` has `required_conversation_resolution` on (I set it through the API once this merges).
 - [ ] `doc/factory.md`, `CONTRIBUTING.md` and the `omark-factory` skill (Hand over) say a PR gets an AI review and that each finding is fixed or answered.
@@ -44,7 +45,7 @@ In `tools/ci/test/docs.test.ts`: `REVIEW.md` exists, names the failure cases abo
 
 ## Risks
 
-- **Prompt injection from a fork's code** when a maintainer triggers a review: the reviewer reads text the contributor wrote. Mitigation: read-only permissions and tools, so the worst case is a misleading comment, which the maintainer reads anyway.
+- **Prompt injection from a fork's code** when a maintainer triggers a review: the reviewer reads text the contributor wrote. Mitigation: narrow permissions and tools, and the base checked out. The likely worst case is a misleading comment, which the maintainer reads anyway. The action keeps the job's GitHub token in `.git/config`; the reviewer is denied that folder, because a comment could otherwise carry the token out. That token can only comment and ends with the job.
 - **Noise**: a reviewer that nags gets ignored. Mitigation: `REVIEW.md`'s nit cap and skip list; I'll tune it on the first PRs and look at which findings were real.
 - **Cost**: each review uses the maintainer's subscription. Reviewing on open and on request only, never on every push, keeps it to about one or two reviews per PR, each at most 10 minutes.
 - **Fork PRs wait for a maintainer's comment.** That is what keeps outsiders from spending the subscription. Reviewing them without a comment is a separate job with its own capped API key and a daily limit, outside this issue.

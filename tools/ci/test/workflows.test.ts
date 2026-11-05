@@ -15,6 +15,7 @@ interface Job {
   container?: { image?: string };
   strategy?: { matrix?: Record<string, unknown>; 'fail-fast'?: boolean };
   'timeout-minutes'?: number;
+  concurrency?: { group: string };
   steps?: Step[];
 }
 const runsOnPr = (f: string) => 'pull_request' in ((parse(text(f)) as { on: object }).on ?? {});
@@ -602,23 +603,40 @@ describe('workflows', () => {
     });
 
     it('allows the reviewer only reading tools and comments', () => {
-      for (const job of Object.values(wf().jobs)) {
+      const numbers = { review: 'github.event.pull_request.number', 'review-on-request': 'github.event.issue.number' };
+      for (const [name, job] of Object.entries(wf().jobs)) {
         const args = inputs(job).claude_args!;
         const tools = args.match(/--allowedTools "([^"]+)"/)![1]!.split(',');
         expect(tools.sort()).toEqual([
+          'Bash(gh api repos/${{ github.repository }}/pulls/${{ ' + numbers[name as keyof typeof numbers] + ' }}/comments --paginate)',
           'Bash(gh pr comment:*)', 'Bash(gh pr diff:*)', 'Bash(gh pr view:*)', 'Glob', 'Grep', 'Read',
           'mcp__github_inline_comment__create_inline_comment',
         ]);
+        // The action keeps the job's token in .git/config, and a comment could otherwise carry it out.
+        const denied = args.match(/--disallowedTools "([^"]+)"/)![1]!.split(',');
+        expect(denied).toEqual(['Read(./.git/**)', 'Grep(./.git/**)', 'Glob(./.git/**)']);
         expect(inputs(job).claude_code_oauth_token).toBe('${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}');
         expect(inputs(job).github_token).toBe('${{ github.token }}');
-        // Bash commands don't see the Claude token, so a prompt injection can't read it; gh keeps the GitHub one.
+        // Bash commands don't get the Claude token in their environment; gh keeps the GitHub one.
         expect((action(job).env as Record<string, string>).CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).toBe('1');
       }
     });
 
-    it('checks out main for a comment, never the PR, and never a commenter’s text in the prompt', () => {
-      const checkout = wf().jobs['review-on-request']!.steps!.find((s) => s.uses?.startsWith('actions/checkout@'))!;
-      expect(JSON.stringify(checkout.with ?? {})).not.toContain('ref');
+    it('lets nobody’s comment replace a queued review: concurrency sits on the jobs, behind their conditions', () => {
+      expect(wf()).not.toHaveProperty('concurrency');
+      expect(wf().jobs.review!.concurrency!.group).toBe('review-${{ github.event.pull_request.number }}');
+      expect(wf().jobs['review-on-request']!.concurrency!.group).toBe('review-${{ github.event.issue.number }}');
+    });
+
+    it('never checks out the PR, so its code, hooks and REVIEW.md don’t steer the review', () => {
+      const checkout = (name: string) => wf().jobs[name]!.steps!.find((s) => s.uses?.startsWith('actions/checkout@'))!.with as Record<string, unknown>;
+      expect(checkout('review').ref).toBe('${{ github.event.pull_request.base.sha }}');
+      // An issue_comment run checks out the default branch when no ref is named.
+      expect(checkout('review-on-request')).not.toHaveProperty('ref');
+      for (const name of ['review', 'review-on-request']) expect(checkout(name)['persist-credentials']).toBe(false);
+    });
+
+    it('keeps a commenter’s and a PR’s text out of the prompt', () => {
       expect(text(REVIEW)).not.toMatch(/\$\{\{[^}]*comment\.body[^}]*\}\}/);
       expect(text(REVIEW)).not.toMatch(/\$\{\{[^}]*(pull_request|issue)\.(title|body)[^}]*\}\}/);
       expect(text(REVIEW)).not.toContain('pull_request_target');
@@ -628,12 +646,15 @@ describe('workflows', () => {
       for (const job of Object.values(wf().jobs)) expect(action(job).uses).toMatch(/@[0-9a-f]{40}$/);
     });
 
-    it('tells the reviewer to follow REVIEW.md, not repeat itself, and stop after three rounds', () => {
-      const prompt = text(REVIEW);
-      expect(prompt).toContain('REVIEW.md');
-      expect(prompt).toContain('AGENTS.md');
-      expect(prompt).toMatch(/already posted/);
-      expect(prompt).toMatch(/third review/);
+    it('tells the reviewer in each job to follow REVIEW.md, read earlier findings, and stop after three rounds', () => {
+      for (const [name, job] of Object.entries(wf().jobs)) {
+        const prompt = inputs(job).prompt!;
+        expect(prompt, name).toContain('Read REVIEW.md and AGENTS.md');
+        // Inline comments don't show in `gh pr view`, so the prompt must name the call that reads them.
+        expect(prompt, name).toMatch(/gh api repos\/\$\{\{ github\.repository \}\}\/pulls\/\$\{\{ [a-z_.]+ \}\}\/comments --paginate/);
+        expect(prompt, name).toMatch(/Don't repeat a finding you already posted/);
+        expect(prompt, name).toMatch(/already has three of your summary comments/);
+      }
     });
   });
 });
