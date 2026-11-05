@@ -24,6 +24,13 @@ export function nativePath(path, platform = process.platform) {
 }
 
 /**
+ * A command line as simple commands, without what only gets in the way of reading it: comment lines (an apostrophe
+ * in one would open a quote), `2>&1` (its `&` would split the command) and `2>/dev/null`, which write no file.
+ * @param {string} command
+ */
+const read = (command) => parse(dropHeredocs(command.replace(/^\s*#.*$/gm, '').replace(/\d*>&\d+|\d*>\s*\/dev\/null/g, ' ')));
+
+/**
  * One parsed command without its leading variables and wrappers (`env`, `nohup`, …): the program and its arguments.
  * @param {string[]} words
  */
@@ -85,7 +92,7 @@ function sendsCommits(args) {
  */
 export function pushDir(command, cwd) {
   let dir = cwd;
-  for (const { words } of parse(dropHeredocs(command))) {
+  for (const { words } of read(command)) {
     const { name, rest } = unwrap(words);
     if (name === 'cd') {
       dir = resolve(dir, nativePath((rest[0] ?? '~').replace(/^~(?=\/|$)/, homedir())));
@@ -106,7 +113,10 @@ export function pushDir(command, cwd) {
 }
 
 /** Programs that change no file, as long as nothing is redirected. */
-const HARMLESS = new Set(['cd', 'pwd', 'echo', 'printf', 'true', 'ls', 'cat', 'wc', 'head', 'tail', 'grep', 'sleep']);
+const HARMLESS = new Set(['cd', 'pwd', 'echo', 'printf', 'true', 'ls', 'cat', 'wc', 'head', 'tail', 'grep', 'sleep', 'mkdir']);
+
+/** A word that makes any of these write a file or run something else: a redirect, a substitution, `--output`. */
+const NOT_HARMLESS = /[<>]|\$\(|`|^--output/;
 
 /** Git subcommands that neither commit nor change the files. `add` is here too, unless forced. */
 const GIT_HARMLESS = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'remote', 'fetch', 'ls-files', 'branch', 'push', 'add']);
@@ -117,7 +127,7 @@ const GIT_HARMLESS = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'rem
  * @returns {{ name: string, rest: string[], words: string[] }[]}
  */
 function steps(command) {
-  return parse(dropHeredocs(command)).flatMap(({ words }) => {
+  return read(command).flatMap(({ words }) => {
     const { name, rest } = unwrap(words);
     const inner = innerLine(name, rest);
     return inner !== undefined ? steps(inner) : [{ name, rest, words }];
@@ -149,12 +159,15 @@ export function readLine(command) {
         // cherry-pick, merge, pull, stash, mv, an alias…
         commits = true;
         plain = false;
-      } else if (sub === 'add' && args.some((a) => a === '--force' || /^-[A-Za-z]*f[A-Za-z]*$/.test(a))) {
+      } else if (args.some((a) => NOT_HARMLESS.test(a))) {
+        plain = false; // `git show x > y`
+      } else if (sub === 'add' && args.some((a) => a.startsWith('--f') || /^-[A-Za-z]*f[A-Za-z]*$/.test(a))) {
         plain = false; // takes files git ignores, which the tree doesn't show
       }
-    } else if (!HARMLESS.has(name) || words.some((w) => /[<>]/.test(w))) {
+    } else if (!HARMLESS.has(name) || words.some((w) => NOT_HARMLESS.test(w))) {
       plain = false;
-      if (words.includes('git')) commits = true; // `nice -n 5 git commit`: a wrapper with options of its own
+      // A commit it may hide: `nice -n 5 git commit`, `git.exe commit`, `bash -lc "…"`, `OUT="$(…)"`.
+      if (words.some((w) => /\bgit\b|\$\(|`/.test(w))) commits = true;
     }
   }
   return { commits, plain };
@@ -167,7 +180,8 @@ export function readLine(command) {
 export const commitsFirst = (command) => readLine(command).commits;
 
 /**
- * Whether every changed file is documentation, which no typecheck or unit test reads.
+ * Whether every changed file is documentation. No typecheck reads it, and of the unit tests only `tools/ci`'s doc
+ * tests do, which CI still runs: a broken link costs a red CI run, not a block here.
  * @param {string[]} files
  */
 export const onlyDocs = (files) => files.length > 0 && files.every((f) => f.startsWith('doc/') || f.endsWith('.md'));
@@ -247,7 +261,8 @@ function changed(dir, uncommitted = false) {
     const files = names(['diff', '--name-only', '--no-renames', base, 'HEAD']);
     if (!uncommitted) return { files, base };
     const untracked = names(['ls-files', '--others', '--exclude-standard']);
-    return { files: [...new Set([...files, ...names(['diff', '--name-only', '--no-renames', 'HEAD']), ...untracked])], base, untracked };
+    const tracked = [...names(['diff', '--name-only', '--no-renames', 'HEAD']), ...names(['diff', '--name-only', '--no-renames', '--cached', 'HEAD'])];
+    return { files: [...new Set([...files, ...tracked, ...untracked])], base, untracked };
   } catch {
     return { files: null, base: null };
   }

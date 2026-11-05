@@ -27,6 +27,10 @@ describe('pushDir', () => {
     expect(pushDir(command, cwd)).toBe(cwd);
   });
 
+  it("isn't thrown by an apostrophe in a comment line (#146, second review)", () => {
+    expect(pushDir("# Don't forget\ngit push", cwd)).toBe(cwd);
+  });
+
   it('follows -C and a cd before it', () => {
     expect(pushDir('git -C sub push', cwd)).toBe(join(cwd, 'sub'));
     expect(pushDir('cd sub && git push', cwd)).toBe(join(cwd, 'sub'));
@@ -72,6 +76,13 @@ describe('commitsFirst (#146)', () => {
     'git merge other && git push',
     'git ci -am x && git push',
     'nice -n 5 git commit -am x && git push',
+    // A commit the line hides from a plain reading (#146, second review).
+    'OUT="$(git commit -am x 2>&1)" && git push',
+    'echo "$(git commit -am x)" && git push',
+    '`git commit -am x` && git push',
+    'git.exe commit -am x && git push',
+    'bash -lc "git commit -am x" && git push',
+    "# Don't forget the rest\ngit add -A && git commit -m x && git push",
   ])('%s commits before it pushes', (command) => {
     expect(commitsFirst(command)).toBe(true);
   });
@@ -322,6 +333,11 @@ describe('the hook', () => {
       'git stash pop && git add . && git commit -m x && git push',
       'git add -f ignored/a.ts doc/b.md && git commit -m x && git push',
       'git push && echo x >> packages/p/a.ts && git commit -am x && git push',
+      'git show origin/main:packages/p/a.ts > packages/p/new.ts && git add . && git commit -m x && git push',
+      'git diff > packages/p/x.ts && git add packages/p/x.ts && git commit -m x && git push',
+      'git log -1 --output=packages/p/x.ts && git add . && git commit -m x && git push',
+      'git add --forc ignored/a.ts && git commit -m x && git push',
+      'echo `sed -i s/a/b/ packages/p/a.ts` && git commit -am x && git push',
     ])('runs the full checks for %s, whatever the tree shows now (#146 review)', async (command) => {
       const { deps, ran } = stubs();
       await hook({ tool_name: 'Bash', tool_input: { command }, cwd: freshBranch('doc/b.md') }, deps);
@@ -334,6 +350,29 @@ describe('the hook', () => {
       const r = await hook({ tool_name: 'Bash', tool_input: { command }, cwd: freshBranch('doc/b.md') }, deps);
       expect(r.code).toBe(0);
       expect(ran).toEqual([]);
+    });
+
+    it.each([
+      'git add doc/b.md && git commit -m x 2>&1 | tail -3 && git push',
+      'ls doc 2>/dev/null && git add doc/b.md && git commit -m x && git push',
+      '# Commit the plan\ngit add doc/b.md && git commit -m x && git push',
+      'mkdir -p doc/plans && git add doc/b.md && git commit -m x && git push',
+      'git add doc/b.md && git commit -m "a > b" && git push',
+    ])('runs nothing for the docs-only line %s (#146, second review)', async (command) => {
+      const { deps, ran } = stubs();
+      const r = await hook({ tool_name: 'Bash', tool_input: { command }, cwd: freshBranch('doc/b.md') }, deps);
+      expect(r.code).toBe(0);
+      expect(ran).toEqual([]);
+    });
+
+    it('sees code that is staged and then put back in the working copy', async () => {
+      const { deps, ran } = stubs();
+      const dir = freshBranch('doc/b.md');
+      writeFileSync(join(dir, 'packages/p/a.ts'), 'export const a = 1;\n');
+      execFileSync('git', ['add', 'packages/p/a.ts'], { cwd: dir, stdio: 'ignore' });
+      writeFileSync(join(dir, 'packages/p/a.ts'), 'export {};\n');
+      await hook({ tool_name: 'Bash', tool_input: { command: 'git add doc/b.md && git commit -m x && git push' }, cwd: dir }, deps);
+      expect(ran).toHaveLength(1);
     });
 
     it('typechecks everything for a new code file', async () => {
