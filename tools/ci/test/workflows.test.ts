@@ -661,6 +661,18 @@ describe('workflows', () => {
       }
     });
 
+    it('installs what the credential scrub needs, since the action does so only for outside users', () => {
+      for (const [name, job] of Object.entries(wf().jobs)) {
+        const steps = job.steps!;
+        const review = action(job);
+        expect(review.env?.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, name).toBe('1');
+        const install = steps.find((s) => s.run?.includes('bubblewrap'))!;
+        expect(steps.indexOf(install), name).toBeLessThan(steps.indexOf(review));
+        // Ubuntu 24.04 restricts the user namespaces bubblewrap needs.
+        expect(install.run, name).toContain('kernel.apparmor_restrict_unprivileged_userns=0');
+      }
+    });
+
     it('counts earlier reviews in a step, so nobody’s comment can fake the number', () => {
       for (const [name, job] of Object.entries(wf().jobs)) {
         const steps = job.steps!;

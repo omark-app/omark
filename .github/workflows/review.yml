@@ -32,6 +32,13 @@ jobs:
           ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 1
           persist-credentials: false
+      # CLAUDE_CODE_SUBPROCESS_ENV_SCRUB needs bubblewrap, and Claude Code won't start without it. The action
+      # installs it only when allowed_non_write_users is set, so it's done here, the same way.
+      - name: Install subprocess isolation
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends bubblewrap socat
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - id: rounds
         run: |
           count=$(gh api "repos/$REPO/issues/$NUMBER/comments" --paginate --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("AI review:"))) | .id' | wc -l)
@@ -78,6 +85,13 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
+      # CLAUDE_CODE_SUBPROCESS_ENV_SCRUB needs bubblewrap, and Claude Code won't start without it. The action
+      # installs it only when allowed_non_write_users is set, so it's done here, the same way.
+      - name: Install subprocess isolation
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends bubblewrap socat
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - id: rounds
         run: |
           count=$(gh api "repos/$REPO/issues/$NUMBER/comments" --paginate --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("AI review:"))) | .id' | wc -l)
