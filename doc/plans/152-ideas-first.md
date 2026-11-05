@@ -1,54 +1,55 @@
-# #152: Ideas first, with a demo and no plan gate
+# #152: Ideas first, then a plan, a demo and a review
 
-This is the last plan under the old rules: the gate still applies to the change that removes it. It builds on #151 (the AI review) and merges after it.
+The maintainer's flow (2026-11-05). It replaces this plan's first version, which removed the plan gate. The gate stays.
 
 ## What changes for users
 
-Nothing in the apps. For people taking part:
+Nothing in the apps. For people taking part, a new idea goes through these steps:
 
-- The first thing we ask for is an idea, in Discussions. Code is welcome and optional.
-- Nothing gets built without an agreed issue: a maintainer's yes in the discussion becomes a `ready` issue that links it. PRs with no agreed issue are closed with a friendly pointer, as today.
-- Anyone can then build it, with no plan and no wait for approval. The PR shows it working in a demo.
-- A maintainer merges when it's the agreed feature, the demo works and the AI review's findings are answered. Staging and Promote stay as they are, by hand.
-- The release note credits who had the idea and who built it.
+1. **Idea.** Anyone posts in Discussions, in Ideas. Others vote with 👍 and comment.
+2. **Agreed.** A maintainer says yes or a friendly no in the discussion, with the reason. A yes becomes a `ready` issue that links the discussion.
+3. **Plan.** Whoever builds it, a maintainer's agent or an outside person with theirs, posts a plan on the issue.
+4. **Plan approved.** By a maintainer, as today.
+5. **Built and shown.** The PR shows it working in a demo on made-up data.
+6. **Approved and reviewed.** A maintainer approves the demo, and each finding from the AI review is fixed or answered.
+7. **Merged.** That deploys to staging. A maintainer checks it there and runs Promote. The release note credits who had the idea and who built it.
+
+Staging deploys from `main`, so it comes after the merge. The demo before the merge is the PR's preview, which is a separate site with made-up data.
+
+A bug fix or small tweak (`size:small`) still goes straight to a PR, with no plan, as today. Bugs don't start as ideas.
 
 ## Acceptance criteria
 
-- [ ] `CONTRIBUTING.md`, `GOVERNANCE.md`, `doc/factory.md`, `AGENTS.md`, `CLAUDE.md`, `README.md` and the `omark-factory` skill describe the new flow. None of them mentions a plan gate, `plan-approval.mjs` or size labels.
-- [ ] `tools/ci/plan-approval.mjs` and its test are deleted.
-- [ ] `plan-review`, `plan-approved`, `size:small` and `size:large` are gone from `.github/labels.yml`. Sizing existed to decide who needs a plan, so it goes with the plan.
-- [ ] `doc/format.md` and `doc/architecture.md` no longer send people to a plan or `size:large`. A format change still needs an agreed issue labelled `format`.
-- [ ] The "Ask first" list in `AGENTS.md` (file formats, sync, sign-in, task lines, dependencies, CI, `.claude/`, new screens) becomes a list the PR must call out. It stops being a gate and stays a warning.
-- [ ] The PR template drops size and adds **Demo**: a short screen recording of `pnpm demo`, or the preview link for a branch in this repository, or "nothing to show" for docs and CI. It keeps the tests written first, by name, without quoting the failing line.
-- [ ] Test-first, the required checks, the fresh-eyes review and the guard all stay.
-- [ ] `REVIEW.md` marks as **Important** any new dependency, new network call, or change to sign-in, sync, file formats, CI, deploy or `.claude/`, even when the issue asks for it, so the maintainer always sees them.- [ ] `CONTRIBUTING.md` and `GOVERNANCE.md` say a fork's PR isn't merged until a maintainer has run `@claude review` on it and its findings are answered.
-- [ ] `GOVERNANCE.md` says an outside PR with a flagged change (a new dependency or network call, or a change to sign-in, sync, file formats, CI, deploy or `.claude/`) also needs a second, independent review from a maintainer's own agent before it merges. A demo alone isn't enough for these.
+- [ ] `CONTRIBUTING.md`, `GOVERNANCE.md`, `doc/factory.md`, `AGENTS.md` and the `omark-factory` skill describe the seven steps, and ask for ideas first. Code stays welcome and optional.
+- [ ] The plan gate stays: `tools/ci/plan-approval.mjs`, `plan-review`, `plan-approved` and `size:*` don't change.
+- [ ] The PR template gains **Demo**: the preview link for a branch in this repository, a short screen recording of `pnpm demo` from a fork, or "nothing to show" for docs and CI.
+- [ ] The definition of done in `AGENTS.md` and `CONTRIBUTING.md` gains the demo, and each AI review finding fixed or answered.
+- [ ] `CONTRIBUTING.md` and `GOVERNANCE.md` say a fork's PR isn't merged until a maintainer has run `@claude review` on it and its findings are answered.
+- [ ] `REVIEW.md` marks as **Important** any new dependency, new network call, or change to sign-in, sync, file formats, CI, deploy or `.claude/`, even when the issue asks for it, so the maintainer always sees them.
+- [ ] `CONTRIBUTING.md` drops "a maintainer can push your branch to the main repository" as a way to get a preview. That branch's code would run in CI with the repository's secrets. A fork shows a recording instead.
 - [ ] The stale "Discussions open when the repository goes public" lines are gone, in `CONTRIBUTING.md`, `GOVERNANCE.md` and `PHILOSOPHY.md`.
-- [ ] Once this merges, I delete the four labels from the repository through the API. `tools/ci/labels.mjs` never deletes one. Issues #107–#122 stay `ready`.
 
 ## Tests I'll write first
 
 In `tools/ci/test/docs.test.ts`:
 
-- `AGENTS.md`'s flow and definition of done have the new lines, and no longer have the plan lines the test pins today.
-- None of the docs above contains `plan-approval`, `plan-review`, `plan-approved` or `size:`.
-- The PR template has a Demo section and no Size line.
+- `AGENTS.md`'s definition of done has the demo and the answered findings.
+- The PR template has a Demo section.
+- `CONTRIBUTING.md`, `GOVERNANCE.md` and `doc/factory.md` name the steps, in order.
+- `CONTRIBUTING.md` and `GOVERNANCE.md` say a fork's PR needs the AI review before merging.
 - `REVIEW.md` names each flagged area.
-- `CONTRIBUTING.md` and `GOVERNANCE.md` say a fork's PR needs the AI review before merging, and `GOVERNANCE.md` says a flagged outside change also needs the second review.
-- `PHILOSOPHY.md`, `CONTRIBUTING.md` and `GOVERNANCE.md` no longer say Discussions are about to open.
-
-In `tools/ci/test/labels.test.ts`: the label list loses the four labels. In a test beside it: `tools/ci/plan-approval.mjs` doesn't exist.
+- `PHILOSOPHY.md`, `CONTRIBUTING.md` and `GOVERNANCE.md` no longer say Discussions are about to open, and `CONTRIBUTING.md` no longer offers to push a fork's branch here.
+- The plan gate's existing tests still pass unchanged.
 
 ## Risks
 
-- **Nobody reads the code before merging.** A demo can look perfect and still send tokens or files somewhere else, and the app handles sign-in to people's drives. Mitigation: the AI review on every PR, loud flags for the risky areas, test-first and the required checks, and a required second review from a maintainer's own agent for any flagged outside change. Both reviews can still miss a deliberately hidden change. That risk is accepted knowingly, and it's the main one here.
-- **Data loss without a plan.** Plans made people think about sync and merge first. Mitigation: those changes are always flagged, and `pnpm e2e:real` stays on the list for them.
-- **The merge rule for forks is a habit, not a check.** A fork's PR gets its review when a maintainer asks, and nothing stops a merge without one. Making it a required check would need reviews on fork PRs without a comment, which is a separate job with its own capped key.
-- **Screen recordings are thin evidence**, and easy to fake. For now they're enough to see that the feature is what was agreed. The maintainer still checks on staging before Promote.
-- **Deleting labels** removes them from issues that carry them. Only the history of old plans loses them, and those plans stay in `doc/plans/`.
+- **The maintainer's approval rests on the plan, the demo and the review, not on reading the code.** A demo can look perfect and still send tokens or files somewhere else. Mitigation: flagged areas are always marked Important, test-first and the required checks stay, and a maintainer can ask their own agent for a second look. The AI review can still miss a deliberately hidden change.
+- **The review rule for forks is a habit, not a check.** Nothing stops a merge without `@claude review` on a fork's PR. Making it a required check would need reviews on forks without a comment, which is a separate job with its own capped key.
+- **A plan and a demo are more work for an outside person.** That can put off small contributions. `size:small` stays plan-free for this reason.
+- **Screen recordings are thin evidence.** They show the feature is what was agreed. The maintainer still checks on staging before Promote.
 
 ## Out of scope
 
-- A preview for forks: a separate job that builds a fork's demo with no secrets and publishes it from a workflow that never runs the fork's code. It comes next, as its own issue.
-- Writing credits into release notes automatically, and telling the discussion that an idea shipped. Those come with the bot's later phases. Until then the maintainer writes them.
-- Rewriting old plans and `doc/history/`, and the launch spec and roadmap, which describe how things were decided at the time.
+- A preview for forks: a job that builds a fork's demo with no secrets, and a separate workflow that publishes it and never runs the fork's code. It comes next, as its own issue.
+- Writing credits into release notes automatically, and telling the discussion an idea shipped. Those come with the bot's later phases. Until then a maintainer writes them.
+- Changing the size rules.
