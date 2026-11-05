@@ -22,7 +22,7 @@ A bug fix or small tweak (`size:small`) still goes straight to a PR, with no pla
 
 - [ ] `CONTRIBUTING.md`, `GOVERNANCE.md`, `doc/factory.md`, `AGENTS.md` and the `omark-factory` skill describe the seven steps, and ask for ideas first. Code stays welcome and optional.
 - [ ] The plan gate stays: `tools/ci/plan-approval.mjs`, `plan-review`, `plan-approved` and `size:*` don't change.
-- [ ] The PR template gains **Demo**: the preview link for a branch in this repository, a short screen recording of `pnpm demo` from a fork, or "nothing to show" for docs and CI.
+- [ ] The PR template gains **Demo**: the preview link for a branch in this repository, a short screen recording of `pnpm demo` from a fork, or "nothing to show" and why, for what a demo can't show, such as docs, CI, sign-in or real storage.
 - [ ] The definition of done in `AGENTS.md` and `CONTRIBUTING.md` gains the demo, and each AI review finding fixed or answered.
 - [ ] `CONTRIBUTING.md` and `GOVERNANCE.md` say a fork's PR isn't merged until a maintainer has run `@claude review` on it and its findings are answered.
 - [ ] `REVIEW.md` marks as **Important** any new dependency, new network call, or change to sign-in, sync, file formats, CI, deploy or `.claude/`, even when the issue asks for it, so the maintainer always sees them.

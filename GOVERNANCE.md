@@ -33,7 +33,7 @@ Votes show what people want. They are not a majority vote, and there is no fixed
 - **Small issues** (a bug fix or small tweak with clear behaviour) go straight to a pull request.
 - **Large issues** (anything touching file formats, sync, sign-in, CI, dependencies or a new screen) need a plan approved by a maintainer before any code. [doc/factory.md](doc/factory.md) describes the flow.
 - **Only maintainers merge**, and only when every check is green and the [definition of done](AGENTS.md#definition-of-done) is met.
-- A fork's PR isn't merged until a maintainer has run `@claude review` on it and its findings are answered.
+- A fork's PR isn't merged until a maintainer has run `@claude review` on its latest commit and its findings are answered.
 - **Only maintainers deploy** to production.
 
 ## Becoming a maintainer

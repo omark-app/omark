@@ -429,7 +429,7 @@ Roles:
 - **Factory documentation for contributors:**
   - What their agent needs: Node, pnpm, the four commands.
   - For Claude cloud sessions: their own environment pointed at their fork, with the Playwright domains allowed.
-  - Previews exist only for branches in the main repo. A maintainer can push a contributor's branch there to get one.
+  - Previews exist only for branches in the main repo. A fork's demo is a screen recording of `pnpm demo` (#152).
 - **One factory for both apps.**
   - The skills, guard, templates, sizes and definition of done are shared.
   - The bug template asks which app.

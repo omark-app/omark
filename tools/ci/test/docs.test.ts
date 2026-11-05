@@ -86,10 +86,10 @@ describe('docs set', () => {
   const rules = [
     "- [ ] A test written first that failed before the change; the PR quotes the failing line.",
     "- [ ] `pnpm typecheck`, `pnpm test`, the build and the e2e specs the change touches pass here; CI's e2e jobs pass.",
-    "- [ ] The PR follows the template, closes the issue and, for a branch in this repository, has the preview link.",
+    "- [ ] The PR follows the template and closes the issue.",
     "- [ ] A fresh-eyes review subagent (no memory of writing it) checked the diff against the issue or plan, and its findings are fixed.",
     "- [ ] Large work: every acceptance criterion in the plan is met or explicitly moved out.",
-    "- [ ] The PR shows the change working in a demo: the preview link for a branch in this repository, a short screen recording of `pnpm demo` from a fork, or \"nothing to show\" for docs and CI.",
+    "- [ ] The PR shows the change working in a demo: the preview link for a branch in this repository, a short screen recording of `pnpm demo` from a fork, or \"nothing to show\" and why, for what a demo can't show, such as docs, CI, sign-in or real storage.",
     "- [ ] Each AI review finding is fixed or answered with a reason.",
     "- [ ] Docs for changed behaviour are updated (README, the app's spec in `doc/tasks/`, `doc/time/` or `doc/goals/`, and `doc/format.md` and the skills when formats change).",
     "When main moves and the PR conflicts, merge main in (never rebase pushed work). For `pnpm-lock.yaml`, take main's copy and run `pnpm install`.",
@@ -154,18 +154,20 @@ describe('docs set', () => {
     const template = read('.github/pull_request_template.md');
     expect(template).toMatch(/^## Demo$/m);
     expect(template).toContain('`pnpm demo`');
+    expect(template).toContain('preview link');
+    expect(template).toContain('"nothing to show" and why');
     expect(template.indexOf('## Demo')).toBeLessThan(template.indexOf('## AI use'));
   });
 
   test.each(['CONTRIBUTING.md', 'GOVERNANCE.md'])('%s holds a fork\'s PR until its AI review is answered (#152)', (path) => {
-    expect(read(path)).toContain("A fork's PR isn't merged until a maintainer has run `@claude review` on it and its findings are answered.");
+    expect(read(path)).toContain("A fork's PR isn't merged until a maintainer has run `@claude review` on its latest commit and its findings are answered.");
   });
 
   test('REVIEW.md always flags the risky areas, even when the issue asks for them (#152)', () => {
-    const text = read('REVIEW.md');
-    expect(text).toContain('even when the linked issue asks for it');
+    const line = read('REVIEW.md').split('\n').find((l) => l.includes('even when the linked issue asks for it'));
+    expect(line).toBeDefined();
     for (const area of ['new dependency', 'new network call', 'sign-in', 'sync', 'file formats', 'CI', 'deploy', '`.claude/`']) {
-      expect(text, area).toContain(area);
+      expect(line, area).toContain(area);
     }
   });
 
@@ -174,8 +176,42 @@ describe('docs set', () => {
   });
 
   // That branch's code would run in CI with the repository's secrets.
-  test.each(['CONTRIBUTING.md', 'doc/factory.md', '.claude/skills/omark-factory/SKILL.md'])('%s offers no push of a fork\'s branch for a preview (#152)', (path) => {
-    expect(read(path)).not.toMatch(/push (your|its|a contributor's) branch/);
+  test.each(['CONTRIBUTING.md', 'doc/factory.md', '.claude/skills/omark-factory/SKILL.md', 'doc/TaskApp open source launch spec.md'])('%s offers no push of a fork\'s branch for a preview (#152)', (path) => {
+    expect(read(path)).not.toMatch(/\bpush (your|its|the|a contributor's|a fork's) branch/i);
+  });
+
+  test.each(['CONTRIBUTING.md', 'GOVERNANCE.md', 'PHILOSOPHY.md', 'doc/factory.md', 'AGENTS.md', '.claude/skills/omark-factory/SKILL.md'])('%s asks for ideas first (#152)', (path) => {
+    expect(read(path)).toContain('Ideas are what Omark needs most; code is welcome and optional.');
+  });
+
+  test.each(['CONTRIBUTING.md', 'doc/factory.md', '.claude/skills/omark-factory/SKILL.md'])('%s says small work still needs an issue (#152)', (path) => {
+    expect(read(path)).toContain('A bug fix or small tweak (`size:small`) needs a `ready` issue and no plan.');
+  });
+
+  test('CONTRIBUTING.md wants the demo before review and answered findings before the merge (#152)', () => {
+    const text = read('CONTRIBUTING.md');
+    const section = text.slice(text.indexOf('## Definition of done'), text.indexOf('## AI-assisted contributions'));
+    const list = section.split('\n').filter((l) => l.startsWith('- ')).join('\n');
+    expect(list).toContain('shows the change working in a demo');
+    expect(list).not.toContain('AI review');
+    expect(section).toContain('Before it merges, each AI review finding is fixed or answered with a reason.');
+  });
+
+  test('the factory\'s summary of done has the demo and the answered findings (#152)', () => {
+    const line = read('doc/factory.md').split('\n').find((l) => l.includes('has the checklist:'));
+    expect(line).toContain('a demo');
+    expect(line).toContain('AI review findings answered');
+  });
+
+  test('the skill stops new ideas, not accepted bugs and tasks, and the contributor attaches the recording (#152)', () => {
+    const skill = read('.claude/skills/omark-factory/SKILL.md');
+    expect(skill).toContain("A new idea isn't built before a maintainer's yes in the discussion.");
+    expect(skill).toContain('which the contributor attaches to the PR');
+    expect(skill).toContain('A feature that came from an idea links its discussion.');
+  });
+
+  test('credit is a maintainer\'s step, because Promote publishes generated notes (#152)', () => {
+    expect(read('doc/factory.md')).toContain('adds to the release who had the idea and who built it');
   });
 
   test('the factory skill is omark-factory', () => {

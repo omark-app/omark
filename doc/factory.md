@@ -1,6 +1,6 @@
 # The factory
 
-Omark is built through a small software factory: ideas and bugs are GitHub issues, AI agents do the work on branches, and changes land through pull requests that a maintainer reviews and merges. This page describes it for maintainers and contributors. Agents get the same rules in [AGENTS.md](../AGENTS.md); Claude Code also gets them step by step in the `omark-factory` skill.
+Omark is built through a small software factory: ideas start in Discussions, accepted ones and bugs are GitHub issues, AI agents do the work on branches, and changes land through pull requests that a maintainer reviews and merges. This page describes it for maintainers and contributors. Agents get the same rules in [AGENTS.md](../AGENTS.md); Claude Code also gets them step by step in the `omark-factory` skill.
 
 The factory was first built for one person; [its original spec](history/TaskApp%20factory%20spec.md) has the history and the reasons.
 
@@ -23,16 +23,16 @@ Ideas are what Omark needs most; code is welcome and optional. A new idea goes t
 2. **Agreed.** A maintainer says yes or a friendly no in the discussion, with the reason. A yes becomes a `ready` issue that links the discussion.
 3. **Plan.** Whoever builds it, a maintainer's agent or a contributor with theirs, posts a plan on the issue.
 4. **Plan approved.** By a maintainer, before any code.
-5. **Built and shown.** The PR shows it working in a demo on made-up data. Staging deploys from `main`, so it comes after the merge. The demo before it is the PR's preview, or from a fork a short screen recording of `pnpm demo`.
+5. **Built and shown.** The PR shows it working in a demo on made-up data. Staging deploys from `main`, so it comes after the merge. The demo before it is the PR's preview, or from a fork a short screen recording of `pnpm demo`. A demo has no sign-in or real storage, so a change it can't show says "nothing to show" and why, and the maintainer tries it on staging after the merge.
 6. **Approved and reviewed.** A maintainer approves the demo, and each AI review finding is fixed or answered.
-7. **Merged.** That deploys it to staging. A maintainer checks it there and runs Promote, and the release note credits who had the idea and who built it.
+7. **Merged.** That deploys it to staging. A maintainer checks it there and runs Promote, then adds to the release who had the idea and who built it, because Promote publishes generated notes.
 
-A bug fix or small tweak (`size:small`) goes straight to a PR, with no plan.
+A bug fix or small tweak (`size:small`) needs a `ready` issue and no plan.
 
 ## The issue flow
 
 ```
-issue ──► sized (small | large) ──► small: implement ──────────────────────► PR ──► merge ──► staging ──► Promote
+issue ──► sized (small | large) ──► small: implement ──────────────────────► PR with demo ──► merge ──► staging ──► Promote
                                 └─► large: plan ──► maintainer approves ──► implement ─┘
 ```
 
@@ -88,7 +88,7 @@ Anything else is **large**. When in doubt, large. File formats, sync and merge, 
 
 ### Definition of done
 
-[AGENTS.md](../AGENTS.md#definition-of-done) has the checklist: a test written first that failed, the four commands green, the PR template filled in, a fresh-eyes review of the diff, every acceptance criterion met, and docs updated.
+[AGENTS.md](../AGENTS.md#definition-of-done) has the checklist: a test written first that failed, the four commands green, the PR template filled in, a fresh-eyes review of the diff, every acceptance criterion met, a demo (or why there's nothing to show), AI review findings answered, and docs updated.
 
 ## Environments and CI
 

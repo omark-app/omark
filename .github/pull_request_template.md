@@ -20,7 +20,7 @@ Closes #
 
 ## Demo
 
-<!-- Show it working on made-up data: the preview link from the CI comment (a branch in this repository), a short screen recording of `pnpm demo` (a fork), or "nothing to show" for docs and CI. -->
+<!-- Show it working on made-up data: the preview link from the CI comment (a branch in this repository), a short screen recording of `pnpm demo` (a fork), or "nothing to show" and why, for what a demo can't show, such as docs, CI, sign-in or real storage. -->
 
 ## AI use
 

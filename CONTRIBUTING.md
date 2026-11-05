@@ -30,7 +30,7 @@ Run `pnpm --filter tasks exec playwright install chromium webkit` once before th
 
 ## Ideas and bugs
 
-- **An idea?** This is what Omark needs most. Post it in Discussions, in the Ideas category, and vote for others' with 👍. Code is welcome and optional.
+- **An idea?** Ideas are what Omark needs most; code is welcome and optional. Post it in Discussions, in the Ideas category, and vote for others' with 👍.
 - **A bug?** Open an issue with the Bug form: which app, what happened, what you expected, the build number (in the app's footer), your OS and browser, whether it's installed or in a tab, your storage, and the steps.
 - **A security problem?** Never in public: see [SECURITY.md](SECURITY.md).
 
@@ -44,9 +44,9 @@ Run `pnpm --filter tasks exec playwright install chromium webkit` once before th
 6. **Approved and reviewed.** A maintainer approves the demo, and each AI review finding is fixed or answered.
 7. **Merged.** That deploys it to staging. A maintainer checks it there and runs Promote, and the release note credits who had the idea and who built it.
 
-A bug fix or small tweak (`size:small`) goes straight to a PR, with no plan.
+A bug fix or small tweak (`size:small`) needs a `ready` issue and no plan.
 
-A fork's PR isn't merged until a maintainer has run `@claude review` on it and its findings are answered.
+A fork's PR isn't merged until a maintainer has run `@claude review` on its latest commit and its findings are answered.
 
 ## Working on an issue
 
@@ -63,11 +63,12 @@ A pull request is ready for review when:
 
 - a test written first failed before the change, and the PR quotes the failing line;
 - `pnpm typecheck`, `pnpm test`, the build and the e2e specs the change touches pass on your machine, and CI's e2e passes;
-- the PR follows the template, closes the issue and shows the change working in a demo (or says "nothing to show" for docs and CI);
-- each AI review finding is fixed or answered with a reason;
+- the PR follows the template, closes the issue and shows the change working in a demo (or says "nothing to show" and why, for what a demo can't show, such as docs, CI, sign-in or real storage);
 - you (or a fresh-eyes review by your agent) checked the diff against the issue or plan, and fixed what it found;
 - for large work, every acceptance criterion in the plan is met or explicitly moved out;
 - docs for changed behaviour are updated, including [doc/format.md](doc/format.md) when a file format changes.
+
+Before it merges, each AI review finding is fixed or answered with a reason.
 
 Existing tests change only when the behaviour they cover is meant to change, and the PR says which and why.
 
