@@ -606,15 +606,17 @@ describe('workflows', () => {
       const numbers = { review: 'github.event.pull_request.number', 'review-on-request': 'github.event.issue.number' };
       for (const [name, job] of Object.entries(wf().jobs)) {
         const args = inputs(job).claude_args!;
+        const number = '${{ ' + numbers[name as keyof typeof numbers] + ' }}';
         const tools = args.match(/--allowedTools "([^"]+)"/)![1]!.split(',');
+        // `--body` only: gh refuses it together with --body-file, so a comment can't carry a file's contents.
         expect(tools.sort()).toEqual([
-          'Bash(gh api repos/${{ github.repository }}/pulls/${{ ' + numbers[name as keyof typeof numbers] + ' }}/comments --paginate)',
-          'Bash(gh pr comment:*)', 'Bash(gh pr diff:*)', 'Bash(gh pr view:*)', 'Glob', 'Grep', 'Read',
+          `Bash(gh api repos/\${{ github.repository }}/pulls/${number}/comments --paginate)`,
+          `Bash(gh pr comment ${number} --body:*)`, 'Bash(gh pr diff:*)', 'Bash(gh pr view:*)', 'Read(./**)',
           'mcp__github_inline_comment__create_inline_comment',
         ]);
-        // The action keeps the job's token in .git/config, and a comment could otherwise carry it out.
+        // The action keeps the job's token in .git/config, and a process's secrets show under /proc.
         const denied = args.match(/--disallowedTools "([^"]+)"/)![1]!.split(',');
-        expect(denied).toEqual(['Read(./.git/**)', 'Grep(./.git/**)', 'Glob(./.git/**)']);
+        expect(denied).toEqual(['Read(./.git/**)', 'Read(//proc/**)', 'Bash(gh pr comment * --body-file*)', 'Bash(gh pr comment * -F*)']);
         expect(inputs(job).claude_code_oauth_token).toBe('${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}');
         expect(inputs(job).github_token).toBe('${{ github.token }}');
         // Bash commands don't get the Claude token in their environment; gh keeps the GitHub one.
@@ -653,7 +655,21 @@ describe('workflows', () => {
         // Inline comments don't show in `gh pr view`, so the prompt must name the call that reads them.
         expect(prompt, name).toMatch(/gh api repos\/\$\{\{ github\.repository \}\}\/pulls\/\$\{\{ [a-z_.]+ \}\}\/comments --paginate/);
         expect(prompt, name).toMatch(/Don't repeat a finding you already posted/);
-        expect(prompt, name).toMatch(/already has three of your summary comments/);
+        expect(prompt, name).toContain('Earlier reviews of this PR: ${{ steps.rounds.outputs.count }}.');
+        expect(prompt, name).toContain('If that is 3 or more, post no more findings');
+        expect(prompt, name).toContain('Start it with `AI review:`');
+      }
+    });
+
+    it('counts earlier reviews in a step, so nobody’s comment can fake the number', () => {
+      for (const [name, job] of Object.entries(wf().jobs)) {
+        const steps = job.steps!;
+        const rounds = steps.find((s) => s.id === 'rounds')!;
+        expect(steps.indexOf(rounds), name).toBeLessThan(steps.indexOf(action(job)));
+        // Only the job's own account, and only its summaries: the preview comment comes from the same account.
+        expect(rounds.run, name).toContain('select(.user.login == "github-actions[bot]" and (.body | startswith("AI review:")))');
+        expect(rounds.run, name).toContain('>> "$GITHUB_OUTPUT"');
+        expect(rounds.run, name).not.toContain('${{');
       }
     });
   });
