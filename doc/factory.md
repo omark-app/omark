@@ -1,6 +1,6 @@
 # The factory
 
-Omark is built through a small software factory: ideas and bugs are GitHub issues, AI agents do the work on branches, and changes land through pull requests that a maintainer reviews and merges. This page describes it for maintainers and contributors. Agents get the same rules in [AGENTS.md](../AGENTS.md); Claude Code also gets them step by step in the `omark-factory` skill.
+Omark is built through a small software factory: ideas start in Discussions, accepted ones and bugs are GitHub issues, AI agents do the work on branches, and changes land through pull requests that a maintainer reviews and merges. This page describes it for maintainers and contributors. Agents get the same rules in [AGENTS.md](../AGENTS.md); Claude Code also gets them step by step in the `omark-factory` skill.
 
 The factory was first built for one person; [its original spec](history/TaskApp%20factory%20spec.md) has the history and the reasons.
 
@@ -8,17 +8,31 @@ The factory was first built for one person; [its original spec](history/TaskApp%
 
 | Who | Does |
 |---|---|
-| Maintainer | Turns ideas into `ready` issues; sets and changes sizes; approves plans; reviews and merges; runs Promote; handles `needs-human` steps |
-| Contributor and their agent | Picks a `ready` issue and claims it; sizes it; writes a plan for large work and waits; implements test-first; opens the PR; fixes CI and review comments; never merges |
+| Maintainer | Turns ideas into `ready` issues; sets and changes sizes; approves plans; approves demos, reviews and merges; runs Promote; credits who had the idea and who built it; handles `needs-human` steps |
+| Contributor and their agent | Picks a `ready` issue and claims it; sizes it; writes a plan for large work and waits; implements test-first; opens the PR with a demo; fixes CI and review comments; never merges |
 | Community | Posts and votes on ideas in Discussions, reports bugs |
 | GitHub Actions | Checks, e2e, previews, staging and demo deploys, Promote |
 
 Maintainers are the accounts `.github/CODEOWNERS` names on `main`, each with the Maintain or Admin role ([GOVERNANCE.md](../GOVERNANCE.md)). Only a maintainer can change that file, and anyone who can read the repository can read it, so an agent finds out whom it works for by looking its own login up there.
 
+## From idea to release
+
+Ideas are what Omark needs most; code is welcome and optional. A new idea goes through these steps:
+
+1. **Idea.** Anyone posts in Discussions, in Ideas. Others vote with 👍 and comment.
+2. **Agreed.** A maintainer says yes or a friendly no in the discussion, with the reason. A yes becomes a `ready` issue that links the discussion.
+3. **Plan.** Whoever builds it, a maintainer's agent or a contributor with theirs, posts a plan on the issue.
+4. **Plan approved.** By a maintainer, before any code.
+5. **Built and shown.** The PR shows it working in a demo on made-up data. Staging deploys from `main`, so it comes after the merge. The demo before it is the PR's preview, or from a fork a short screen recording of `pnpm demo`. A demo has no sign-in or real storage, so a change it can't show says "nothing to show" and why, and the maintainer tries it on staging after the merge.
+6. **Approved and reviewed.** A maintainer approves the demo, and each AI review finding is fixed or answered.
+7. **Merged.** That deploys it to staging. A maintainer checks it there and runs Promote, then adds to the release who had the idea and who built it, because Promote publishes generated notes.
+
+A bug fix or small tweak (`size:small`) needs a `ready` issue and no plan.
+
 ## The issue flow
 
 ```
-issue ──► sized (small | large) ──► small: implement ──────────────────────► PR ──► merge ──► staging ──► Promote
+issue ──► sized (small | large) ──► small: implement ──────────────────────► PR with demo ──► merge ──► staging ──► Promote
                                 └─► large: plan ──► maintainer approves ──► implement ─┘
 ```
 
@@ -70,11 +84,11 @@ Anything else is **large**. When in doubt, large. File formats, sync and merge, 
   - **Task**, for work users don't see: what and why, done when.
 - Blank issues are off. The chooser links "Report a security problem" (private vulnerability reporting) and "Ask a question" (Discussions, Q&A).
 - Forms bind only people using GitHub's site and app; issues created through the API skip them. So when sizing, the agent checks the form's required fields, and if one is missing it adds `needs-info`, asks, and stops.
-- **Pull requests** follow `.github/pull_request_template.md`: `Closes #`, size, what changes for users, tests written first, how to try it, how to undo it, the preview, and whether and how AI was used.
+- **Pull requests** follow `.github/pull_request_template.md`: `Closes #`, size, what changes for users, tests written first, how to try it, how to undo it, the demo, and whether and how AI was used.
 
 ### Definition of done
 
-[AGENTS.md](../AGENTS.md#definition-of-done) has the checklist: a test written first that failed, the four commands green, the PR template filled in, a fresh-eyes review of the diff, every acceptance criterion met, and docs updated.
+[AGENTS.md](../AGENTS.md#definition-of-done) has the checklist: a test written first that failed, the four commands green, the PR template filled in, a fresh-eyes review of the diff, every acceptance criterion met, a demo (or why there's nothing to show), AI review findings answered, and docs updated.
 
 ## Environments and CI
 
@@ -96,7 +110,7 @@ Staging and production run the same build; Promote ships the exact files staging
 - Docs-only pushes to `main` (`doc/**`, `*.md`) skip CI. Docs-only PRs still run it, because branch protection requires `check` and both `e2e` jobs (#124).
 - A newer push to a PR cancels the older run.
 - Agents run the checks before pushing, so CI confirms rather than debugs. They run only the e2e specs they touch; CI runs the rest. CI runs Tasks' and Time's specs once, against the one app, and on their standalone builds (which no host serves) only what that run skips: the storage specs and signing in again. `pnpm e2e` still runs everything (#132).
-- Fork PRs get the checks and e2e but no preview, because forks have no secrets. A maintainer can push a contributor's branch to the main repository to get one.
+- Fork PRs get the checks and e2e but no preview, because forks have no secrets. Pushing a fork's branch here would run its code in CI with the repository's secrets, so the demo is a screen recording of `pnpm demo`.
 
 ### The AI review
 

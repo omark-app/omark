@@ -13,11 +13,15 @@ Maintainers are the accounts `.github/CODEOWNERS` names on `main` of `omark-app/
 
 **Labels a contributor can't set.** Without the Triage role, a contributor can't add or remove labels. Wherever a step below sets a label, say it in your comment instead ("Labels to set: `size:small`, `app:tasks`"), and carry on as if it were set. Nobody's agent pushes to `main`, merges or runs Promote; the guard blocks it anyway.
 
+## How an idea gets in
+
+Ideas are what Omark needs most; code is welcome and optional. A new idea goes: idea, agreed, plan, plan approved, built and shown in a demo, approved and reviewed, merged. A new idea isn't built before a maintainer's yes in the discussion. A bug fix or small tweak (`size:small`) needs a `ready` issue and no plan.
+
 ## File an issue
 
 When asked to "file a bug: …", "idea: …" or similar:
 
-- A bug, a feature a maintainer has accepted, or a task: create the issue with the matching form's headings (`.github/ISSUE_TEMPLATE/bug.yml`, `feature.yml`, `task.yml`) and its kind label (`bug`, `enhancement`, `task`). Then size it (below). Don't start work unless asked.
+- A bug, a feature a maintainer has accepted, or a task: create the issue with the matching form's headings (`.github/ISSUE_TEMPLATE/bug.yml`, `feature.yml`, `task.yml`) and its kind label (`bug`, `enhancement`, `task`). A feature that came from an idea links its discussion. Then size it (below). Don't start work unless asked.
 - An idea nobody has accepted yet belongs in Discussions, in the Ideas category. Say so, and offer to draft it.
 
 ## Pick up
@@ -70,10 +74,10 @@ If anything about the expected behaviour is unclear, ask one clear question, add
 
 ## Hand over
 
-1. Push and open the PR from `.github/pull_request_template.md`: `Closes #<n>`, size, what changes for users, the tests written first with their failing line, how to try it, how to undo it, and the AI-use line.
+1. Push and open the PR from `.github/pull_request_template.md`: `Closes #<n>`, size, what changes for users, the tests written first with their failing line, how to try it, how to undo it, the demo, and the AI-use line.
 2. Run a review subagent with no memory of the work: give it the issue (or plan) and `git diff main...HEAD` and ask for bugs, missed acceptance criteria and untested paths. Fix what holds up, re-run the checks in Implement step 3, push.
-3. Previews exist only for branches in this repository: the preview comment appears once `check` passes, and the PR body links it. A fork's PR has no preview; a maintainer can push its branch here to get one. The PR is ready only when every CI job, e2e included, is green.
-4. Remove `in-progress`. Tell the person you work for in one or two lines: what changed, the preview link, what to try.
+3. Previews exist only for branches in this repository: the preview comment appears once `check` passes, and the PR body links it. A fork's PR has no preview, so its demo is a short screen recording of `pnpm demo`, which the contributor attaches to the PR. The PR is ready only when every CI job, e2e included, is green.
+4. Remove `in-progress`. Tell the person you work for in one or two lines: what changed, the demo, what to try.
 5. Fix CI failures and answer review comments until the PR is green. The AI review posts its findings on the PR, steered by `REVIEW.md`: each one is fixed or answered with a reason, because `main` requires resolved conversations. Never merge.
 6. Keep it mergeable: when main moves and the PR conflicts, merge main in (never rebase pushed work), re-run the checks and push. For `pnpm-lock.yaml`, take main's copy and run `pnpm install`.
 
