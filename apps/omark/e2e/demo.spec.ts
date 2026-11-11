@@ -92,13 +92,15 @@ test('Time shows the NOVA hours, the COURS fix and the Calendar view in colour',
   await expect(page.getByTestId('demo-line')).toContainText('DEMO');
 });
 
-test('Goals shows the four areas, the two pictures and Home needing an update', async ({ page }) => {
+test('Goals shows the four areas, a picture on each, Head of Product in Career and Money needing an update', async ({ page }) => {
   await open(page, '/goals');
   await expect(page.getByTestId('area-card')).toHaveCount(4);
-  for (const name of ['Health', 'Family & friends', 'Work', 'Home']) await expect(card(page, name)).toBeVisible();
-  await expect(card(page, 'Home').getByTestId('needs-update')).toBeVisible();
-  await expect(card(page, 'Work').getByTestId('needs-update')).toHaveCount(0);
-  for (const name of ['Health', 'Home']) {
+  const names = ['Career', 'Health', 'Family & friends', 'Money'];
+  for (const name of names) await expect(card(page, name)).toBeVisible();
+  await expect(card(page, 'Career').getByTestId('goal-row').first()).toContainText('Head of Product');
+  await expect(card(page, 'Money').getByTestId('needs-update')).toBeVisible();
+  await expect(card(page, 'Career').getByTestId('needs-update')).toHaveCount(0);
+  for (const name of names) {
     const picture = card(page, name).getByTestId('area-picture');
     await poll(() => picture.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
   }
@@ -202,7 +204,7 @@ test('only the demo build has the demo world and its pictures', async () => {
     readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(join(dir, e.name)) : [join(dir, e.name)]));
   const has = (dir: string, text: string) => files(dir).some((f) => /\.(js|html)$/.test(f) && readFileSync(f, 'utf8').includes(text));
   // dist: the fake build of the first web server, a non-demo build.
-  expect(existsSync('dist-demo/demo/health.jpg') && existsSync('dist-demo/demo/home.jpg')).toBe(true);
+  for (const name of ['career', 'health', 'family', 'money']) expect(existsSync(`dist-demo/demo/${name}.jpg`)).toBe(true);
   expect(has('dist-demo', 'Nova Bank')).toBe(true);
   expect(files('dist').filter((f) => f.endsWith('.jpg'))).toEqual([]);
   expect(has('dist', 'Nova Bank')).toBe(false);

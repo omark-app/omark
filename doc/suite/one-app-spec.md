@@ -139,17 +139,17 @@ Section 2 of the settings page spec ("one page design, each app edits its own fi
 
 The demo at `demo.omark.app` (and every PR preview) is **one made-up person** across all parts, replacing Tasks' sample tasks and Time's fake calendar seed. No sign-in, edits kept in the browser, "Reset demo", no outside requests, as the demos do today. All dates are relative to today.
 
-The person *(my call; the builder writes the data)*: **Maya, a freelance product designer in Lisbon.**
+The person *(my call; the builder writes the data)*: **Maya, a freelance product designer in Lisbon, aiming at a product lead role.** Her goals follow the example in Omark's marketing diagram (#155).
 
-- **Goals** (areas): *Health* (run a half marathon), *Family & friends* (a weekly dinner with friends), *Work* (launch her own design course), *Home* (move closer to the sea). Pictures under a free licence for two areas; the others show the plain colour.
-- **Projects**: `NOVA` (a client, with a rate), `COURSE` (her course, linked to the Work goal), `RUN` (training, linked to Health).
-- **Time**: about two weeks of events; most hours on `NOVA`, only a little on `COURSE`; an unknown code to fix; the cases the Time demo already shows (all-day, overlap, invite, declined).
-- **Tasks**: today and overdue tasks, some tagged `#COURSE` or `#RUN`; two habits in progress, one tagged `#family-friends`; a done history.
-- **The story**: *Home* shows **Needs update** (nothing linked for months); the course goal has a date six months out but the hours go to the client. That is the drift the `omark-goals` skill should find.
+- **Goals**: the vision "A career I'm proud of, with time left for family", and the areas *Career* (Head of Product by the end of next year; launch her own design course), *Health* (run a half marathon), *Family & friends* (a weekly dinner with friends), *Money* (six months of savings). Every area has a photo under CC0.
+- **Projects**: `NOVA` (a client, with a rate), `COURSE` (her course), `LEAD` (a leadership program, linked to Head of Product), `RUN` (training, linked to Health).
+- **Time**: about two weeks of events; most hours on `NOVA`, a few on `LEAD`, only a little on `COURSE`; an unknown code to fix; the cases the Time demo already shows (all-day, overlap, invite, declined).
+- **Tasks**: today and overdue tasks, some tagged `#COURSE`, `#RUN` or `#LEAD`; three habits in progress, one tagged `#family-friends` and one `#LEAD` (weekly 1:1 notes); a done history.
+- **The story**: *Money* shows **Needs update** (nothing linked for months); the course goal has a date six months out but the hours go to the client. That is the drift the `omark-goals` skill should find.
 
 The Tasks and Time demos' existing checks (no outside requests, Reset demo, the footer) carry over.
 
-**Built (U.6, 2026-10-29).** A demo build of the one app (`VITE_STORAGE=demo`) opens at once on Tasks, with the three tabs and no welcome or sign-in. The files are in IndexedDB (`omark-demo:*`), seeded for today when empty; the pictures are `apps/omark/src/lib/demo/*.jpg`, made for this repo (CC0), and only the demo build has them. Time reads a made-up calendar made for the same day, with edit access and colouring on, and has a **Calendar** view that draws the week's events in their colours (Time spec 12). Each tab's footer says DEMO, with **Reset demo** (asks first, then reseeds every part) and **Use it for real** (`VITE_REAL_USE_URL`). Settings says the files are in this browser and offers no Change, sign-in or Sign out. The code is in `apps/omark/src/lib/demo/`; `apps/omark/e2e/demo.spec.ts` checks it.
+**Built (U.6, 2026-10-29).** A demo build of the one app (`VITE_STORAGE=demo`) opens at once on Tasks, with the three tabs and no welcome or sign-in. The files are in IndexedDB (`omark-demo:*`), seeded for today when empty; the pictures are `apps/omark/src/lib/demo/*.jpg`, CC0 photos (sources in the README there), and only the demo build has them. Time reads a made-up calendar made for the same day, with edit access and colouring on, and has a **Calendar** view that draws the week's events in their colours (Time spec 12). Each tab's footer says DEMO, with **Reset demo** (asks first, then reseeds every part) and **Use it for real** (`VITE_REAL_USE_URL`). Settings says the files are in this browser and offers no Change, sign-in or Sign out. The code is in `apps/omark/src/lib/demo/`; `apps/omark/e2e/demo.spec.ts` checks it.
 
 ## 10. Hosting, CI and deploys
 
@@ -178,7 +178,7 @@ Nobody but AL has real data, so this is short.
   - turning Time and Goals on in Settings: tabs appear, each part's first use creates its subfolder;
   - switching tabs keeps each part's state;
   - a second device opening the same folder skips the parts question;
-  - the demo world: all three parts show the same person; Home shows Needs update; no outside requests.
+  - the demo world: all three parts show the same person; Money shows Needs update; no outside requests.
 - **Each part's existing e2e** passes inside the shell (Tasks' and Time's specs move, they don't change behaviour).
 - **Manual on staging**: OneDrive and Google Drive each create the layout in section 4; Time's calendar sign-in with OneDrive storage; the old hosts redirect.
 

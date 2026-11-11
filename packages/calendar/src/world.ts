@@ -13,10 +13,15 @@ const h = (hours: number, minutes = 0) => hours * 60 + minutes;
 
 /**
  * Maya's work days, in order from the first one in the window: most hours on the client, NOVA, a little on her
- * course, an early run. The window always has ten work days, sometimes eleven.
+ * course, an early run, and evenings on the leadership program. The window always has ten work days, sometimes
+ * eleven.
  */
 const DAYS: Item[][] = [
-  [{ title: 'NOVA; Design; Onboarding screens', at: [h(9), h(12, 30)] }, { title: 'Lunch', at: [h(13), h(14)] }],
+  [
+    { title: 'NOVA; Design; Onboarding screens', at: [h(9), h(12, 30)] },
+    { title: 'Lunch', at: [h(13), h(14)] },
+    { title: 'LEAD; Course; Leadership module', at: [h(18), h(20)] },
+  ],
   [{ title: 'NOVA; Meetings; Weekly sync', at: [h(10), h(11)] }, { title: 'NOVA; Design; Card controls', at: [h(11, 30), h(15)] }],
   [
     { title: 'COURSE; Writing; Lesson 1 outline', at: [h(8), h(9)] },
@@ -27,13 +32,18 @@ const DAYS: Item[][] = [
     { title: 'RUN; Training; Intervals', at: [h(7), h(8)] },
     { title: 'NOVA; Research; User interviews', at: [h(10), h(12, 30)] },
     { title: 'NOVA; Design; Interview notes', at: [h(14), h(16)] },
+    { title: 'LEAD; Mentoring; 1:1 with mentor', at: [h(16, 30), h(17, 30)] },
   ],
   // The overlap: both run from 10:30 to 11:00.
   [{ title: 'NOVA; Design; Payments flow', at: [h(9), h(11)] }, { title: 'NOVA; Meetings; Client review', at: [h(10, 30), h(11, 30)] }],
   // The unknown code to fix: COURS for COURSE.
   [{ title: 'COURS; Recording; Intro video', at: [h(8), h(9)] }, { title: 'NOVA; Design; Payments flow', at: [h(10), h(14)] }],
   [{ title: 'NOVA; Workshop' }],
-  [{ title: 'NOVA; Design; Design system', at: [h(9), h(13)] }, { title: 'Lunch', at: [h(13), h(13, 45)] }],
+  [
+    { title: 'NOVA; Design; Design system', at: [h(9), h(13)] },
+    { title: 'Lunch', at: [h(13), h(13, 45)] },
+    { title: 'LEAD; Course; Leadership module', at: [h(18), h(20)] },
+  ],
   [
     { title: 'NOVA; Meetings; Sprint planning', at: [h(10), h(11)], response: 'needsAction' },
     { title: 'NOVA; Design; Handoff', at: [h(13), h(16)] },
@@ -41,6 +51,7 @@ const DAYS: Item[][] = [
   [
     { title: 'NOVA; Meetings; Release demo', at: [h(12), h(13)], response: 'declined' },
     { title: 'NOVA; Design; Icons', at: [h(9), h(11, 30)] },
+    { title: 'LEAD; Mentoring; 1:1 with mentor', at: [h(16, 30), h(17, 30)] },
   ],
   [{ title: 'NOVA; Design; Bug review', at: [h(9), h(12)] }, { title: 'Dinner with friends', at: [h(19, 30), h(22)] }],
 ];

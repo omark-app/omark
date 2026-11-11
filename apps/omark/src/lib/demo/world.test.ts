@@ -29,34 +29,42 @@ describe('the demo world (one app spec, section 9)', () => {
     expect(world.root['config.yaml']).toBe('parts: [tasks, time, goals]\n');
   });
 
-  it('has the projects NOVA (a client with a rate), COURSE and RUN', () => {
-    expect(projects.map((p) => p.code)).toEqual(['NOVA', 'COURSE', 'RUN']);
+  it('has the projects NOVA (a client with a rate), COURSE, RUN and LEAD', () => {
+    expect(projects.map((p) => p.code)).toEqual(['NOVA', 'COURSE', 'RUN', 'LEAD']);
     expect(projects[0]!.client).not.toBe('');
     expect(projects[0]!.rate).not.toBeNull();
   });
 
-  it('has the four areas, a picture for two of them, and the files for those pictures', () => {
+  it('has the vision, the four areas, a picture for each, and the files for those pictures', () => {
+    expect(world.goals['goals.md']).toContain("A career I'm proud of, with time left for family.");
     const list = areas(doc);
-    expect(list.map((a) => a.name)).toEqual(['Health', 'Family & friends', 'Work', 'Home']);
-    expect(list.map((a) => a.tag)).toEqual(['health', 'family-friends', 'work', 'home']);
+    expect(list.map((a) => a.name)).toEqual(['Career', 'Health', 'Family & friends', 'Money']);
+    expect(list.map((a) => a.tag)).toEqual(['career', 'health', 'family-friends', 'money']);
     const pictures = list.flatMap((a) => (a.picture ? [a.picture.path] : []));
-    expect(pictures).toHaveLength(2);
+    expect(pictures).toHaveLength(4);
     expect(pictures.map((p) => p.replace('images/', '')).sort()).toEqual([...world.pictures].sort());
   });
 
-  it('links the course goal to COURSE and the half marathon to RUN', () => {
+  it('links Head of Product and the course goal to LEAD and COURSE in Career, the half marathon to RUN', () => {
     const goals = areas(doc).flatMap((a) => a.goals.map((g) => ({ area: a.tag, code: g.code })));
-    expect(goals).toContainEqual({ area: 'work', code: 'COURSE' });
+    expect(goals).toContainEqual({ area: 'career', code: 'LEAD' });
+    expect(goals).toContainEqual({ area: 'career', code: 'COURSE' });
     expect(goals).toContainEqual({ area: 'health', code: 'RUN' });
   });
 
-  it('shows Needs update on Home only, and every other area has activity in the period', () => {
+  it('dates Head of Product the end of next year', () => {
+    const lead = areas(doc).flatMap((a) => a.goals).find((g) => g.code === 'LEAD')!;
+    expect(lead.text).toContain('Head of Product');
+    expect(lead.due).toBe(`${Number(TODAY.slice(0, 4)) + 1}-12-31`);
+  });
+
+  it('shows Needs update on Money only, and every other area has activity in the period', () => {
     const activity = areaActivity(doc, { done, open: tasks, rows, projects: [...codes], today: TODAY, staleAfter: 3 });
     expect(activity.map((a) => [a.tag, a.needsUpdate])).toEqual([
+      ['career', false],
       ['health', false],
       ['family-friends', false],
-      ['work', false],
-      ['home', true],
+      ['money', true],
     ]);
     for (const a of activity) expect(a.linked).toBe(true);
   });
@@ -67,6 +75,8 @@ describe('the demo world (one app spec, section 9)', () => {
     expect(hoursOn('NOVA')).toBeGreaterThan(4 * hoursOn('COURSE'));
     expect(hoursOn('COURSE')).toBeGreaterThan(0);
     expect(hoursOn('RUN')).toBeGreaterThan(0);
+    expect(hoursOn('LEAD')).toBeGreaterThan(0);
+    expect(hoursOn('NOVA')).toBeGreaterThan(hoursOn('LEAD'));
   });
 
   it('covers about two weeks of events, with an unknown code and the Time demo cases', () => {
@@ -86,14 +96,17 @@ describe('the demo world (one app spec, section 9)', () => {
     expect(world.calendar.events.some((e) => !e.title.includes(';'))).toBe(true);
   });
 
-  it('has today and overdue tasks, some tagged #COURSE or #RUN, and two habits under way, one tagged #family-friends', () => {
+  it('has today and overdue tasks, some tagged #COURSE, #RUN or #LEAD, and three habits under way, one tagged #family-friends and one #LEAD', () => {
     expect(tasks.some((t) => t.date === TODAY && !t.habit)).toBe(true);
     expect(tasks.some((t) => t.date !== null && t.date < TODAY)).toBe(true);
     expect(tasks.some((t) => t.title.includes('#COURSE'))).toBe(true);
     expect(tasks.some((t) => t.title.includes('#RUN'))).toBe(true);
+    expect(tasks.some((t) => !t.habit && t.title.includes('#LEAD'))).toBe(true);
     const habits = habitsInProgress(parseTasks(world.tasks['tasks.md']!));
-    expect(habits).toHaveLength(2);
+    expect(habits).toHaveLength(3);
     expect(habits.filter((h) => h.title.includes('#family-friends'))).toHaveLength(1);
+    expect(habits.filter((h) => h.title.includes('#LEAD'))).toHaveLength(1);
+    expect(done.some((d) => d.title.includes('#LEAD'))).toBe(true);
     expect(done.length).toBeGreaterThan(10);
     expect(done.every((d) => d.doneOn !== null && d.doneOn < TODAY)).toBe(true);
   });
