@@ -86,7 +86,6 @@ Enough set aside to choose my work freely.
   const tasks = `# Tasks
 - [ ] Pick a platform for the course #COURSE ⏫
 - [ ] Ask for a stretch project #LEAD 📅 ${d(3)}
-- [ ] Morning stretch 🌱 🔁 every day 📅 ${today}
 - [ ] Dinner with friends #family-friends 🌱 🔁 every week on Thursday 📅 ${thursday}
 - [ ] Weekly 1:1 notes #LEAD 🌱 🔁 every week on Friday 📅 ${friday}
 - [ ] Send Nova the payments flow 📅 ${today}
@@ -102,10 +101,9 @@ Enough set aside to choose my work freely.
 - [ ] Compare savings accounts #money
 `;
 
-  // Oldest first, as Tasks appends them: nine mornings of stretching, five Thursday dinners, four Friday 1:1 notes,
-  // and the rest.
+  // Oldest first, as Tasks appends them: five Thursday dinners, four Friday 1:1 notes, and the rest. Two habits
+  // in progress, under the default limit of three, so a visitor can start one.
   const done: [ISODate, string][] = [
-    ...Array.from({ length: 9 }, (_, i): [ISODate, string] => [d(i - 9), 'Morning stretch 🌱 🔁 every day']),
     ...Array.from({ length: 5 }, (_, i): [ISODate, string] => [addDays(thursday, -7 * (5 - i)), 'Dinner with friends #family-friends 🌱 🔁 every week on Thursday']),
     ...Array.from({ length: 4 }, (_, i): [ISODate, string] => [addDays(friday, -7 * (4 - i)), 'Weekly 1:1 notes #LEAD 🌱 🔁 every week on Friday']),
     [d(-58), 'Sign up for the Lisbon half marathon #RUN'],

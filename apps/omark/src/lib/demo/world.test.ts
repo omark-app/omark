@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { areaActivity, areas, parseGoals } from '@omark/goals-core';
-import { addDays, allTasks, habitsInProgress, parseDone, parseTasks } from '@omark/tasks-core';
+import { addDays, allTasks, habitsInProgress, parseConfig, parseDone, parseTasks } from '@omark/tasks-core';
 import { eventToRows, knownCodes, parseEventsFile, parseProjects, parseTimeConfig } from '@omark/time-core';
 import type { CalendarEvent, EventRow, EventTime } from '@omark/time-core';
 import { demoWorld } from './world.ts';
@@ -96,14 +96,16 @@ describe('the demo world (one app spec, section 9)', () => {
     expect(world.calendar.events.some((e) => !e.title.includes(';'))).toBe(true);
   });
 
-  it('has today and overdue tasks, some tagged #COURSE, #RUN or #LEAD, and three habits under way, one tagged #family-friends and one #LEAD', () => {
+  it('has today and overdue tasks, some tagged #COURSE, #RUN or #LEAD, and two habits under way, one tagged #family-friends and one #LEAD', () => {
     expect(tasks.some((t) => t.date === TODAY && !t.habit)).toBe(true);
     expect(tasks.some((t) => t.date !== null && t.date < TODAY)).toBe(true);
     expect(tasks.some((t) => t.title.includes('#COURSE'))).toBe(true);
     expect(tasks.some((t) => t.title.includes('#RUN'))).toBe(true);
     expect(tasks.some((t) => !t.habit && t.title.includes('#LEAD'))).toBe(true);
     const habits = habitsInProgress(parseTasks(world.tasks['tasks.md']!));
-    expect(habits).toHaveLength(3);
+    // Under the default limit of three, so a visitor can still start a habit.
+    expect(habits).toHaveLength(2);
+    expect(habits.length).toBeLessThan(parseConfig(world.tasks['config.yaml']!).config.habits.maxInProgress);
     expect(habits.filter((h) => h.title.includes('#family-friends'))).toHaveLength(1);
     expect(habits.filter((h) => h.title.includes('#LEAD'))).toHaveLength(1);
     expect(done.some((d) => d.title.includes('#LEAD'))).toBe(true);

@@ -98,6 +98,9 @@ test('Goals shows the four areas, a picture on each, Head of Product in Career a
   const names = ['Career', 'Health', 'Family & friends', 'Money'];
   for (const name of names) await expect(card(page, name)).toBeVisible();
   await expect(card(page, 'Career').getByTestId('goal-row').first()).toContainText('Head of Product');
+  // The task and the habit tagged #LEAD both count as open; the habit shows on the card.
+  await expect(card(page, 'Career').getByTestId('goal-facts').first()).toContainText('2 open tasks');
+  await expect(card(page, 'Career').getByTestId('area-habits')).toContainText('Weekly 1:1 notes');
   await expect(card(page, 'Money').getByTestId('needs-update')).toBeVisible();
   await expect(card(page, 'Career').getByTestId('needs-update')).toHaveCount(0);
   for (const name of names) {

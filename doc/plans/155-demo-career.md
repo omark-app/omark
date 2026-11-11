@@ -15,7 +15,8 @@ Only the demo (`demo.omark.app` and PR previews) changes; the real app doesn't.
 ## Acceptance criteria
 
 - [ ] The demo's Goals tab shows Career, Health, Family & friends and Money, in that order, and every card's photo loads.
-- [ ] Career shows "Head of Product" linked to `LEAD`, with hours, one open task and the weekly habit.
+- [ ] Career shows "Head of Product" linked to `LEAD`, with hours, its open tasks (the task and the habit both count) and the weekly habit.
+- [ ] Two habits in progress, under the limit of three, so a visitor can still start one (the 1:1 notes replace the morning stretch).
 - [ ] Money shows Needs update; no other area does.
 - [ ] `projects.csv` has NOVA (client with a rate), COURSE, RUN and LEAD.
 - [ ] Tasks and Time demos behave as before: today and overdue tasks, the unknown code COURS, all-day, overlap, invite, declined.

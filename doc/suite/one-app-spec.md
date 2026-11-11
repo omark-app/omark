@@ -144,7 +144,7 @@ The person *(my call; the builder writes the data)*: **Maya, a freelance product
 - **Goals**: the vision "A career I'm proud of, with time left for family", and the areas *Career* (Head of Product by the end of next year; launch her own design course), *Health* (run a half marathon), *Family & friends* (a weekly dinner with friends), *Money* (six months of savings). Every area has a photo under CC0.
 - **Projects**: `NOVA` (a client, with a rate), `COURSE` (her course), `LEAD` (a leadership program, linked to Head of Product), `RUN` (training, linked to Health).
 - **Time**: about two weeks of events; most hours on `NOVA`, a few on `LEAD`, only a little on `COURSE`; an unknown code to fix; the cases the Time demo already shows (all-day, overlap, invite, declined).
-- **Tasks**: today and overdue tasks, some tagged `#COURSE`, `#RUN` or `#LEAD`; three habits in progress, one tagged `#family-friends` and one `#LEAD` (weekly 1:1 notes); a done history.
+- **Tasks**: today and overdue tasks, some tagged `#COURSE`, `#RUN` or `#LEAD`; two habits in progress, one tagged `#family-friends` and one `#LEAD` (weekly 1:1 notes), under the limit of three so a visitor can start one; a done history.
 - **The story**: *Money* shows **Needs update** (nothing linked for months); the course goal has a date six months out but the hours go to the client. That is the drift the `omark-goals` skill should find.
 
 The Tasks and Time demos' existing checks (no outside requests, Reset demo, the footer) carry over.
