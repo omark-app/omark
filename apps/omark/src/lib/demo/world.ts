@@ -21,22 +21,37 @@ const PROJECTS_CSV = `code,description,client,rate,currency,archived
 NOVA,Nova Bank app redesign,Nova Bank,85,EUR,
 COURSE,My design course,,,,
 RUN,Half marathon training,,,,
+LEAD,Leadership program,,,,
 `;
 
 /**
- * Maya, a freelance product designer in Lisbon (one app spec, section 9): her goals, projects, tasks, habits and
- * hours, dated around `today`, the calendar in `timeZone`. Home has had nothing linked for months, so it shows
- * Needs update; the course goal is six months out but the hours go to the client. Pure: the same arguments give
- * the same world.
+ * Maya, a freelance product designer in Lisbon aiming at a product lead role (one app spec, section 9): her goals,
+ * projects, tasks, habits and hours, dated around `today`, the calendar in `timeZone`. Head of Product is due at the
+ * end of next year, with the leadership program behind it; Money has had nothing linked for months, so it shows
+ * Needs update; the course goal is six months out but the hours go to the client. Pure: the same arguments give the
+ * same world.
  */
 export function demoWorld(today: ISODate, timeZone: string): DemoWorld {
   const d = (n: number) => addDays(today, n);
   // The Thursday dinner: today when it is Thursday, else the next one.
   const thursday = d((3 - dayOfWeek(today) + 7) % 7);
+  // The Friday 1:1 notes: today when it is Friday, else the next one.
+  const friday = d((4 - dayOfWeek(today) + 7) % 7);
+  const endOfNextYear: ISODate = `${Number(today.slice(0, 4)) + 1}-12-31`;
 
   const goals = `# Vision
 
-Good work, a strong body, and the people I love close by.
+A career I'm proud of, with time left for family.
+
+## Career #career
+
+![Career](images/career.jpg)
+
+Leading a product team, on work I'm proud of.
+
+- [ ] Head of Product #LEAD 📅 ${endOfNextYear} ➕ ${d(-45)}
+- [ ] Launch my design course #COURSE 📅 ${d(182)} ➕ ${d(-40)}
+- [x] Ten paying clients 📅 ${d(-60)} ➕ ${d(-300)} ✅ ${d(-75)}
 
 ## Health #health
 
@@ -48,24 +63,19 @@ Strong enough to run anywhere, rested enough to enjoy it.
 
 ## Family & friends #family-friends
 
+![Family & friends](images/family.jpg)
+
 The people I love, around my table.
 
 - [ ] A dinner with friends every week 📅 ${d(90)} ➕ ${d(-120)}
 
-## Work #work
+## Money #money
 
-Work I'm proud of, on my own terms.
+![Money](images/money.jpg)
 
-- [ ] Launch my design course #COURSE 📅 ${d(182)} ➕ ${d(-40)}
-- [x] Ten paying clients 📅 ${d(-60)} ➕ ${d(-300)} ✅ ${d(-75)}
+Enough set aside to choose my work freely.
 
-## Home #home
-
-![Home](images/home.jpg)
-
-A small flat by the sea, with light in the morning.
-
-- [ ] Move closer to the sea 📅 ${d(365)} ➕ ${d(-150)}
+- [ ] Six months of savings 📅 ${d(365)} ➕ ${d(-150)}
 
 ## Not now
 
@@ -75,8 +85,9 @@ A small flat by the sea, with light in the morning.
 
   const tasks = `# Tasks
 - [ ] Pick a platform for the course #COURSE ⏫
-- [ ] Morning stretch 🌱 🔁 every day 📅 ${today}
+- [ ] Ask for a stretch project #LEAD 📅 ${d(3)}
 - [ ] Dinner with friends #family-friends 🌱 🔁 every week on Thursday 📅 ${thursday}
+- [ ] Weekly 1:1 notes #LEAD 🌱 🔁 every week on Friday 📅 ${friday}
 - [ ] Send Nova the payments flow 📅 ${today}
     - the prototype link
     - the open questions on refunds
@@ -87,14 +98,16 @@ A small flat by the sea, with light in the morning.
 - [ ] Record the course intro again #COURSE 📅 ${d(5)}
 - [ ] Renew the passport 📅 ${d(40)}
 - [ ] Buy new running shoes #RUN
-- [ ] Ask Rita about flats in Ericeira #home
+- [ ] Compare savings accounts #money
 `;
 
-  // Oldest first, as Tasks appends them: nine mornings of stretching, five Thursday dinners, and the rest.
+  // Oldest first, as Tasks appends them: five Thursday dinners, four Friday 1:1 notes, and the rest. Two habits
+  // in progress, under the default limit of three, so a visitor can start one.
   const done: [ISODate, string][] = [
-    ...Array.from({ length: 9 }, (_, i): [ISODate, string] => [d(i - 9), 'Morning stretch 🌱 🔁 every day']),
     ...Array.from({ length: 5 }, (_, i): [ISODate, string] => [addDays(thursday, -7 * (5 - i)), 'Dinner with friends #family-friends 🌱 🔁 every week on Thursday']),
+    ...Array.from({ length: 4 }, (_, i): [ISODate, string] => [addDays(friday, -7 * (4 - i)), 'Weekly 1:1 notes #LEAD 🌱 🔁 every week on Friday']),
     [d(-58), 'Sign up for the Lisbon half marathon #RUN'],
+    [d(-44), 'Join the leadership program #LEAD'],
     [d(-27), "Send Nova last month's invoice"],
     [d(-12), 'Write the course outline #COURSE'],
     [d(-6), 'Fix the bike light'],
@@ -116,7 +129,7 @@ A small flat by the sea, with light in the morning.
     tasks: { 'tasks.md': tasks, 'done.md': doneText, 'config.yaml': DEFAULT_CONFIG_YAML },
     time: { 'config.yaml': timeConfig, ...hourFiles(calendar.events, timeConfig, today, timeZone) },
     goals: { 'goals.md': goals },
-    pictures: ['health.jpg', 'home.jpg'],
+    pictures: ['career.jpg', 'health.jpg', 'family.jpg', 'money.jpg'],
     calendar,
   };
 }

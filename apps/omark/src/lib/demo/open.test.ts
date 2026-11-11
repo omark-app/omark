@@ -38,8 +38,7 @@ describe('openDemo', () => {
     expect((await demo.tasks.read('tasks.md'))?.text).toBe(world.tasks['tasks.md']);
     expect((await demo.time.read('events-2026.csv'))?.text).toBe(world.time['events-2026.csv']);
     expect((await demo.goals.read('goals.md'))?.text).toBe(world.goals['goals.md']);
-    expect(await (await demo.images.readBytes('health.jpg'))?.text()).toBe('bytes of health.jpg');
-    expect(await (await demo.images.readBytes('home.jpg'))?.text()).toBe('bytes of home.jpg');
+    for (const name of world.pictures) expect(await (await demo.images.readBytes(name))?.text()).toBe(`bytes of ${name}`);
   });
 
   it('keeps edits and the day it was seeded on the next open, even on a later day', async () => {
@@ -86,18 +85,18 @@ describe('openDemo', () => {
         return picture(name);
       },
     });
-    expect(rootEmpty).toEqual([true, true]);
+    expect(rootEmpty).toEqual([true, true, true, true]);
   });
 
   it('seeds the rest when a picture cannot be loaded', async () => {
     await fresh();
     const demo = await openDemo('2026-10-29', ZONE, {
-      pictures: async (name) => (name === 'home.jpg' ? Promise.reject(new Error('offline')) : picture(name)),
+      pictures: async (name) => (name === 'money.jpg' ? Promise.reject(new Error('offline')) : picture(name)),
       local: memoryStorage(),
     });
-    expect(await demo.images.readBytes('home.jpg')).toBeNull();
+    expect(await demo.images.readBytes('money.jpg')).toBeNull();
     expect(await demo.images.readBytes('health.jpg')).not.toBeNull();
-    expect((await demo.goals.read('goals.md'))?.text).toContain('## Home #home');
+    expect((await demo.goals.read('goals.md'))?.text).toContain('## Money #money');
   });
 
   it('runs on the world in memory when IndexedDB is unusable', async () => {
