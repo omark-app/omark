@@ -12,8 +12,11 @@ const S = '# Always\n\n# Tasks\n- [ ] Buy milk\n- [ ] Call mom\n';
 class PerFileAdapter implements StorageAdapter {
   down = new Set<TaskFile>();
   full = false;
+  /** Every call fails as the sign-in server unreachable (#157). */
+  signinDown = false;
   constructor(readonly drive: FakeOneDrive) {}
   async read(name: TaskFile): Promise<RemoteFile | null> {
+    if (this.signinDown) throw new OfflineError('Sign-in helper unreachable', 'signin');
     if (this.down.has(name)) throw new OfflineError('Offline');
     return this.drive.read(name);
   }
@@ -134,6 +137,24 @@ describe('createWorkspace', () => {
     adapter.down.add('tasks.md');
     await ws.refresh();
     expect([ws.status(), ws.full()]).toEqual(['offline', false]);
+    expect(seen.at(-1)).toEqual(['offline', false]);
+  });
+
+  it("signInUnreachable() is true while a file's last sync failed to reach the sign-in server, and onStatus tells of it (#157)", async () => {
+    const drive = new FakeOneDrive();
+    const adapter = new PerFileAdapter(drive);
+    const ws = createWorkspace(adapter, new MemoryCache());
+    await ws.open();
+    const seen: [SyncStatus, boolean][] = [];
+    ws.onStatus((s) => seen.push([s, ws.signInUnreachable()]));
+    adapter.signinDown = true;
+    await ws.refresh();
+    expect([ws.status(), ws.signInUnreachable()]).toEqual(['offline', true]);
+    expect(seen.at(-1)).toEqual(['offline', true]);
+    adapter.signinDown = false;
+    adapter.down.add('tasks.md');
+    await ws.refresh();
+    expect([ws.status(), ws.signInUnreachable()]).toEqual(['offline', false]);
     expect(seen.at(-1)).toEqual(['offline', false]);
   });
 

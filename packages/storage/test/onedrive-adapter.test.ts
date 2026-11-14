@@ -190,6 +190,27 @@ describe('OneDriveAdapter (Graph specifics)', () => {
     await expect(adapter.read('tasks.md')).rejects.toBeInstanceOf(OfflineError);
   });
 
+  it('a read whose token could not be had fails as the sign-in server unreachable (#157)', async () => {
+    const fetchFn = vi.fn() as unknown as typeof fetch;
+    const failing = new OneDriveAdapter({
+      folder: FOLDER,
+      getToken: async () => {
+        throw new OfflineError('Network unreachable');
+      },
+      fetch: fetchFn,
+    });
+    await expect(failing.read('tasks.md')).rejects.toMatchObject({ name: 'OfflineError', unreachable: 'signin' });
+    const stalled = new OneDriveAdapter({ folder: FOLDER, getToken: () => new Promise<string>(() => {}), fetch: fetchFn, timeoutMs: 10 });
+    await expect(stalled.read('tasks.md')).rejects.toMatchObject({ name: 'OfflineError', unreachable: 'signin' });
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it('a read that reaches no Graph fails as the storage unreachable (#157)', async () => {
+    const { graph, adapter } = setup();
+    graph.offline = true;
+    await expect(adapter.read('tasks.md')).rejects.toMatchObject({ name: 'OfflineError', unreachable: 'storage' });
+  });
+
   it('a token acquisition that never settles times out as OfflineError', async () => {
     const fetchFn = vi.fn() as unknown as typeof fetch;
     const adapter = new OneDriveAdapter({

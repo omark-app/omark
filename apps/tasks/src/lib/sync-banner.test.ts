@@ -40,6 +40,27 @@ describe('sync banner', () => {
     );
   });
 
+  it("names Omark's sign-in server when that is what can't be reached (#157)", () => {
+    const at = new Date(2026, 9, 18, 11, 2);
+    expect(bannerText('offline', false, at, now, 'OneDrive', 'signin', false, true)).toBe(
+      "Can't reach Omark's sign-in server since 11:02 — showing your last saved copy",
+    );
+    expect(bannerText('offline', false, null, now, 'Google Drive', 'signin', false, true)).toBe(
+      "Can't reach Omark's sign-in server — showing your last saved copy",
+    );
+    expect(bannerText('syncing', true, at, now, 'OneDrive', 'signin', false, true)).toBe(
+      "Still reaching Omark's sign-in server — showing your last saved copy (synced since 11:02)",
+    );
+    expect(bannerText('syncing', false, at, now, 'OneDrive', 'signin', false, true)).toBeNull();
+    // A sign-in that is needed keeps its own text, and a folder, which has no sign-in server, its own.
+    expect(bannerText('signin', false, at, now, 'OneDrive', 'signin', false, true)).toBe(
+      'Sign in again to reach OneDrive since 11:02 — showing your last saved copy',
+    );
+    expect(bannerText('offline', false, at, now, 'the folder Tasks', 'allow', false, true)).toBe(
+      "Can't reach the folder Tasks since 11:02 — showing your last saved copy",
+    );
+  });
+
   it('says when the storage is full, for an account and for a folder (#68)', () => {
     const at = new Date(2026, 9, 18, 11, 2);
     expect(bannerText('offline', false, at, now, 'Google Drive', 'signin', true)).toBe(
