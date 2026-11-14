@@ -205,6 +205,17 @@ describe('OneDriveAdapter (Graph specifics)', () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
+  it('a fresh token after a 401 that cannot be had fails as the sign-in server unreachable (#157)', async () => {
+    const getToken = vi.fn(async (o?: { fresh?: boolean }) => {
+      if (o?.fresh) throw new OfflineError('Network unreachable');
+      return 'tok';
+    });
+    const { graph, adapter } = setup(getToken);
+    graph.external('tasks.md', 'a');
+    graph.unauthorized = 1;
+    await expect(adapter.read('tasks.md')).rejects.toMatchObject({ name: 'OfflineError', unreachable: 'signin' });
+  });
+
   it('a read that reaches no Graph fails as the storage unreachable (#157)', async () => {
     const { graph, adapter } = setup();
     graph.offline = true;

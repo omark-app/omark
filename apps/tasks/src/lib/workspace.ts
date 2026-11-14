@@ -100,7 +100,11 @@ export function createWorkspace(adapter: StorageAdapter, cache: LocalCache): Wor
     all.reduce<SyncStatus>((w, f) => (RANK[f.status()] > RANK[w] ? f.status() : w), 'saved');
 
   const full = (): boolean => all.some((f) => f.full());
-  const signInUnreachable = (): boolean => all.some((f) => f.signInUnreachable());
+  // Only the files in the status shown count: a file still retrying keeps the old cause while another fails anew.
+  const signInUnreachable = (): boolean => {
+    const s = status();
+    return all.some((f) => f.status() === s && f.signInUnreachable());
+  };
 
   const listeners = new Set<(s: SyncStatus) => void>();
   let last = status();

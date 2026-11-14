@@ -25,7 +25,23 @@
     return () => clearTimeout(timer);
   });
 
-  const text = $derived(bannerText(store.status, slow, store.syncedAt, new Date(), storageName, reconnect, store.full, store.signInUnreachable));
+  // With no network at all every call fails and the token call is just the first: the storage is named (#157).
+  let online = $state(typeof navigator === 'undefined' || navigator.onLine);
+  $effect(() => {
+    const update = (): void => {
+      online = navigator.onLine;
+    };
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  });
+
+  const text = $derived(
+    bannerText(store.status, slow, store.syncedAt, new Date(), storageName, reconnect, store.full, store.signInUnreachable && online),
+  );
 </script>
 
 {#if text}

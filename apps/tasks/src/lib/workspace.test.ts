@@ -15,7 +15,10 @@ class PerFileAdapter implements StorageAdapter {
   /** Every call fails as the sign-in server unreachable (#157). */
   signinDown = false;
   constructor(readonly drive: FakeOneDrive) {}
+  /** A read of the file waits for its gate. */
+  gates = new Map<TaskFile, Promise<void>>();
   async read(name: TaskFile): Promise<RemoteFile | null> {
+    await this.gates.get(name);
     if (this.signinDown) throw new OfflineError('Sign-in helper unreachable', 'signin');
     if (this.down.has(name)) throw new OfflineError('Offline');
     return this.drive.read(name);
@@ -156,6 +159,26 @@ describe('createWorkspace', () => {
     await ws.refresh();
     expect([ws.status(), ws.signInUnreachable()]).toEqual(['offline', false]);
     expect(seen.at(-1)).toEqual(['offline', false]);
+  });
+
+  it('signInUnreachable() counts only the files whose status the workspace shows (#157)', async () => {
+    const drive = new FakeOneDrive();
+    const adapter = new PerFileAdapter(drive);
+    const ws = createWorkspace(adapter, new MemoryCache());
+    await ws.open();
+    adapter.signinDown = true;
+    await ws.refresh();
+    expect(ws.signInUnreachable()).toBe(true);
+    // The retry: tasks.md now fails on the storage itself while done.md's read, still under way, has the old cause.
+    adapter.signinDown = false;
+    adapter.down.add('tasks.md');
+    let open!: () => void;
+    adapter.gates.set('done.md', new Promise<void>((r) => (open = r)));
+    const refreshed = ws.refresh();
+    await expect.poll(() => ws.status()).toBe('offline');
+    await expect.poll(() => ws.signInUnreachable()).toBe(false);
+    open();
+    await refreshed;
   });
 
   it('status is the worst of the three and onStatus fires on combined changes', async () => {
