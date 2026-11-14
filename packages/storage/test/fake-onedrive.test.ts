@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { FakeOneDrive } from '../src/fake-onedrive.ts';
-import { adapterContract, binaryContract } from './adapter-contract.ts';
+import { adapterContract, binaryContract, readIfChangedContract } from './adapter-contract.ts';
 
-adapterContract(() => {
+const fakeHarness = () => {
   const fake = new FakeOneDrive();
   return {
     adapter: fake,
-    external: (n, t) => fake.externalWrite(n, t),
-    offline: (on) => fake.setOffline(on),
+    external: (n: string, t: string) => fake.externalWrite(n, t),
+    offline: (on: boolean) => fake.setOffline(on),
   };
-});
+};
+adapterContract(fakeHarness);
+readIfChangedContract(fakeHarness);
 
 binaryContract(() => {
   const fake = new FakeOneDrive();

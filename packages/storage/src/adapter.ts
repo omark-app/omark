@@ -8,9 +8,20 @@ export interface RemoteFile {
   source?: string;
 }
 
+/** What a sync already has of a file: the eTag of its base, and its source where the storage gives one. */
+export interface KnownVersion {
+  etag: string;
+  source?: string;
+}
+
 export interface StorageAdapter {
   /** null = the file does not exist. */
   read(name: string): Promise<RemoteFile | null>;
+  /**
+   * Like `read`, but `'unchanged'` when the file the name points at still has `known`'s eTag (and source, when
+   * given), without downloading it (#158). For storages where the content costs a request of its own.
+   */
+  readIfChanged?(name: string, known: KnownVersion): Promise<RemoteFile | null | 'unchanged'>;
   /** ifMatch null = create only. Throws PreconditionFailedError on mismatch. `source` as in `RemoteFile`. */
   write(name: string, text: string, ifMatch: string | null): Promise<{ etag: string; source?: string }>;
   /** Whether the file a `source` names is still there (out of the trash), for storages that give sources. */

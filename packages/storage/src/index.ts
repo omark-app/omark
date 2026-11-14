@@ -1,4 +1,4 @@
-export type { BinaryStore, RemoteFile, StorageAdapter } from './adapter.ts';
+export type { BinaryStore, KnownVersion, RemoteFile, StorageAdapter } from './adapter.ts';
 export { binaryType } from './adapter.ts';
 export { AuthRequiredError, OfflineError, PreconditionFailedError, StorageFullError } from './errors.ts';
 export { FakeOneDrive } from './fake-onedrive.ts';

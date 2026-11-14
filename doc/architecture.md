@@ -47,7 +47,7 @@ StorageAdapter  read(name) and write(name, text, ifMatch): OneDrive, Google Driv
 4. If the write is accepted, the new eTag becomes the base. The footer says `saved`.
 5. Offline, the edit stays in the cache, marked dirty, and is written when the app is back online. The app works fully offline from the cache.
 
-The app re-reads every file when it opens, when it regains focus and when it comes back online, so edits from another device, Obsidian or an AI agent show up.
+The app re-reads every file when it opens, when it regains focus and when it comes back online, so edits from another device, Obsidian or an AI agent show up. On OneDrive and Google Drive a re-read first asks for the file's eTag, and downloads the content only when that eTag differs from the base's (`readIfChanged`, #158): a refresh with nothing new is one request per file (on Google Drive, once the app has looked the file up since it opened).
 
 ## Merging: eTags and three-way merge
 
@@ -74,7 +74,7 @@ Nothing is stored on the server. A Microsoft sign-in lasts 90 days from the last
 
 ## Adding a storage adapter
 
-A storage provider is two methods:
+A storage provider is two methods, and an optional third:
 
 ```ts
 interface StorageAdapter {
@@ -82,8 +82,12 @@ interface StorageAdapter {
   read(name: string): Promise<RemoteFile | null>; // { text, etag }
   /** ifMatch null = create only. Throws PreconditionFailedError on mismatch. */
   write(name: string, text: string, ifMatch: string | null): Promise<{ etag: string }>;
+  /** Optional: 'unchanged', without downloading, while the file still has the known eTag; else as `read`. */
+  readIfChanged?(name: string, known: { etag: string; source?: string }): Promise<RemoteFile | null | 'unchanged'>;
 }
 ```
+
+Give it `readIfChanged` when the content costs a request of its own (a network storage), and run `readIfChangedContract` on it too.
 
 1. Write the adapter in `packages/storage/src/`, with a fake of the provider's HTTP API for its tests (see `fake-google-drive.ts` and `test/graph-fake.ts`).
 2. Run the shared contract test against it: `adapterContract(() => ({ adapter, external, offline }))` from `packages/storage/test/adapter-contract.ts`. It checks reads, create-only writes, conditional writes, changes made outside the app and offline errors. Every adapter passes the same contract.
