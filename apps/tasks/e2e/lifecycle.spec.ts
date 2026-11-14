@@ -156,7 +156,7 @@ test("a sign-in server that can't be reached is named in the banner, not OneDriv
   // OneDrive itself unreachable afterwards: the banner names OneDrive again.
   await page.evaluate(() => (window as unknown as Fake).__taskappFake.setOffline(true));
   await regainFocus(page);
-  await expect(page.getByTestId('sync-banner')).toHaveText(/^Can't reach OneDrive since \d\d:\d\d — showing your last saved copy$/);
+  await expect(page.getByTestId('sync-banner')).toHaveText("Can't reach OneDrive since 09:00 — showing your last saved copy");
 });
 
 test('a failed token refresh shows a sign-in banner, and its button starts sign-in', async ({ page }) => {
