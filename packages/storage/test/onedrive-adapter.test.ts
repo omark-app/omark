@@ -56,6 +56,15 @@ describe('OneDriveAdapter (Graph specifics)', () => {
     expect(graph.calls.map((c) => c.url)).toEqual(['https://graph.microsoft.com/v1.0/me/drive/special/approot:/Prod/Tasks/tasks.md']);
   });
 
+  it('read takes an item without an eTag in full, never as unchanged', async () => {
+    const fetchFn = (async (input: RequestInfo | URL) =>
+      String(input).startsWith('https://download.example.test/')
+        ? new Response('hello')
+        : Response.json({ '@microsoft.graph.downloadUrl': 'https://download.example.test/tasks.md', file: {} })) as typeof fetch;
+    const adapter = new OneDriveAdapter({ folder: FOLDER, getToken: async () => 'tok', fetch: fetchFn });
+    expect((await adapter.read('tasks.md'))?.text).toBe('hello');
+  });
+
   it('readIfChanged downloads a file whose eTag moved on, as read does', async () => {
     const { graph, adapter } = setup();
     graph.external('tasks.md', 'old');

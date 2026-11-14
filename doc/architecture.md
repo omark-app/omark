@@ -47,7 +47,7 @@ StorageAdapter  read(name) and write(name, text, ifMatch): OneDrive, Google Driv
 4. If the write is accepted, the new eTag becomes the base. The footer says `saved`.
 5. Offline, the edit stays in the cache, marked dirty, and is written when the app is back online. The app works fully offline from the cache.
 
-The app re-reads every file when it opens, when it regains focus and when it comes back online, so edits from another device, Obsidian or an AI agent show up. On OneDrive and Google Drive a re-read first asks for the file's eTag, and downloads the content only when that eTag differs from the base's (`readIfChanged`, #158): a refresh with nothing new is one request per file.
+The app re-reads every file when it opens, when it regains focus and when it comes back online, so edits from another device, Obsidian or an AI agent show up. On OneDrive and Google Drive a re-read first asks for the file's eTag, and downloads the content only when that eTag differs from the base's (`readIfChanged`, #158): a refresh with nothing new is one request per file (on Google Drive, once the app has looked the file up since it opened).
 
 ## Merging: eTags and three-way merge
 

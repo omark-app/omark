@@ -93,6 +93,7 @@ export class GoogleDriveAdapter implements StorageAdapter, BinaryStore {
         const meta = JSON.parse(res.text) as Metadata;
         if (!meta.labels.trashed) {
           this.fileIds.set(name, id);
+          // A copy cached before files had sources has none to compare; etags differ between files anyway.
           if (unless && meta.etag === unless.etag && (unless.source === undefined || unless.source === id)) return 'unchanged';
           const rev = `${API}drive/v3/files/${encodeURIComponent(id)}/revisions/${encodeURIComponent(meta.headRevisionId)}?alt=media`;
           const body = await this.api(rev, {});

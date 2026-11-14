@@ -74,7 +74,7 @@ export class OneDriveAdapter implements StorageAdapter, BinaryStore {
       if (meta.status === 404) return null;
       if (!meta.ok) throw new Error(`Graph read failed: ${meta.status}`);
       const item = JSON.parse(meta.text) as DriveItem;
-      if (item.eTag === unlessEtag) return 'unchanged';
+      if (unlessEtag !== undefined && item.eTag === unlessEtag) return 'unchanged';
       // The pre-authenticated download URL must not receive the bearer token.
       const body = await this.http.send(item['@microsoft.graph.downloadUrl'], {});
       if (!body.ok) throw new Error(`Download failed: ${body.status}`);

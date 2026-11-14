@@ -87,3 +87,15 @@ test('in the one app, projects.csv goes to the top of the Omark folder and the r
   expect(top.peek('events-2026.csv')).toBeNull();
   expect(top.peek(CONFIG)).toBeNull();
 });
+
+test('in the one app, the router passes readIfChanged on to the folder a file lives in (#158)', async () => {
+  const top = new FakeOneDrive({ [PROJECTS]: `${PROJECTS_HEADER}ACME,Acme,,,,\n` });
+  const own = new FakeOneDrive({ [CONFIG]: 'x\n' });
+  const r = routed(top, own);
+  const projects = (await top.read(PROJECTS))!;
+  expect(await r.readIfChanged?.(PROJECTS, { etag: projects.etag })).toBe('unchanged');
+  const config = (await own.read(CONFIG))!;
+  expect(await r.readIfChanged?.(CONFIG, { etag: config.etag })).toBe('unchanged');
+  own.externalWrite(CONFIG, 'y\n');
+  expect(await r.readIfChanged?.(CONFIG, { etag: config.etag })).toMatchObject({ text: 'y\n' });
+});

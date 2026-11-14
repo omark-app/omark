@@ -1044,7 +1044,7 @@ describe('FileSync reads only what changed (#158)', () => {
       write: (n, t, m) => box.drive.write(n, t, m),
       ...(withReadIfChanged && {
         readIfChanged: (n: string, known: { etag: string; source?: string }) => {
-          log.push(`readIfChanged ${known.etag}`);
+          log.push(`readIfChanged ${known.etag}${known.source === undefined ? '' : ` ${known.source}`}`);
           return box.drive.readIfChanged(n, known);
         },
       }),
@@ -1117,6 +1117,23 @@ describe('FileSync reads only what changed (#158)', () => {
     expect(log).toEqual(['read']);
     expect(box.drive.peek(NAME)).toContain('Remote task');
     expect(box.drive.peek(NAME)).toContain('Local task');
+  });
+
+  it('passes the source too, where the storage names its files (#67)', async () => {
+    const drive = new FakeOneDrive({ [NAME]: S });
+    const seen: unknown[] = [];
+    const adapter: StorageAdapter = {
+      read: async (n) => ({ ...(await drive.read(n))!, source: 'file-1' }),
+      readIfChanged: async (n, known) => {
+        seen.push(known);
+        return drive.readIfChanged(n, known);
+      },
+      write: async (n, t, m) => ({ ...(await drive.write(n, t, m)), source: 'file-1' }),
+    };
+    const sync = makeSync(adapter);
+    await sync.open();
+    await sync.pull();
+    expect(seen).toEqual([{ etag: '"v1"', source: 'file-1' }]);
   });
 
   it('a storage without readIfChanged is read in full, as before', async () => {
