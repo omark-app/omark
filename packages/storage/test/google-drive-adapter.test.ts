@@ -5,7 +5,7 @@ import { FakeGoogleDrive } from '../src/fake-google-drive.ts';
 import { GoogleDriveAdapter } from '../src/google-drive-adapter.ts';
 import { MemoryCache } from '../src/cache.ts';
 import { FileSync } from '../src/file-sync.ts';
-import { adapterContract, binaryContract } from './adapter-contract.ts';
+import { adapterContract, binaryContract, readIfChangedContract } from './adapter-contract.ts';
 
 const FOLDER = 'Omark Tasks';
 const FOLDER_MIME_Q = "mimeType='application/vnd.google-apps.folder'";
@@ -33,14 +33,16 @@ async function plainError(p: Promise<unknown>): Promise<void> {
   expect((e as Error).constructor).toBe(Error);
 }
 
-adapterContract(() => {
+const driveHarness = () => {
   const fake = new FakeGoogleDrive();
   return {
     adapter: setup(fake),
-    external: (n, t) => fake.externalWrite(n, t),
-    offline: (on) => fake.setOffline(on),
+    external: (n: string, t: string) => fake.externalWrite(n, t),
+    offline: (on: boolean) => fake.setOffline(on),
   };
-});
+};
+adapterContract(driveHarness);
+readIfChangedContract(driveHarness);
 
 describe('GoogleDriveAdapter (Drive specifics)', () => {
   it('creates the folder on the first write, once, and a second adapter reuses it', async () => {
@@ -54,6 +56,32 @@ describe('GoogleDriveAdapter (Drive specifics)', () => {
     await b.write('config.yaml', 'c', null);
     expect(fake.folders()).toEqual(['Omark Tasks']);
     expect((await b.read('tasks.md'))?.text).toBe('a');
+  });
+
+  it('readIfChanged stops after the metadata when etag and file match: no revision download (#158)', async () => {
+    const fake = new FakeGoogleDrive();
+    const a = setup(fake);
+    const w = await a.write('tasks.md', 'a', null);
+    fake.calls = [];
+    expect(await a.readIfChanged('tasks.md', { etag: w.etag, source: w.source })).toBe('unchanged');
+    expect(fake.calls.map((c) => new URL(c.url).pathname)).toEqual([`/drive/v2/files/${w.source}`]);
+  });
+
+  it('readIfChanged downloads the head revision when the etag moved on', async () => {
+    const fake = new FakeGoogleDrive();
+    const a = setup(fake);
+    const w = await a.write('tasks.md', 'a', null);
+    fake.externalWrite('tasks.md', 'b');
+    fake.calls = [];
+    expect(await a.readIfChanged('tasks.md', { etag: w.etag, source: w.source })).toMatchObject({ text: 'b', source: w.source });
+    expect(fake.calls.some((c) => c.url.includes('/revisions/'))).toBe(true);
+  });
+
+  it('readIfChanged reads in full when the name now points at another file than the known one (#67)', async () => {
+    const fake = new FakeGoogleDrive();
+    const a = setup(fake);
+    const w = await a.write('tasks.md', 'a', null);
+    expect(await a.readIfChanged('tasks.md', { etag: w.etag, source: 'another-file' })).toEqual({ text: 'a', etag: w.etag, source: w.source });
   });
 
   it('concurrent first writes on one adapter create one folder', async () => {

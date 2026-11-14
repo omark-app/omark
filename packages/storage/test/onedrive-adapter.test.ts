@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AuthRequiredError, OfflineError, StorageFullError } from '../src/errors.ts';
 import { OneDriveAdapter } from '../src/onedrive-adapter.ts';
-import { adapterContract, binaryContract } from './adapter-contract.ts';
+import { adapterContract, binaryContract, readIfChangedContract } from './adapter-contract.ts';
 import { GraphFake } from './graph-fake.ts';
 
 const FOLDER = 'Prod/Tasks';
@@ -11,16 +11,18 @@ function setup(getToken: (opts?: { fresh?: boolean }) => Promise<string> = async
   return { graph, adapter };
 }
 
-adapterContract(() => {
+const graphHarness = () => {
   const { graph, adapter } = setup();
   return {
     adapter,
-    external: (n, t) => graph.external(n, t),
-    offline: (on) => {
+    external: (n: string, t: string) => graph.external(n, t),
+    offline: (on: boolean) => {
       graph.offline = on;
     },
   };
-});
+};
+adapterContract(graphHarness);
+readIfChangedContract(graphHarness);
 
 binaryContract(() => {
   const { graph, adapter } = setup();
@@ -43,6 +45,37 @@ describe('OneDriveAdapter (Graph specifics)', () => {
     expect(graph.calls[0]!.headers['authorization']).toBe('Bearer tok');
     expect(graph.calls[1]!.url).toContain('https://download.example.test/');
     expect(graph.calls[1]!.headers['authorization']).toBeUndefined();
+  });
+
+  it('readIfChanged stops after the metadata when the eTag matches: no download (#158)', async () => {
+    const { graph, adapter } = setup();
+    graph.external('tasks.md', 'hello');
+    const { etag } = (await adapter.read('tasks.md'))!;
+    graph.calls = [];
+    expect(await adapter.readIfChanged('tasks.md', { etag })).toBe('unchanged');
+    expect(graph.calls.map((c) => c.url)).toEqual(['https://graph.microsoft.com/v1.0/me/drive/special/approot:/Prod/Tasks/tasks.md']);
+  });
+
+  it('readIfChanged downloads a file whose eTag moved on, as read does', async () => {
+    const { graph, adapter } = setup();
+    graph.external('tasks.md', 'old');
+    const { etag } = (await adapter.read('tasks.md'))!;
+    graph.external('tasks.md', 'new');
+    graph.calls = [];
+    expect(await adapter.readIfChanged('tasks.md', { etag })).toEqual({ text: 'new', etag: '"{guid-tasks.md},2"' });
+    expect(graph.calls).toHaveLength(2);
+    expect(graph.calls[1]!.url).toContain('https://download.example.test/');
+  });
+
+  it('readIfChanged still reads again when the download is older than its eTag', async () => {
+    const { graph, adapter } = setup();
+    graph.external('tasks.md', 'old');
+    const { etag } = (await adapter.read('tasks.md'))!;
+    graph.external('tasks.md', 'new');
+    graph.staleDownloads = 1;
+    graph.calls = [];
+    expect(await adapter.readIfChanged('tasks.md', { etag })).toEqual({ text: 'new', etag: '"{guid-tasks.md},2"' });
+    expect(graph.calls).toHaveLength(4);
   });
 
   it('reads from the app folder by default', async () => {

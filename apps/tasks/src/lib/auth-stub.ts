@@ -1,5 +1,5 @@
 import { AuthRequiredError } from '@omark/storage';
-import type { Auth, StorageAdapter } from '@omark/storage';
+import type { Auth, KnownVersion, StorageAdapter } from '@omark/storage';
 import type { TaskFile } from './workspace.ts';
 
 /**
@@ -57,11 +57,18 @@ export function createAuthStub(state: AuthStubState, providers: string[] = ['mic
 
 /** The drive behind a token, like the Graph adapter: every call gets a token first. */
 export function tokenGated(drive: StorageAdapter, getToken: () => Promise<string>): StorageAdapter {
+  const readIfChanged = drive.readIfChanged?.bind(drive);
   return {
     async read(name: TaskFile) {
       await getToken();
       return drive.read(name);
     },
+    ...(readIfChanged && {
+      async readIfChanged(name: TaskFile, known: KnownVersion) {
+        await getToken();
+        return readIfChanged(name, known);
+      },
+    }),
     async write(name: TaskFile, text: string, ifMatch: string | null) {
       await getToken();
       return drive.write(name, text, ifMatch);

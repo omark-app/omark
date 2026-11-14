@@ -1,5 +1,5 @@
 import { binaryType } from './adapter.ts';
-import type { BinaryStore, RemoteFile, StorageAdapter } from './adapter.ts';
+import type { BinaryStore, KnownVersion, RemoteFile, StorageAdapter } from './adapter.ts';
 import { PreconditionFailedError, StorageFullError } from './errors.ts';
 import { createHttp, type Http, type Reply } from './http.ts';
 import { quickXorHash } from './quick-xor-hash.ts';
@@ -51,18 +51,30 @@ export class OneDriveAdapter implements StorageAdapter, BinaryStore {
     return got && { text: got.body.text, etag: got.etag };
   }
 
+  /** `read`, stopping after the metadata when the eTag is still `known`'s: the download is a second request (#158). */
+  async readIfChanged(name: string, known: KnownVersion): Promise<RemoteFile | null | 'unchanged'> {
+    const got = await this.download(name, known.etag);
+    return got === 'unchanged' ? got : got && { text: got.body.text, etag: got.etag };
+  }
+
   async readBytes(name: string): Promise<Blob | null> {
     const got = await this.download(name);
     return got && new Blob([got.body.bytes as Uint8Array<ArrayBuffer>], { type: binaryType(name) });
   }
 
-  /** The file's content with its eTag, checked against its hash as `read` says; null when there is none. */
-  private async download(name: string): Promise<{ body: Reply; etag: string } | null> {
+  /**
+   * The file's content with its eTag, checked against its hash as `read` says; null when there is none, and
+   * `'unchanged'`, with no download, when its eTag is `unlessEtag`.
+   */
+  private async download(name: string): Promise<{ body: Reply; etag: string } | null>;
+  private async download(name: string, unlessEtag: string): Promise<{ body: Reply; etag: string } | null | 'unchanged'>;
+  private async download(name: string, unlessEtag?: string): Promise<{ body: Reply; etag: string } | null | 'unchanged'> {
     for (let attempt = 1; ; attempt++) {
       const meta = await this.http.authed(this.base + encodeURIComponent(name), {});
       if (meta.status === 404) return null;
       if (!meta.ok) throw new Error(`Graph read failed: ${meta.status}`);
       const item = JSON.parse(meta.text) as DriveItem;
+      if (item.eTag === unlessEtag) return 'unchanged';
       // The pre-authenticated download URL must not receive the bearer token.
       const body = await this.http.send(item['@microsoft.graph.downloadUrl'], {});
       if (!body.ok) throw new Error(`Download failed: ${body.status}`);

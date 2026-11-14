@@ -1,5 +1,5 @@
 import { binaryType } from './adapter.ts';
-import type { BinaryStore, RemoteFile, StorageAdapter } from './adapter.ts';
+import type { BinaryStore, KnownVersion, RemoteFile, StorageAdapter } from './adapter.ts';
 import { AuthRequiredError, PreconditionFailedError, StorageFullError } from './errors.ts';
 import { createHttp, type Http, type Reply } from './http.ts';
 
@@ -58,6 +58,15 @@ export class GoogleDriveAdapter implements StorageAdapter, BinaryStore {
     return got && { text: got.body.text, etag: got.etag, source: got.id };
   }
 
+  /**
+   * `read`, stopping after the metadata when the file in use is still `known`'s, with its etag: the head revision
+   * is a second request (#158). Another file under the name (#67) is read in full.
+   */
+  async readIfChanged(name: string, known: KnownVersion): Promise<RemoteFile | null | 'unchanged'> {
+    const got = await this.download(name, known);
+    return got === 'unchanged' ? got : got && { text: got.body.text, etag: got.etag, source: got.id };
+  }
+
   async readBytes(name: string): Promise<Blob | null> {
     const got = await this.download(name);
     return got && new Blob([got.body.bytes as Uint8Array<ArrayBuffer>], { type: binaryType(name) });
@@ -67,8 +76,13 @@ export class GoogleDriveAdapter implements StorageAdapter, BinaryStore {
     await this.create(name, data);
   }
 
-  /** The file's content with its etag, as `read` says; null when there is none. */
-  private async download(name: string): Promise<{ body: Reply; etag: string; id: string } | null> {
+  /**
+   * The file's content with its etag, as `read` says; null when there is none, and `'unchanged'`, with no
+   * download, when it is the file `unless` names (when it names one) with `unless`'s etag.
+   */
+  private async download(name: string): Promise<{ body: Reply; etag: string; id: string } | null>;
+  private async download(name: string, unless: KnownVersion): Promise<{ body: Reply; etag: string; id: string } | null | 'unchanged'>;
+  private async download(name: string, unless?: KnownVersion): Promise<{ body: Reply; etag: string; id: string } | null | 'unchanged'> {
     for (;;) {
       const cached = this.fileIds.get(name);
       const id = cached ?? (await this.findFile(name));
@@ -79,6 +93,7 @@ export class GoogleDriveAdapter implements StorageAdapter, BinaryStore {
         const meta = JSON.parse(res.text) as Metadata;
         if (!meta.labels.trashed) {
           this.fileIds.set(name, id);
+          if (unless && meta.etag === unless.etag && (unless.source === undefined || unless.source === id)) return 'unchanged';
           const rev = `${API}drive/v3/files/${encodeURIComponent(id)}/revisions/${encodeURIComponent(meta.headRevisionId)}?alt=media`;
           const body = await this.api(rev, {});
           if (!body.ok) throw new Error(`Google Drive download failed: ${body.status}`);
