@@ -27,3 +27,13 @@ describe('FakeOneDrive', () => {
     expect(fake.peek('done.md')).toBeNull();
   });
 });
+
+describe('FakeOneDrive (e2e hooks)', () => {
+  it('goes offline as the sign-in server unreachable when asked (#157)', async () => {
+    const fake = new FakeOneDrive({ 'tasks.md': 'a' });
+    fake.setOffline(true, 'signin');
+    await expect(fake.read('tasks.md')).rejects.toMatchObject({ name: 'OfflineError', unreachable: 'signin' });
+    fake.setOffline(true);
+    await expect(fake.read('tasks.md')).rejects.toMatchObject({ name: 'OfflineError', unreachable: 'storage' });
+  });
+});

@@ -139,6 +139,39 @@ test('with no signed-in account the sign-in screen shows, and its button starts 
   await poll(() => signIns(page)).toBe(1);
 });
 
+test("a sign-in server that can't be reached is named in the banner, not OneDrive (#157)", async ({ page, isMobile }) => {
+  type Fake = { __taskappFake: { setOffline(o: boolean, unreachable?: 'storage' | 'signin'): void } };
+  await start(page);
+  await expect(page.getByTestId('status')).toHaveText('saved');
+  await page.evaluate(() => (window as unknown as Fake).__taskappFake.setOffline(true, 'signin'));
+  await addTask(page, 'Written while sign-in is down', isMobile);
+  await expect(page.getByTestId('sync-banner')).toHaveText("Can't reach Omark's sign-in server since 09:00 — showing your last saved copy");
+
+  await page.evaluate(() => (window as unknown as Fake).__taskappFake.setOffline(false));
+  await regainFocus(page);
+  await expect(page.getByTestId('status')).toHaveText('saved');
+  await expect(page.getByTestId('sync-banner')).toHaveCount(0);
+  await poll(() => driveFile(page, 'tasks.md')).toContain('Written while sign-in is down');
+
+  // OneDrive itself unreachable afterwards: the banner names OneDrive again.
+  await page.evaluate(() => (window as unknown as Fake).__taskappFake.setOffline(true));
+  await regainFocus(page);
+  await expect(page.getByTestId('sync-banner')).toHaveText("Can't reach OneDrive since 09:00 — showing your last saved copy");
+});
+
+test('with no network at all, the banner names OneDrive, not the sign-in server (#157)', async ({ page, context, isMobile }) => {
+  type Fake = { __taskappFake: { setOffline(o: boolean, unreachable?: 'storage' | 'signin'): void } };
+  await start(page);
+  await expect(page.getByTestId('status')).toHaveText('saved');
+  // In airplane mode the token call is only the first to fail.
+  await page.evaluate(() => (window as unknown as Fake).__taskappFake.setOffline(true, 'signin'));
+  await context.setOffline(true);
+  await addTask(page, 'Written in airplane mode', isMobile);
+  await expect(page.getByTestId('sync-banner')).toHaveText("Can't reach OneDrive since 09:00 — showing your last saved copy");
+  await context.setOffline(false);
+  await expect(page.getByTestId('sync-banner')).toHaveText("Can't reach Omark's sign-in server since 09:00 — showing your last saved copy");
+});
+
 test('a failed token refresh shows a sign-in banner, and its button starts sign-in', async ({ page }) => {
   await startWithAuth(page, 'expired');
   const dialogs: string[] = [];

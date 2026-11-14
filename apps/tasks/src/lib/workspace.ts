@@ -65,6 +65,8 @@ export interface Workspace {
   status(): SyncStatus;
   /** A file's last save failed because the storage is full (#68); `onStatus` also fires when this changes. */
   full(): boolean;
+  /** A file's last sync failed to reach the sign-in server, not the storage (#157); `onStatus` also fires when this changes. */
+  signInUnreachable(): boolean;
   onStatus(cb: (s: SyncStatus) => void): () => void;
 }
 
@@ -98,15 +100,22 @@ export function createWorkspace(adapter: StorageAdapter, cache: LocalCache): Wor
     all.reduce<SyncStatus>((w, f) => (RANK[f.status()] > RANK[w] ? f.status() : w), 'saved');
 
   const full = (): boolean => all.some((f) => f.full());
+  // Only the files in the status shown count: a file still retrying keeps the old cause while another fails anew.
+  const signInUnreachable = (): boolean => {
+    const s = status();
+    return all.some((f) => f.status() === s && f.signInUnreachable());
+  };
 
   const listeners = new Set<(s: SyncStatus) => void>();
   let last = status();
   let lastFull = full();
+  let lastSignIn = signInUnreachable();
   const onChange = (): void => {
     const s = status();
-    if (s === last && full() === lastFull) return;
+    if (s === last && full() === lastFull && signInUnreachable() === lastSignIn) return;
     last = s;
     lastFull = full();
+    lastSignIn = signInUnreachable();
     for (const cb of listeners) {
       try {
         cb(s);
@@ -155,6 +164,7 @@ export function createWorkspace(adapter: StorageAdapter, cache: LocalCache): Wor
     },
     status,
     full,
+    signInUnreachable,
     onRemoteChange(cb) {
       const offs = all.map((f) => f.onRemoteChange(cb));
       return () => {
@@ -172,6 +182,7 @@ export function createWorkspace(adapter: StorageAdapter, cache: LocalCache): Wor
         wired = true;
         last = status();
         lastFull = full();
+        lastSignIn = signInUnreachable();
         for (const f of all) f.onStatus(onChange);
       }
       listeners.add(cb);

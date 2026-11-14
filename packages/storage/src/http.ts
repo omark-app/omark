@@ -32,7 +32,10 @@ export function createHttp(opts: HttpOptions): Http {
   async function authed(url: string, init: RequestInit): Promise<Reply> {
     for (let attempt = 0; attempt < 2; attempt++) {
       // A token refresh can stall too, so the token gets the same time limit as a request.
-      const token = await withTimeout(() => getToken(attempt > 0 ? { fresh: true } : undefined));
+      const token = await withTimeout(() => getToken(attempt > 0 ? { fresh: true } : undefined)).catch((e: unknown) => {
+        // Whatever kept the token from coming, it was the sign-in server that could not be reached (#157).
+        throw e instanceof OfflineError ? new OfflineError(e.message, 'signin') : e;
+      });
       const headers = { ...(init.headers as Record<string, string> | undefined), Authorization: `Bearer ${token}` };
       const res = await send(url, { ...init, headers });
       if (res.status !== 401) return res;

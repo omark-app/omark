@@ -6,6 +6,8 @@ import { OfflineError, PreconditionFailedError } from './errors.ts';
 export class FakeOneDrive implements StorageAdapter, BinaryStore {
   private files = new Map<string, { text: string; version: number; data?: Blob }>();
   private offline = false;
+  /** What an offline call says could not be reached: `signin` stands for the sign-in server (#157). */
+  private unreachable: 'storage' | 'signin' = 'storage';
 
   constructor(files: Record<string, string> = {}) {
     for (const [name, text] of Object.entries(files)) {
@@ -18,8 +20,10 @@ export class FakeOneDrive implements StorageAdapter, BinaryStore {
     this.put(name, text);
   }
 
-  setOffline(offline: boolean): void {
+  /** `unreachable: 'signin'` fails every call as if the sign-in server, not the storage, could not be reached. */
+  setOffline(offline: boolean, unreachable: 'storage' | 'signin' = 'storage'): void {
     this.offline = offline;
+    this.unreachable = unreachable;
   }
 
   peek(name: string): string | null {
@@ -65,7 +69,7 @@ export class FakeOneDrive implements StorageAdapter, BinaryStore {
   }
 
   private assertOnline(): void {
-    if (this.offline) throw new OfflineError('Offline');
+    if (this.offline) throw new OfflineError('Offline', this.unreachable);
   }
 }
 

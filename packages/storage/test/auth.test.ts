@@ -120,7 +120,17 @@ describe('createAuth (sign-in helper)', () => {
 
   it('gives up on a token call after the time limit, as offline', async () => {
     api.hang();
-    await expect(mk(20).getToken()).rejects.toThrow(new OfflineError('Sign-in helper timed out'));
+    await expect(mk(20).getToken()).rejects.toThrow(new OfflineError('Sign-in helper timed out', 'signin'));
+  });
+
+  it.each([
+    ['a 503', () => api.status(503)],
+    ['no network', () => api.down()],
+    ['a body without a token', () => api.status(200, { nope: 1 })],
+    ['the time limit', () => api.hang()],
+  ])('says the sign-in server is what could not be reached, for %s (#157)', async (_, reply) => {
+    reply();
+    await expect(mk(20).getToken()).rejects.toMatchObject({ name: 'OfflineError', unreachable: 'signin' });
   });
 
   it('signIn navigates the whole page to /api/auth/login', async () => {

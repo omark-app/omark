@@ -1,6 +1,6 @@
 import type { RemoteFile, StorageAdapter } from './adapter.ts';
 import type { CachedFile, LocalCache } from './cache.ts';
-import { AuthRequiredError, PreconditionFailedError, StorageFullError } from './errors.ts';
+import { AuthRequiredError, OfflineError, PreconditionFailedError, StorageFullError } from './errors.ts';
 
 export type SyncStatus = 'saved' | 'syncing' | 'offline' | 'signin';
 
@@ -50,8 +50,11 @@ export class FileSync {
   private absorbed = false;
   private readonly remoteListeners = new Set<() => void>();
   private current: SyncStatus = 'syncing';
-  /** The last operation failed because the storage is full (#68); cleared by the next success or other failure. */
-  private isFull = false;
+  /**
+   * Why the last operation failed, when the app says so: a full storage (#68), or a sign-in server that could not
+   * be reached (#157). Cleared by the next success or a failure for another reason.
+   */
+  private cause: FailureCause = null;
   private readonly listeners = new Set<(s: SyncStatus) => void>();
   private chain: Promise<unknown> = Promise.resolve();
   private persisting: Promise<unknown> = Promise.resolve();
@@ -80,7 +83,15 @@ export class FileSync {
    * it does for any failure; `onStatus` listeners are also called when this changes.
    */
   full(): boolean {
-    return this.isFull;
+    return this.cause === 'full';
+  }
+
+  /**
+   * True while the last failure was the sign-in server that could not be reached, not the storage (#157). The
+   * status is `offline` then (`syncing` during a retry); `onStatus` listeners are also called when this changes.
+   */
+  signInUnreachable(): boolean {
+    return this.cause === 'signin';
   }
 
   onStatus(cb: (s: SyncStatus) => void): () => void {
@@ -207,7 +218,7 @@ export class FileSync {
   private enqueue(op: () => Promise<void>, onlyIfDirty = false): Promise<boolean> {
     const run = this.chain.then(async () => {
       if (onlyIfDirty && !this.file.dirty) return true;
-      this.setStatus('syncing', this.isFull); // a retry under way still has the last failure's cause
+      this.setStatus('syncing', this.cause); // a retry under way still has the last failure's cause
       // Every step has its own time limit, but an operation can take several (up to three writes and
       // reads): past `stallMs` the status stops claiming progress. The chain still waits for the
       // operation, so writes never overlap.
@@ -221,13 +232,13 @@ export class FileSync {
       } catch (e) {
         // OfflineError, exhausted 412 retries, transient Graph errors and cache failures all leave the
         // edit in memory (and in the cache when it works); the next pull or save retries.
-        this.setStatus(e instanceof AuthRequiredError ? 'signin' : 'offline', e instanceof StorageFullError);
+        this.setStatus(e instanceof AuthRequiredError ? 'signin' : 'offline', causeOf(e));
         return false;
       } finally {
         clearTimeout(stall);
       }
       // Still dirty only if a save arrived meanwhile; its own queued operation will write it.
-      this.setStatus(this.file.dirty ? this.current : 'saved', false);
+      this.setStatus(this.file.dirty ? this.current : 'saved', null);
       return true;
     }).finally(() => this.reportAbsorbed());
     this.chain = run.catch(() => {});
@@ -367,11 +378,11 @@ export class FileSync {
     }
   }
 
-  /** Sets the status and `full()` (true only for a full-storage failure); listeners hear of a change to either. */
-  private setStatus(s: SyncStatus, full = false): void {
-    if (s === this.current && full === this.isFull) return;
+  /** Sets the status and the failure's cause (`full()`, `signInUnreachable()`); listeners hear of a change to either. */
+  private setStatus(s: SyncStatus, cause: FailureCause = null): void {
+    if (s === this.current && cause === this.cause) return;
     this.current = s;
-    this.isFull = full;
+    this.cause = cause;
     for (const cb of this.listeners) {
       try {
         cb(s);
@@ -380,6 +391,14 @@ export class FileSync {
       }
     }
   }
+}
+
+/** Why an operation failed, when the app tells the user: a full storage, or the sign-in server (see `cause`). */
+type FailureCause = 'full' | 'signin' | null;
+
+function causeOf(e: unknown): FailureCause {
+  if (e instanceof StorageFullError) return 'full';
+  return e instanceof OfflineError && e.unreachable === 'signin' ? 'signin' : null;
 }
 
 /** `f` with `source` as its base's source, or with none when the storage gave none. */
