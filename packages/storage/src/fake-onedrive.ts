@@ -1,5 +1,5 @@
 import { binaryType } from './adapter.ts';
-import type { BinaryStore, RemoteFile, StorageAdapter } from './adapter.ts';
+import type { BinaryStore, KnownVersion, RemoteFile, StorageAdapter } from './adapter.ts';
 import { OfflineError, PreconditionFailedError } from './errors.ts';
 
 /** In-memory StorageAdapter with per-file eTags "v1", "v2", ..., and binary files (`data`) beside the texts. */
@@ -35,6 +35,12 @@ export class FakeOneDrive implements StorageAdapter, BinaryStore {
     this.assertOnline();
     const f = this.files.get(name);
     return f ? { text: f.text, etag: etagOf(f.version) } : null;
+  }
+
+  /** As OneDrive's: `'unchanged'` while the file still has `known`'s eTag. */
+  async readIfChanged(name: string, known: KnownVersion): Promise<RemoteFile | null | 'unchanged'> {
+    const f = await this.read(name);
+    return f !== null && f.etag === known.etag ? 'unchanged' : f;
   }
 
   async write(name: string, text: string, ifMatch: string | null): Promise<{ etag: string }> {

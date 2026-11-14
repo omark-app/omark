@@ -92,6 +92,11 @@ export function routed(top: StorageAdapter, own: StorageAdapter): StorageAdapter
     : undefined;
   return {
     read: (name) => of(name).read(name),
+    // A folder without `readIfChanged` (#158) is read in full, as `FileSync` would read it.
+    readIfChanged: (name, known) => {
+      const folder = of(name);
+      return folder.readIfChanged ? folder.readIfChanged(name, known) : folder.read(name);
+    },
     write: (name, text, ifMatch) => of(name).write(name, text, ifMatch),
     ...(exists && { exists }),
   };

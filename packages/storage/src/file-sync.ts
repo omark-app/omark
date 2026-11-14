@@ -236,8 +236,21 @@ export class FileSync {
 
   /** Reads the remote, absorbs it, and writes if dirty. */
   private async pullOnce(): Promise<void> {
-    await this.absorb(await this.opts.adapter.read(this.opts.name));
+    const remote = await this.readRemote();
+    // Unchanged is what `absorb` does nothing with: a remote with the base's eTag.
+    if (remote !== 'unchanged') await this.absorb(remote);
     if (this.file.dirty) await this.writeLocal();
+  }
+
+  /**
+   * The remote file, or `'unchanged'` when the storage can tell, without downloading it, that it still has the
+   * base's eTag (#158). A file never synced here has no eTag to compare, so it is read in full.
+   */
+  private readRemote(): Promise<RemoteFile | null | 'unchanged'> {
+    const { adapter, name } = this.opts;
+    const { baseEtag, baseSource } = this.file;
+    if (baseEtag === null || !adapter.readIfChanged) return adapter.read(name);
+    return adapter.readIfChanged(name, baseSource == null ? { etag: baseEtag } : { etag: baseEtag, source: baseSource });
   }
 
   /**

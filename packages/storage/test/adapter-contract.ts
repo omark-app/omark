@@ -59,6 +59,53 @@ export function adapterContract(make: () => ContractHarness): void {
   });
 }
 
+/** The `readIfChanged` contract, for the adapters that have the method (#158). */
+export function readIfChangedContract(make: () => ContractHarness): void {
+  describe('StorageAdapter readIfChanged contract', () => {
+    /** The adapter's `readIfChanged`, which the adapters under this contract must have. */
+    const ric = (adapter: StorageAdapter) => {
+      expect(adapter.readIfChanged).toBeTypeOf('function');
+      return adapter.readIfChanged!.bind(adapter);
+    };
+    /** What a sync knows after a write: its eTag, and the source where the storage gives one. */
+    const known = (w: { etag: string; source?: string }) => (w.source === undefined ? { etag: w.etag } : { etag: w.etag, source: w.source });
+
+    it('answers unchanged for the eTag the file has', async () => {
+      const { adapter } = make();
+      const w = await adapter.write('tasks.md', 'a', null);
+      expect(await ric(adapter)('tasks.md', known(w))).toBe('unchanged');
+    });
+
+    it('answers the file, as read does, after another device changed it', async () => {
+      const { adapter, external } = make();
+      const w = await adapter.write('tasks.md', 'a', null);
+      await external('tasks.md', 'other device');
+      const got = await ric(adapter)('tasks.md', known(w));
+      expect(got).toEqual(await adapter.read('tasks.md'));
+      expect(got).toMatchObject({ text: 'other device' });
+    });
+
+    it('answers the file for an eTag it had before this device wrote it again', async () => {
+      const { adapter } = make();
+      const first = await adapter.write('done.md', 'a', null);
+      const second = await adapter.write('done.md', 'b', first.etag);
+      expect(await ric(adapter)('done.md', known(first))).toEqual({ text: 'b', ...known(second) });
+    });
+
+    it('answers null for a missing file', async () => {
+      const { adapter } = make();
+      expect(await ric(adapter)('tasks.md', { etag: '"gone"' })).toBeNull();
+    });
+
+    it('throws OfflineError while offline', async () => {
+      const { adapter, offline } = make();
+      const w = await adapter.write('tasks.md', 'a', null);
+      offline(true);
+      await expect(ric(adapter)('tasks.md', known(w))).rejects.toBeInstanceOf(OfflineError);
+    });
+  });
+}
+
 export interface BinaryHarness {
   store: BinaryStore;
   offline(on: boolean): void;

@@ -1027,3 +1027,120 @@ class FailingCache extends MemoryCache {
     return super.put(name, f);
   }
 }
+
+describe('FileSync reads only what changed (#158)', () => {
+  /**
+   * A storage that records which read each pull used. `drive` is the storage behind it; swapping it for an
+   * empty one stands for the file being deleted elsewhere.
+   */
+  function recording(files: Record<string, string> = { [NAME]: S }, withReadIfChanged = true) {
+    const box = { drive: new FakeOneDrive(files) };
+    const log: string[] = [];
+    const adapter: StorageAdapter = {
+      read: (n) => {
+        log.push('read');
+        return box.drive.read(n);
+      },
+      write: (n, t, m) => box.drive.write(n, t, m),
+      ...(withReadIfChanged && {
+        readIfChanged: (n: string, known: { etag: string; source?: string }) => {
+          log.push(`readIfChanged ${known.etag}${known.source === undefined ? '' : ` ${known.source}`}`);
+          return box.drive.readIfChanged(n, known);
+        },
+      }),
+    };
+    return { box, log, adapter };
+  }
+
+  it('reads in full while there is no eTag yet, then asks readIfChanged with the base eTag', async () => {
+    const { log, adapter } = recording();
+    const sync = makeSync(adapter);
+    expect(await sync.open()).toBe(S);
+    expect(log).toEqual(['read']);
+    log.length = 0;
+    expect(await sync.pull()).toEqual({ text: S, changed: false });
+    expect(log).toEqual(['readIfChanged "v1"']);
+    expect(sync.status()).toBe('saved');
+  });
+
+  it('an app opened again from its cached copy asks readIfChanged', async () => {
+    const { log, adapter } = recording();
+    const cache = new MemoryCache();
+    await makeSync(adapter, cache).open();
+    log.length = 0;
+    const again = makeSync(adapter, cache);
+    expect(await again.open()).toBe(S);
+    expect(log).toEqual(['readIfChanged "v1"']);
+    expect(again.status()).toBe('saved');
+  });
+
+  it('an unchanged file with edits made since still gets them written', async () => {
+    const { box, log, adapter } = recording();
+    const sync = makeSync(adapter);
+    await sync.open();
+    box.drive.setOffline(true);
+    await sync.save(withLocal, S);
+    expect(sync.status()).toBe('offline');
+    box.drive.setOffline(false);
+    log.length = 0;
+    expect(await sync.pull()).toEqual({ text: withLocal, changed: false });
+    expect(log).toEqual(['readIfChanged "v1"']);
+    expect(box.drive.peek(NAME)).toBe(withLocal);
+    expect(sync.status()).toBe('saved');
+  });
+
+  it('a file changed elsewhere comes in through readIfChanged and is merged', async () => {
+    const { box, adapter } = recording();
+    const sync = makeSync(adapter);
+    await sync.open();
+    box.drive.externalWrite(NAME, withRemote);
+    expect(await sync.pull()).toEqual({ text: withRemote, changed: true });
+  });
+
+  it('a file deleted elsewhere is created again', async () => {
+    const { box, adapter } = recording();
+    const sync = makeSync(adapter);
+    await sync.open();
+    box.drive = new FakeOneDrive();
+    await sync.pull();
+    expect(box.drive.peek(NAME)).toBe(S);
+    expect(sync.status()).toBe('saved');
+  });
+
+  it('the re-read after a write met a newer file (412) is a full read', async () => {
+    const { box, log, adapter } = recording();
+    const sync = makeSync(adapter);
+    await sync.open();
+    box.drive.externalWrite(NAME, withRemote);
+    log.length = 0;
+    await sync.save(withLocal, S);
+    expect(log).toEqual(['read']);
+    expect(box.drive.peek(NAME)).toContain('Remote task');
+    expect(box.drive.peek(NAME)).toContain('Local task');
+  });
+
+  it('passes the source too, where the storage names its files (#67)', async () => {
+    const drive = new FakeOneDrive({ [NAME]: S });
+    const seen: unknown[] = [];
+    const adapter: StorageAdapter = {
+      read: async (n) => ({ ...(await drive.read(n))!, source: 'file-1' }),
+      readIfChanged: async (n, known) => {
+        seen.push(known);
+        return drive.readIfChanged(n, known);
+      },
+      write: async (n, t, m) => ({ ...(await drive.write(n, t, m)), source: 'file-1' }),
+    };
+    const sync = makeSync(adapter);
+    await sync.open();
+    await sync.pull();
+    expect(seen).toEqual([{ etag: '"v1"', source: 'file-1' }]);
+  });
+
+  it('a storage without readIfChanged is read in full, as before', async () => {
+    const { log, adapter } = recording({ [NAME]: S }, false);
+    const sync = makeSync(adapter);
+    await sync.open();
+    await sync.pull();
+    expect(log).toEqual(['read', 'read']);
+  });
+});
