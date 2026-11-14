@@ -107,17 +107,17 @@ export function createAuth(opts: AuthOptions): Auth {
         cached = null;
         throw new AuthRequiredError('Sign in needed');
       }
-      if (!res.ok) throw new OfflineError(`Sign-in helper answered ${res.status}`);
+      if (!res.ok) throw new OfflineError(`Sign-in helper answered ${res.status}`, 'signin');
       const body = (await res.json()) as { accessToken?: unknown; expiresAt?: unknown };
       if (typeof body.accessToken !== 'string' || typeof body.expiresAt !== 'number') {
-        throw new OfflineError('Sign-in helper sent no token');
+        throw new OfflineError('Sign-in helper sent no token', 'signin');
       }
       cached = { accessToken: body.accessToken, expiresAt: body.expiresAt };
       return body.accessToken;
     } catch (e) {
       if (e instanceof AuthRequiredError || e instanceof OfflineError) throw e;
       // A fetch TypeError (no network), the abort on timeout, or a body that is not JSON.
-      throw new OfflineError(controller.signal.aborted ? 'Sign-in helper timed out' : 'Sign-in helper unreachable');
+      throw new OfflineError(controller.signal.aborted ? 'Sign-in helper timed out' : 'Sign-in helper unreachable', 'signin');
     } finally {
       clearTimeout(timer);
     }

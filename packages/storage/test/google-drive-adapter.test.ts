@@ -58,6 +58,16 @@ describe('GoogleDriveAdapter (Drive specifics)', () => {
     expect((await b.read('tasks.md'))?.text).toBe('a');
   });
 
+  it('a read whose token could not be had fails as the sign-in server unreachable; no Drive, as the storage (#157)', async () => {
+    const fake = new FakeGoogleDrive();
+    const noToken = setup(fake, fake.fetch, async () => {
+      throw new OfflineError('Network unreachable');
+    });
+    await expect(noToken.read('tasks.md')).rejects.toMatchObject({ name: 'OfflineError', unreachable: 'signin' });
+    fake.setOffline(true);
+    await expect(setup(fake).read('tasks.md')).rejects.toMatchObject({ name: 'OfflineError', unreachable: 'storage' });
+  });
+
   it('readIfChanged stops after the metadata when etag and file match: no revision download (#158)', async () => {
     const fake = new FakeGoogleDrive();
     const a = setup(fake);

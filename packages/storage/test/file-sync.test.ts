@@ -896,6 +896,69 @@ describe('FileSync full storage (#68)', () => {
   });
 });
 
+describe('FileSync names an unreachable sign-in server (#157)', () => {
+  const signinDown = () => new OfflineError('Sign-in helper unreachable', 'signin');
+
+  it('signInUnreachable() is true after a sign-in server failure, with status offline, until the next success', async () => {
+    const adapter = new TrackingAdapter(new FakeOneDrive({ [NAME]: S }));
+    const sync = makeSync(adapter);
+    await sync.open();
+    const seen: [SyncStatus, boolean][] = [];
+    sync.onStatus((s) => seen.push([s, sync.signInUnreachable()]));
+    adapter.failAll = signinDown();
+    await sync.pull();
+    expect([sync.status(), sync.signInUnreachable()]).toEqual(['offline', true]);
+    expect(seen.at(-1)).toEqual(['offline', true]);
+    adapter.failAll = null;
+    await sync.pull();
+    expect([sync.status(), sync.signInUnreachable()]).toEqual(['saved', false]);
+  });
+
+  it('a retry under way keeps it while syncing', async () => {
+    const adapter = new TrackingAdapter(new FakeOneDrive({ [NAME]: S }));
+    const sync = makeSync(adapter);
+    await sync.open();
+    adapter.failAll = signinDown();
+    await sync.pull();
+    adapter.failAll = null;
+    const g = gate();
+    adapter.readGate = g.promise;
+    const pulled = sync.pull();
+    await until(() => sync.status() === 'syncing');
+    expect(sync.signInUnreachable()).toBe(true);
+    g.open();
+    await pulled;
+    expect([sync.status(), sync.signInUnreachable()]).toEqual(['saved', false]);
+  });
+
+  it('a storage failure after it names the storage again, and tells the listeners', async () => {
+    const adapter = new TrackingAdapter(new FakeOneDrive({ [NAME]: S }));
+    const sync = makeSync(adapter);
+    await sync.open();
+    adapter.failAll = signinDown();
+    await sync.pull();
+    const seen: [SyncStatus, boolean][] = [];
+    sync.onStatus((s) => seen.push([s, sync.signInUnreachable()]));
+    adapter.failAll = new OfflineError('down');
+    await sync.pull();
+    expect([sync.status(), sync.signInUnreachable()]).toEqual(['offline', false]);
+    expect(seen).toContainEqual(['offline', false]);
+  });
+
+  it('a plain OfflineError is the storage, and a full storage is not the sign-in server', async () => {
+    const adapter = new TrackingAdapter(new FakeOneDrive({ [NAME]: S }));
+    const sync = makeSync(adapter);
+    await sync.open();
+    adapter.failAll = new OfflineError('down');
+    await sync.pull();
+    expect([sync.status(), sync.signInUnreachable()]).toEqual(['offline', false]);
+    adapter.failAll = null;
+    adapter.failWrites = new StorageFullError('full');
+    await sync.save(withLocal, S);
+    expect([sync.full(), sync.signInUnreachable()]).toEqual([true, false]);
+  });
+});
+
 /**
  * Files by id, one of which answers to the name (`use`), as Google Drive's oldest file of a name does.
  * Reads and writes carry the id as `source` unless `sources` is false.
