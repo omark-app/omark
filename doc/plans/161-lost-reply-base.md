@@ -25,7 +25,7 @@ The fallback today keeps both versions, so nothing is ever lost. The fix must ke
    landed?(name: string, texts: string[]): Promise<string | null>;
    ```
    - OneDrive: `GET …/approot:/<name>:/versions` (newest first), compare each version's `size` with the byte length of each text, download only the ones whose size matches (`…/versions/<id>/content`), compare bytes.
-   - Google Drive: `GET files/<id>/revisions?fields=revisions(id,md5Checksum,size)`, compare MD5 of each text, no download needed.
+   - Google Drive: `GET files/<id>/revisions?fields=revisions(id,size)`, then the same size check and download as OneDrive (see Changes while building).
    - Local folder, IndexedDB drive: no history, no method.
    - Looks back at most 25 versions.
 3. **Use it in `absorb`.** When the file is dirty and `unconfirmed` isn't empty:
@@ -60,6 +60,11 @@ The fallback today keeps both versions, so nothing is ever lost. The fix must ke
 - **One more cache write per network write**, to persist `unconfirmed` before sending. The tasks file is about 20 KB, so it is small; a failed cache write doesn't block the upload, as today.
 - **Extra requests** only in the rare case (dirty, unanswered writes, remote moved): one list request and at most a few small downloads.
 - **Google `drive.file` scope:** revisions of files the app made should be readable with it (writer role). To confirm in `pnpm e2e:real`.
+
+## Changes while building
+
+- Google Drive matches revisions by size and then bytes, like OneDrive, instead of by MD5: the browser's WebCrypto has no MD5, and a hand-written one or a library is more code than one small download in a rare case. Both adapters share `newestLanded` (`packages/storage/src/landed.ts`).
+- The existing test "a failed cache write after a successful write is repaired by the next pull" counts cache puts; it now allows for the one that notes the write as unconfirmed.
 
 ## Out of scope
 
