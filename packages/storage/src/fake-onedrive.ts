@@ -59,11 +59,14 @@ export class FakeOneDrive implements StorageAdapter, BinaryStore {
     return { etag: this.put(name, text) };
   }
 
-  /** As OneDrive's: the newest of `texts` among the file's last `LANDED_LOOKBACK` versions. */
-  async landed(name: string, texts: string[]): Promise<string | null> {
+  /** As OneDrive's: the newest of `texts` among the file's last `LANDED_LOOKBACK` versions, back to `base`. */
+  async landed(name: string, texts: string[], base: string): Promise<string | null> {
     this.assertOnline();
-    const kept = (this.history.get(name) ?? []).slice(-LANDED_LOOKBACK);
-    return kept.findLast((t) => texts.includes(t)) ?? null;
+    for (const t of (this.history.get(name) ?? []).slice(-LANDED_LOOKBACK).reverse()) {
+      if (texts.includes(t)) return t;
+      if (t === base) return null;
+    }
+    return null;
   }
 
   async readBytes(name: string): Promise<Blob | null> {

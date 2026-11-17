@@ -3,6 +3,7 @@ import { quickXorHash } from '../src/quick-xor-hash.ts';
 /** In-test emulation of the Graph endpoints the OneDriveAdapter calls. */
 const BASE = 'https://graph.microsoft.com/v1.0/me/drive/special/approot:/';
 const DL = 'https://download.example.test/';
+const VERSION_DL = 'https://download.example.test/versions/';
 
 export interface Call {
   url: string;
@@ -23,6 +24,8 @@ export class GraphFake {
   hashes = true;
   /** Each file's versions, oldest first, the current one last. */
   versions = new Map<string, Uint8Array[]>();
+  /** False to list versions without their pre-authenticated download URLs, so they are read through `/content`. */
+  versionUrls = true;
 
   constructor(private folder: string) {}
 
@@ -45,6 +48,11 @@ export class GraphFake {
     this.calls.push({ url, method, headers });
     if (this.offline) throw new TypeError('Failed to fetch');
 
+    if (url.startsWith(VERSION_DL)) {
+      const [name, n] = url.slice(VERSION_DL.length).split('/').map(decodeURIComponent);
+      const bytes = this.versions.get(name!)?.[Number(n) - 1];
+      return bytes ? new Response(bytes as Uint8Array<ArrayBuffer>, { status: 200 }) : new Response('', { status: 404 });
+    }
     if (url.startsWith(DL)) {
       const f = this.files.get(decodeURIComponent(url.slice(DL.length)));
       if (!f) return new Response('', { status: 404 });
@@ -67,7 +75,14 @@ export class GraphFake {
       const kept = this.versions.get(ver[1]!.slice(prefix.length));
       if (!ver[1]!.startsWith(prefix) || !kept) return new Response('{}', { status: 404 });
       if (ver[2] === undefined) {
-        return Response.json({ value: kept.map((b, i) => ({ id: `${i + 1}.0`, size: b.length })).reverse() });
+        const name = ver[1]!.slice(prefix.length);
+        const value = kept.map((b, i) => ({
+          id: `${i + 1}.0`,
+          size: b.length,
+          lastModifiedDateTime: new Date(Date.UTC(2026, 10, 17, 0, 0, i)).toISOString(),
+          ...(this.versionUrls && { '@microsoft.graph.downloadUrl': `${VERSION_DL}${encodeURIComponent(name)}/${i + 1}` }),
+        }));
+        return Response.json({ value: value.reverse() });
       }
       const bytes = kept[Number.parseInt(ver[2], 10) - 1];
       return bytes ? new Response(bytes as Uint8Array<ArrayBuffer>, { status: 200 }) : new Response('{}', { status: 404 });

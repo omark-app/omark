@@ -1235,7 +1235,7 @@ describe('FileSync after a write whose reply was lost (#161)', () => {
         return r;
       },
     };
-    if (history === true) adapter.landed = (n, texts) => drive.landed(n, texts);
+    if (history === true) adapter.landed = (n, texts, base) => drive.landed(n, texts, base);
     if (history === 'throws') adapter.landed = () => Promise.reject(new OfflineError('Failed to fetch'));
     return { adapter, ctl };
   }
@@ -1309,6 +1309,54 @@ describe('FileSync after a write whose reply was lost (#161)', () => {
       expect(sync.status()).toBe('saved');
     });
   }
+
+  it('an undo that never landed is kept, though the file held that text before the base (review of #161)', async () => {
+    const v0 = '# Tasks\n- [ ] Buy milk\n';
+    const v1 = '# Tasks\n- [ ] Buy oat milk\n';
+    const drive = new FakeOneDrive({ [NAME]: v0 });
+    const sync = makeSync(phone(drive).adapter);
+    await sync.open();
+    await sync.save(v1, v0); // landed: the base is v1
+    drive.setOffline(true);
+    await sync.save(v0, v1); // Undo, never sent
+    drive.setOffline(false);
+    drive.externalWrite(NAME, `${v1}- [ ] Call mom\n`);
+    await sync.pull();
+    expect(drive.peek(NAME)).toBe('# Tasks\n- [ ] Buy milk\n- [ ] Call mom\n');
+  });
+
+  it('an edit that never landed is kept when only the eTag changed', async () => {
+    const drive = new FakeOneDrive({ [NAME]: S });
+    const sync = makeSync(phone(drive).adapter);
+    await sync.open();
+    await sync.save(withLocal, S);
+    drive.setOffline(true);
+    await sync.save(S, withLocal); // never sent
+    drive.setOffline(false);
+    drive.externalWrite(NAME, withLocal); // same text, new eTag
+    await sync.pull();
+    expect(drive.peek(NAME)).toBe(S);
+  });
+
+  it('still finds the landed write after five more edits failed offline', async () => {
+    const drive = new FakeOneDrive({ [NAME]: v15 });
+    const { adapter, ctl } = phone(drive);
+    const sync = makeSync(adapter);
+    await sync.open();
+    ctl.lose = true;
+    await sync.save(v16, v15); // landed, reply lost
+    drive.setOffline(true);
+    let text = v16;
+    for (const n of [1, 2, 3, 4, 5]) {
+      const next = `${text}- [ ] Offline ${n}\n`;
+      await sync.save(next, text);
+      text = next;
+    }
+    drive.setOffline(false);
+    drive.externalWrite(NAME, v17);
+    await sync.pull();
+    expect(drive.peek(NAME)).toBe(`${v17}- [ ] Offline 1\n- [ ] Offline 2\n- [ ] Offline 3\n- [ ] Offline 4\n- [ ] Offline 5\n`);
+  });
 
   it('does not ask the history when the remote is our landed write', async () => {
     const drive = new FakeOneDrive({ [NAME]: v15 });

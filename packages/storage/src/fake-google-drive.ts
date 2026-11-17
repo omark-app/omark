@@ -246,12 +246,16 @@ export class FakeGoogleDrive {
     return Response.json({ etag: item.etag, headRevisionId: item.headRevisionId, labels: { trashed: item.trashed } });
   }
 
-  /** v3 revision list, oldest first, with each revision's size as Drive gives it (a string). */
+  /** v3 revision list, oldest first, with each revision's size as Drive gives it (a string) and its time. */
   private revisionList(call: DriveCall, url: URL, id: string): Response {
-    expectQuery(call, url, { fields: 'revisions(id,size)', pageSize: '1000' });
+    expectQuery(call, url, { fields: 'revisions(id,size,modifiedTime)', pageSize: '1000' });
     const item = this.items.get(decodeURIComponent(id));
     if (!item) return googleError(404, 'notFound');
-    return Response.json({ revisions: [...item.revisions].map(([rev, bytes]) => ({ id: rev, size: String(bytes.length) })) });
+    // Revision ids are `rev<clock>`, so the clock gives each one a time in order.
+    const at = (rev: string): string => new Date(Date.UTC(2026, 10, 17) + Number(rev.slice(3)) * 1000).toISOString();
+    return Response.json({
+      revisions: [...item.revisions].map(([rev, bytes]) => ({ id: rev, size: String(bytes.length), modifiedTime: at(rev) })),
+    });
   }
 
   /** v3 revision content: exactly the bytes of that revision. */

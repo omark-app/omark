@@ -65,6 +65,9 @@ The fallback today keeps both versions, so nothing is ever lost. The fix must ke
 
 - Google Drive matches revisions by size and then bytes, like OneDrive, instead of by MD5: the browser's WebCrypto has no MD5, and a hand-written one or a library is more code than one small download in a rare case. Both adapters share `newestLanded` (`packages/storage/src/landed.ts`).
 - The existing test "a failed cache write after a successful write is repaired by the next pull" counts cache puts; it now allows for the one that notes the write as unconfirmed.
+- Review found that "a wrong guess never drops an edit" did not hold: an Undo that never landed equals an older version, and taking that as the base drops the Undo. `landed` now takes the base and looks only at versions newer than the latest one holding it (every unconfirmed write was sent on that base, so it can only have landed after it). Tests: the Undo case, an eTag-only change, and a contract case.
+- OneDrive downloads a version from its pre-authenticated `@microsoft.graph.downloadUrl` when the list gives one, since browsers refuse `/content`'s redirect after a CORS preflight; `/content` stays as the fallback. Both adapters sort by the version times rather than trust the list's order.
+- Past five unconfirmed writes, the oldest is kept (a later write on the same base meets a 412 if it landed).
 
 ## Out of scope
 

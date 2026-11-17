@@ -537,14 +537,14 @@ describe('GoogleDriveAdapter landed (#161)', () => {
     const adapter = setup(fake);
     for (const t of ['one', 'three', 'mine', 'theirs!']) fake.externalWrite('tasks.md', t);
     fake.calls = [];
-    expect(await adapter.landed('tasks.md', ['mine'])).toBe('mine');
+    expect(await adapter.landed('tasks.md', ['mine'], '')).toBe('mine');
     const downloads = fake.calls.filter((c) => c.url.includes('alt=media'));
     expect(downloads).toHaveLength(1); // "mine" and "one" are both 4 bytes: only the newer one is fetched
   });
 
   it('answers null when the file is not there', async () => {
     const adapter = setup(new FakeGoogleDrive());
-    expect(await adapter.landed('tasks.md', ['a'])).toBeNull();
+    expect(await adapter.landed('tasks.md', ['a'], '')).toBeNull();
   });
 
   it('throws a plain error when Drive fails, so the sync merges as before', async () => {
@@ -552,6 +552,6 @@ describe('GoogleDriveAdapter landed (#161)', () => {
     fake.externalWrite('tasks.md', 'a');
     const failing = setup(fake, (async (input: RequestInfo | URL, init?: RequestInit) =>
       /\/revisions\?/.test(String(input)) ? googleError(500, 'backendError') : fake.fetch(input, init)) as typeof fetch);
-    await plainError(failing.landed('tasks.md', ['a']));
+    await plainError(failing.landed('tasks.md', ['a'], ''));
   });
 });

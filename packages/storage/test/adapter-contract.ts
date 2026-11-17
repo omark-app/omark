@@ -113,6 +113,8 @@ export function landedContract(make: () => ContractHarness): void {
       expect(adapter.landed).toBeTypeOf('function');
       return adapter.landed!.bind(adapter);
     };
+    /** A base no version holds: the whole kept history is looked at. */
+    const NO_BASE = '';
     /** Writes `texts` one after another, as this device. */
     async function writeAll(adapter: StorageAdapter, name: string, texts: string[]): Promise<void> {
       let etag: string | null = null;
@@ -122,36 +124,45 @@ export function landedContract(make: () => ContractHarness): void {
     it('finds a text the file held before, and the current one', async () => {
       const { adapter } = make();
       await writeAll(adapter, 'tasks.md', ['a', 'b', 'c']);
-      expect(await landed(adapter)('tasks.md', ['b'])).toBe('b');
-      expect(await landed(adapter)('tasks.md', ['c'])).toBe('c');
+      expect(await landed(adapter)('tasks.md', ['b'], NO_BASE)).toBe('b');
+      expect(await landed(adapter)('tasks.md', ['c'], NO_BASE)).toBe('c');
     });
 
     it('answers the one held most recently when several were there', async () => {
       const { adapter } = make();
       await writeAll(adapter, 'tasks.md', ['a', 'b', 'c']);
-      expect(await landed(adapter)('tasks.md', ['c', 'a'])).toBe('c');
-      expect(await landed(adapter)('tasks.md', ['a', 'b'])).toBe('b');
+      expect(await landed(adapter)('tasks.md', ['c', 'a'], NO_BASE)).toBe('c');
+      expect(await landed(adapter)('tasks.md', ['a', 'b'], NO_BASE)).toBe('b');
     });
 
     it('finds a text another device then wrote over', async () => {
       const { adapter, external } = make();
       await writeAll(adapter, 'tasks.md', ['a', 'mine']);
       await external('tasks.md', 'theirs');
-      expect(await landed(adapter)('tasks.md', ['mine'])).toBe('mine');
+      expect(await landed(adapter)('tasks.md', ['mine'], NO_BASE)).toBe('mine');
     });
 
     it('answers null for texts the file never held, and for a missing file', async () => {
       const { adapter } = make();
       await writeAll(adapter, 'tasks.md', ['a', 'b']);
-      expect(await landed(adapter)('tasks.md', ['x', 'ab'])).toBeNull();
-      expect(await landed(adapter)('done.md', ['a'])).toBeNull();
+      expect(await landed(adapter)('tasks.md', ['x', 'ab'], NO_BASE)).toBeNull();
+      expect(await landed(adapter)('done.md', ['a'], NO_BASE)).toBeNull();
+    });
+
+    it('looks only at versions newer than the latest one holding the base', async () => {
+      const { adapter } = make();
+      await writeAll(adapter, 'tasks.md', ['a', 'b', 'c', 'b', 'd']);
+      expect(await landed(adapter)('tasks.md', ['a'], 'b')).toBeNull(); // older than the base
+      expect(await landed(adapter)('tasks.md', ['c'], 'b')).toBeNull(); // older than the latest "b"
+      expect(await landed(adapter)('tasks.md', ['d', 'a'], 'b')).toBe('d');
+      expect(await landed(adapter)('tasks.md', ['b'], 'b')).toBe('b');
     });
 
     it('throws OfflineError while offline', async () => {
       const { adapter, offline } = make();
       await writeAll(adapter, 'tasks.md', ['a']);
       offline(true);
-      await expect(landed(adapter)('tasks.md', ['a'])).rejects.toBeInstanceOf(OfflineError);
+      await expect(landed(adapter)('tasks.md', ['a'], NO_BASE)).rejects.toBeInstanceOf(OfflineError);
     });
   });
 }

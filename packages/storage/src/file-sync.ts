@@ -269,7 +269,7 @@ export class FileSync {
     const before = this.file.baseSource;
     const twoCopies = remote?.source !== undefined && before != null && remote.source !== before
       && (await this.opts.adapter.exists?.(before)) === true;
-    const landed = remote === null || remote.etag === this.file.baseEtag ? null : await this.landed(remote.text);
+    const landed = remote === null || remote.etag === this.file.baseEtag || twoCopies ? null : await this.landed(remote.text);
     const f = this.file;
     const unconfirmed = f.unconfirmed ?? [];
     if (remote === null) {
@@ -312,11 +312,12 @@ export class FileSync {
    * runs on the old base as before #161.
    */
   private async landed(remote: string): Promise<string | null> {
-    const { dirty, unconfirmed = [] } = this.file;
+    const { dirty, unconfirmed = [], base } = this.file;
     const ask = this.opts.adapter.landed;
     if (!dirty || unconfirmed.length === 0 || unconfirmed.includes(remote) || !ask) return null;
     try {
-      return await ask.call(this.opts.adapter, this.opts.name, unconfirmed);
+      // Each was sent on `base` (the list is cleared whenever the base moves), so only a later version can be one.
+      return await ask.call(this.opts.adapter, this.opts.name, unconfirmed, base);
     } catch {
       return null;
     }
@@ -330,7 +331,10 @@ export class FileSync {
       const before = this.file.unconfirmed ?? [];
       const sent = before.includes(text);
       if (!sent) {
-        this.set({ ...this.file, unconfirmed: [...before, text].slice(-MAX_UNCONFIRMED) });
+        // Past the limit the oldest stays: later writes on the same base meet a 412 if it landed, so it is the
+        // likeliest to have, and the ones dropped from the middle failed offline.
+        const kept = before.length < MAX_UNCONFIRMED ? before : [before[0]!, ...before.slice(-(MAX_UNCONFIRMED - 2))];
+        this.set({ ...this.file, unconfirmed: [...kept, text] });
         // A broken cache doesn't hold up the write, as in `record`; the operation's end retries the put.
         void this.persist().catch(() => {});
       }

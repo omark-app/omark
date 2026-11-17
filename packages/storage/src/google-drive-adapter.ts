@@ -69,22 +69,25 @@ export class GoogleDriveAdapter implements StorageAdapter, BinaryStore {
   }
 
   /**
-   * Looks through the file's revisions (v3 lists them oldest first, sizes included) and downloads only those with
-   * a matching size (#161). Drive keeps a revision 30 days, or fewer past 100; past them, null.
+   * Looks through the file's revisions, newest first, and downloads only those with a matching size (#161). Drive
+   * keeps a revision 30 days, or fewer past 100; past them, null.
    */
-  async landed(name: string, texts: string[]): Promise<string | null> {
+  async landed(name: string, texts: string[], base: string): Promise<string | null> {
     const id = this.fileIds.get(name) ?? (await this.findFile(name));
     if (id === null) return null;
     const file = `${API}drive/v3/files/${encodeURIComponent(id)}/revisions`;
-    const res = await this.api(`${file}?fields=revisions(id,size)&pageSize=1000`, {});
+    const res = await this.api(`${file}?fields=revisions(id,size,modifiedTime)&pageSize=1000`, {});
     if (res.status === 404) {
       this.forget(name);
       return null;
     }
     if (!res.ok) throw new Error(`Google Drive revisions failed: ${res.status}`);
-    const { revisions } = JSON.parse(res.text) as { revisions: { id: string; size: string }[] };
-    const newestFirst = revisions.map((r) => ({ id: r.id, size: Number(r.size) })).reverse();
-    return newestLanded(texts, newestFirst, async (r) => {
+    const { revisions } = JSON.parse(res.text) as { revisions: { id: string; size: string; modifiedTime: string }[] };
+    // Drive lists them oldest first, though it doesn't promise it: sorted by time, the list's order breaking ties.
+    const newestFirst = revisions
+      .map((r, i) => ({ id: r.id, size: Number(r.size), at: Date.parse(r.modifiedTime), i }))
+      .sort((a, b) => b.at - a.at || b.i - a.i);
+    return newestLanded(texts, base, newestFirst, async (r) => {
       const body = await this.api(`${file}/${encodeURIComponent(r.id)}?alt=media`, {});
       if (!body.ok) throw new Error(`Google Drive revision download failed: ${body.status}`);
       return body.bytes;

@@ -31,10 +31,11 @@ export interface StorageAdapter {
   exists?(source: string): Promise<boolean>;
   /**
    * Which of `texts` the file held most recently, looking back through the versions the storage keeps (at most
-   * `LANDED_LOOKBACK`, the current one included); null when none of them is there. For storages with a version
+   * `LANDED_LOOKBACK`, the current one included) but no further than the latest one holding `base`: a write sent
+   * on that base can only have landed after it. Null when none of them is there. For storages with a version
    * history: the sync asks it whether a write whose reply was lost landed (#161).
    */
-  landed?(name: string, texts: string[]): Promise<string | null>;
+  landed?(name: string, texts: string[], base: string): Promise<string | null>;
 }
 
 /**

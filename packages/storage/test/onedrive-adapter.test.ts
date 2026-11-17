@@ -301,16 +301,35 @@ describe('OneDriveAdapter landed (#161)', () => {
     const { graph, adapter } = setup();
     for (const t of ['one', 'three', 'mine', 'theirs!']) graph.external('tasks.md', t);
     graph.calls = [];
-    expect(await adapter.landed('tasks.md', ['mine'])).toBe('mine');
-    const downloads = graph.calls.filter((c) => c.url.includes(':/versions/')).map((c) => decodeURIComponent(c.url).replace(/^.*:\/versions\//, ''));
-    expect(downloads).toEqual(['3.0/content']); // "mine" and "one" are both 4 bytes: only the newer one is fetched
+    expect(await adapter.landed('tasks.md', ['mine'], '')).toBe('mine');
+    const downloads = graph.calls.filter((c) => c.url.startsWith('https://download.example.test/versions/'));
+    // "mine" and "one" are both 4 bytes: only the newer one is fetched, from its URL and without the token.
+    expect(downloads.map((c) => c.url)).toEqual(['https://download.example.test/versions/tasks.md/3']);
+    expect(downloads[0]!.headers['authorization']).toBeUndefined();
+  });
+
+  it('reads a version through /content when Graph gives no download URL', async () => {
+    const { graph, adapter } = setup();
+    for (const t of ['one', 'mine', 'theirs!']) graph.external('tasks.md', t);
+    graph.versionUrls = false;
+    graph.calls = [];
+    expect(await adapter.landed('tasks.md', ['mine'], '')).toBe('mine');
+    expect(graph.calls.filter((c) => c.url.endsWith('/content')).map((c) => decodeURIComponent(c.url).replace(/^.*:\/versions\//, ''))).toEqual(['2.0/content']);
+  });
+
+  it('stops at the base, downloading nothing older', async () => {
+    const { graph, adapter } = setup();
+    for (const t of ['mine', 'base', 'theirs!']) graph.external('tasks.md', t);
+    graph.calls = [];
+    expect(await adapter.landed('tasks.md', ['mine'], 'base')).toBeNull();
+    expect(graph.calls.filter((c) => c.url.startsWith('https://download.example.test/versions/'))).toHaveLength(1);
   });
 
   it('compares UTF-8 bytes, so a text with emoji is found', async () => {
     const { graph, adapter } = setup();
     graph.external('tasks.md', '- [ ] Out 🌱 🔁 every day\n');
     graph.external('tasks.md', 'other');
-    expect(await adapter.landed('tasks.md', ['- [ ] Out 🌱 🔁 every day\n'])).toBe('- [ ] Out 🌱 🔁 every day\n');
+    expect(await adapter.landed('tasks.md', ['- [ ] Out 🌱 🔁 every day\n'], '')).toBe('- [ ] Out 🌱 🔁 every day\n');
   });
 
   it('throws a plain error when Graph fails, so the sync merges as before', async () => {
@@ -322,7 +341,7 @@ describe('OneDriveAdapter landed (#161)', () => {
       fetch: (async (input: RequestInfo | URL, init?: RequestInit) =>
         String(input).includes(':/versions') ? new Response('', { status: 503 }) : graph.fetch(input, init)) as typeof fetch,
     });
-    await expect(failing.landed('tasks.md', ['a'])).rejects.toThrow('Graph versions failed: 503');
-    expect(await adapter.landed('tasks.md', ['a'])).toBe('a');
+    await expect(failing.landed('tasks.md', ['a'], '')).rejects.toThrow('Graph versions failed: 503');
+    expect(await adapter.landed('tasks.md', ['a'], '')).toBe('a');
   });
 });
