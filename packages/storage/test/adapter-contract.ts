@@ -106,6 +106,56 @@ export function readIfChangedContract(make: () => ContractHarness): void {
   });
 }
 
+/** The `landed` contract, for the adapters with a version history (#161). */
+export function landedContract(make: () => ContractHarness): void {
+  describe('StorageAdapter landed contract', () => {
+    const landed = (adapter: StorageAdapter) => {
+      expect(adapter.landed).toBeTypeOf('function');
+      return adapter.landed!.bind(adapter);
+    };
+    /** Writes `texts` one after another, as this device. */
+    async function writeAll(adapter: StorageAdapter, name: string, texts: string[]): Promise<void> {
+      let etag: string | null = null;
+      for (const t of texts) etag = (await adapter.write(name, t, etag)).etag;
+    }
+
+    it('finds a text the file held before, and the current one', async () => {
+      const { adapter } = make();
+      await writeAll(adapter, 'tasks.md', ['a', 'b', 'c']);
+      expect(await landed(adapter)('tasks.md', ['b'])).toBe('b');
+      expect(await landed(adapter)('tasks.md', ['c'])).toBe('c');
+    });
+
+    it('answers the one held most recently when several were there', async () => {
+      const { adapter } = make();
+      await writeAll(adapter, 'tasks.md', ['a', 'b', 'c']);
+      expect(await landed(adapter)('tasks.md', ['c', 'a'])).toBe('c');
+      expect(await landed(adapter)('tasks.md', ['a', 'b'])).toBe('b');
+    });
+
+    it('finds a text another device then wrote over', async () => {
+      const { adapter, external } = make();
+      await writeAll(adapter, 'tasks.md', ['a', 'mine']);
+      await external('tasks.md', 'theirs');
+      expect(await landed(adapter)('tasks.md', ['mine'])).toBe('mine');
+    });
+
+    it('answers null for texts the file never held, and for a missing file', async () => {
+      const { adapter } = make();
+      await writeAll(adapter, 'tasks.md', ['a', 'b']);
+      expect(await landed(adapter)('tasks.md', ['x', 'ab'])).toBeNull();
+      expect(await landed(adapter)('done.md', ['a'])).toBeNull();
+    });
+
+    it('throws OfflineError while offline', async () => {
+      const { adapter, offline } = make();
+      await writeAll(adapter, 'tasks.md', ['a']);
+      offline(true);
+      await expect(landed(adapter)('tasks.md', ['a'])).rejects.toBeInstanceOf(OfflineError);
+    });
+  });
+}
+
 export interface BinaryHarness {
   store: BinaryStore;
   offline(on: boolean): void;

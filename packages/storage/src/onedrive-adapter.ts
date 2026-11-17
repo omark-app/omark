@@ -2,6 +2,7 @@ import { binaryType } from './adapter.ts';
 import type { BinaryStore, KnownVersion, RemoteFile, StorageAdapter } from './adapter.ts';
 import { PreconditionFailedError, StorageFullError } from './errors.ts';
 import { createHttp, type Http, type Reply } from './http.ts';
+import { newestLanded } from './landed.ts';
 import { quickXorHash } from './quick-xor-hash.ts';
 
 /** The app's own folder in OneDrive (`Files.ReadWrite.AppFolder`). */
@@ -55,6 +56,23 @@ export class OneDriveAdapter implements StorageAdapter, BinaryStore {
   async readIfChanged(name: string, known: KnownVersion): Promise<RemoteFile | null | 'unchanged'> {
     const got = await this.download(name, known.etag);
     return got === 'unchanged' ? got : got && { text: got.body.text, etag: got.etag };
+  }
+
+  /**
+   * Looks through the file's versions (Graph lists them newest first, sizes included) and downloads only those
+   * with a matching size (#161). How many versions OneDrive keeps depends on the account; past them, null.
+   */
+  async landed(name: string, texts: string[]): Promise<string | null> {
+    const item = this.base + encodeURIComponent(name);
+    const res = await this.http.authed(`${item}:/versions`, {});
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`Graph versions failed: ${res.status}`);
+    const { value } = JSON.parse(res.text) as { value: { id: string; size: number }[] };
+    return newestLanded(texts, value, async (v) => {
+      const body = await this.http.authed(`${item}:/versions/${encodeURIComponent(v.id)}/content`, {});
+      if (!body.ok) throw new Error(`Graph version download failed: ${body.status}`);
+      return body.bytes;
+    });
   }
 
   async readBytes(name: string): Promise<Blob | null> {

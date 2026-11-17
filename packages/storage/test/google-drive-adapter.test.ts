@@ -5,7 +5,7 @@ import { FakeGoogleDrive } from '../src/fake-google-drive.ts';
 import { GoogleDriveAdapter } from '../src/google-drive-adapter.ts';
 import { MemoryCache } from '../src/cache.ts';
 import { FileSync } from '../src/file-sync.ts';
-import { adapterContract, binaryContract, readIfChangedContract } from './adapter-contract.ts';
+import { adapterContract, binaryContract, landedContract, readIfChangedContract } from './adapter-contract.ts';
 
 const FOLDER = 'Omark Tasks';
 const FOLDER_MIME_Q = "mimeType='application/vnd.google-apps.folder'";
@@ -43,6 +43,7 @@ const driveHarness = () => {
 };
 adapterContract(driveHarness);
 readIfChangedContract(driveHarness);
+landedContract(driveHarness);
 
 describe('GoogleDriveAdapter (Drive specifics)', () => {
   it('creates the folder on the first write, once, and a second adapter reuses it', async () => {
@@ -527,5 +528,30 @@ describe('GoogleDriveAdapter when two files answer to one name (#67)', () => {
     expect(text).toContain('- [ ] Old task');
     expect(text).toContain('- [ ] Saved in the new folder');
     expect(fake.peek('tasks.md')).toBe(text);
+  });
+});
+
+describe('GoogleDriveAdapter landed (#161)', () => {
+  it('downloads only the revisions whose size matches a text', async () => {
+    const fake = new FakeGoogleDrive();
+    const adapter = setup(fake);
+    for (const t of ['one', 'three', 'mine', 'theirs!']) fake.externalWrite('tasks.md', t);
+    fake.calls = [];
+    expect(await adapter.landed('tasks.md', ['mine'])).toBe('mine');
+    const downloads = fake.calls.filter((c) => c.url.includes('alt=media'));
+    expect(downloads).toHaveLength(1); // "mine" and "one" are both 4 bytes: only the newer one is fetched
+  });
+
+  it('answers null when the file is not there', async () => {
+    const adapter = setup(new FakeGoogleDrive());
+    expect(await adapter.landed('tasks.md', ['a'])).toBeNull();
+  });
+
+  it('throws a plain error when Drive fails, so the sync merges as before', async () => {
+    const fake = new FakeGoogleDrive();
+    fake.externalWrite('tasks.md', 'a');
+    const failing = setup(fake, (async (input: RequestInfo | URL, init?: RequestInit) =>
+      /\/revisions\?/.test(String(input)) ? googleError(500, 'backendError') : fake.fetch(input, init)) as typeof fetch);
+    await plainError(failing.landed('tasks.md', ['a']));
   });
 });

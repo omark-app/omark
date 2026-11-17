@@ -21,6 +21,8 @@ export class GraphFake {
   staleDownloads = 0;
   /** False to leave the hashes out of the item metadata. */
   hashes = true;
+  /** Each file's versions, oldest first, the current one last. */
+  versions = new Map<string, Uint8Array[]>();
 
   constructor(private folder: string) {}
 
@@ -28,6 +30,7 @@ export class GraphFake {
     const cur = this.files.get(name);
     const bytes = typeof content === 'string' ? new TextEncoder().encode(content) : content;
     this.files.set(name, { bytes, n: (cur?.n ?? 0) + 1, prev: cur?.bytes });
+    this.versions.set(name, [...(this.versions.get(name) ?? []), bytes]);
   }
 
   private etag(name: string): string {
@@ -57,6 +60,18 @@ export class GraphFake {
     }
     if (!url.startsWith(BASE)) return new Response('', { status: 400 });
     let path = decodeURIComponent(url.slice(BASE.length));
+    // `…:/versions` (newest first, ids "1.0", "2.0" …) and `…:/versions/<id>/content`.
+    const ver = /^(.*):\/versions(?:\/([^/]+)\/content)?$/.exec(path);
+    if (ver && method === 'GET') {
+      const prefix = this.folder ? `${this.folder}/` : '';
+      const kept = this.versions.get(ver[1]!.slice(prefix.length));
+      if (!ver[1]!.startsWith(prefix) || !kept) return new Response('{}', { status: 404 });
+      if (ver[2] === undefined) {
+        return Response.json({ value: kept.map((b, i) => ({ id: `${i + 1}.0`, size: b.length })).reverse() });
+      }
+      const bytes = kept[Number.parseInt(ver[2], 10) - 1];
+      return bytes ? new Response(bytes as Uint8Array<ArrayBuffer>, { status: 200 }) : new Response('{}', { status: 404 });
+    }
     const isContent = path.endsWith(':/content');
     if (isContent) path = path.slice(0, -':/content'.length);
     const prefix = this.folder ? `${this.folder}/` : '';
