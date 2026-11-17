@@ -59,6 +59,7 @@ Two devices, an editor and an agent can all change the same file. Nothing may be
   - If the same task changed on both sides, both versions are kept as two tasks, and the user deletes one.
   - `config.yaml` is merged key by key (`@omark/settings`). When the same key changed on both sides, this device wins and the Settings page says so.
 - **Then it writes again** with the new eTag, up to three attempts.
+- **A write whose reply was lost** (a timeout, or iOS closing the app mid-write) may have landed. Before sending, `FileSync` notes the text in the cache as unconfirmed, and clears it when the reply comes. At the next merge, an unconfirmed text that is the remote, or that the storage's version history holds after the latest version holding the base (`landed`, #161), is the base: `local` was built on it. Otherwise the old base is used, which keeps every edit but can keep both versions of a task this device and another one changed in turn.
 
 The merge is a pure function: `merge(base, local, base)` is `local`, and `merge(base, base, remote)` is `remote`. Its tests are in `packages/tasks-core/test/merge.test.ts`.
 
@@ -74,7 +75,7 @@ Nothing is stored on the server. A Microsoft sign-in lasts 90 days from the last
 
 ## Adding a storage adapter
 
-A storage provider is two methods, and an optional third:
+A storage provider is two methods, and optional others:
 
 ```ts
 interface StorageAdapter {
@@ -84,10 +85,12 @@ interface StorageAdapter {
   write(name: string, text: string, ifMatch: string | null): Promise<{ etag: string }>;
   /** Optional: 'unchanged', without downloading, while the file still has the known eTag; else as `read`. */
   readIfChanged?(name: string, known: { etag: string; source?: string }): Promise<RemoteFile | null | 'unchanged'>;
+  /** Optional: which of `texts` the file held most recently in its version history, back to `base`, or null. */
+  landed?(name: string, texts: string[], base: string): Promise<string | null>;
 }
 ```
 
-Give it `readIfChanged` when the content costs a request of its own (a network storage), and run `readIfChangedContract` on it too.
+Give it `readIfChanged` when the content costs a request of its own (a network storage), and run `readIfChangedContract` on it too. Give it `landed` when the provider keeps a version history (`newestLanded` in `landed.ts` does the work from a list of versions with sizes), and run `landedContract` on it.
 
 1. Write the adapter in `packages/storage/src/`, with a fake of the provider's HTTP API for its tests (see `fake-google-drive.ts` and `test/graph-fake.ts`).
 2. Run the shared contract test against it: `adapterContract(() => ({ adapter, external, offline }))` from `packages/storage/test/adapter-contract.ts`. It checks reads, create-only writes, conditional writes, changes made outside the app and offline errors. Every adapter passes the same contract.

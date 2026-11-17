@@ -9,6 +9,11 @@ export interface CachedFile {
   baseSource?: string | null;
   local: string;
   dirty: boolean;
+  /**
+   * Texts of the latest writes whose outcome is unknown, newest last (#161): each is added before it is sent,
+   * so a page that dies mid-write still knows it. Missing in older caches and when there are none.
+   */
+  unconfirmed?: string[];
 }
 
 export interface LocalCache {

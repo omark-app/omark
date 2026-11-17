@@ -58,11 +58,6 @@ export class FileSync {
   private readonly listeners = new Set<(s: SyncStatus) => void>();
   private chain: Promise<unknown> = Promise.resolve();
   private persisting: Promise<unknown> = Promise.resolve();
-  /**
-   * Texts of the latest writes whose outcome is unknown (no reply, e.g. a timeout after the upload landed),
-   * newest last; cleared by a successful write or a merge.
-   */
-  private unconfirmed: string[] = [];
 
   constructor(opts: FileSyncOptions) {
     this.opts = opts;
@@ -274,12 +269,15 @@ export class FileSync {
     const before = this.file.baseSource;
     const twoCopies = remote?.source !== undefined && before != null && remote.source !== before
       && (await this.opts.adapter.exists?.(before)) === true;
+    const landed = remote === null || remote.etag === this.file.baseEtag || twoCopies ? null : await this.landed(remote.text);
     const f = this.file;
+    const unconfirmed = f.unconfirmed ?? [];
     if (remote === null) {
       // Missing: create it from `local` (whether never created or deleted elsewhere, the text is kept).
       // The base becomes empty: if the file comes back before that write lands (another device made it,
       // or a folder's create left it empty or cut short), merging only adds to `local`, never removes.
-      this.set(sourced({ ...f, base: '', baseEtag: null, dirty: true }, undefined));
+      const { unconfirmed: _, ...rest } = f;
+      this.set(sourced({ ...rest, base: '', baseEtag: null, dirty: true }, undefined));
     } else if (remote.etag === f.baseEtag) {
       return;
     } else if (twoCopies && f.baseSource === before) {
@@ -293,37 +291,66 @@ export class FileSync {
     } else {
       // A remote equal to one of our unanswered writes means that write landed though its reply was lost:
       // `local` is built on it, so it is the base (merging against the old base would keep both versions
-      // of a task the user edited again since).
-      const base = this.unconfirmed.includes(remote.text) ? remote.text : f.base;
+      // of a task the user edited again since). One the storage's history holds landed too, and another
+      // device has written since (#161). When neither can tell, the old base keeps every edit.
+      const base = unconfirmed.includes(remote.text)
+        ? remote.text
+        : landed !== null && unconfirmed.includes(landed) ? landed : f.base;
       const merged = this.opts.merge(base, f.local, remote.text);
       // A merge that adds nothing to the remote (up to line endings) leaves the file as it is.
       const same = normalize(merged) === normalize(remote.text);
       this.set(sourced({ base: remote.text, baseEtag: remote.etag, local: same ? remote.text : merged, dirty: !same }, remote.source));
     }
-    // `local` now builds on this remote, not on the unanswered writes.
-    this.unconfirmed = [];
+    // `local` now builds on this remote, not on the unanswered writes (every branch above leaves them out).
     if (this.file.local !== f.local) this.remoteChanged = this.absorbed = true;
     await this.persist();
+  }
+
+  /**
+   * Which of the unanswered writes the storage's history holds, asked only when the file has edits to merge and
+   * the remote is none of them; null when it can't say (no history, or the request failed), and the merge then
+   * runs on the old base as before #161.
+   */
+  private async landed(remote: string): Promise<string | null> {
+    const { dirty, unconfirmed = [], base } = this.file;
+    const ask = this.opts.adapter.landed;
+    if (!dirty || unconfirmed.length === 0 || unconfirmed.includes(remote) || !ask) return null;
+    try {
+      // Each was sent on `base` (the list is cleared whenever the base moves), so only a later version can be one.
+      return await ask.call(this.opts.adapter, this.opts.name, unconfirmed, base);
+    } catch {
+      return null;
+    }
   }
 
   /** Writes `local` under `baseEtag`; on a 412 re-reads, merges and tries again, up to 3 writes in all. */
   private async writeLocal(): Promise<void> {
     for (let attempt = 1; ; attempt++) {
-      await this.cacheSettled();
       const text = this.file.local;
+      // Noted in the cache before it is sent: a page that dies before the reply still knows it may have landed.
+      const before = this.file.unconfirmed ?? [];
+      const sent = before.includes(text);
+      if (!sent) {
+        // Past the limit the oldest stays: later writes on the same base meet a 412 if it landed, so it is the
+        // likeliest to have, and the ones dropped from the middle failed offline.
+        const kept = before.length < MAX_UNCONFIRMED ? before : [before[0]!, ...before.slice(-(MAX_UNCONFIRMED - 2))];
+        this.set({ ...this.file, unconfirmed: [...kept, text] });
+        // A broken cache doesn't hold up the write, as in `record`; the operation's end retries the put.
+        void this.persist().catch(() => {});
+      }
+      await this.cacheSettled();
       try {
         const { etag, source } = await this.opts.adapter.write(this.opts.name, text, this.file.baseEtag);
-        this.unconfirmed = [];
         // A save made during the write leaves `local` ahead of what was written: still dirty.
-        this.set(sourced({ ...this.file, base: text, baseEtag: etag, dirty: this.file.local !== text }, source));
+        const { unconfirmed: _, ...rest } = this.file;
+        this.set(sourced({ ...rest, base: text, baseEtag: etag, dirty: this.file.local !== text }, source));
         await this.persist();
         return;
       } catch (e) {
-        // A 412 was refused for sure; any other failure may have landed before the reply was lost.
-        if (!(e instanceof PreconditionFailedError)) {
-          this.unconfirmed = [...this.unconfirmed, text].slice(-MAX_UNCONFIRMED);
-          throw e;
-        }
+        // Any failure but a 412 may have landed before the reply was lost: the text stays unconfirmed.
+        if (!(e instanceof PreconditionFailedError)) throw e;
+        // A 412 was refused for sure (an earlier send of the same text may still have landed).
+        if (!sent) this.set({ ...this.file, unconfirmed: (this.file.unconfirmed ?? []).filter((t) => t !== text) });
         if (attempt >= MAX_WRITE_ATTEMPTS) throw e;
       }
       await this.absorb(await this.opts.adapter.read(this.opts.name));

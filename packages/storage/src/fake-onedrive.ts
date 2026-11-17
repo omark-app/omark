@@ -1,10 +1,12 @@
-import { binaryType } from './adapter.ts';
+import { binaryType, LANDED_LOOKBACK } from './adapter.ts';
 import type { BinaryStore, KnownVersion, RemoteFile, StorageAdapter } from './adapter.ts';
 import { OfflineError, PreconditionFailedError } from './errors.ts';
 
 /** In-memory StorageAdapter with per-file eTags "v1", "v2", ..., and binary files (`data`) beside the texts. */
 export class FakeOneDrive implements StorageAdapter, BinaryStore {
   private files = new Map<string, { text: string; version: number; data?: Blob }>();
+  /** Each file's texts, oldest first, the current one last: its version history. */
+  private history = new Map<string, string[]>();
   private offline = false;
   /** What an offline call says could not be reached: `signin` stands for the sign-in server (#157). */
   private unreachable: 'storage' | 'signin' = 'storage';
@@ -12,6 +14,7 @@ export class FakeOneDrive implements StorageAdapter, BinaryStore {
   constructor(files: Record<string, string> = {}) {
     for (const [name, text] of Object.entries(files)) {
       this.files.set(name, { text, version: 1 });
+      this.history.set(name, [text]);
     }
   }
 
@@ -56,6 +59,16 @@ export class FakeOneDrive implements StorageAdapter, BinaryStore {
     return { etag: this.put(name, text) };
   }
 
+  /** As OneDrive's: the newest of `texts` among the file's last `LANDED_LOOKBACK` versions, back to `base`. */
+  async landed(name: string, texts: string[], base: string): Promise<string | null> {
+    this.assertOnline();
+    for (const t of (this.history.get(name) ?? []).slice(-LANDED_LOOKBACK).reverse()) {
+      if (texts.includes(t)) return t;
+      if (t === base) return null;
+    }
+    return null;
+  }
+
   async readBytes(name: string): Promise<Blob | null> {
     this.assertOnline();
     const f = this.files.get(name);
@@ -71,6 +84,7 @@ export class FakeOneDrive implements StorageAdapter, BinaryStore {
   private put(name: string, text: string): string {
     const version = (this.files.get(name)?.version ?? 0) + 1;
     this.files.set(name, { text, version });
+    this.history.set(name, [...(this.history.get(name) ?? []), text]);
     return etagOf(version);
   }
 

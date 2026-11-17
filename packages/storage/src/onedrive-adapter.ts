@@ -2,6 +2,7 @@ import { binaryType } from './adapter.ts';
 import type { BinaryStore, KnownVersion, RemoteFile, StorageAdapter } from './adapter.ts';
 import { PreconditionFailedError, StorageFullError } from './errors.ts';
 import { createHttp, type Http, type Reply } from './http.ts';
+import { newestLanded } from './landed.ts';
 import { quickXorHash } from './quick-xor-hash.ts';
 
 /** The app's own folder in OneDrive (`Files.ReadWrite.AppFolder`). */
@@ -24,6 +25,13 @@ interface DriveItem {
   eTag: string;
   '@microsoft.graph.downloadUrl': string;
   file?: { hashes?: { quickXorHash?: string } };
+}
+
+interface DriveItemVersion {
+  id: string;
+  size: number;
+  lastModifiedDateTime?: string;
+  '@microsoft.graph.downloadUrl'?: string;
 }
 
 export class OneDriveAdapter implements StorageAdapter, BinaryStore {
@@ -55,6 +63,33 @@ export class OneDriveAdapter implements StorageAdapter, BinaryStore {
   async readIfChanged(name: string, known: KnownVersion): Promise<RemoteFile | null | 'unchanged'> {
     const got = await this.download(name, known.etag);
     return got === 'unchanged' ? got : got && { text: got.body.text, etag: got.etag };
+  }
+
+  /**
+   * Looks through the file's versions, newest first, and downloads only those with a matching size (#161). A
+   * version is downloaded from its pre-authenticated URL when Graph gives one: `/content` answers with a redirect
+   * that a browser refuses after a CORS preflight. How many versions OneDrive keeps depends on the account; past
+   * them, null.
+   */
+  async landed(name: string, texts: string[], base: string): Promise<string | null> {
+    const item = this.base + encodeURIComponent(name);
+    const res = await this.http.authed(`${item}:/versions`, {});
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`Graph versions failed: ${res.status}`);
+    const { value } = JSON.parse(res.text) as { value: DriveItemVersion[] };
+    // Graph lists them newest first; sorted anyway where it gives the times, as the order is not promised.
+    const newestFirst = value.every((v) => v.lastModifiedDateTime)
+      ? [...value].sort((a, b) => Date.parse(b.lastModifiedDateTime!) - Date.parse(a.lastModifiedDateTime!))
+      : value;
+    return newestLanded(texts, base, newestFirst, async (v) => {
+      const url = v['@microsoft.graph.downloadUrl'];
+      // The pre-authenticated download URL must not receive the bearer token.
+      const body = url
+        ? await this.http.send(url, {})
+        : await this.http.authed(`${item}:/versions/${encodeURIComponent(v.id)}/content`, {});
+      if (!body.ok) throw new Error(`Graph version download failed: ${body.status}`);
+      return body.bytes;
+    });
   }
 
   async readBytes(name: string): Promise<Blob | null> {

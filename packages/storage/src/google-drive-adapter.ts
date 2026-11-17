@@ -2,6 +2,7 @@ import { binaryType } from './adapter.ts';
 import type { BinaryStore, KnownVersion, RemoteFile, StorageAdapter } from './adapter.ts';
 import { AuthRequiredError, PreconditionFailedError, StorageFullError } from './errors.ts';
 import { createHttp, type Http, type Reply } from './http.ts';
+import { newestLanded } from './landed.ts';
 
 const API = 'https://www.googleapis.com/';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
@@ -65,6 +66,32 @@ export class GoogleDriveAdapter implements StorageAdapter, BinaryStore {
   async readIfChanged(name: string, known: KnownVersion): Promise<RemoteFile | null | 'unchanged'> {
     const got = await this.download(name, known);
     return got === 'unchanged' ? got : got && { text: got.body.text, etag: got.etag, source: got.id };
+  }
+
+  /**
+   * Looks through the file's revisions, newest first, and downloads only those with a matching size (#161). Drive
+   * keeps a revision 30 days, or fewer past 100; past them, null.
+   */
+  async landed(name: string, texts: string[], base: string): Promise<string | null> {
+    const id = this.fileIds.get(name) ?? (await this.findFile(name));
+    if (id === null) return null;
+    const file = `${API}drive/v3/files/${encodeURIComponent(id)}/revisions`;
+    const res = await this.api(`${file}?fields=revisions(id,size,modifiedTime)&pageSize=1000`, {});
+    if (res.status === 404) {
+      this.forget(name);
+      return null;
+    }
+    if (!res.ok) throw new Error(`Google Drive revisions failed: ${res.status}`);
+    const { revisions } = JSON.parse(res.text) as { revisions: { id: string; size: string; modifiedTime: string }[] };
+    // Drive lists them oldest first, though it doesn't promise it: sorted by time, the list's order breaking ties.
+    const newestFirst = revisions
+      .map((r, i) => ({ id: r.id, size: Number(r.size), at: Date.parse(r.modifiedTime), i }))
+      .sort((a, b) => b.at - a.at || b.i - a.i);
+    return newestLanded(texts, base, newestFirst, async (r) => {
+      const body = await this.api(`${file}/${encodeURIComponent(r.id)}?alt=media`, {});
+      if (!body.ok) throw new Error(`Google Drive revision download failed: ${body.status}`);
+      return body.bytes;
+    });
   }
 
   async readBytes(name: string): Promise<Blob | null> {

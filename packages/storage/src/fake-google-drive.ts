@@ -190,6 +190,7 @@ export class FakeGoogleDrive {
     if (method === 'POST' && path === '/drive/v3/files') return this.createFolder(call, url, body);
     if (method === 'PATCH' && (m = /^\/drive\/v3\/files\/([^/]+)$/.exec(path))) return this.trashItem(call, url, m[1]!, body);
     if (method === 'GET' && (m = /^\/drive\/v2\/files\/([^/]+)$/.exec(path))) return this.metadata(call, url, m[1]!);
+    if (method === 'GET' && (m = /^\/drive\/v3\/files\/([^/]+)\/revisions$/.exec(path))) return this.revisionList(call, url, m[1]!);
     if (method === 'GET' && (m = /^\/drive\/v3\/files\/([^/]+)\/revisions\/([^/]+)$/.exec(path))) {
       return this.revision(call, url, m[1]!, m[2]!);
     }
@@ -243,6 +244,18 @@ export class FakeGoogleDrive {
     const item = this.items.get(decodeURIComponent(id));
     if (!item) return googleError(404, 'notFound');
     return Response.json({ etag: item.etag, headRevisionId: item.headRevisionId, labels: { trashed: item.trashed } });
+  }
+
+  /** v3 revision list, oldest first, with each revision's size as Drive gives it (a string) and its time. */
+  private revisionList(call: DriveCall, url: URL, id: string): Response {
+    expectQuery(call, url, { fields: 'revisions(id,size,modifiedTime)', pageSize: '1000' });
+    const item = this.items.get(decodeURIComponent(id));
+    if (!item) return googleError(404, 'notFound');
+    // Revision ids are `rev<clock>`, so the clock gives each one a time in order.
+    const at = (rev: string): string => new Date(Date.UTC(2026, 10, 17) + Number(rev.slice(3)) * 1000).toISOString();
+    return Response.json({
+      revisions: [...item.revisions].map(([rev, bytes]) => ({ id: rev, size: String(bytes.length), modifiedTime: at(rev) })),
+    });
   }
 
   /** v3 revision content: exactly the bytes of that revision. */

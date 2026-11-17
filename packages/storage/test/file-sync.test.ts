@@ -547,7 +547,8 @@ describe('FileSync', () => {
     const sync = makeSync(drive, cache);
     await sync.open();
 
-    putsBeforeFailure = 1; // save's own put succeeds; the put after the write fails
+    // Save's own put and the put noting the write as unconfirmed (#161) succeed; the put after the write fails.
+    putsBeforeFailure = 2;
     await sync.save(withLocal, S);
     expect(drive.peek(NAME)).toBe(withLocal);
     expect(sync.status()).toBe('offline');
@@ -1205,5 +1206,192 @@ describe('FileSync reads only what changed (#158)', () => {
     await sync.open();
     await sync.pull();
     expect(log).toEqual(['read', 'read']);
+  });
+});
+
+describe('FileSync after a write whose reply was lost (#161)', () => {
+  const habit = (d: string): string => `- [ ] Out 🌱 🔁 every day 📅 2026-11-${d}`;
+  const v15 = `# Tasks\n${habit('15')}\n- [ ] Other\n`;
+  const v16 = `# Tasks\n${habit('16')}\n- [ ] Other\n`;
+  const v17 = `# Tasks\n${habit('17')}\n- [ ] Other\n`;
+
+  /**
+   * A FakeOneDrive whose next write, while `lose` is set, lands and then fails as if its reply was lost, or
+   * (`hang`) never answers, as when iOS kills the page mid-write. `history: false` leaves out `landed`, like a
+   * local folder; `history: 'throws'` gives one that fails.
+   */
+  function phone(drive: FakeOneDrive, history: boolean | 'throws' = true) {
+    const ctl = { lose: false, hang: false, writes: 0 };
+    const adapter: StorageAdapter = {
+      read: (n) => drive.read(n),
+      async write(n, text, etag) {
+        ctl.writes++;
+        const r = await drive.write(n, text, etag);
+        if (ctl.hang) return new Promise<never>(() => {});
+        if (ctl.lose) {
+          ctl.lose = false;
+          throw new OfflineError('Request timed out'); // it landed; the reply did not
+        }
+        return r;
+      },
+    };
+    if (history === true) adapter.landed = (n, texts, base) => drive.landed(n, texts, base);
+    if (history === 'throws') adapter.landed = () => Promise.reject(new OfflineError('Failed to fetch'));
+    return { adapter, ctl };
+  }
+
+  it('keeps one copy when another device changed the task after our landed write (same page)', async () => {
+    const drive = new FakeOneDrive({ [NAME]: v15 });
+    const { adapter, ctl } = phone(drive);
+    const sync = makeSync(adapter);
+    await sync.open();
+    ctl.lose = true;
+    await sync.save(v16, v15); // completed the 15th here; the write landed, its reply was lost
+    drive.externalWrite(NAME, v17); // another device completed the 16th
+    await sync.pull();
+    expect(drive.peek(NAME)).toBe(v17);
+    expect(sync.text()).toBe(v17);
+    expect(sync.status()).toBe('saved');
+  });
+
+  it('keeps one copy when the page was reloaded in between', async () => {
+    const drive = new FakeOneDrive({ [NAME]: v15 });
+    const cache = new MemoryCache();
+    const first = phone(drive);
+    const a = makeSync(first.adapter, cache);
+    await a.open();
+    first.ctl.lose = true;
+    await a.save(v16, v15);
+    drive.externalWrite(NAME, v17);
+    const b = makeSync(phone(drive).adapter, cache); // reopened later
+    expect(await b.open()).toBe(v17);
+    expect(drive.peek(NAME)).toBe(v17);
+  });
+
+  it('keeps one copy when the page died before the write answered', async () => {
+    const drive = new FakeOneDrive({ [NAME]: v15 });
+    const cache = new MemoryCache();
+    const first = phone(drive);
+    const a = makeSync(first.adapter, cache);
+    await a.open();
+    first.ctl.hang = true;
+    await a.stage(v16, v15);
+    await until(() => drive.peek(NAME) === v16); // landed; no reply ever comes
+    drive.externalWrite(NAME, v17);
+    const b = makeSync(phone(drive).adapter, cache);
+    expect(await b.open()).toBe(v17);
+    expect(drive.peek(NAME)).toBe(v17);
+  });
+
+  it('a write that never landed keeps its edit when another device wrote meanwhile', async () => {
+    const drive = new FakeOneDrive({ [NAME]: S });
+    const sync = makeSync(phone(drive).adapter);
+    await sync.open();
+    drive.setOffline(true);
+    await sync.save(withLocal, S);
+    drive.setOffline(false);
+    drive.externalWrite(NAME, withRemote);
+    await sync.pull();
+    expect(drive.peek(NAME)).toBe('# Tasks\n- [ ] Remote task\n- [ ] Buy milk\n- [ ] Call mom\n- [ ] Local task\n');
+  });
+
+  for (const history of [false, 'throws'] as const) {
+    it(`without a history to ask (${history === false ? 'none' : 'it fails'}) merges as before: both kept, nothing lost`, async () => {
+      const drive = new FakeOneDrive({ [NAME]: v15 });
+      const { adapter, ctl } = phone(drive, history);
+      const sync = makeSync(adapter);
+      await sync.open();
+      ctl.lose = true;
+      await sync.save(v16, v15);
+      drive.externalWrite(NAME, v17);
+      await sync.pull();
+      expect(drive.peek(NAME)).toBe(`# Tasks\n${habit('16')}\n${habit('17')}\n- [ ] Other\n`);
+      expect(sync.status()).toBe('saved');
+    });
+  }
+
+  it('an undo that never landed is kept, though the file held that text before the base (review of #161)', async () => {
+    const v0 = '# Tasks\n- [ ] Buy milk\n';
+    const v1 = '# Tasks\n- [ ] Buy oat milk\n';
+    const drive = new FakeOneDrive({ [NAME]: v0 });
+    const sync = makeSync(phone(drive).adapter);
+    await sync.open();
+    await sync.save(v1, v0); // landed: the base is v1
+    drive.setOffline(true);
+    await sync.save(v0, v1); // Undo, never sent
+    drive.setOffline(false);
+    drive.externalWrite(NAME, `${v1}- [ ] Call mom\n`);
+    await sync.pull();
+    expect(drive.peek(NAME)).toBe('# Tasks\n- [ ] Buy milk\n- [ ] Call mom\n');
+  });
+
+  it('an edit that never landed is kept when only the eTag changed', async () => {
+    const drive = new FakeOneDrive({ [NAME]: S });
+    const sync = makeSync(phone(drive).adapter);
+    await sync.open();
+    await sync.save(withLocal, S);
+    drive.setOffline(true);
+    await sync.save(S, withLocal); // never sent
+    drive.setOffline(false);
+    drive.externalWrite(NAME, withLocal); // same text, new eTag
+    await sync.pull();
+    expect(drive.peek(NAME)).toBe(S);
+  });
+
+  it('still finds the landed write after five more edits failed offline', async () => {
+    const drive = new FakeOneDrive({ [NAME]: v15 });
+    const { adapter, ctl } = phone(drive);
+    const sync = makeSync(adapter);
+    await sync.open();
+    ctl.lose = true;
+    await sync.save(v16, v15); // landed, reply lost
+    drive.setOffline(true);
+    let text = v16;
+    for (const n of [1, 2, 3, 4, 5]) {
+      const next = `${text}- [ ] Offline ${n}\n`;
+      await sync.save(next, text);
+      text = next;
+    }
+    drive.setOffline(false);
+    drive.externalWrite(NAME, v17);
+    await sync.pull();
+    expect(drive.peek(NAME)).toBe(`${v17}- [ ] Offline 1\n- [ ] Offline 2\n- [ ] Offline 3\n- [ ] Offline 4\n- [ ] Offline 5\n`);
+  });
+
+  it('does not ask the history when the remote is our landed write', async () => {
+    const drive = new FakeOneDrive({ [NAME]: v15 });
+    const { adapter, ctl } = phone(drive);
+    const landed = vi.fn(adapter.landed!);
+    adapter.landed = landed;
+    const sync = makeSync(adapter);
+    await sync.open();
+    ctl.lose = true;
+    await sync.save(v16, v15);
+    await sync.pull();
+    expect(drive.peek(NAME)).toBe(v16);
+    expect(landed).not.toHaveBeenCalled();
+  });
+
+  it('forgets unanswered writes once a write succeeds', async () => {
+    const drive = new FakeOneDrive({ [NAME]: v15 });
+    const cache = new MemoryCache();
+    const { adapter, ctl } = phone(drive);
+    const sync = makeSync(adapter, cache);
+    await sync.open();
+    ctl.lose = true;
+    await sync.save(v16, v15);
+    expect((await cache.get(NAME))?.unconfirmed).toEqual([v16]);
+    await sync.save(v17, v16);
+    expect(sync.status()).toBe('saved');
+    expect((await cache.get(NAME))?.unconfirmed).toBeUndefined();
+  });
+
+  it('reads a cache record from before #161 (no unconfirmed) as before', async () => {
+    const drive = new FakeOneDrive({ [NAME]: S });
+    const cache = new MemoryCache();
+    await cache.put(NAME, { base: S, baseEtag: '"v1"', local: withLocal, dirty: true });
+    const sync = makeSync(phone(drive).adapter, cache);
+    expect(await sync.open()).toBe(withLocal);
+    expect(drive.peek(NAME)).toBe(withLocal);
   });
 });

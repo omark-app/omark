@@ -52,7 +52,8 @@ it('flush runs registered pending callbacks before staging, until unregistered',
   const off = store.registerPending(() => store.edit(id, { title: 'Buy oat milk', notes: [] }));
   await store.flush();
   expect(allTasks(store.state.doc)[0]!.title).toBe('Buy oat milk');
-  expect(drive.peek('tasks.md')).toContain('Buy oat milk');
+  // flush() waits for the cache; the upload follows in the background (after noting it as unconfirmed, #161).
+  await vi.waitFor(() => expect(drive.peek('tasks.md')).toContain('Buy oat milk'));
   off();
   const run = vi.fn();
   const off2 = store.registerPending(run);

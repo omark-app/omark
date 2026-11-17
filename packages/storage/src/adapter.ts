@@ -1,3 +1,6 @@
+/** How many versions `StorageAdapter.landed` looks back through, the current one included. */
+export const LANDED_LOOKBACK = 25;
+
 export interface RemoteFile {
   text: string;
   etag: string;
@@ -26,6 +29,13 @@ export interface StorageAdapter {
   write(name: string, text: string, ifMatch: string | null): Promise<{ etag: string; source?: string }>;
   /** Whether the file a `source` names is still there (out of the trash), for storages that give sources. */
   exists?(source: string): Promise<boolean>;
+  /**
+   * Which of `texts` the file held most recently, looking back through the versions the storage keeps (at most
+   * `LANDED_LOOKBACK`, the current one included) but no further than the latest one holding `base`: a write sent
+   * on that base can only have landed after it. Null when none of them is there. For storages with a version
+   * history: the sync asks it whether a write whose reply was lost landed (#161).
+   */
+  landed?(name: string, texts: string[], base: string): Promise<string | null>;
 }
 
 /**

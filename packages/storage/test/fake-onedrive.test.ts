@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FakeOneDrive } from '../src/fake-onedrive.ts';
-import { adapterContract, binaryContract, readIfChangedContract } from './adapter-contract.ts';
+import { adapterContract, binaryContract, landedContract, readIfChangedContract } from './adapter-contract.ts';
 
 const fakeHarness = () => {
   const fake = new FakeOneDrive();
@@ -12,6 +12,7 @@ const fakeHarness = () => {
 };
 adapterContract(fakeHarness);
 readIfChangedContract(fakeHarness);
+landedContract(fakeHarness);
 
 binaryContract(() => {
   const fake = new FakeOneDrive();

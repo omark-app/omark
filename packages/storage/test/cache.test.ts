@@ -27,6 +27,12 @@ function cacheContract(name: string, make: () => LocalCache): void {
       expect(await c.get('tasks.md')).toBeNull();
     });
 
+    it('round-trips the unanswered writes (#161)', async () => {
+      const c = make();
+      await c.put('tasks.md', { ...sample(), unconfirmed: ['b', 'c'] });
+      expect(await c.get('tasks.md')).toEqual({ ...sample(), unconfirmed: ['b', 'c'] });
+    });
+
     it('clear empties the cache', async () => {
       const c = make();
       await c.put('tasks.md', sample());
