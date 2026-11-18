@@ -170,6 +170,8 @@ test.describe('desktop detail', () => {
     await start(page);
     await row(page, 'Learn Polish').click();
     await page.getByTestId('detail-repeat').click();
+    const after = sheet(page).locator('label', { has: page.getByLabel('Days after completion') });
+    await expect(after).toHaveText(/^\s*Every\s+days after I complete it\s*$/);
     await sheet(page).getByLabel('days after I complete it').check();
     await sheet(page).getByRole('button', { name: 'Save' }).click();
     await expect(page.getByTestId('toast')).toContainText('Repeats 3 days after done');

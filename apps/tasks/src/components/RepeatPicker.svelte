@@ -127,8 +127,9 @@
     </label>
     {#if !noAfter}
       <label>
-        <input type="radio" name="rep" value="after" bind:group={kind} />
-        <input class="fld small" type="number" min="1" max={MAX_INTERVAL} aria-label="Days after completion" bind:value={afterN} onfocus={pick('after')} /> days after I complete it
+        <input type="radio" name="rep" value="after" bind:group={kind} /> Every
+        <input class="fld small" type="number" min="1" max={MAX_INTERVAL} aria-label="Days after completion" bind:value={afterN} onfocus={pick('after')} />
+        {plural(afterN, 'day')} after I complete it
       </label>
     {/if}
     <div class="actions">
