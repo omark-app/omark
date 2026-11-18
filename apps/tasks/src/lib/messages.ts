@@ -1,5 +1,5 @@
 import { dayMonth, daysBetween, describeRepeat, weekdayShort } from '@omark/tasks-core';
-import type { ISODate, RepeatRule, WeekCtx } from '@omark/tasks-core';
+import type { ISODate, RepeatRule, TimesPer, WeekCtx } from '@omark/tasks-core';
 
 /** Toast wording (spec 9.1), one function per toast. */
 
@@ -47,6 +47,13 @@ const habits = (n: number): string => (n === 1 ? '1 habit' : `${n} habits`);
 
 export const habitTick = (title: string, count: number, goal: number, next: ISODate, ctx: WeekCtx): string =>
   `${title} · ${count}/${goal} · next ${nextDay(next, ctx)}`;
+
+/** A `times` task ticked a second time today (#163). */
+export const doneToday = (next: ISODate, ctx: WeekCtx): string => `Done today · next ${nextDay(next, ctx)}`;
+
+/** A `times` task ticked once its period is met (#163): `Done 3/3 this week · next Mon`. */
+export const timesMet = (done: number, n: number, per: TimesPer, next: ISODate, ctx: WeekCtx): string =>
+  `Done ${done}/${n} this ${per} · next ${nextDay(next, ctx)}`;
 
 export const alreadyDone = (span: 'today' | 'this week' | 'this period', next: ISODate, ctx: WeekCtx): string =>
   `Already done ${span} · next ${nextDay(next, ctx)}`;

@@ -5,6 +5,7 @@ import { BRAND } from '../brand.ts';
 import {
   addDays,
   addTask,
+  allTasks,
   bucketName,
   bucketOf,
   BUCKETS,
@@ -44,6 +45,7 @@ import {
   sweepCompleted,
   TASKS_SCHEMA,
   tasksInBucket,
+  timesStatusOf,
   weekCtx,
 } from '@omark/tasks-core';
 import type {
@@ -61,6 +63,7 @@ import type {
   State,
   Stats,
   Task,
+  TimesStatus,
   WeekCtx,
 } from '@omark/tasks-core';
 import type { SyncStatus } from '@omark/storage';
@@ -125,6 +128,10 @@ export interface AppStore {
   readonly cacheWarning: string | null;
   /** Every open habit task's progress, by id (habits spec 5). */
   readonly habits: ReadonlyMap<string, HabitProgress>;
+  /** Where each open `times` task stands in its period, by id (#163). */
+  readonly times: ReadonlyMap<string, TimesStatus>;
+  /** A bucket's tasks in their order: `times` tasks that can still wait go last (#163). */
+  bucketTasks(key: BucketKey): Task[];
   /** Habits in progress against the limit (0 = no limit, spec 10.1). */
   readonly habitCount: { inProgress: number; max: number };
   /** The formed and dropped habits of done.md, newest first (spec 9.5). */
@@ -141,7 +148,10 @@ export interface AppStore {
   setDate(id: string, date: ISODate | null, beforeId?: string | null): void;
   /** Applies a move or reorder; a drop on Later changes nothing and returns `pickDate` for the UI to open. */
   drop(id: string, target: DropTarget): DropOutcome;
-  /** A habit already done in today's period is not completed again; the toast says so (habits spec 6). */
+  /**
+   * A habit already done in today's period is not completed again; the toast says so (habits spec 6). Nor is
+   * a `times` task done today or already met this period; a met one moves on to the next period (#163).
+   */
   complete(id: string): void;
   /** Deletes a task; a habit is dropped instead (habits spec 8). */
   remove(id: string): void;
@@ -271,7 +281,14 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   const foldedOnOpen = first.config.foldedOnOpen;
   let toggled = $state.raw<Partial<Record<BucketKey, boolean>>>({});
   let view = $state<View>(isPhone() ? 'list' : first.config.defaultView);
-  const counts = $derived(byBucket((key) => tasksInBucket(state.doc, key, ctx).length));
+  const times = $derived(
+    new Map(allTasks(state.doc).flatMap((t) => {
+      const st = timesStatusOf(t, state.done, ctx.today);
+      return st ? [[t.id, st] as const] : [];
+    })),
+  );
+  const bucketTasks = (key: BucketKey): Task[] => tasksInBucket(state.doc, key, ctx, (t) => times.get(t.id)?.canWait === true);
+  const counts = $derived(byBucket((key) => bucketTasks(key).length));
   const foldsIn = (v: View): Record<BucketKey, boolean> =>
     byBucket(
       (key) =>
@@ -459,7 +476,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
    */
   const visibleTasks = (): Task[] =>
     ALL_KEYS.filter((key) => isOpen(key) && !(view === 'board' && key === IMPORTANT_GROUP.key))
-      .flatMap((key) => tasksInBucket(state.doc, key, ctx));
+      .flatMap((key) => bucketTasks(key));
 
   /** The task to select when `id` leaves the visible list: the next one, else the previous one. */
   function neighbour(id: string): string | null {
@@ -588,10 +605,10 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     return msg.moved(bucketName(bucketOf(t, ctx)), metaLabel(t, ctx, config.dateLabels).text);
   }
 
-  /** Commits a change that may move task `id` to another bucket. */
-  function commitMove(id: string, next: State): void {
+  /** Commits a change that may move task `id` to another bucket; `message` replaces the moved message. */
+  function commitMove(id: string, next: State, message?: string): void {
     const fallback = neighbour(id);
-    if (commit(next, movedMessage(next, id))) keepVisible(id, fallback);
+    if (commit(next, message ?? movedMessage(next, id))) keepVisible(id, fallback);
   }
 
   function add(title: string, when: DateChoice = config.newTaskBucket, important = false, habit = false): boolean {
@@ -634,6 +651,7 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
   function complete(id: string): void {
     const task = findTask(state, id);
     if (!task) return;
+    if (completeTimes(task)) return;
     const before = task.habit ? habitProgress(task, state.done, ctx.today, config.habits) : null;
     if (before?.doneThisPeriod) {
       // One repetition per period: a second tick would look like progress (habits spec 6).
@@ -650,6 +668,25 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     const after = findTask(state, id);
     if (selectedId === id && (!after || bucketOf(after, ctx) !== from)) selectedId = fallback;
     else keepVisible(id, fallback);
+  }
+
+  /**
+   * At most one completion a day, and none once the period is met (#163): true when the tick was turned
+   * down. A met task still dated in this period moves to the next one, so a count met elsewhere clears.
+   */
+  function completeTimes(task: Task): boolean {
+    const st = times.get(task.id);
+    if (!st || task.repeat?.type !== 'times') return false;
+    if (st.met) {
+      const next = addDays(st.period.end, 1);
+      const message = msg.timesMet(st.done, task.repeat.n, task.repeat.per, next, ctx);
+      if (task.date === null || task.date <= st.period.end) commitMove(task.id, setDateOp(state, task.id, next), message);
+      else show(message, false);
+      return true;
+    }
+    if (!st.doneToday) return false;
+    show(msg.doneToday(task.date !== null && task.date > ctx.today ? task.date : addDays(ctx.today, 1), ctx), false);
+    return true;
   }
 
   /** `Done · …`, or for a habit its count after the tick. */
@@ -868,6 +905,8 @@ export async function createStore(deps: StoreDeps): Promise<AppStore> {
     get syncedAt() { return syncedAt; },
     get stats() { return stats; },
     get habits() { return habits; },
+    get times() { return times; },
+    bucketTasks,
     get habitCount() { return habitCount; },
     get history() { return history; },
     cacheWarning: deps.cacheWarning ?? null,

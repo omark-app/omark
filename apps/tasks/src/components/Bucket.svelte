@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { bucketRange, tasksInBucket } from '@omark/tasks-core';
+  import { bucketRange } from '@omark/tasks-core';
   import type { BucketKey, ISODate } from '@omark/tasks-core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import TaskRow from './TaskRow.svelte';
@@ -37,7 +37,7 @@
   /** Important, not urgent never folds (#38): its header is a plain heading. */
   const fixed = $derived(key === 'important');
 
-  const tasks = $derived(tasksInBucket(store.state.doc, key, store.ctx));
+  const tasks = $derived(store.bucketTasks(key));
   const range = $derived(bucketRange(key, store.ctx));
   const folded = $derived(store.folded[key]);
   let section: HTMLElement | undefined = $state();
@@ -87,6 +87,7 @@
         ctx={store.ctx}
         labelStyle={store.config.dateLabels}
         habit={store.habits.get(task.id)}
+        times={store.times.get(task.id)}
         selected={store.selectedId === task.id}
         onselect={() => (onopen ? onopen(task.id) : store.select(task.id))}
         oncomplete={() => store.complete(task.id)}

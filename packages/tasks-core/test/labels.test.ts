@@ -81,3 +81,15 @@ test('metaLabel of a times task: never overdue, the period progress when due (#1
   const month = { type: 'times', n: 2, per: 'month' } as const;
   expect(metaLabel({ ...mk('2026-10-16'), repeat: month }, fri, 'short', timesStatus(month, [], fri.today)).text).toBe('0/2 this month');
 });
+
+test('habitLabel of a times habit: the period progress while not met, then the next date (#163)', () => {
+  const rule = { type: 'times', n: 3, per: 'week' } as const;
+  const rules = { goal: 30, missesInARow: 1, missesPerAttempt: 3 };
+  const at = (done: string[], date: string): [Task, HabitProgress] => {
+    const times = timesStatus(rule, done, fri.today);
+    return [{ ...mk(date, rule), habit: { goal: 30 } }, { rules, count: done.length, best: 0, doneThisPeriod: times.met, restarted: false, lastChance: times.lastChance, period: times.period, times } as HabitProgress];
+  };
+  expect(habitLabel(...at(['2026-10-12'], '2026-10-16'), fri, 'short')).toEqual({ count: '1/30', when: '1/3 this week', tag: null });
+  expect(habitLabel(...at(['2026-10-12', '2026-10-16'], '2026-10-17'), fri, 'short').when).toBe('2/3 this week');
+  expect(habitLabel(...at(['2026-10-12', '2026-10-13', '2026-10-14'], '2026-10-19'), fri, 'short').when).toBe('Mon');
+});

@@ -76,7 +76,10 @@ export interface HabitLabel {
  */
 export function habitLabel(t: Task, p: HabitProgress, ctx: WeekCtx, style: DateLabelStyle): HabitLabel {
   let when: string | null = null;
-  if (!p.doneThisPeriod && p.period.end > ctx.today) {
+  if (p.times && t.repeat?.type === 'times' && !p.times.met) {
+    // A `times` habit shows the period's progress until it is met (#163).
+    when = `${p.times.done}/${t.repeat.n} this ${t.repeat.per}`;
+  } else if (!p.doneThisPeriod && p.period.end > ctx.today) {
     when = `by ${p.period.end > endOfNextWeek(ctx) ? dayMonth(p.period.end, ctx) : weekdayShort(p.period.end)}`;
   } else if (t.date !== null && t.date > ctx.today) {
     when = metaLabel(t, ctx, style).text;

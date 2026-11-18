@@ -100,3 +100,16 @@ describe('habitWarning', () => {
     );
   });
 });
+
+describe('a times habit (#163)', () => {
+  // Fri 16 Oct; the week is 12–18 Oct. Sat and Sun are left, with Fri: three days.
+  const WEEK3 = '🌱 🔁 3 times a week';
+  const task = `- [ ] Meditate ${WEEK3} 📅 ${TODAY}`;
+
+  it('names its last chance this week, and what skipping costs', () => {
+    expect(line(task, ticks(WEEK3, '12', '13', '14') + ticks(WEEK3, '05'))).toBe("3× a week · done this week · misses 1/6 · formed ~ 9 Mar '27");
+    const { p } = progress(task, ticks(WEEK3, '09', '10', '11'));
+    expect(habitStateLine(progress(task, ticks(WEEK3, '09', '10', '11')).task, p, ctx)).toBe('3× a week · last chance this week · misses 0/6');
+    expect(habitWarning(p, progress(task).task)).toBe('Skip today and this week falls short of 3: a miss.');
+  });
+});

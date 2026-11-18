@@ -34,7 +34,7 @@
     const d = rule ? formedEstimate(p, rule, store.ctx.today) : null;
     return d ? dayMonth(d, store.ctx) : null;
   });
-  const warning = $derived(habitWarning(p));
+  const warning = $derived(habitWarning(p, task));
   /** `Last 28 days`, `Last 12 weeks`, or periods for any other length. */
   const span = $derived.by(() => {
     const n = p.marks.length;
