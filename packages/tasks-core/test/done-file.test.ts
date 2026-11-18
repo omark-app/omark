@@ -272,6 +272,12 @@ describe('sweeping a ticked times task (#163)', () => {
     expect(serializeTasks(r.doc)).toBe('# Tasks\n- [ ] Gym 🔁 3 times a week 📅 2026-11-18\n');
   });
 
+  test('without a ✅ date and an open copy already there: logged, no second copy', () => {
+    const r = sweep('# Tasks\n- [ ] Gym 🔁 3 times a week 📅 2026-11-18\n- [x] Gym 🔁 3 times a week\n- [x] Gym 🔁 3 times a week\n');
+    expect(serializeTasks(r.doc)).toBe('# Tasks\n- [ ] Gym 🔁 3 times a week 📅 2026-11-18\n');
+    expect(r.done.lines.map((l) => l.raw)).toEqual(['- [x] Gym 🔁 3 times a week ✅ 2026-11-18', '- [x] Gym 🔁 3 times a week ✅ 2026-11-18']);
+  });
+
   test('two ticked copies make one open task', () => {
     const r = sweep('# Tasks\n- [x] Gym 🔁 3 times a week ✅ 2026-11-16\n- [x] Gym 🔁 3 times a week ✅ 2026-11-17\n');
     expect(serializeTasks(r.doc)).toBe('# Tasks\n- [ ] Gym 🔁 3 times a week 📅 2026-11-18\n');

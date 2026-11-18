@@ -98,6 +98,8 @@ export function sweepCompleted(state: State, today: ISODate, newId: () => string
     ));
     for (const raw of notes) appended.push({ entry: null, raw });
     if (!item.entry.repeat) return [];
+    // A `times` task already open (or opened by this sweep) only needs the log line (#163).
+    if (item.entry.repeat.type === 'times' && openTimes(item.entry.title)) return [];
     return [openAgain(item.entry, item.raw, nextDate(item.entry.repeat, item.date, today))];
   });
   if (!swept) return null;
