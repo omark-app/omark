@@ -1,6 +1,7 @@
 import type { DoneDoc, DoneEntry, DoneLine, HabitEnd, HabitMark, ISODate, Item, RepeatRule, State, Task } from './model.ts';
 import { nextDate } from './recurrence.ts';
 import { formatRepeat } from './repeat-format.ts';
+import { timesCompletions } from './times.ts';
 import { blockEnd, DONE_LINE, isUsableHabitRule, noteLines, noteText, parseFields, toLines } from './tasks-file.ts';
 
 const DROPPED_LINE = /^- \[-\](?=[ \t]|$)(.*)$/;
@@ -69,17 +70,24 @@ export function doneLines(task: Task, today: ISODate): DoneLine[] {
  * unchanged (with Obsidian Tasks, which stamps the ✅ date, the next occurrence is already its own `- [ ]`
  * line); so is a habit end line (#44). Undated ones (ticked without the plugin) are written canonically, stamped with `today`, with their
  * note lines as read; a repeating one also stays where it is as an open task (same title, rule and notes)
- * on its next date, as if completed in the app. Null when there is nothing to sweep.
+ * on its next date, as if completed in the app. A dated `times` task (#163) stays open too, unless an open
+ * copy is already there, since Obsidian Tasks can't repeat it. Null when there is nothing to sweep.
  */
 export function sweepCompleted(state: State, today: ISODate, newId: () => string = defaultNewId): State | null {
   const appended: DoneLine[] = [];
+  const timesTasks: Task[] = [];
   let swept = false;
+  const openTimes = (title: string) =>
+    state.doc.items.some((i) => i.kind === 'task' && i.task.title === title && i.task.repeat?.type === 'times');
   const items = state.doc.items.flatMap((item): Item[] => {
     if (item.kind !== 'done') return [item];
     swept = true;
-    if (item.entry.doneOn !== null || habitEnd(item.raw[0]!)) {
+    const end = habitEnd(item.raw[0]!);
+    if (item.entry.doneOn !== null || end) {
       appended.push(...doneBlock(item.raw));
-      return [];
+      // Obsidian Tasks can't read a `times` rule, so it made no next line: keep the task open (#163).
+      if (end || item.entry.repeat?.type !== 'times' || openTimes(item.entry.title)) return [];
+      return [openAgain(item.entry, item.raw)];
     }
     const notes = item.raw.slice(1);
     appended.push(canonical(
@@ -88,24 +96,31 @@ export function sweepCompleted(state: State, today: ISODate, newId: () => string
     ));
     for (const raw of notes) appended.push({ entry: null, raw });
     if (!item.entry.repeat) return [];
-    const task: Task = {
-      id: newId(),
-      title: item.entry.title,
-      notes: notes.map(noteText),
-      date: nextDate(item.entry.repeat, item.date, today),
-      repeat: item.entry.repeat,
-      ...(item.entry.important && { important: true }),
-      ...(item.entry.habit && isUsableHabitRule(item.entry.repeat) && { habit: item.entry.habit }),
-      raw: item.raw,
-      rawKey: null,
-    };
-    return [{ kind: 'task', task }];
+    return [openAgain(item.entry, item.raw, nextDate(item.entry.repeat, item.date, today))];
   });
   if (!swept) return null;
-  return {
-    doc: { ...state.doc, items },
-    done: { lines: [...state.done.lines, ...appended] },
-  };
+  const done = { lines: [...state.done.lines, ...appended] };
+  // A `times` rule's next date depends on the period's completions, all of them now in done.md.
+  for (const t of timesTasks) t.date = nextDate(t.repeat!, t.date, today, timesCompletions(t, done));
+  return { doc: { ...state.doc, items }, done };
+
+  /** The swept repeating task, open again on `date` with its notes as read; its line is written canonically. */
+  function openAgain(entry: DoneEntry, raw: string[], date: ISODate | null = null): Item {
+    const repeat = entry.repeat!;
+    const task: Task = {
+      id: newId(),
+      title: entry.title,
+      notes: raw.slice(1).map(noteText),
+      date,
+      repeat,
+      ...(entry.important && { important: true }),
+      ...(entry.habit && isUsableHabitRule(repeat) && { habit: entry.habit }),
+      raw,
+      rawKey: null,
+    };
+    if (repeat.type === 'times') timesTasks.push(task);
+    return { kind: 'task', task };
+  }
 }
 
 function canonical(

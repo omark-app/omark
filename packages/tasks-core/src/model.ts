@@ -17,7 +17,8 @@ export type BucketKey = 'today' | 'tomorrow' | 'week' | 'next' | 'later' | 'some
  * A repeat rule from the 🔁 field of a task. Weekly `days`: 0 = Monday … 6 = Sunday, sorted, non-empty.
  * Weekly and monthly take an optional interval `n` (every n-th week or month, counted from the due date's
  * week or month); it is absent for the plain every-week / every-month rules, and parsing never sets it to 1.
- * `every` is a plain stride of n days, weeks or calendar months from the due date.
+ * `every` is a plain stride of n days, weeks or calendar months from the due date. `times` is n different
+ * days of each calendar week (Monday to Sunday), month or year, at most one a day (#163).
  */
 export type RepeatRule =
   | { type: 'daily' }
@@ -26,7 +27,11 @@ export type RepeatRule =
   | { type: 'monthly'; day: number /* 1–31 */; n?: number }
   | { type: 'yearly' }
   | { type: 'every'; n: number; unit: 'days' | 'weeks' | 'months' }
-  | { type: 'after'; n: number };
+  | { type: 'after'; n: number }
+  | { type: 'times'; n: number; per: TimesPer };
+
+/** The calendar period of a `times` rule. */
+export type TimesPer = 'week' | 'month' | 'year';
 
 /** The 🌱 field of a habit (#44). `goal` is the number after it (1–999); null means the configured goal. */
 export interface HabitMark {

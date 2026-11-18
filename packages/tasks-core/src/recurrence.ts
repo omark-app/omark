@@ -1,4 +1,5 @@
-import type { ISODate, RepeatRule } from './model.ts';
+import type { Period } from './habits.ts';
+import type { ISODate, RepeatRule, TimesPer } from './model.ts';
 import { addDays, dayOfWeek, daysBetween, daysInMonth } from './dates.ts';
 
 const MAX_STEPS = 100_000;
@@ -75,6 +76,47 @@ function nextOnCycle(rule: Extract<RepeatRule, { type: 'weekly' | 'monthly' }>, 
   throw new Error('nextOnCycle: no date found');
 }
 
+/** The calendar week (Monday to Sunday), month or year holding `d` (#163). */
+export function timesPeriod(per: TimesPer, d: ISODate): Period {
+  if (per === 'week') {
+    const start = addDays(d, -dayOfWeek(d));
+    return { start, end: addDays(start, 6) };
+  }
+  const [y, m] = parts(d);
+  if (per === 'month') return { start: make(y, m, 1), end: make(y, m, 31) };
+  return { start: make(y, 1, 1), end: make(y, 12, 31) };
+}
+
+/** Where a `times` task stands in the period holding today (#163). */
+export interface TimesStatus {
+  period: Period;
+  /** Different days of the period, up to today, with a completion. */
+  done: number;
+  /** Times still to do this period (0 once met). */
+  left: number;
+  /** Days left in the period, today included. */
+  daysLeft: number;
+  doneToday: boolean;
+  met: boolean;
+  /** Not met, not done today, and more days left than times: it can wait for a later day. */
+  canWait: boolean;
+  /** Not met, not done today, and as many days left as times: skipping today falls short. */
+  lastChance: boolean;
+}
+
+/** The status of a `times` rule from its completion dates (any order, repeats allowed). */
+export function timesStatus(rule: Extract<RepeatRule, { type: 'times' }>, completions: readonly ISODate[], today: ISODate): TimesStatus {
+  const period = timesPeriod(rule.per, today);
+  const days = new Set(completions.filter((d) => d >= period.start && d <= today));
+  const done = days.size;
+  const left = Math.max(0, rule.n - done);
+  const daysLeft = daysBetween(today, period.end) + 1;
+  const doneToday = days.has(today);
+  const met = left === 0;
+  const open = !met && !doneToday;
+  return { period, done, left, daysLeft, doneToday, met, canWait: open && daysLeft > left, lastChance: open && daysLeft === left };
+}
+
 /**
  * First date of the pattern after `today`, stepping from the current due date (at least one step: the
  * result is also after the due date). Monthly considers the due month's own occurrence, so a task moved
@@ -82,9 +124,15 @@ function nextOnCycle(rule: Extract<RepeatRule, { type: 'weekly' | 'monthly' }>, 
  * Interval weekly / monthly rules count their weeks or months from the due date's. With no due date they
  * act as if the task were dated where `fitDate` would put it: the first rule day on or after `today` is
  * next if it is after `today`; if it is `today`, that was this cycle's occurrence and the next is N on.
+ * A `times` rule ignores the due date: tomorrow until the period's count is met by `completions` (today's
+ * included), then the first day of the next period (#163).
  */
-export function nextDate(rule: RepeatRule, due: ISODate | null, today: ISODate): ISODate {
+export function nextDate(rule: RepeatRule, due: ISODate | null, today: ISODate, completions: readonly ISODate[] = []): ISODate {
   if (rule.type === 'after') return addDays(today, rule.n);
+  if (rule.type === 'times') {
+    const st = timesStatus(rule, completions, today);
+    return st.met ? addDays(st.period.end, 1) : addDays(today, 1);
+  }
   const start = due ?? today;
   if (rule.type === 'weekly' || rule.type === 'monthly') {
     if (due === null) {
