@@ -125,8 +125,9 @@ A habit with a times rule (`🌱 30 🔁 3 times a week`) is walked by calendar 
 
 - Each period adds its different days with a completion, at most N. So each completion counts toward the goal, and the habit can form mid-period, on the completion that reaches the goal.
 - A period that ends short of N is **one miss**, however short it was; its completions still count. A period that meets N ends the misses in a row. The miss limits are the same.
+- The period an attempt starts in (its first completion) only needs the days left in it from that day, at most N: a `3 times a week` habit started on Saturday needs Saturday and Sunday.
 - After a restart, empty periods until the next completion are not misses, as in 5.2.
-- The habit is done for the period once N is met. Its **last chance** is the period's own: not met, not done today, and as many days left (today included) as times left, so skipping today falls short. The warning says "Skip today and this week falls short of 3: a miss."
+- The habit is done for the period once N is met. Its **last chance** is the period's own: not met, not done today, and as many days left (today included) as times left, so skipping today falls short. The warning says "Skip today and this week falls short of 3: a miss." A habit with no attempt under way (new, or waiting after a restart) has no last chance.
 
 `3 times a week`, 1 in a row: done Mon and Wed of week 1, Mon of week 2 → week 1 was short (a miss), count 3. Week 2 also ending with only Mon → second miss in a row: restart, best 3.
 

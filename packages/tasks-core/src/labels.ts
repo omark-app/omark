@@ -30,6 +30,11 @@ export function dayMonth(d: ISODate, ctx: WeekCtx): string {
 /** A date that is never overdue: a habit's (habits spec 3) or a `times` task's (#163), whose old date reads as today. */
 const neverOverdue = (t: Task): boolean => t.habit !== undefined || t.repeat?.type === 'times';
 
+/** Dated before today, and not a habit or `times` task, whose old date is not late (habits spec 3, #163). */
+export function isOverdue(t: Task, ctx: WeekCtx): boolean {
+  return t.date !== null && t.date < ctx.today && !neverOverdue(t);
+}
+
 /**
  * The one-line meta label of a task row (spec 5.1). A habit or `times` task is never overdue: its old date
  * reads as today. A `times` task due by today shows the period's progress from `times` (`1/3 this week`).

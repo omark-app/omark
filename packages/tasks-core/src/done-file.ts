@@ -1,5 +1,5 @@
 import type { DoneDoc, DoneEntry, DoneLine, HabitEnd, HabitMark, ISODate, Item, RepeatRule, State, Task } from './model.ts';
-import { nextDate } from './recurrence.ts';
+import { nextDate, timesDue } from './recurrence.ts';
 import { formatRepeat } from './repeat-format.ts';
 import { timesCompletions } from './times.ts';
 import { blockEnd, DONE_LINE, isUsableHabitRule, noteLines, noteText, parseFields, toLines } from './tasks-file.ts';
@@ -77,8 +77,10 @@ export function sweepCompleted(state: State, today: ISODate, newId: () => string
   const appended: DoneLine[] = [];
   const timesTasks: Task[] = [];
   let swept = false;
+  // Open already, or opened by this sweep: a second ticked copy must not open a second task.
   const openTimes = (title: string) =>
-    state.doc.items.some((i) => i.kind === 'task' && i.task.title === title && i.task.repeat?.type === 'times');
+    timesTasks.some((t) => t.title === title)
+    || state.doc.items.some((i) => i.kind === 'task' && i.task.title === title && i.task.repeat?.type === 'times');
   const items = state.doc.items.flatMap((item): Item[] => {
     if (item.kind !== 'done') return [item];
     swept = true;
@@ -101,7 +103,8 @@ export function sweepCompleted(state: State, today: ISODate, newId: () => string
   if (!swept) return null;
   const done = { lines: [...state.done.lines, ...appended] };
   // A `times` rule's next date depends on the period's completions, all of them now in done.md.
-  for (const t of timesTasks) t.date = nextDate(t.repeat!, t.date, today, timesCompletions(t, done));
+  // Ticked elsewhere, maybe on an earlier day: the earliest day it can still be done.
+  for (const t of timesTasks) if (t.repeat?.type === 'times') t.date = timesDue(t.repeat, timesCompletions(t, done), today);
   return { doc: { ...state.doc, items }, done };
 
   /** The swept repeating task, open again on `date` with its notes as read; its line is written canonically. */

@@ -166,9 +166,9 @@ The full rules, periods, misses and restarts are in [the habits spec](tasks/habi
 | `every 3 months` | every N months |
 | `every 3 months on the 18th` | that day every N months |
 | `every 3 days when done` | N days after the completion date |
-| `once a week`, `twice a week`, `3 times a week` | N different days of each calendar week, Monday to Sunday |
-| `twice a month`, `3 times a month` | N different days of each calendar month |
-| `once a year`, `4 times a year` | N different days of each calendar year |
+| `3 times a week` | N different days of each calendar week, Monday to Sunday (`once a week`, `twice a week` for 1 and 2) |
+| `twice a month` | N different days of each calendar month |
+| `4 times a year` | N different days of each calendar year |
 
 N is a whole number from 1 to 999. Anything else is not a rule, and the text stays in the title.
 
@@ -185,7 +185,7 @@ The next date is the first date strictly after the completion date that fits the
 - `every N months` steps N calendar months from the due date. Once clamped to a short month it keeps the clamped day; use `every N months on the 31st` to stay on the month end.
 - `every N months on the ...` works like the monthly rule, in months 0, N, 2N ... from the due date's month.
 - `when done` is the completion date plus N days.
-- A times rule ignores the due date: the next date is tomorrow until the period's count is met (today's completion included), then the first day of the next period (Monday, the 1st, 1 January). So the task is always due on the earliest day it can still be done.
+- A times rule ignores the due date: the next date is tomorrow until the period's count is met (today's completion included), then the first day of the next period (Monday, the 1st, 1 January). So the task is always due on the earliest day it can still be done. `3 times a week` completed on Friday 2026-10-16, with one more completion that week: next 2026-10-17. With two more: next Monday 2026-10-19.
 - With no `📅`, step from the completion date (`none` in the table).
 - When a rule is added to a task, its `📅` stays if it fits the rule, else moves to the first fitting date on or after it (or today).
 
@@ -205,8 +205,6 @@ The next date is the first date strictly after the completion date that fits the
 | `every 3 months` | 2026-08-31 | 2026-12-01 | 2027-02-28 |
 | `every 3 months on the 18th` | 2026-10-05 | 2026-10-05 | 2026-10-18 |
 | `every 2 weeks on Friday` | none | 2026-10-24 | 2026-10-30 |
-| `3 times a week`, done on 2026-10-12 | 2026-10-16 | 2026-10-16 | 2026-10-17 |
-| `3 times a week`, done on 2026-10-12 and 13 | 2026-10-16 | 2026-10-16 | 2026-10-19 |
 
 ### config.yaml
 

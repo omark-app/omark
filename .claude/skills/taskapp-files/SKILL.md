@@ -67,7 +67,7 @@ Progress is never stored. Work it out from the habit's rule and `done.md`:
 - Count only completions with the habit's exact title and `🌱` that come after the last `🏆` or `❌` line with the same title.
 - Each date of the `🔁` rule opens a **period** that lasts until the day before the next rule date (`every day`: one day; `every week on Monday, Wednesday, Friday`: Mon-Tue, Wed-Thu, Fri-Sun). Rules that stride (`every 3 days`, `every 2 weeks`, `every 3 months` ...) count their strides from the first counted completion.
 - Walk the periods from the one holding the first counted completion up to today. A period with at least one completion is one repetition (two in a period count once). A period that ended with none is a miss. Today's period, not done yet, is pending, not a miss.
-- A times rule (`3 times a week`) uses calendar periods instead. Each completion on a different day counts, at most N per period. A period that ends short of N is one miss, and its completions still count.
+- A times rule (`3 times a week`) uses calendar periods instead. Each completion on a different day counts, at most N per period. A period that ends short of N is one miss, and its completions still count. The period an attempt starts in only needs the days left from its first completion (at most N).
 - **Restart**: more misses in a row than `habits.missesInARow` (default 1), or more misses in the attempt than `habits.missesPerAttempt` (default 10% of the goal, rounded down: 6 for 66). The count goes back to 0 and the next completion starts a new attempt; periods before it are not misses. Keep the best count of the earlier attempts.
 - Formed when the count reaches the goal.
 

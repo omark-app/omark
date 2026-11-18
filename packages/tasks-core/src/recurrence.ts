@@ -118,6 +118,15 @@ export function timesStatus(rule: Extract<RepeatRule, { type: 'times' }>, comple
 }
 
 /**
+ * The earliest day on or after `today` a `times` task can still be done (#163): today, tomorrow once done
+ * today, or the next period's first day once met. For a task completed elsewhere on an earlier day.
+ */
+export function timesDue(rule: Extract<RepeatRule, { type: 'times' }>, completions: readonly ISODate[], today: ISODate): ISODate {
+  const st = timesStatus(rule, completions, today);
+  return st.met ? addDays(st.period.end, 1) : st.doneToday ? addDays(today, 1) : today;
+}
+
+/**
  * First date of the pattern after `today`, stepping from the current due date (at least one step: the
  * result is also after the due date). Monthly considers the due month's own occurrence, so a task moved
  * off its day (e.g. to the 5th of a "15th" rule) and completed then moves to the 15th, as weekly does.

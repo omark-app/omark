@@ -267,6 +267,22 @@ describe('a times rule (#163): 3 times a week, weeks from Monday 5 Oct', () => {
     expect(at(oct(5, 10), '2026-10-10')).toMatchObject({ lastChance: false });
   });
 
+  it('a first week started mid-week only needs the days left in it', () => {
+    // Started on Saturday: two days were left, both done.
+    expect(at(oct(10, 11), '2026-10-12')).toMatchObject({ count: 2, missesThisAttempt: 0 });
+    expect(marks(at(oct(10, 11), '2026-10-12'))).toEqual(['done', 'today']);
+    // Only one of the two: a miss.
+    expect(at(oct(10), '2026-10-12')).toMatchObject({ count: 1, missesThisAttempt: 1 });
+    // The first week after a restart is judged the same way.
+    expect(at(oct(5, 12, 24, 25), '2026-10-26')).toMatchObject({ attempt: 2, count: 2, missesThisAttempt: 0 });
+  });
+
+  it('a new habit has no last chance; its first week counts from its first tick', () => {
+    expect(at([], '2026-10-09')).toMatchObject({ lastChance: false });
+    expect(at(oct(10), '2026-10-11')).toMatchObject({ lastChance: true, doneThisPeriod: false });
+    expect(at(oct(10, 11), '2026-10-11')).toMatchObject({ lastChance: false, doneThisPeriod: true });
+  });
+
   it('periods are calendar weeks', () => {
     expect(periodOf(week3, '2026-10-07', '2026-10-14')).toEqual({ start: '2026-10-12', end: '2026-10-18' });
   });

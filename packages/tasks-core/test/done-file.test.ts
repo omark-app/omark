@@ -267,6 +267,16 @@ describe('sweeping a ticked times task (#163)', () => {
     expect(serializeTasks(r.doc)).toBe('# Tasks\n- [ ] Gym 🔁 3 times a week 📅 2026-11-19\n');
   });
 
+  test('ticked in Obsidian on an earlier day: due today, the earliest day it can still be done', () => {
+    const r = sweep('# Tasks\n- [x] Gym 🔁 3 times a week ✅ 2026-11-16\n');
+    expect(serializeTasks(r.doc)).toBe('# Tasks\n- [ ] Gym 🔁 3 times a week 📅 2026-11-18\n');
+  });
+
+  test('two ticked copies make one open task', () => {
+    const r = sweep('# Tasks\n- [x] Gym 🔁 3 times a week ✅ 2026-11-16\n- [x] Gym 🔁 3 times a week ✅ 2026-11-17\n');
+    expect(serializeTasks(r.doc)).toBe('# Tasks\n- [ ] Gym 🔁 3 times a week 📅 2026-11-18\n');
+  });
+
   test('with a ✅ date and an open copy already there: no second copy', () => {
     const r = sweep('# Tasks\n- [x] Gym 🔁 3 times a week ✅ 2026-11-18\n- [ ] Gym 🔁 3 times a week 📅 2026-11-19\n');
     expect(serializeTasks(r.doc)).toBe('# Tasks\n- [ ] Gym 🔁 3 times a week 📅 2026-11-19\n');

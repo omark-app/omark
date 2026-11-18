@@ -141,7 +141,7 @@ Moving a task means setting its date:
 
 ### 4.3 Ordering
 
-- Within a bucket: important tasks first (#19), then habits (#44), then earliest date, then the line order in `tasks.md`. Last come tasks with a times rule (`3 times a week`, #163) that can still wait: not done today, with more days left in their period than times. An important one stays with the important tasks, and one whose days left equal its times left sorts by its date.
+- Within a bucket: important tasks first (#19), then habits (#44), then earliest date, then the line order in `tasks.md`. Last come tasks with a times rule (`3 times a week`, #163) that can still wait, habits too: not done today, with more days left in their period than times. An important one stays with the important tasks, and one whose days left equal its times left sorts as usual.
 - So in Today: important tasks first, then overdue tasks (oldest first), then today's. Overdue dates show in red (5.1).
 
 ### 4.4 Dragging (desktop mouse drag, phone long-press drag)

@@ -165,8 +165,10 @@ export function walkHabit(completions: ISODate[], rule: RepeatRule, today: ISODa
 /**
  * The walk for a `times` rule (#163). Each calendar period adds its different days with a completion, at
  * most N, so the count can reach the goal mid-period. A period that ends short of N is one miss, its
- * completions still counted. A period is done once N is met; its last chance is when skipping today would
- * fall short (as many days left as times).
+ * completions still counted. The period an attempt starts in only needs the days left in it from its first
+ * completion (at most N), so starting on a Saturday is no miss. A period is done once that is met; its last
+ * chance is when skipping today would fall short (as many days left as times). A habit with no attempt
+ * under way (new, or waiting after a restart) has no last chance.
  */
 function walkTimes(completions: ISODate[], rule: Extract<RepeatRule, { type: 'times' }>, today: ISODate, rules: HabitRules): HabitProgress {
   const days = [...new Set(completions.filter((d) => d <= today))].sort();
@@ -181,6 +183,7 @@ function walkTimes(completions: ISODate[], rule: Extract<RepeatRule, { type: 'ti
     while (at < days.length && days[at]! <= cur.end) inPeriod.push(days[at++]!);
     const counted = inPeriod.slice(0, rule.n);
     const isToday = cur.end >= today;
+    const sinceBefore = p.since;
     for (const d of counted) {
       p.restarted = false;
       p.since ??= d;
@@ -190,8 +193,17 @@ function walkTimes(completions: ISODate[], rule: Extract<RepeatRule, { type: 'ti
         break;
       }
     }
+    // An attempt that started in this period needs only the days it had left.
+    const startedHere = sinceBefore === null && p.since !== null;
+    const need = startedHere ? Math.min(rule.n, daysBetween(p.since!, cur.end) + 1) : rule.n;
+    if (isToday) {
+      const doneToday = inPeriod.includes(today);
+      const left = Math.max(0, need - counted.length);
+      p.doneThisPeriod = left === 0;
+      p.lastChance = p.since !== null && !doneToday && left > 0 && daysBetween(today, cur.end) + 1 === left;
+    }
     let mark: PeriodMark;
-    if (counted.length >= rule.n) {
+    if (counted.length >= need) {
       p.missesInARow = 0;
       mark = 'done';
     } else if (isToday && p.formedOn === null) {
@@ -215,7 +227,7 @@ function walkTimes(completions: ISODate[], rule: Extract<RepeatRule, { type: 'ti
     if (p.formedOn !== null || isToday) break;
   }
   p.marks = p.marks.slice(-MARKS_KEPT);
-  p.lastChance = p.formedOn === null && now.lastChance;
+  if (p.formedOn !== null) p.lastChance = false;
   return p;
 }
 

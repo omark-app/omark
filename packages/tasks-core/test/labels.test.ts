@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { HabitProgress, RepeatRule, Task } from '../src/index.ts';
-import { dayMonth, dueText, habitLabel, metaLabel, timesStatus, weekdayShort } from '../src/index.ts';
+import { dayMonth, dueText, habitLabel, isOverdue, metaLabel, timesStatus, weekdayShort } from '../src/index.ts';
 
 const fri = { today: '2026-10-16', weekStart: 0 };
 const mk = (date: string | null, repeat: RepeatRule | null = null): Task => ({ id: 'a', title: 'a', notes: [], date, repeat, raw: null, rawKey: null });
@@ -92,4 +92,12 @@ test('habitLabel of a times habit: the period progress while not met, then the n
   expect(habitLabel(...at(['2026-10-12'], '2026-10-16'), fri, 'short')).toEqual({ count: '1/30', when: '1/3 this week', tag: null });
   expect(habitLabel(...at(['2026-10-12', '2026-10-16'], '2026-10-17'), fri, 'short').when).toBe('2/3 this week');
   expect(habitLabel(...at(['2026-10-12', '2026-10-13', '2026-10-14'], '2026-10-19'), fri, 'short').when).toBe('Mon');
+});
+
+test('isOverdue: an old date, but never for a habit or a times task (#163)', () => {
+  expect(isOverdue(mk('2026-10-15'), fri)).toBe(true);
+  expect(isOverdue(mk('2026-10-16'), fri)).toBe(false);
+  expect(isOverdue(mk(null), fri)).toBe(false);
+  expect(isOverdue({ ...mk('2026-10-15', { type: 'daily' }), habit: { goal: null } }, fri)).toBe(false);
+  expect(isOverdue(mk('2026-10-15', { type: 'times', n: 3, per: 'week' }), fri)).toBe(false);
 });
