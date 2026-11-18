@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { HabitProgress, RepeatRule, Task } from '../src/index.ts';
-import { dayMonth, dueText, habitLabel, metaLabel, weekdayShort } from '../src/index.ts';
+import { dayMonth, dueText, habitLabel, metaLabel, timesStatus, weekdayShort } from '../src/index.ts';
 
 const fri = { today: '2026-10-16', weekStart: 0 };
 const mk = (date: string | null, repeat: RepeatRule | null = null): Task => ({ id: 'a', title: 'a', notes: [], date, repeat, raw: null, rawKey: null });
@@ -65,4 +65,19 @@ test('habitLabel', () => {
     .toEqual({ count: '3/15', when: 'by Sun', tag: null });
   // A missed period's old date never reads as overdue.
   expect(habitLabel(mk('2026-10-12', daily), prog({}), fri, 'short').when).toBeNull();
+});
+
+test('metaLabel of a times task: never overdue, the period progress when due (#163)', () => {
+  const rule = { type: 'times', n: 3, per: 'week' } as const;
+  const gym = (date: string): Task => ({ ...mk(date), repeat: rule });
+  const st = timesStatus(rule, ['2026-10-12'], fri.today);
+  expect(metaLabel(gym('2026-10-14'), fri, 'short', st)).toEqual({ text: '1/3 this week', overdue: false, repeat: true });
+  expect(metaLabel(gym('2026-10-16'), fri, 'iso', st)).toEqual({ text: '1/3 this week', overdue: false, repeat: true });
+  // Without the status an old date is still not overdue.
+  expect(metaLabel(gym('2026-10-14'), fri, 'short')).toEqual({ text: null, overdue: false, repeat: true });
+  // A later date reads as usual.
+  expect(metaLabel(gym('2026-10-19'), fri, 'short', st)).toEqual({ text: 'Mon', overdue: false, repeat: true });
+  expect(dueText(gym('2026-10-14'), fri)).toBe('Today · Fri 16 Oct');
+  const month = { type: 'times', n: 2, per: 'month' } as const;
+  expect(metaLabel({ ...mk('2026-10-16'), repeat: month }, fri, 'short', timesStatus(month, [], fri.today)).text).toBe('0/2 this month');
 });

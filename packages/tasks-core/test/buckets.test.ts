@@ -142,3 +142,16 @@ test('bucketName names every bucket and the Important, not urgent group (#38)', 
   expect(bucketOf(t, fri)).toBe('important');
   expect(currentChoice(t, fri)).toBeNull();
 });
+
+test('tasksInBucket: times tasks that can still wait go last, unless important (#163)', () => {
+  const times = { type: 'times', n: 3, per: 'week' } as const;
+  const wait = (id: string, date: string, important = false): Task => ({ ...mk(id, date), repeat: times, ...(important && { important: true }) });
+  const doc = docOf([
+    wait('w1', '2026-10-14'), mk('t', '2026-10-16'), wait('wi', '2026-10-15', true), mk('o', '2026-10-15'),
+    wait('last', '2026-10-16'), { ...mk('i', '2026-10-16'), important: true },
+  ]);
+  const canWait = (t: Task) => t.repeat !== null && t.id !== 'last';
+  expect(tasksInBucket(doc, 'today', fri, canWait).map((t) => t.id)).toEqual(['wi', 'i', 'o', 't', 'last', 'w1']);
+  // With no test, nothing waits: the old order.
+  expect(tasksInBucket(doc, 'today', fri).map((t) => t.id)).toEqual(['wi', 'i', 'w1', 'o', 't', 'last']);
+});
