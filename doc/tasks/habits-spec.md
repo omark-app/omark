@@ -119,10 +119,22 @@ Changing the goal or the miss settings re-runs the walk with the new values, pas
 
 Weekly `every week on Monday, Wednesday, Friday`: done Mon and Thu → 2 (Thu is inside Wednesday's period). Done Mon only, today Fri → 1, missed Wednesday's period.
 
+### 5.4 Times rules (#163)
+
+A habit with a times rule (`🌱 30 🔁 3 times a week`) is walked by calendar periods (Monday-to-Sunday weeks, months, years):
+
+- Each period adds its different days with a completion, at most N. So each completion counts toward the goal, and the habit can form mid-period, on the completion that reaches the goal.
+- A period that ends short of N is **one miss**, however short it was; its completions still count. A period that meets N ends the misses in a row. The miss limits are the same.
+- After a restart, empty periods until the next completion are not misses, as in 5.2.
+- The habit is done for the period once N is met. Its **last chance** is the period's own: not met, not done today, and as many days left (today included) as times left, so skipping today falls short. The warning says "Skip today and this week falls short of 3: a miss."
+
+`3 times a week`, 1 in a row: done Mon and Wed of week 1, Mon of week 2 → week 1 was short (a miss), count 3. Week 2 also ending with only Mon → second miss in a row: restart, best 3.
+
 ## 6. Completing a habit
 
 - Completing works like any repeating task: the done line goes to `done.md` (with `🌱`), and the task moves to the next rule date after today.
-- It counts for **today's period**. If today's period is already done, the complete button does nothing but say so: "Already done today · next Tue" (or "this week"). Nothing is written. *(My call: stops a double tick from looking like progress.)*
+- It counts for **today's period**. If today's period is already done, the complete button does nothing but say so: "Already done today · next Tue" (or "this week"). Nothing is written.
+- A times rule (#163) allows one completion a day until N is met: a second tick the same day says "Done today · next Wed"; once met, "Done 3/3 this week · next Mon". Nothing is written either way. *(My call: stops a double tick from looking like progress.)*
 - An old `📅` (a missed period) is never shown in red. The habit sits in Today until done; completing it moves it to the next rule date after today, as today.
 - Undo removes the done line, so the count goes back.
 
