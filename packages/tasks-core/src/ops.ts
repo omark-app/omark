@@ -4,6 +4,7 @@ import { doneLines } from './done-file.ts';
 import type { ISODate, Item, RepeatRule, State, Task, WeekCtx } from './model.ts';
 import { fitDate, nextDate } from './recurrence.ts';
 import { isUsableHabitRule, parseFields, readBack } from './tasks-file.ts';
+import { timesCompletions } from './times.ts';
 
 
 let lastId = 0;
@@ -136,7 +137,7 @@ export function completeTask(
     const items = s.doc.items.filter((i) => !(i.kind === 'task' && i.task.id === id));
     return { state: { ...withItems(s, items), done }, next: null };
   }
-  const next = nextDate(task.repeat, task.date, today);
+  const next = nextDate(task.repeat, task.date, today, timesCompletions(task, done));
   return { state: { ...updateTask(s, id, () => ({ ...task, date: next })), done }, next };
 }
 

@@ -1,4 +1,4 @@
-import type { RepeatRule } from './model.ts';
+import type { RepeatRule, TimesPer } from './model.ts';
 
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -15,6 +15,9 @@ function ordinal(n: number): string {
  * larger N is not a rule: it stays in the title as text, like any other 🔁 text the app can't read.
  */
 export const MAX_INTERVAL = 999;
+
+/** The most times a `times` rule may ask for: one a day, and 28 fits every month (#163). */
+export const MAX_TIMES: Record<TimesPer, number> = { week: 7, month: 28, year: 365 };
 
 function parseCount(s: string): number | null {
   if (!/^\d+$/.test(s)) return null;
@@ -60,6 +63,13 @@ export function parseRepeat(text: string): RepeatRule | null {
     return n === null ? null : { type: 'after', n };
   }
 
+  const times = /^(?:(once)|(twice)|(1) time|(\d+) times) a (week|month|year)$/.exec(s);
+  if (times) {
+    const per = times[5] as TimesPer;
+    const n = times[1] ? 1 : times[2] ? 2 : Number(times[3] ?? times[4]);
+    return n >= 1 && n <= MAX_TIMES[per] ? { type: 'times', n, per } : null;
+  }
+
   const every = /^every (\d+) (day|week|month)s?$/.exec(s);
   if (every) {
     const n = parseCount(every[1]!);
@@ -87,6 +97,8 @@ export function formatRepeat(rule: RepeatRule): string {
       return `every ${rule.n} ${unitName(rule.unit, rule.n)}`;
     case 'after':
       return `every ${rule.n} ${rule.n === 1 ? 'day' : 'days'} when done`;
+    case 'times':
+      return `${rule.n === 1 ? 'once' : rule.n === 2 ? 'twice' : `${rule.n} times`} a ${rule.per}`;
   }
 }
 
@@ -109,6 +121,8 @@ export function describeRepeat(rule: RepeatRule): string {
       return `every ${rule.n} ${unitName(rule.unit, rule.n)}`;
     case 'after':
       return `${rule.n} ${rule.n === 1 ? 'day' : 'days'} after done`;
+    case 'times':
+      return `${rule.n}× a ${rule.per}`;
   }
 }
 

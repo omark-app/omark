@@ -170,10 +170,28 @@ test.describe('desktop detail', () => {
     await start(page);
     await row(page, 'Learn Polish').click();
     await page.getByTestId('detail-repeat').click();
+    const after = sheet(page).locator('label', { has: page.getByLabel('Days after completion') });
+    await expect(after).toHaveText(/^\s*Every\s+days after I complete it\s*$/);
     await sheet(page).getByLabel('days after I complete it').check();
     await sheet(page).getByRole('button', { name: 'Save' }).click();
     await expect(page.getByTestId('toast')).toContainText('Repeats 3 days after done');
     await poll(() => driveFile(page, 'tasks.md')).toContain('Learn Polish sign language 🔁 every 3 days when done');
+  });
+
+  test('3 times a week: picked, shown as progress, and ticked once a day (#163)', async ({ page }) => {
+    await openApp(page, { files: { 'tasks.md': '# Tasks\n- [ ] Gym 📅 2026-10-16\n' } });
+    await row(page, 'Gym').click();
+    await page.getByTestId('detail-repeat').click();
+    await sheet(page).getByLabel('Times per period').fill('3');
+    await sheet(page).getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByTestId('toast')).toContainText('3× a week');
+    await poll(() => driveFile(page, 'tasks.md')).toContain('- [ ] Gym 🔁 3 times a week 📅 2026-10-16');
+    await expect(row(page, 'Gym').getByTestId('task-meta')).toContainText('0/3 this week');
+    await row(page, 'Gym').getByTestId('task-check').click();
+    await expect(page.getByTestId('bucket-tomorrow').getByTestId('task-row').filter({ hasText: 'Gym' })).toHaveCount(1);
+    await row(page, 'Gym').getByTestId('task-check').click();
+    await expect(page.getByTestId('toast')).toContainText('Done today · next Sat');
+    await poll(() => driveFile(page, 'done.md')).toBe('- [x] Gym 🔁 3 times a week ✅ 2026-10-16\n');
   });
 
   test('the detail Due button opens the date picker with the date field focused', async ({ page }) => {

@@ -1167,6 +1167,50 @@ describe('writing config.yaml (#45)', () => {
   });
 });
 
+describe('N times a period (#163)', () => {
+  // Today is Friday 16 Oct 2026; the week is Monday 12 to Sunday 18.
+  const GYM = '# Tasks\n- [ ] Gym 🔁 3 times a week 📅 2026-10-16\n';
+  const tick = (d: string, habit = false) => `- [x] Gym ${habit ? '🌱 ' : ''}🔁 3 times a week ✅ 2026-10-${d}\n`;
+
+  it('a second tick the same day writes nothing and says Done today', async () => {
+    const { drive, store, synced } = await setup({ 'tasks.md': GYM });
+    const id = idOf(store, 'Gym');
+    store.complete(id);
+    store.complete(id);
+    expect(store.toast).toEqual({ message: 'Done today · next Sat', undo: false });
+    await synced();
+    expect(drive.peek('done.md')).toBe(tick('16'));
+    expect(drive.peek('tasks.md')).toBe('# Tasks\n- [ ] Gym 🔁 3 times a week 📅 2026-10-17\n');
+  });
+
+  it('a habit is held to one a day too', async () => {
+    const { store } = await setup({ 'tasks.md': '# Tasks\n- [ ] Gym 🌱 🔁 3 times a week 📅 2026-10-16\n', 'done.md': tick('16', true) });
+    store.complete(idOf(store, 'Gym'));
+    expect(store.toast).toEqual({ message: 'Done today · next Sat', undo: false });
+    expect(store.state.done.lines).toHaveLength(1);
+  });
+
+  it('once met, a tick writes no done line, says so and moves the date to next week', async () => {
+    const { drive, store, synced } = await setup({ 'tasks.md': GYM, 'done.md': tick('12') + tick('13') + tick('14') });
+    store.complete(idOf(store, 'Gym'));
+    expect(store.toast?.message).toBe('Done 3/3 this week · next Mon');
+    await synced();
+    expect(drive.peek('done.md')).toBe(tick('12') + tick('13') + tick('14'));
+    expect(drive.peek('tasks.md')).toBe('# Tasks\n- [ ] Gym 🔁 3 times a week 📅 2026-10-19\n');
+  });
+
+  it('can-wait tasks go last in their bucket; a last chance does not', async () => {
+    const tasks = '# Tasks\n- [ ] Gym 🔁 3 times a week 📅 2026-10-15\n- [ ] Swim 🔁 3 times a week 📅 2026-10-16\n'
+      + '- [ ] Send the invoice 📅 2026-10-16\n';
+    // Swim has 3 left with 3 days left: its last chance. Gym has 2 left with 3 days left: it can wait.
+    const { store } = await setup({ 'tasks.md': tasks, 'done.md': tick('12') });
+    expect(store.bucketTasks('today').map((t) => t.title)).toEqual(['Swim', 'Send the invoice', 'Gym']);
+    expect(store.counts.today).toBe(3);
+    expect(store.times.get(idOf(store, 'Swim'))).toMatchObject({ lastChance: true });
+    expect(store.times.get(idOf(store, 'Gym'))).toMatchObject({ canWait: true, done: 1 });
+  });
+});
+
 describe('habits (#44)', () => {
   // Today is Friday 16 Oct 2026.
   const MEDITATE = '# Tasks\n- [ ] Meditate 🌱 🔁 every day 📅 2026-10-16\n';

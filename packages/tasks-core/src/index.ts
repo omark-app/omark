@@ -17,6 +17,7 @@ export * from './board.ts';
 export * from './search.ts';
 export * from './quick-add.ts';
 export * from './habits.ts';
+export * from './times.ts';
 export * from './habit-ops.ts';
 export * from './links.ts';
 export * from './tag-suggest.ts';

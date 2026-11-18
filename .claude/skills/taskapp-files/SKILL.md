@@ -67,6 +67,7 @@ Progress is never stored. Work it out from the habit's rule and `done.md`:
 - Count only completions with the habit's exact title and `🌱` that come after the last `🏆` or `❌` line with the same title.
 - Each date of the `🔁` rule opens a **period** that lasts until the day before the next rule date (`every day`: one day; `every week on Monday, Wednesday, Friday`: Mon-Tue, Wed-Thu, Fri-Sun). Rules that stride (`every 3 days`, `every 2 weeks`, `every 3 months` ...) count their strides from the first counted completion.
 - Walk the periods from the one holding the first counted completion up to today. A period with at least one completion is one repetition (two in a period count once). A period that ended with none is a miss. Today's period, not done yet, is pending, not a miss.
+- A times rule (`3 times a week`) uses calendar periods instead. Each completion on a different day counts, at most N per period. A period that ends short of N is one miss, and its completions still count. The period an attempt starts in only needs the days left from its first completion (at most N).
 - **Restart**: more misses in a row than `habits.missesInARow` (default 1), or more misses in the attempt than `habits.missesPerAttempt` (default 10% of the goal, rounded down: 6 for 66). The count goes back to 0 and the next completion starts a new attempt; periods before it are not misses. Keep the best count of the earlier attempts.
 - Formed when the count reaches the goal.
 
@@ -89,8 +90,11 @@ A formed or dropped habit leaves two kinds of line in `done.md` (see below); the
 | `every 3 months` | every N months (`every 1 month` also valid) |
 | `every 3 months on the 18th` | that day every N months |
 | `every 3 days when done` | N days after the completion date |
+| `3 times a week` | N different days of each Monday-to-Sunday week (`once a week`, `twice a week` too) |
+| `twice a month` | N different days of each calendar month |
+| `4 times a year` | N different days of each calendar year |
 
-N is a whole number from 1 to 999. A larger N is not a rule: the text stays in the title.
+N is a whole number from 1 to 999. A larger N is not a rule: the text stays in the title. A times rule takes N up to 7 a week, 28 a month and 365 a year, and counts at most one completion a day. Write `once` for 1 and `twice` for 2.
 
 ## Completing a task
 
@@ -147,6 +151,7 @@ The next date is the first date strictly after the completion date that fits the
 - `every N months` steps N calendar months from the due date, on the due date's day (the 31st falls on the last day of shorter months), until the date is after the completion date. Like `every year`, it steps from the current `📅`, so once clamped it keeps the clamped day: `every 1 month` goes 31 Jan, 28 Feb, 28 Mar. Use `every N months on the 31st` to stay on the month end.
 - `every N months on the ...` works like the monthly rule, but only in months 0, N, 2N, ... counted from the due date's month.
 - `when done` is the completion date plus N days; the due date is ignored.
+- A times rule (`3 times a week`) ignores the due date too. Count the different days in the current period (week, month or year) with a completion in `done.md` that has the task's exact title and a times rule, today's included. Not yet N: the next date is tomorrow. N reached: the first day of the next period. Don't complete such a task twice in one day, or once its period is met.
 - With no `📅`, step from the completion date. For `every N weeks on ...` and `every N months on the ...`, take the first named day (or rule day) after the completion date. When the completion date is itself a named day, it counts as this cycle's occurrence: take the next named day in the same week, else the first named day N weeks (or months) on. In the table below, `none` means no `📅`.
 - When you add or change a `🔁` rule, keep the `📅` if it falls on the rule's days, else move it to the first such date on or after it (or on or after today when there is none). N doesn't matter here: `every 2 weeks on Friday` added on Saturday 2026-10-17 gives `📅 2026-10-23`, and the N-week cycle counts from that date.
 

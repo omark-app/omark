@@ -141,7 +141,7 @@ Moving a task means setting its date:
 
 ### 4.3 Ordering
 
-- Within a bucket: important tasks first (#19), then earliest date, then the line order in `tasks.md`.
+- Within a bucket: important tasks first (#19), then habits (#44), then earliest date, then the line order in `tasks.md`. Last come tasks with a times rule (`3 times a week`, #163) that can still wait, habits too: not done today, with more days left in their period than times. An important one stays with the important tasks, and one whose days left equal its times left sorts as usual.
 - So in Today: important tasks first, then overdue tasks (oldest first), then today's. Overdue dates show in red (5.1).
 
 ### 4.4 Dragging (desktop mouse drag, phone long-press drag)
@@ -166,6 +166,7 @@ Moving a task means setting its date:
 - Right: one **meta label**, clickable to open the date picker:
   - a short date: `Thu` in Tomorrow, This week and Next week, `12 Nov` in Later; overdue tasks show their date in red (`Wed`, or `3 Oct` if more than a week ago);
   - a habit shows its progress instead (`12/66`, in violet) and no `↻`, and is never shown as overdue (see the [habits spec](habits-spec.md));
+  - a task with a times rule (#163), due today or earlier, shows the period's progress (`↻ 1/3 this week`), never in red, with a red **last chance** tag when the days left equal the times left;
   - a repeating task shows `↻` in the same place, before its date (`↻ Thu`, or just `↻` when due today); the full rule is in the tooltip and the detail;
   - no label for non-repeating tasks due today or in Someday; on hover the empty spot shows a faint `today` / `no date` so it can still be clicked (desktop only).
 
@@ -182,7 +183,7 @@ Chosen from a small picker; there is no natural-language parsing.
 - every N weeks on chosen days, every N months, every N months on day N (added after v1, 2026-10-17)
 - N days after completion (Todoist `every!`)
 
-Completing a recurring task moves it to its next date. An overdue recurring task stays in Today, with its date in red, until done; it never skips ahead silently.
+Completing a recurring task moves it to its next date. A task with a times rule is completed at most once a day: a second tick writes nothing and says **Done today · next Sat**. Once its period's count is met, a tick writes nothing, says **Done 3/3 this week · next Mon** and moves the date to the next period if it was still in this one (so a count met in another editor clears with one tap). An overdue recurring task stays in Today, with its date in red, until done; it never skips ahead silently.
 
 - **Next date** = the first date of the pattern that is **after today**, stepping from the current due date. So an "every day" task that is 3 days overdue moves to tomorrow, not to two days ago. "Every Mon, Thu" completed on an overdue Monday on Wednesday moves to Thursday.
 - **N days after completion** = today + N.

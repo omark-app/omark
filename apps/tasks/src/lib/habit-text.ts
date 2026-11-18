@@ -20,8 +20,12 @@ export function habitStateLine(task: Task, p: HabitProgress, ctx: WeekCtx): stri
   const parts: string[] = [];
   const rule = shortRule(task);
   if (rule) parts.push(rule);
+  const per = task.repeat?.type === 'times' ? task.repeat.per : null;
+  // A `times` habit's last chance is this period's: skipping today falls short (#163).
+  if (per && p.lastChance) parts.push(`last chance this ${per}`);
+  else if (per && p.doneThisPeriod) parts.push(`done this ${per}`);
   // The last chance can come from the misses per attempt alone, with no miss in a row.
-  if (p.lastChance) parts.push(p.missesInARow === 0 ? 'one more miss restarts' : `missed ${day ? 'yesterday' : 'last time'} · one more miss restarts`);
+  else if (p.lastChance) parts.push(p.missesInARow === 0 ? 'one more miss restarts' : `missed ${day ? 'yesterday' : 'last time'} · one more miss restarts`);
   else if (p.doneThisPeriod) parts.push(day ? 'done today' : 'done this period');
   parts.push(`misses ${p.missesThisAttempt}/${p.rules.missesPerAttempt}`);
   if (p.attempt > 1) parts.push(attempt);
@@ -36,9 +40,11 @@ export function habitStateLine(task: Task, p: HabitProgress, ctx: WeekCtx): stri
  * The warning line of the habit block (habits spec 9.4): the last chance, or a restart waiting for its next
  * tick; null otherwise. The last chance can come from the misses per attempt with none in a row.
  */
-export function habitWarning(p: HabitProgress): string | null {
+export function habitWarning(p: HabitProgress, task?: Task): string | null {
   if (p.restarted) return `Restarted · best ${p.best}. The next tick starts attempt ${p.attempt}.`;
   if (!p.lastChance) return null;
+  const rule = task?.repeat ?? null;
+  if (rule?.type === 'times') return `Skip today and this ${rule.per} falls short of ${rule.n}: a miss.`;
   const day = p.period.start === p.period.end;
   const restarts = day ? 'Miss today and the count restarts at 0.' : 'Miss this one and the count restarts at 0.';
   if (p.missesInARow === 0) return restarts;

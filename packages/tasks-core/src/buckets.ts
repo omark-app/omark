@@ -94,12 +94,15 @@ export function allTasks(doc: TasksDoc): Task[] {
 /**
  * Important first (issue #19), then habits (#44), then earliest date, then file order (the sort is stable).
  * In Today that puts overdue tasks above today's (#26). The Important, not urgent group is thus in file order (#38).
+ * Tasks that pass `canWait` (a `times` rule with days to spare, #163) and are not important go after the rest.
  */
-export function tasksInBucket(doc: TasksDoc, key: BucketKey, ctx: WeekCtx): Task[] {
+export function tasksInBucket(doc: TasksDoc, key: BucketKey, ctx: WeekCtx, canWait?: (t: Task) => boolean): Task[] {
+  const waits = (t: Task) => (canWait !== undefined && t.important !== true && canWait(t) ? 1 : 0);
   return allTasks(doc)
     .filter((t) => bucketOf(t, ctx) === key)
     .sort((a, b) =>
       Number(b.important === true) - Number(a.important === true)
+      || waits(a) - waits(b)
       || Number(b.habit !== undefined) - Number(a.habit !== undefined)
       || (a.date ?? '').localeCompare(b.date ?? ''));
 }

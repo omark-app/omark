@@ -365,3 +365,26 @@ describe('completeTask with 🔁 text it cannot read (#79)', () => {
     expect(allTasks(r.state.doc).map((t) => t.title)).toEqual(['x 🔁 every blue moon']);
   });
 });
+
+describe('completeTask on a times rule (#163)', () => {
+  // 2026-11-16 is a Monday.
+  const gym = (doneMd = '', line = '- [ ] Gym 🔁 3 times a week 📅 2026-11-17') =>
+    ({ doc: parseTasks(`# Tasks\n${line}\n`, () => 'g'), done: parseDone(doneMd) }) as State;
+
+  test('not met yet: tomorrow, and the done line keeps the rule', () => {
+    const r = completeTask(gym('- [x] Gym 🔁 3 times a week ✅ 2026-11-16\n'), 'g', '2026-11-17');
+    expect(r.next).toBe('2026-11-18');
+    expect(serializeDone(r.state.done)).toBe('- [x] Gym 🔁 3 times a week ✅ 2026-11-16\n- [x] Gym 🔁 3 times a week ✅ 2026-11-17\n');
+    expect(serializeTasks(r.state.doc)).toBe('# Tasks\n- [ ] Gym 🔁 3 times a week 📅 2026-11-18\n');
+  });
+
+  test('met: the first day of next week', () => {
+    const done = '- [x] Gym 🔁 3 times a week ✅ 2026-11-16\n- [x] Gym 🔁 twice a week ✅ 2026-11-17\n';
+    expect(completeTask(gym(done, '- [ ] Gym 🔁 3 times a week 📅 2026-11-19'), 'g', '2026-11-19').next).toBe('2026-11-23');
+  });
+
+  test('only completions with the exact title and a times rule count', () => {
+    const done = '- [x] Gym ✅ 2026-11-16\n- [x] Gym 🔁 every day ✅ 2026-11-17\n- [x] gym 🔁 3 times a week ✅ 2026-11-18\n';
+    expect(completeTask(gym(done, '- [ ] Gym 🔁 3 times a week 📅 2026-11-19'), 'g', '2026-11-19').next).toBe('2026-11-20');
+  });
+});

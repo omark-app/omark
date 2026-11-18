@@ -88,7 +88,7 @@ Three files in one folder: `tasks/` in the Omark folder. Until the move to the o
 
 - **Weeks** run Monday to Sunday unless `firstDayOfWeek` in `config.yaml` names another first day. "This week" starts the day after tomorrow, so on its last two days it is empty.
 - **Older files** may have a `# Always` section above `# Tasks`, one `- text` per line. A tool turns each line into `- [ ] text ⏫` at the top of `# Tasks`, in order, and removes the section. Don't write new ones.
-- **A `- [x]` line in `tasks.md`** (ticked in another editor) moves to `done.md` with its notes on the next sync. One with a `✅` date moves as it is. One without gets today's; if it repeats, the task also stays in `tasks.md` as `- [ ]` on its next date, with its notes.
+- **A `- [x]` line in `tasks.md`** (ticked in another editor) moves to `done.md` with its notes on the next sync. One with a `✅` date moves as it is. One without gets today's; if it repeats, the task also stays in `tasks.md` as `- [ ]` on its next date, with its notes. A ticked times-rule task stays open on its next date either way, unless an open one with the same title and a times rule is already there.
 
 ### done.md
 
@@ -166,8 +166,13 @@ The full rules, periods, misses and restarts are in [the habits spec](tasks/habi
 | `every 3 months` | every N months |
 | `every 3 months on the 18th` | that day every N months |
 | `every 3 days when done` | N days after the completion date |
+| `3 times a week` | N different days of each calendar week, Monday to Sunday (`once a week`, `twice a week` for 1 and 2) |
+| `twice a month` | N different days of each calendar month |
+| `4 times a year` | N different days of each calendar year |
 
 N is a whole number from 1 to 999. Anything else is not a rule, and the text stays in the title.
+
+A **times rule** (`N times a week|month|year`) takes N from 1 to 7 a week, 28 a month and 365 a year, since it counts at most one completion a day. A writer puts `once` for 1, `twice` for 2 and `N times` above; `1 time` and `2 times` read too. The period's progress is never stored: it is the number of different days in the period with a completion in `done.md` that has the task's exact title and a times rule (for a habit, its counted completions). The week is Monday to Sunday whatever the `weekStart` setting.
 
 #### Next date
 
@@ -180,6 +185,7 @@ The next date is the first date strictly after the completion date that fits the
 - `every N months` steps N calendar months from the due date. Once clamped to a short month it keeps the clamped day; use `every N months on the 31st` to stay on the month end.
 - `every N months on the ...` works like the monthly rule, in months 0, N, 2N ... from the due date's month.
 - `when done` is the completion date plus N days.
+- A times rule ignores the due date: the next date is tomorrow until the period's count is met (today's completion included), then the first day of the next period (Monday, the 1st, 1 January). So the task is always due on the earliest day it can still be done. `3 times a week` completed on Friday 2026-10-16, with one more completion that week: next 2026-10-17. With two more: next Monday 2026-10-19.
 - With no `📅`, step from the completion date (`none` in the table).
 - When a rule is added to a task, its `📅` stays if it fits the rule, else moves to the first fitting date on or after it (or today).
 
@@ -257,7 +263,7 @@ The format is a subset of the [Obsidian Tasks](https://publish.obsidian.md/tasks
 | Sign | Omark Tasks |
 |---|---|
 | `- [ ]`, `- [x]` | understood |
-| `📅` due, `✅` done, `🔁` repeat | understood (repeat with the wording above) |
+| `📅` due, `✅` done, `🔁` repeat | understood (repeat with the wording above). Obsidian Tasks doesn't read a times rule (`3 times a week`): it won't repeat such a task, and the app keeps a ticked one open on its next sync |
 | `⏫` high priority | understood, as Important |
 | `- [-]` cancelled, `❌` cancelled date | understood only on a dropped habit's line in `done.md`; kept elsewhere |
 | `🔺` `🔼` `🔽` `⏬` priorities, `⏳` scheduled, `🛫` start, `➕` created, `🆔` id, `⛔` depends on, `🏁` on completion | kept as text in the title |

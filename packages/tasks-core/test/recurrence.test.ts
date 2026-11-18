@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { fitDate, matchesRule, nextDate, type RepeatRule } from '../src/index.ts';
+import { fitDate, matchesRule, nextDate, timesPeriod, timesStatus, type RepeatRule } from '../src/index.ts';
 
 test('nextDate follows spec section 6', () => {
   expect(nextDate({ type: 'daily' }, '2026-10-13', '2026-10-16')).toBe('2026-10-17');
@@ -200,4 +200,50 @@ test('fitDate for N-interval rules', () => {
   // A stride has no pattern to miss.
   expect(fitDate({ type: 'every', n: 3, unit: 'months' }, '2026-10-21', '2026-10-16')).toBe('2026-10-21');
   expect(fitDate({ type: 'every', n: 3, unit: 'months' }, null, '2026-10-16')).toBe('2026-10-16');
+});
+
+// N times a week, month or year (#163). 2026-11-16 is a Monday.
+const week3: RepeatRule = { type: 'times', n: 3, per: 'week' };
+
+test('timesPeriod is the calendar week (Monday to Sunday), month or year', () => {
+  expect(timesPeriod('week', '2026-11-18')).toEqual({ start: '2026-11-16', end: '2026-11-22' });
+  expect(timesPeriod('week', '2026-11-22')).toEqual({ start: '2026-11-16', end: '2026-11-22' });
+  expect(timesPeriod('week', '2026-11-16')).toEqual({ start: '2026-11-16', end: '2026-11-22' });
+  expect(timesPeriod('month', '2026-02-10')).toEqual({ start: '2026-02-01', end: '2026-02-28' });
+  expect(timesPeriod('month', '2028-02-29')).toEqual({ start: '2028-02-01', end: '2028-02-29' });
+  expect(timesPeriod('year', '2026-07-04')).toEqual({ start: '2026-01-01', end: '2026-12-31' });
+});
+
+test('timesStatus: can wait, last chance, lost, done today, met', () => {
+  const at = (done: string[], today: string) => timesStatus(week3, done, today);
+  expect(at(['2026-11-16'], '2026-11-18')).toMatchObject({ done: 1, left: 2, daysLeft: 5, doneToday: false, met: false, canWait: true, lastChance: false });
+  expect(at(['2026-11-16'], '2026-11-21')).toMatchObject({ left: 2, daysLeft: 2, canWait: false, lastChance: true });
+  // Lost: three left with two days to go. Neither waiting nor a last chance.
+  expect(at([], '2026-11-21')).toMatchObject({ done: 0, left: 3, daysLeft: 2, canWait: false, lastChance: false });
+  expect(at(['2026-11-16', '2026-11-21'], '2026-11-21')).toMatchObject({ done: 2, doneToday: true, canWait: false, lastChance: false });
+  expect(at(['2026-11-16', '2026-11-17', '2026-11-18'], '2026-11-19')).toMatchObject({ done: 3, left: 0, met: true, canWait: false, lastChance: false });
+  // Two on one day count once; last week and days after today don't count.
+  expect(at(['2026-11-15', '2026-11-16', '2026-11-16', '2026-11-20'], '2026-11-17')).toMatchObject({ done: 1, left: 2 });
+  expect(at([], '2026-11-18').period).toEqual({ start: '2026-11-16', end: '2026-11-22' });
+});
+
+test('nextDate of a times rule: tomorrow until met, then the next period', () => {
+  expect(nextDate(week3, '2026-11-16', '2026-11-16', ['2026-11-16'])).toBe('2026-11-17');
+  expect(nextDate(week3, '2026-11-20', '2026-11-20', ['2026-11-16', '2026-11-18', '2026-11-20'])).toBe('2026-11-23');
+  expect(nextDate(week3, '2026-11-22', '2026-11-22', ['2026-11-22'])).toBe('2026-11-23');
+  // An old date doesn't matter: the next date comes from today.
+  expect(nextDate(week3, '2026-11-02', '2026-11-18', ['2026-11-18'])).toBe('2026-11-19');
+  expect(nextDate(week3, null, '2026-11-18')).toBe('2026-11-19');
+  const month2: RepeatRule = { type: 'times', n: 2, per: 'month' };
+  expect(nextDate(month2, '2026-11-29', '2026-11-29', ['2026-11-29'])).toBe('2026-11-30');
+  expect(nextDate(month2, '2026-11-30', '2026-11-30', ['2026-11-03', '2026-11-30'])).toBe('2026-12-01');
+  const year1: RepeatRule = { type: 'times', n: 1, per: 'year' };
+  expect(nextDate(year1, '2026-03-01', '2026-03-01', ['2026-03-01'])).toBe('2027-01-01');
+  expect(nextDate(year1, '2026-12-31', '2026-12-31', ['2026-12-31'])).toBe('2027-01-01');
+});
+
+test('fitDate keeps any date of a times rule, or today', () => {
+  expect(fitDate(week3, '2026-11-20', '2026-11-18')).toBe('2026-11-20');
+  expect(fitDate(week3, null, '2026-11-18')).toBe('2026-11-18');
+  expect(matchesRule(week3, '2026-11-18')).toBe(true);
 });

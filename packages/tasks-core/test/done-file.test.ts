@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest';
+import { describe, expect, test } from 'vitest';
 import {
   computeStats, doneLine, doneLines, droppedLine, formedLine, habitEnd, parseDone, parseTasks, serializeDone, serializeTasks, sweepCompleted,
   type DoneDoc, type State, type Task,
@@ -250,4 +250,41 @@ test('an undated ticked habit in tasks.md is swept keeping 🌱 and stays a habi
   const swept = sweepCompleted({ doc, done: parseDone('') }, '2026-10-19', () => 'n1')!;
   expect(serializeDone(swept.done)).toBe('- [x] Gym 🌱 🔁 every day ✅ 2026-10-19\n');
   expect(serializeTasks(swept.doc)).toBe('# Tasks\n- [ ] Gym 🌱 30 🔁 every day 📅 2026-10-20\n');
+});
+
+describe('sweeping a ticked times task (#163)', () => {
+  const sweep = (tasks: string, done = '') =>
+    sweepCompleted({ doc: parseTasks(tasks, () => 'n'), done: parseDone(done) }, '2026-11-18', () => 'n')!;
+
+  test('without a ✅ date: stamped today and kept open, its date from done.md', () => {
+    const r = sweep('# Tasks\n- [x] Gym 🔁 3 times a week 📅 2026-11-18\n', '- [x] Gym 🔁 3 times a week ✅ 2026-11-16\n- [x] Gym 🔁 3 times a week ✅ 2026-11-17\n');
+    expect(serializeTasks(r.doc)).toBe('# Tasks\n- [ ] Gym 🔁 3 times a week 📅 2026-11-23\n');
+  });
+
+  test('with a ✅ date (Obsidian, which does not repeat it): moved as is, and kept open', () => {
+    const r = sweep('# Tasks\n- [x] Gym 🔁 3 times a week 📅 2026-11-18 ✅ 2026-11-18\n');
+    expect(r.done.lines.map((l) => l.raw)).toEqual(['- [x] Gym 🔁 3 times a week 📅 2026-11-18 ✅ 2026-11-18']);
+    expect(serializeTasks(r.doc)).toBe('# Tasks\n- [ ] Gym 🔁 3 times a week 📅 2026-11-19\n');
+  });
+
+  test('ticked in Obsidian on an earlier day: due today, the earliest day it can still be done', () => {
+    const r = sweep('# Tasks\n- [x] Gym 🔁 3 times a week ✅ 2026-11-16\n');
+    expect(serializeTasks(r.doc)).toBe('# Tasks\n- [ ] Gym 🔁 3 times a week 📅 2026-11-18\n');
+  });
+
+  test('without a ✅ date and an open copy already there: logged, no second copy', () => {
+    const r = sweep('# Tasks\n- [ ] Gym 🔁 3 times a week 📅 2026-11-18\n- [x] Gym 🔁 3 times a week\n- [x] Gym 🔁 3 times a week\n');
+    expect(serializeTasks(r.doc)).toBe('# Tasks\n- [ ] Gym 🔁 3 times a week 📅 2026-11-18\n');
+    expect(r.done.lines.map((l) => l.raw)).toEqual(['- [x] Gym 🔁 3 times a week ✅ 2026-11-18', '- [x] Gym 🔁 3 times a week ✅ 2026-11-18']);
+  });
+
+  test('two ticked copies make one open task', () => {
+    const r = sweep('# Tasks\n- [x] Gym 🔁 3 times a week ✅ 2026-11-16\n- [x] Gym 🔁 3 times a week ✅ 2026-11-17\n');
+    expect(serializeTasks(r.doc)).toBe('# Tasks\n- [ ] Gym 🔁 3 times a week 📅 2026-11-18\n');
+  });
+
+  test('with a ✅ date and an open copy already there: no second copy', () => {
+    const r = sweep('# Tasks\n- [x] Gym 🔁 3 times a week ✅ 2026-11-18\n- [ ] Gym 🔁 3 times a week 📅 2026-11-19\n');
+    expect(serializeTasks(r.doc)).toBe('# Tasks\n- [ ] Gym 🔁 3 times a week 📅 2026-11-19\n');
+  });
 });

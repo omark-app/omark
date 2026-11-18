@@ -1,6 +1,7 @@
 import { dayOfWeek, daysBetween, endOfNextWeek } from './dates.ts';
 import type { HabitProgress } from './habits.ts';
 import type { ISODate, Task, WeekCtx } from './model.ts';
+import type { TimesStatus } from './recurrence.ts';
 
 export type DateLabelStyle = 'short' | 'iso';
 
@@ -26,16 +27,27 @@ export function dayMonth(d: ISODate, ctx: WeekCtx): string {
   return y === todayYear ? base : `${base} '${String(y % 100).padStart(2, '0')}`;
 }
 
+/** A date that is never overdue: a habit's (habits spec 3) or a `times` task's (#163), whose old date reads as today. */
+const neverOverdue = (t: Task): boolean => t.habit !== undefined || t.repeat?.type === 'times';
+
+/** Dated before today, and not a habit or `times` task, whose old date is not late (habits spec 3, #163). */
+export function isOverdue(t: Task, ctx: WeekCtx): boolean {
+  return t.date !== null && t.date < ctx.today && !neverOverdue(t);
+}
+
 /**
- * The one-line meta label of a task row (spec 5.1). A habit is never overdue (habits spec 3): a missed
- * period's old date reads as today.
+ * The one-line meta label of a task row (spec 5.1). A habit or `times` task is never overdue: its old date
+ * reads as today. A `times` task due by today shows the period's progress from `times` (`1/3 this week`).
  */
-export function metaLabel(t: Task, ctx: WeekCtx, style: DateLabelStyle): MetaLabel {
+export function metaLabel(t: Task, ctx: WeekCtx, style: DateLabelStyle, times?: TimesStatus | null): MetaLabel {
   const repeat = t.repeat !== null;
   const d = t.date;
   if (d === null) return { text: null, overdue: false, repeat };
   const ago = daysBetween(d, ctx.today);
-  if (ago === 0 || (ago > 0 && t.habit)) return { text: null, overdue: false, repeat };
+  if (ago >= 0 && times && t.repeat?.type === 'times') {
+    return { text: `${times.done}/${t.repeat.n} this ${t.repeat.per}`, overdue: false, repeat };
+  }
+  if (ago === 0 || (ago > 0 && neverOverdue(t))) return { text: null, overdue: false, repeat };
   if (style === 'iso') return { text: d, overdue: ago > 0, repeat };
   if (ago > 0) return { text: ago < 7 ? weekdayShort(d) : dayMonth(d, ctx), overdue: true, repeat };
   const text = d > endOfNextWeek(ctx) ? dayMonth(d, ctx) : weekdayShort(d);
@@ -44,10 +56,10 @@ export function metaLabel(t: Task, ctx: WeekCtx, style: DateLabelStyle): MetaLab
 
 /**
  * Long form for the detail view: `Today · Fri 16 Oct`, `Wed 14 Oct · overdue`, `Someday · no date`. A habit's
- * old date reads as today, never overdue (habits spec 3).
+ * or `times` task's old date reads as today, never overdue (habits spec 3, #163).
  */
 export function dueText(t: Task, ctx: WeekCtx): string {
-  const d = t.date !== null && t.habit && t.date < ctx.today ? ctx.today : t.date;
+  const d = t.date !== null && neverOverdue(t) && t.date < ctx.today ? ctx.today : t.date;
   if (d === null) return 'Someday · no date';
   const full = `${weekdayShort(d)} ${dayMonth(d, ctx)}`;
   const diff = daysBetween(ctx.today, d);
@@ -69,7 +81,10 @@ export interface HabitLabel {
  */
 export function habitLabel(t: Task, p: HabitProgress, ctx: WeekCtx, style: DateLabelStyle): HabitLabel {
   let when: string | null = null;
-  if (!p.doneThisPeriod && p.period.end > ctx.today) {
+  if (p.times && t.repeat?.type === 'times' && !p.times.met) {
+    // A `times` habit shows the period's progress until it is met (#163).
+    when = `${p.times.done}/${t.repeat.n} this ${t.repeat.per}`;
+  } else if (!p.doneThisPeriod && p.period.end > ctx.today) {
     when = `by ${p.period.end > endOfNextWeek(ctx) ? dayMonth(p.period.end, ctx) : weekdayShort(p.period.end)}`;
   } else if (t.date !== null && t.date > ctx.today) {
     when = metaLabel(t, ctx, style).text;

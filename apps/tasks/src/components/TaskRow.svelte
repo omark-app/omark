@@ -1,6 +1,6 @@
 <script lang="ts">
   import { describeRepeat, habitLabel, linkText, metaLabel } from '@omark/tasks-core';
-  import type { DateLabelStyle, HabitProgress, Task, WeekCtx } from '@omark/tasks-core';
+  import type { DateLabelStyle, HabitProgress, Task, TimesStatus, WeekCtx } from '@omark/tasks-core';
   import LinkedText from './LinkedText.svelte';
 
   let {
@@ -8,6 +8,7 @@
     ctx,
     labelStyle,
     habit,
+    times,
     selected = false,
     onselect,
     oncomplete,
@@ -21,6 +22,8 @@
     labelStyle: DateLabelStyle;
     /** Given for a habit (#44): its row shows the count and a tag, never a date or `↻`. */
     habit?: HabitProgress;
+    /** Given for a task with a `times` rule (#163): its row shows the period's progress and its last chance. */
+    times?: TimesStatus;
     selected?: boolean;
     onselect?: () => void;
     oncomplete?: () => void;
@@ -36,7 +39,9 @@
     if (selected) el?.scrollIntoView?.({ block: 'nearest' });
   });
 
-  const label = $derived(metaLabel(task, ctx, labelStyle));
+  const label = $derived(metaLabel(task, ctx, labelStyle, times));
+  /** A habit's tag says its own last chance; an ordinary `times` task gets the same tag. */
+  const lastChance = $derived(!habit && times?.lastChance === true);
   const empty = $derived(label.text === null && !label.repeat);
   const hab = $derived(habit ? habitLabel(task, habit, ctx, labelStyle) : null);
   const tip = $derived(
@@ -51,6 +56,7 @@
   <div class="title">
     <LinkedText text={task.title} />{#if task.notes.length > 0}<span class="ni" title="{task.notes.length} note{task.notes.length > 1 ? 's' : ''}">≡</span>{/if}
     {#if hab?.tag}<span class="htag" class:last={habit?.lastChance} data-testid="habit-tag" aria-label={hab.tag}><span class="htext">{hab.tag}</span></span>{/if}
+    {#if lastChance}<span class="htag last" data-testid="last-chance" aria-label="last chance"><span class="htext">last chance</span></span>{/if}
   </div>
   {#if hab && habit}
     <button class="meta" data-testid="task-meta" title={tip} onclick={(e) => { e.stopPropagation(); onpickdate?.(); }}>

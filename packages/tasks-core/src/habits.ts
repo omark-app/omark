@@ -1,7 +1,7 @@
 import type { DoneDoc, HabitMark, ISODate, RepeatRule, Task } from './model.ts';
 import type { HabitConfig } from './config.ts';
 import { addDays, dayOfWeek, daysBetween } from './dates.ts';
-import { addMonths, matchesRule, monthsBetween } from './recurrence.ts';
+import { addMonths, matchesRule, monthsBetween, timesPeriod, timesStatus, type TimesStatus } from './recurrence.ts';
 import { isUsableHabitRule } from './tasks-file.ts';
 
 /** A habit's limits, with the goal and the misses per attempt worked out (habits spec 2). */
@@ -60,6 +60,7 @@ const isStride = (rule: RepeatRule) =>
  */
 export function periodOf(rule: RepeatRule, anchor: ISODate, d: ISODate): Period {
   if (rule.type === 'after') return { start: d, end: d };
+  if (rule.type === 'times') return timesPeriod(rule.per, d);
   if (isStride(rule)) {
     const dates = strideDates(rule, anchor, d);
     const start = dates.filter((c) => c <= d).at(-1)!;
@@ -97,6 +98,8 @@ export interface HabitProgress {
   formedOn: ISODate | null;
   /** The last 28 periods walked, oldest first. */
   marks: { period: Period; mark: PeriodMark }[];
+  /** For a `times` rule (#163): where today's period stands. */
+  times?: TimesStatus;
 }
 
 const MARKS_KEPT = 28;
@@ -106,6 +109,7 @@ const MARKS_KEPT = 28;
  * from the first completion (today with none). Completions after today are left out.
  */
 export function walkHabit(completions: ISODate[], rule: RepeatRule, today: ISODate, rules: HabitRules): HabitProgress {
+  if (rule.type === 'times') return walkTimes(completions, rule, today, rules);
   const dates = completions.filter((d) => d <= today).sort();
   const anchor = dates[0] ?? today;
   const period = periodOf(rule, anchor, today);
@@ -159,6 +163,75 @@ export function walkHabit(completions: ISODate[], rule: RepeatRule, today: ISODa
 }
 
 /**
+ * The walk for a `times` rule (#163). Each calendar period adds its different days with a completion, at
+ * most N, so the count can reach the goal mid-period. A period that ends short of N is one miss, its
+ * completions still counted. The period an attempt starts in only needs the days left in it from its first
+ * completion (at most N), so starting on a Saturday is no miss. A period is done once that is met; its last
+ * chance is when skipping today would fall short (as many days left as times). A habit with no attempt
+ * under way (new, or waiting after a restart) has no last chance.
+ */
+function walkTimes(completions: ISODate[], rule: Extract<RepeatRule, { type: 'times' }>, today: ISODate, rules: HabitRules): HabitProgress {
+  const days = [...new Set(completions.filter((d) => d <= today))].sort();
+  const now = timesStatus(rule, days, today);
+  const p: HabitProgress = {
+    rules, count: 0, best: 0, bestAttempt: null, attempt: 1, missesInARow: 0, missesThisAttempt: 0, since: null,
+    period: now.period, doneThisPeriod: now.met, restarted: false, lastChance: false, formedOn: null, marks: [], times: now,
+  };
+  let at = 0;
+  for (let cur = timesPeriod(rule.per, days[0] ?? today); ; cur = timesPeriod(rule.per, addDays(cur.end, 1))) {
+    const inPeriod: ISODate[] = [];
+    while (at < days.length && days[at]! <= cur.end) inPeriod.push(days[at++]!);
+    const counted = inPeriod.slice(0, rule.n);
+    const isToday = cur.end >= today;
+    const sinceBefore = p.since;
+    for (const d of counted) {
+      p.restarted = false;
+      p.since ??= d;
+      p.count++;
+      if (p.count >= rules.goal) {
+        p.formedOn = d;
+        break;
+      }
+    }
+    // An attempt that started in this period needs only the days it had left.
+    const startedHere = sinceBefore === null && p.since !== null;
+    const need = startedHere ? Math.min(rule.n, daysBetween(p.since!, cur.end) + 1) : rule.n;
+    if (isToday) {
+      const doneToday = inPeriod.includes(today);
+      const left = Math.max(0, need - counted.length);
+      p.doneThisPeriod = left === 0;
+      p.lastChance = p.since !== null && !doneToday && left > 0 && daysBetween(today, cur.end) + 1 === left;
+    }
+    let mark: PeriodMark;
+    if (counted.length >= need) {
+      p.missesInARow = 0;
+      mark = 'done';
+    } else if (isToday && p.formedOn === null) {
+      mark = 'today';
+    } else if (p.formedOn !== null) {
+      mark = 'done';
+    } else if (counted.length === 0 && p.restarted) {
+      mark = 'idle';
+    } else {
+      p.missesInARow++;
+      p.missesThisAttempt++;
+      mark = 'missed';
+      if (p.missesInARow > rules.missesInARow || p.missesThisAttempt > rules.missesPerAttempt) {
+        if (p.count > p.best) [p.best, p.bestAttempt] = [p.count, p.attempt];
+        Object.assign(p, { count: 0, missesInARow: 0, missesThisAttempt: 0, since: null, restarted: true });
+        p.attempt++;
+        mark = 'restart';
+      }
+    }
+    p.marks.push({ period: cur, mark });
+    if (p.formedOn !== null || isToday) break;
+  }
+  p.marks = p.marks.slice(-MARKS_KEPT);
+  if (p.formedOn !== null) p.lastChance = false;
+  return p;
+}
+
+/**
  * The ✅ dates of the 🌱 completions titled exactly `title` among `done.lines[0..beforeLine)`, after the last
  * 🏆 or ❌ line with that title (spec 4.2), sorted. Two completions on one day are both kept.
  */
@@ -186,8 +259,34 @@ export function habitProgress(task: Task, done: DoneDoc, today: ISODate, config:
  */
 export function formedEstimate(p: HabitProgress, rule: RepeatRule, today: ISODate): ISODate | null {
   if (p.formedOn !== null) return null;
+  if (rule.type === 'times') return timesEstimate(p, rule, today);
   const anchor = p.period.start;
   let cur = p.doneThisPeriod ? periodOf(rule, anchor, addDays(p.period.end, 1)) : p.period;
   for (let left = p.rules.goal - p.count; left > 1; left--) cur = periodOf(rule, anchor, addDays(cur.end, 1));
   return cur.start < today ? today : cur.start;
+}
+
+/**
+ * For a `times` rule: the day the goal would be reached doing it every day from today (tomorrow when done
+ * today) until each period's N is met, then from the next period's first day.
+ */
+function timesEstimate(p: HabitProgress, rule: Extract<RepeatRule, { type: 'times' }>, today: ISODate): ISODate {
+  const now = p.times ?? timesStatus(rule, [], today);
+  let left = p.rules.goal - p.count;
+  let period = now.period;
+  let inPeriod = now.left;
+  let d = now.doneToday ? addDays(today, 1) : today;
+  for (;;) {
+    if (d > period.end) {
+      period = timesPeriod(rule.per, d);
+      inPeriod = rule.n;
+    }
+    if (inPeriod === 0) {
+      d = addDays(period.end, 1);
+      continue;
+    }
+    if (--left <= 0) return d;
+    inPeriod--;
+    d = addDays(d, 1);
+  }
 }

@@ -120,3 +120,36 @@ test('rejects invalid text', () => {
   expect(parseRepeat('every week on')).toBeNull();
   expect(parseRepeat('every 2 weeks when done')).toBeNull(); // the after rule has no unit
 });
+
+// N times a week, month or year (#163).
+test.each([
+  ['once a week', { type: 'times', n: 1, per: 'week' }, '1× a week'],
+  ['twice a week', { type: 'times', n: 2, per: 'week' }, '2× a week'],
+  ['3 times a week', { type: 'times', n: 3, per: 'week' }, '3× a week'],
+  ['twice a month', { type: 'times', n: 2, per: 'month' }, '2× a month'],
+  ['28 times a month', { type: 'times', n: 28, per: 'month' }, '28× a month'],
+  ['4 times a year', { type: 'times', n: 4, per: 'year' }, '4× a year'],
+  ['365 times a year', { type: 'times', n: 365, per: 'year' }, '365× a year'],
+] as [string, Parameters<typeof formatRepeat>[0], string][])('round-trips and describes %s', (text, rule, described) => {
+  expect(parseRepeat(text)).toEqual(rule);
+  expect(formatRepeat(rule)).toBe(text);
+  expect(describeRepeat(rule)).toBe(described);
+});
+
+test('reads other wordings of N times a period', () => {
+  expect(parseRepeat('1 time a week')).toEqual({ type: 'times', n: 1, per: 'week' });
+  expect(parseRepeat('2 times a month')).toEqual({ type: 'times', n: 2, per: 'month' });
+  expect(parseRepeat('  3 Times  A Week ')).toEqual({ type: 'times', n: 3, per: 'week' });
+  expect(parseRepeat('Once a year')).toEqual({ type: 'times', n: 1, per: 'year' });
+  expect(parseRepeat('1 times a week')).toEqual({ type: 'times', n: 1, per: 'week' });
+});
+
+test('N times a period: N beyond one a day is not a rule', () => {
+  expect(parseRepeat('7 times a week')).toEqual({ type: 'times', n: 7, per: 'week' });
+  for (const text of [
+    '0 times a week', '8 times a week', '29 times a month', '366 times a year', '3 times a day',
+    '3 times every week', 'three times a week', '3 time a week', 'thrice a week', '3 times week',
+  ]) {
+    expect(parseRepeat(text), text).toBeNull();
+  }
+});

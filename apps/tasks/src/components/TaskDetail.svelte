@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { bucketName as nameOf, bucketOf, currentChoice, dateChoices, describeRepeat, dueText } from '@omark/tasks-core';
+  import { bucketName as nameOf, bucketOf, currentChoice, dateChoices, describeRepeat, dueText, isOverdue } from '@omark/tasks-core';
   import type { Task } from '@omark/tasks-core';
   import type { AppStore } from '../lib/store.svelte.ts';
   import { autogrow } from '../lib/autogrow.ts';
@@ -23,8 +23,8 @@
 
   const bucket = $derived(bucketOf(task, store.ctx));
   const bucketName = $derived(nameOf(bucket));
-  // A habit is never overdue (habits spec 3): its old date is a missed period, not a late task.
-  const over = $derived(!task.habit && task.date !== null && task.date < store.ctx.today);
+  // A habit or `times` task is never overdue (habits spec 3, #163): its old date is not a late task.
+  const over = $derived(isOverdue(task, store.ctx));
   const chips = $derived(dateChoices(store.ctx));
   const current = $derived(currentChoice(task, store.ctx));
   const progress = $derived(task.habit ? store.habits.get(id) : undefined);

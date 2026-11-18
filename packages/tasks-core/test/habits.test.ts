@@ -220,3 +220,76 @@ describe('marks and the estimate', () => {
     expect(formedEstimate(q, { type: 'weekly', days: [0] }, '2026-10-07')).toBe('2026-10-07');
   });
 });
+
+describe('a times rule (#163): 3 times a week, weeks from Monday 5 Oct', () => {
+  const week3: RepeatRule = { type: 'times', n: 3, per: 'week' };
+  const at = (dates: string[], today: string, rules: HabitRules = RULES) => progress(dates, today, week3, rules);
+
+  it('a full week counts 3 and is done', () => {
+    expect(at(oct(5, 7, 9), '2026-10-11')).toMatchObject({ count: 3, doneThisPeriod: true, missesThisAttempt: 0, lastChance: false });
+  });
+
+  it('counts at most 3 a week and one a day', () => {
+    expect(at(oct(5, 6, 7, 8), '2026-10-11').count).toBe(3);
+    expect(at(oct(5, 5, 7), '2026-10-07')).toMatchObject({ count: 2, doneThisPeriod: false });
+  });
+
+  it('a short week is one miss, and its completions still count', () => {
+    const p = at(oct(5, 7, 12), '2026-10-14');
+    expect(p).toMatchObject({ count: 3, missesThisAttempt: 1, missesInARow: 1, attempt: 1 });
+    expect(marks(p)).toEqual(['missed', 'today']);
+  });
+
+  it('a full week ends the misses in a row', () => {
+    expect(at(oct(5, 12, 13, 14), '2026-10-19')).toMatchObject({ count: 4, missesInARow: 0, missesThisAttempt: 1 });
+  });
+
+  it('two short weeks in a row restart', () => {
+    const p = at(oct(5, 12), '2026-10-19');
+    expect(p).toMatchObject({ count: 0, best: 2, attempt: 2, restarted: true, since: null });
+    expect(marks(p)).toEqual(['missed', 'restart', 'today']);
+  });
+
+  it('an empty week after a restart is idle, not a miss', () => {
+    const p = at(oct(5, 12, 26), '2026-10-26');
+    expect(p).toMatchObject({ count: 1, attempt: 2, missesThisAttempt: 0, since: '2026-10-26' });
+    expect(marks(p)).toEqual(['missed', 'restart', 'idle', 'today']);
+  });
+
+  it('forms mid-week on the completion that reaches the goal', () => {
+    const p = at(oct(5, 7, 9, 12, 13), '2026-10-14', { ...RULES, goal: 4 });
+    expect(p).toMatchObject({ count: 4, formedOn: '2026-10-12' });
+  });
+
+  it('last chance when the days left equal the times left', () => {
+    expect(at(oct(5), '2026-10-10')).toMatchObject({ lastChance: true });
+    expect(at(oct(5), '2026-10-09')).toMatchObject({ lastChance: false });
+    expect(at(oct(5, 10), '2026-10-10')).toMatchObject({ lastChance: false });
+  });
+
+  it('a first week started mid-week only needs the days left in it', () => {
+    // Started on Saturday: two days were left, both done.
+    expect(at(oct(10, 11), '2026-10-12')).toMatchObject({ count: 2, missesThisAttempt: 0 });
+    expect(marks(at(oct(10, 11), '2026-10-12'))).toEqual(['done', 'today']);
+    // Only one of the two: a miss.
+    expect(at(oct(10), '2026-10-12')).toMatchObject({ count: 1, missesThisAttempt: 1 });
+    // The first week after a restart is judged the same way.
+    expect(at(oct(5, 12, 24, 25), '2026-10-26')).toMatchObject({ attempt: 2, count: 2, missesThisAttempt: 0 });
+  });
+
+  it('a new habit has no last chance; its first week counts from its first tick', () => {
+    expect(at([], '2026-10-09')).toMatchObject({ lastChance: false });
+    expect(at(oct(10), '2026-10-11')).toMatchObject({ lastChance: true, doneThisPeriod: false });
+    expect(at(oct(10, 11), '2026-10-11')).toMatchObject({ lastChance: false, doneThisPeriod: true });
+  });
+
+  it('periods are calendar weeks', () => {
+    expect(periodOf(week3, '2026-10-07', '2026-10-14')).toEqual({ start: '2026-10-12', end: '2026-10-18' });
+  });
+
+  it('formedEstimate: one a day until each week is met', () => {
+    const rules = { ...RULES, goal: 7 };
+    expect(formedEstimate(at(oct(5), '2026-10-05', rules), week3, '2026-10-05')).toBe('2026-10-19');
+    expect(formedEstimate(at([], '2026-10-09', { ...RULES, goal: 5 }), week3, '2026-10-09')).toBe('2026-10-13');
+  });
+});

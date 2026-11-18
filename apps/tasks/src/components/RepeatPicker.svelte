@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { dayOfWeek, findTask, MAX_INTERVAL } from '@omark/tasks-core';
-  import type { RepeatRule } from '@omark/tasks-core';
+  import { dayOfWeek, findTask, MAX_INTERVAL, MAX_TIMES } from '@omark/tasks-core';
+  import type { RepeatRule, TimesPer } from '@omark/tasks-core';
   import type { AppStore } from '../lib/store.svelte.ts';
 
   let {
@@ -41,6 +41,8 @@
   let everyN = $state(rule?.type === 'every' ? rule.n : 2);
   let everyUnit = $state<Extract<RepeatRule, { type: 'every' }>['unit']>(rule?.type === 'every' ? rule.unit : 'days');
   let afterN = $state(rule?.type === 'after' ? rule.n : 3);
+  let timesN = $state(rule?.type === 'times' ? rule.n : 3);
+  let timesPer = $state<TimesPer>(rule?.type === 'times' ? rule.per : 'week');
 
   function toggleDay(i: number): void {
     if (days.includes(i)) {
@@ -66,6 +68,7 @@
       yearly: { type: 'yearly' },
       every: { type: 'every', n: count(everyN), unit: everyUnit },
       after: { type: 'after', n: count(afterN) },
+      times: { type: 'times', n: count(timesN, MAX_TIMES[timesPer]), per: timesPer },
     };
     const chosen = rules[kind];
     if (habit && chosen) store.makeHabit(taskId, chosen);
@@ -112,10 +115,21 @@
         <option value="months">months</option>
       </select>
     </label>
+    <label>
+      <input type="radio" name="rep" value="times" bind:group={kind} />
+      <input class="fld small" type="number" min="1" max={MAX_TIMES[timesPer]} aria-label="Times per period" bind:value={timesN} onfocus={pick('times')} />
+      {plural(timesN, 'time')} a
+      <select class="fld" aria-label="Times period" bind:value={timesPer} onfocus={pick('times')}>
+        <option value="week">week</option>
+        <option value="month">month</option>
+        <option value="year">year</option>
+      </select>
+    </label>
     {#if !noAfter}
       <label>
-        <input type="radio" name="rep" value="after" bind:group={kind} />
-        <input class="fld small" type="number" min="1" max={MAX_INTERVAL} aria-label="Days after completion" bind:value={afterN} onfocus={pick('after')} /> days after I complete it
+        <input type="radio" name="rep" value="after" bind:group={kind} /> Every
+        <input class="fld small" type="number" min="1" max={MAX_INTERVAL} aria-label="Days after completion" bind:value={afterN} onfocus={pick('after')} />
+        {plural(afterN, 'day')} after I complete it
       </label>
     {/if}
     <div class="actions">
